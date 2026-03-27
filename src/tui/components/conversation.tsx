@@ -6,7 +6,7 @@
  * Ctrl+O toggles tool view level, Ctrl+E shows all.
  */
 
-import { createSignal, For, Show } from "solid-js"
+import { createSignal, onCleanup, For, Show } from "solid-js"
 import type { ScrollBoxRenderable } from "@opentui/core"
 import { useKeyboard } from "@opentui/solid"
 import { useMessages } from "../context/messages"
@@ -15,6 +15,39 @@ import type { Message, MessageContent } from "../../protocol/types"
 import { ThinkingBlock } from "./thinking-block"
 import { ToolView } from "./tool-view"
 import { TaskView } from "./task-view"
+
+// ---------------------------------------------------------------------------
+// Braille spinner — animated activity indicator
+// ---------------------------------------------------------------------------
+
+const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+const SPINNER_INTERVAL_MS = 80
+
+/**
+ * StreamingSpinner — braille dot spinner with contextual verb.
+ *
+ * Shown in the conversation area while the agent is working
+ * (RUNNING state, before text starts streaming). The label adapts
+ * to the current activity: "Thinking..." by default, or
+ * "Running [toolName]..." when a tool is executing.
+ */
+function StreamingSpinner(props: { label: string }) {
+  const [frameIndex, setFrameIndex] = createSignal(0)
+
+  const timer = setInterval(() => {
+    setFrameIndex((i) => (i + 1) % SPINNER_FRAMES.length)
+  }, SPINNER_INTERVAL_MS)
+
+  onCleanup(() => clearInterval(timer))
+
+  return (
+    <box flexDirection="row">
+      <text color="gray" dimmed>
+        {SPINNER_FRAMES[frameIndex()]} {props.label}
+      </text>
+    </box>
+  )
+}
 
 type ViewLevel = "collapsed" | "expanded" | "show_all"
 
@@ -133,6 +166,16 @@ export function ConversationView() {
   const [viewLevel, setViewLevel] = createSignal<ViewLevel>("collapsed")
   let scrollboxRef: ScrollBoxRenderable | undefined
 
+  // Derive spinner label from active tools
+  const spinnerLabel = () => {
+    if (state.activeTools.length > 0) {
+      // Show the name of the first active tool
+      const [, tool] = state.activeTools[0]
+      return `Running ${tool.tool}...`
+    }
+    return "Thinking..."
+  }
+
   // Ctrl+O toggles collapsed/expanded, Ctrl+E shows all
   // Ctrl+Up/Down scrolls the conversation
   useKeyboard((event) => {
@@ -199,6 +242,17 @@ export function ConversationView() {
         {/* Streaming text (live) */}
         <Show when={state.streamingText}>
           <markdown content={state.streamingText} />
+        </Show>
+
+        {/* Streaming spinner — visible when agent is working but no text yet */}
+        <Show
+          when={
+            session.sessionState === "RUNNING" &&
+            !state.streamingText &&
+            !state.streamingThinking
+          }
+        >
+          <StreamingSpinner label={spinnerLabel()} />
         </Show>
 
         {/* Background tasks / subagents */}

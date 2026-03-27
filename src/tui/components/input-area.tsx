@@ -113,6 +113,23 @@ export function InputArea() {
   }
 
   const handleKeyDown = (e: KeyEvent) => {
+    // Escape = dismiss completion or clear input
+    if (e.name === "escape") {
+      e.preventDefault()
+      if (tabMatches.length > 0) {
+        // Dismiss active tab completion
+        setCompletionHint("")
+        tabIndex = -1
+        tabMatches = []
+      } else {
+        // Clear the textarea
+        textareaRef?.clear()
+        historyIndex = -1
+        savedInput = ""
+      }
+      return
+    }
+
     // Clear completion hint on non-Tab keys
     if (e.name !== "tab") {
       setCompletionHint("")

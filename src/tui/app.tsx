@@ -68,8 +68,10 @@ function Layout() {
 
   return (
     <box flexDirection="column" width="100%" height="100%">
-      {/* Conversation area - fills available space */}
-      <ConversationView />
+      {/* Conversation area - fills available space, shrinks when terminal is small */}
+      <box flexGrow={1} flexShrink={1} overflow="hidden">
+        <ConversationView />
+      </box>
 
       {/* Permission dialog (shown inline when WAITING_FOR_PERM) */}
       <PermissionDialog />
@@ -77,14 +79,16 @@ function Layout() {
       {/* Elicitation dialog (shown inline when WAITING_FOR_ELIC) */}
       <ElicitationDialog />
 
-      {/* Input area */}
-      <box height={3} flexDirection="column">
+      {/* Input area - fixed height, never shrink */}
+      <box height={3} flexShrink={0} flexDirection="column">
         <box height={1} borderBottom="single" borderColor="gray" />
         <InputArea />
       </box>
 
-      {/* Status bar - fixed at bottom */}
-      <StatusBar />
+      {/* Status bar - fixed 1 line at bottom, never shrink */}
+      <box flexShrink={0}>
+        <StatusBar />
+      </box>
     </box>
   )
 }

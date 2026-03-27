@@ -52,13 +52,23 @@ async function main() {
     backend.close()
   }
 
+  // SIGINT is a last-resort fallback. During normal operation, Ctrl+C is
+  // captured by OpenTUI's useKeyboard() as a keypress and never becomes
+  // SIGINT. This handler only fires if the TUI fails to capture the key
+  // (e.g., crash, raw mode lost). Two SIGINTs in quick succession = force exit.
+  let sigintCount = 0
+  let sigintTimer: ReturnType<typeof setTimeout> | undefined
   process.on("SIGINT", () => {
-    backend.interrupt()
-    // Second SIGINT = force exit
-    process.once("SIGINT", () => {
+    sigintCount++
+    if (sigintCount >= 2) {
       cleanup()
       process.exit(130)
-    })
+    }
+    // Try to interrupt the backend gracefully
+    backend.interrupt()
+    // Reset counter after 2 seconds — isolated presses don't accumulate
+    clearTimeout(sigintTimer)
+    sigintTimer = setTimeout(() => { sigintCount = 0 }, 2000)
   })
 
   process.on("SIGTERM", () => {

@@ -21,6 +21,22 @@ const inputHistory: string[] = []
 let historyIndex = -1
 let savedInput = ""
 
+/**
+ * Clear the input area text. Called by the global Ctrl+C handler in Layout
+ * when the session is IDLE.
+ * Returns true if there was text to clear, false if already empty.
+ */
+export function clearInput(): boolean {
+  if (!_sharedTextareaRef) return false
+  const text = _sharedTextareaRef.plainText?.trim()
+  if (!text) return false
+  _sharedTextareaRef.clear()
+  return true
+}
+
+/** Module-level ref so clearInput() can access the textarea */
+let _sharedTextareaRef: TextareaRenderable | undefined
+
 export function InputArea() {
   const agent = useAgent()
   const { state: session } = useSession()
@@ -175,7 +191,7 @@ export function InputArea() {
     <box flexDirection="column">
       <box flexDirection="row">
         <textarea
-          ref={textareaRef}
+          ref={(el: TextareaRenderable) => { textareaRef = el; _sharedTextareaRef = el }}
           focused={!isDisabled()}
           height={2}
           placeholder={placeholder()}

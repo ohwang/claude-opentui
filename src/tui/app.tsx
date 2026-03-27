@@ -14,7 +14,7 @@ import { SessionProvider, useSession } from "./context/session"
 import { PermissionsProvider } from "./context/permissions"
 import { SyncProvider, useSync } from "./context/sync"
 import { ConversationView } from "./components/conversation"
-import { InputArea } from "./components/input-area"
+import { InputArea, clearInput } from "./components/input-area"
 import { StatusBar } from "./components/status-bar"
 import { PermissionDialog } from "./components/permission-dialog"
 import { ElicitationDialog } from "./components/elicitation"
@@ -56,8 +56,13 @@ function Layout() {
       ) {
         sync.pushEvent({ type: "interrupt" })
         agent.backend.interrupt()
+      } else if (session.sessionState === "IDLE" || session.sessionState === "ERROR") {
+        // Clear input text; if already empty, show exit hint
+        const hadText = clearInput()
+        if (!hadText) {
+          sync.pushEvent({ type: "system_message", text: "Use Ctrl+D to exit." })
+        }
       }
-      // In IDLE, Ctrl+C clears input (handled by textarea natively)
     }
   })
 

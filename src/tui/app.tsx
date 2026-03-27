@@ -18,6 +18,7 @@ import { InputArea, clearInput } from "./components/input-area"
 import { StatusBar } from "./components/status-bar"
 import { PermissionDialog } from "./components/permission-dialog"
 import { ElicitationDialog } from "./components/elicitation"
+import { HeaderBar } from "./components/header-bar"
 
 function ErrorFallback(props: { error: Error; reset: () => void }) {
   return (
@@ -68,6 +69,9 @@ function Layout() {
 
   return (
     <box flexDirection="column" width="100%" height="100%">
+      {/* Header bar - fixed 1 line at top */}
+      <HeaderBar />
+
       {/* Conversation area - fills available space, shrinks when terminal is small */}
       <box flexGrow={1} flexShrink={1} overflow="hidden">
         <ConversationView />
@@ -79,8 +83,8 @@ function Layout() {
       {/* Elicitation dialog (shown inline when WAITING_FOR_ELIC) */}
       <ElicitationDialog />
 
-      {/* Input area - fixed height, never shrink */}
-      <box height={3} flexShrink={0} flexDirection="column">
+      {/* Input area - never shrink, height adapts for autocomplete dropdown */}
+      <box flexShrink={0} flexDirection="column">
         <box height={1} borderBottom="single" borderColor="gray" />
         <InputArea />
       </box>

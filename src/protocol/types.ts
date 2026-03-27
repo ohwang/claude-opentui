@@ -121,6 +121,12 @@ export type CostUpdateEvent = {
   cost?: number
 }
 
+/** Model changed (emitted by /model command) */
+export type ModelChangedEvent = {
+  type: "model_changed"
+  model: string
+}
+
 /** System message (slash command output, notifications) */
 export type SystemMessageEvent = {
   type: "system_message"
@@ -158,6 +164,7 @@ export type AgentEvent =
   | TaskCompleteEvent
   | ErrorEvent
   | CostUpdateEvent
+  | ModelChangedEvent
   | SystemMessageEvent
   | BackendSpecificEvent
 
@@ -260,6 +267,9 @@ export interface ConversationState {
 
   /** Active background tasks */
   activeTasks: Map<string, TaskInfo>
+
+  /** Current model name (updated by /model command, overrides session default) */
+  currentModel: string | null
 
   /** Session metadata from session_init */
   session: SessionMetadata | null
@@ -482,6 +492,7 @@ export function createInitialState(): ConversationState {
     pendingElicitation: null,
     pendingMessages: [],
     activeTasks: new Map(),
+    currentModel: null,
     session: null,
     cost: {
       inputTokens: 0,

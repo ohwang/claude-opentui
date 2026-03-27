@@ -323,6 +323,14 @@ export function reduce(
       return { ...next, messages }
     }
 
+    // ----- Model changed -----
+
+    case "model_changed":
+      return {
+        ...next,
+        currentModel: event.model,
+      }
+
     // ----- System messages -----
 
     case "system_message": {

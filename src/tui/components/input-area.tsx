@@ -34,11 +34,14 @@ export function clearInput(): boolean {
   const text = _sharedTextareaRef.plainText?.trim()
   if (!text) return false
   _sharedTextareaRef.clear()
+  _resetLineCount?.()
   return true
 }
 
 /** Module-level ref so clearInput() can access the textarea */
 let _sharedTextareaRef: TextareaRenderable | undefined
+/** Module-level callback to reset line count when clearInput() is called externally */
+let _resetLineCount: (() => void) | undefined
 
 export function InputArea() {
   const agent = useAgent()
@@ -46,6 +49,20 @@ export function InputArea() {
   const { setState: setMessages } = useMessages()
   const sync = useSync()
   let textareaRef: TextareaRenderable | undefined
+
+  // Dynamic textarea height: grows with content lines (min 2, max 6)
+  const [lineCount, setLineCount] = createSignal(1)
+  const textareaHeight = () => Math.min(Math.max(lineCount() + 1, 2), 6)
+
+  // Register module-level reset so clearInput() can reset height
+  _resetLineCount = () => setLineCount(1)
+
+  /** Count lines in the textarea and update the signal */
+  const updateLineCount = () => {
+    const text = textareaRef?.plainText ?? ""
+    const newlines = text.split("\n").length
+    setLineCount(newlines)
+  }
 
   // Autocomplete dropdown state
   const [showAutocomplete, setShowAutocomplete] = createSignal(false)
@@ -159,6 +176,7 @@ export function InputArea() {
     savedInput = ""
 
     textareaRef.clear()
+    setLineCount(1)
   }
 
   const setTextareaContent = (text: string) => {
@@ -175,6 +193,7 @@ export function InputArea() {
         dismissAutocomplete()
         // Also clear the "/" text per Claude Code behavior
         textareaRef?.clear()
+        setLineCount(1)
       } else if (tabMatches.length > 0) {
         // Dismiss active tab completion
         setCompletionHint("")
@@ -183,6 +202,7 @@ export function InputArea() {
       } else {
         // Clear the textarea
         textareaRef?.clear()
+        setLineCount(1)
         historyIndex = -1
         savedInput = ""
       }
@@ -306,11 +326,12 @@ export function InputArea() {
       return
     }
 
-    // After the key is processed, schedule autocomplete update
+    // After the key is processed, schedule autocomplete + line count update
     // Use queueMicrotask so the textarea value reflects the keystroke
     queueMicrotask(() => {
       const text = textareaRef?.plainText ?? ""
       updateAutocomplete(text)
+      updateLineCount()
     })
   }
 
@@ -347,7 +368,7 @@ export function InputArea() {
         <textarea
           ref={(el: TextareaRenderable) => { textareaRef = el; _sharedTextareaRef = el }}
           focused={!isDisabled()}
-          height={2}
+          height={textareaHeight()}
           placeholder={placeholder()}
           keyBindings={[
             { name: "return", action: "submit" },

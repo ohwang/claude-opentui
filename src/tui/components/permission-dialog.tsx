@@ -10,11 +10,13 @@ import { useKeyboard } from "@opentui/solid"
 import { usePermissions } from "../context/permissions"
 import { useAgent } from "../context/agent"
 import { useSession } from "../context/session"
+import { useSync } from "../context/sync"
 
 export function PermissionDialog() {
   const { state } = usePermissions()
   const { state: session } = useSession()
   const agent = useAgent()
+  const sync = useSync()
 
   useKeyboard((event) => {
     if (session.sessionState !== "WAITING_FOR_PERM") return
@@ -25,7 +27,12 @@ export function PermissionDialog() {
     if (event.name === "y") {
       agent.backend.approveToolUse(id)
     } else if (event.name === "n" || event.name === "escape") {
+      const toolName = state.pendingPermission.tool
       agent.backend.denyToolUse(id, "Denied by user")
+      sync.pushEvent({
+        type: "system_message",
+        text: `Tool "${toolName}" denied by user`,
+      })
     } else if (event.name === "a") {
       agent.backend.approveToolUse(id, { alwaysAllow: true })
     }

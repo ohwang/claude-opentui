@@ -6,7 +6,7 @@
  * Ctrl+O toggles tool view level, Ctrl+E shows all.
  */
 
-import { createSignal, onCleanup, Show, Index } from "solid-js"
+import { createSignal, createEffect, onCleanup, Show, Index } from "solid-js"
 import type { ScrollBoxRenderable } from "@opentui/core"
 import { useKeyboard } from "@opentui/solid"
 import { useMessages } from "../context/messages"
@@ -65,6 +65,19 @@ export function ConversationView() {
     }
     return "Thinking..."
   }
+
+  // Re-engage stickyScroll when new messages arrive.
+  // When the user manually scrolls up (Ctrl+Up), OpenTUI disengages stickyScroll.
+  // After sending a new message, we want to scroll back to the bottom so
+  // stickyScroll re-engages and streaming content stays visible.
+  let prevMessageCount = 0
+  createEffect(() => {
+    const count = state.messages.length
+    if (count > prevMessageCount) {
+      scrollboxRef?.scrollToEnd()
+    }
+    prevMessageCount = count
+  })
 
   // Ctrl+O toggles collapsed/expanded, Ctrl+E shows all
   // Ctrl+Up/Down scrolls the conversation

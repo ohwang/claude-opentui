@@ -143,7 +143,7 @@ export function StatusBar() {
     }
   }
 
-  const modelName = () => state.session?.models?.[0]?.name ?? "claude"
+  const modelName = () => state.currentModel || state.session?.models?.[0]?.name || "claude"
 
   const costStr = () => {
     const c = state.cost.totalCostUsd

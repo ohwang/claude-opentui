@@ -145,10 +145,15 @@ export function createCommandRegistry(): CommandRegistry {
         })
         return
       }
-      await ctx.setModel(args.trim())
+      const modelName = args.trim()
+      await ctx.setModel(modelName)
+      ctx.pushEvent({
+        type: "model_changed",
+        model: modelName,
+      })
       ctx.pushEvent({
         type: "system_message",
-        text: `Switched to ${args.trim()}`,
+        text: `Switched to ${modelName}`,
       })
     },
   })

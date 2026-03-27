@@ -21,7 +21,7 @@
 import { For, Show } from "solid-js"
 import type { ToolResult, ActiveTool } from "../../protocol/types"
 
-type ViewLevel = "collapsed" | "expanded" | "show_all"
+export type ViewLevel = "collapsed" | "expanded" | "show_all"
 
 export function ToolView(props: {
   completedTools: ToolResult[]

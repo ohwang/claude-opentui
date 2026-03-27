@@ -154,27 +154,12 @@ export function reduce(
       }
 
     case "text_complete": {
-      // Finalize accumulated text into a message
-      const messages = [...state.messages]
-      const content: Message["content"] = []
-
-      if (state.streamingThinking) {
-        content.push({ type: "thinking", text: state.streamingThinking })
-      }
-      content.push({ type: "text", text: event.text })
-
-      messages.push({
-        role: "assistant",
-        content,
-        timestamp: Date.now(),
-        turnNumber: state.turnNumber,
-      })
-
+      // Store finalized text for turn_complete to bundle into the message.
+      // Do NOT create a message here — turn_complete is the single place
+      // that assembles the final assistant message (text + thinking + tools).
       return {
         ...next,
-        messages,
-        streamingText: "",
-        streamingThinking: "",
+        streamingText: event.text,
       }
     }
 

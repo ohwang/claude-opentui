@@ -34,6 +34,8 @@ export interface SyncContextValue {
   pushEvent: (event: AgentEvent) => void
   /** Start consuming the backend event stream */
   startEventLoop: () => void
+  /** Reset conversation state (messages, streaming, tools) while preserving session/cost */
+  clearConversation: () => void
 }
 
 const SyncContext = createContext<SyncContextValue>()
@@ -85,6 +87,34 @@ export function SyncProvider(props: ParentProps) {
 
   const pushEvent = (event: AgentEvent) => {
     batcher.push(event)
+  }
+
+  // Reset conversation state (messages, streaming, tools) while preserving session/cost
+  const clearConversation = () => {
+    // Flush any pending events first so we don't lose them
+    batcher.flush()
+
+    // Reset conversationState but preserve session metadata, cost, and session state
+    conversationState = {
+      ...createInitialState(),
+      sessionState: conversationState.sessionState,
+      session: conversationState.session,
+      cost: { ...conversationState.cost },
+      turnNumber: conversationState.turnNumber,
+    }
+
+    // Clear the SolidJS stores to match
+    batch(() => {
+      messages.setState({
+        messages: [],
+        streamingText: "",
+        streamingThinking: "",
+        activeTools: [],
+        completedTools: [],
+        pendingMessages: [],
+        activeTasks: [],
+      })
+    })
   }
 
   // Start the backend and iterate its event generator
@@ -145,7 +175,7 @@ export function SyncProvider(props: ParentProps) {
   })
 
   return (
-    <SyncContext.Provider value={{ pushEvent, startEventLoop }}>
+    <SyncContext.Provider value={{ pushEvent, startEventLoop, clearConversation }}>
       {props.children}
     </SyncContext.Provider>
   )

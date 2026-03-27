@@ -90,6 +90,7 @@ describe("CommandRegistry", () => {
       backend: {} as any,
       pushEvent: () => {},
       clearMessages: () => {},
+      clearConversation: () => {},
       setModel: async () => {},
     }
 
@@ -104,6 +105,7 @@ describe("CommandRegistry", () => {
       backend: {} as any,
       pushEvent: () => {},
       clearMessages: () => {},
+      clearConversation: () => {},
       setModel: async () => {},
     }
 
@@ -116,6 +118,7 @@ describe("CommandRegistry", () => {
       backend: {} as any,
       pushEvent: () => {},
       clearMessages: () => {},
+      clearConversation: () => {},
       setModel: async () => {},
     }
 
@@ -143,6 +146,7 @@ describe("Built-in commands", () => {
       backend: {} as any,
       pushEvent: (e: any) => events.push(e),
       clearMessages: () => {},
+      clearConversation: () => {},
       setModel: async () => {},
     }
 

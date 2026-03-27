@@ -125,6 +125,96 @@ describe("ConversationState reducer", () => {
       })
     })
 
+    it("bundles text and tools into a single assistant message", () => {
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "turn_start" },
+        { type: "text_delta", text: "Let me read that file." },
+        { type: "text_complete", text: "Let me read that file." },
+        {
+          type: "tool_use_start",
+          id: "t1",
+          tool: "Read",
+          input: { path: "/foo" },
+        },
+        { type: "tool_use_end", id: "t1", output: "file contents" },
+        { type: "turn_complete" },
+      ])
+      // Must produce exactly ONE assistant message
+      expect(state.messages).toHaveLength(1)
+      expect(state.messages[0].role).toBe("assistant")
+      // Should contain text + tool_use + tool_result
+      const content = state.messages[0].content
+      expect(content).toHaveLength(3)
+      expect(content[0]).toEqual({
+        type: "text",
+        text: "Let me read that file.",
+      })
+      expect(content[1]).toEqual({
+        type: "tool_use",
+        id: "t1",
+        tool: "Read",
+        input: { path: "/foo" },
+      })
+      expect(content[2]).toMatchObject({
+        type: "tool_result",
+        id: "t1",
+        output: "file contents",
+      })
+    })
+
+    it("bundles thinking, text, and tools into a single assistant message", () => {
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "turn_start" },
+        { type: "thinking_delta", text: "I should read the file." },
+        { type: "text_delta", text: "Reading the file now." },
+        { type: "text_complete", text: "Reading the file now." },
+        {
+          type: "tool_use_start",
+          id: "t1",
+          tool: "Read",
+          input: { path: "/bar" },
+        },
+        { type: "tool_use_end", id: "t1", output: "bar contents" },
+        { type: "turn_complete" },
+      ])
+      expect(state.messages).toHaveLength(1)
+      const content = state.messages[0].content
+      expect(content[0]).toEqual({
+        type: "thinking",
+        text: "I should read the file.",
+      })
+      expect(content[1]).toEqual({
+        type: "text",
+        text: "Reading the file now.",
+      })
+      expect(content[2]).toMatchObject({ type: "tool_use", id: "t1" })
+      expect(content[3]).toMatchObject({ type: "tool_result", id: "t1" })
+    })
+
+    it("produces one assistant message for tools-only turn", () => {
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "turn_start" },
+        {
+          type: "tool_use_start",
+          id: "t1",
+          tool: "Bash",
+          input: { command: "ls" },
+        },
+        { type: "tool_use_end", id: "t1", output: "file1\nfile2" },
+        { type: "turn_complete" },
+      ])
+      expect(state.messages).toHaveLength(1)
+      expect(state.messages[0].role).toBe("assistant")
+      expect(state.messages[0].content).toHaveLength(2) // tool_use + tool_result
+      expect(state.messages[0].content[0]).toMatchObject({ type: "tool_use" })
+      expect(state.messages[0].content[1]).toMatchObject({
+        type: "tool_result",
+      })
+    })
+
     it("ignores duplicate turn_complete", () => {
       const state = applyEvents([
         { type: "session_init", tools: [], models: [] },
@@ -240,27 +330,25 @@ describe("ConversationState reducer", () => {
   })
 
   describe("text_complete", () => {
-    it("creates an assistant message", () => {
+    it("stores finalized text without creating a message", () => {
       const state = applyEvents([
         { type: "session_init", tools: [], models: [] },
         { type: "turn_start" },
         { type: "text_complete", text: "Hello world" },
       ])
-      expect(state.messages).toHaveLength(1)
-      expect(state.messages[0].role).toBe("assistant")
-      expect(state.messages[0].content).toEqual([
-        { type: "text", text: "Hello world" },
-      ])
+      // text_complete no longer creates a message — turn_complete does
+      expect(state.messages).toHaveLength(0)
+      expect(state.streamingText).toBe("Hello world")
     })
 
-    it("clears streaming text", () => {
+    it("overwrites streaming text with finalized text", () => {
       const state = applyEvents([
         { type: "session_init", tools: [], models: [] },
         { type: "turn_start" },
         { type: "text_delta", text: "partial" },
         { type: "text_complete", text: "full text" },
       ])
-      expect(state.streamingText).toBe("")
+      expect(state.streamingText).toBe("full text")
     })
   })
 

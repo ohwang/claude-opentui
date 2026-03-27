@@ -5,10 +5,10 @@
  * expands on Ctrl+O with the rest of the tool view.
  */
 
-import { createSignal, Show } from "solid-js"
+import { Show } from "solid-js"
 
 export function ThinkingBlock(props: { text: string; collapsed?: boolean }) {
-  const [expanded, setExpanded] = createSignal(!props.collapsed)
+  const expanded = () => !props.collapsed
 
   const preview = () => {
     const lines = props.text.split("\n")

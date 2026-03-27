@@ -20,7 +20,7 @@ export function HeaderBar() {
       </text>
       <box flexGrow={1} />
       <text dimmed color="gray">
-        ? for help
+        /help
       </text>
     </box>
   )

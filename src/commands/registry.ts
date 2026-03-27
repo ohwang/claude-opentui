@@ -13,6 +13,7 @@ export interface CommandContext {
   backend: AgentBackend
   pushEvent: (event: any) => void
   clearMessages: () => void
+  clearConversation: () => void
   setModel: (model: string) => Promise<void>
 }
 
@@ -115,7 +116,7 @@ export function createCommandRegistry(): CommandRegistry {
     name: "clear",
     description: "Clear the conversation display",
     execute: (_args, ctx) => {
-      ctx.clearMessages()
+      ctx.clearConversation()
     },
   })
 

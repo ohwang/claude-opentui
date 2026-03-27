@@ -140,6 +140,7 @@ export function InputArea() {
       clearMessages: () => {
         setMessages({ messages: [], streamingText: "", streamingThinking: "" })
       },
+      clearConversation: sync.clearConversation,
       setModel: (model: string) => agent.backend.setModel(model),
     })
 
@@ -148,11 +149,11 @@ export function InputArea() {
       sync.pushEvent({ type: "user_message", text })
       // Send to backend (queued if a turn is running)
       agent.backend.sendMessage({ text })
-    }
 
-    // Push to history (avoid duplicating last entry)
-    if (inputHistory[inputHistory.length - 1] !== text) {
-      inputHistory.push(text)
+      // Push to history (avoid duplicating last entry) — only for real messages, not slash commands
+      if (inputHistory[inputHistory.length - 1] !== text) {
+        inputHistory.push(text)
+      }
     }
     historyIndex = -1
     savedInput = ""

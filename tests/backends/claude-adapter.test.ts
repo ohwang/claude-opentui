@@ -1,7 +1,66 @@
-import { describe, expect, it, mock, beforeEach } from "bun:test"
+import { describe, expect, it, mock, beforeEach, afterEach } from "bun:test"
 import { ClaudeAdapter } from "../../src/backends/claude/adapter"
 
 describe("ClaudeAdapter", () => {
+  describe("API key validation", () => {
+    let originalKey: string | undefined
+
+    beforeEach(() => {
+      originalKey = process.env.ANTHROPIC_API_KEY
+    })
+
+    afterEach(() => {
+      if (originalKey !== undefined) {
+        process.env.ANTHROPIC_API_KEY = originalKey
+      } else {
+        delete process.env.ANTHROPIC_API_KEY
+      }
+    })
+
+    it("yields fatal error when ANTHROPIC_API_KEY is missing", async () => {
+      delete process.env.ANTHROPIC_API_KEY
+
+      const adapter = new ClaudeAdapter()
+      const events: any[] = []
+
+      for await (const event of adapter.start({})) {
+        events.push(event)
+      }
+
+      expect(events).toHaveLength(1)
+      expect(events[0].type).toBe("error")
+      expect(events[0].code).toBe("missing_api_key")
+      expect(events[0].severity).toBe("fatal")
+      expect(events[0].message).toContain("ANTHROPIC_API_KEY")
+
+      adapter.close()
+    })
+
+    it("yields fatal error when ANTHROPIC_API_KEY is empty string", async () => {
+      process.env.ANTHROPIC_API_KEY = ""
+
+      const adapter = new ClaudeAdapter()
+      const events: any[] = []
+
+      for await (const event of adapter.start({})) {
+        events.push(event)
+      }
+
+      expect(events).toHaveLength(1)
+      expect(events[0].type).toBe("error")
+      expect(events[0].code).toBe("missing_api_key")
+      expect(events[0].severity).toBe("fatal")
+
+      adapter.close()
+    })
+  })
+
+  describe("startup timeout", () => {
+    it("has a startup timeout constant", () => {
+      expect(ClaudeAdapter.STARTUP_TIMEOUT_MS).toBe(15_000)
+    })
+  })
+
   describe("capabilities", () => {
     it("reports Claude capabilities", () => {
       const adapter = new ClaudeAdapter()

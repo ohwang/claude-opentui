@@ -3,18 +3,21 @@
  *
  * Enter to send, Shift+Enter for newline.
  * Input stays enabled during RUNNING (messages queued).
- * '/' at position 0 triggers slash command dispatch.
+ * '/' at position 0 triggers slash command autocomplete dropdown.
  */
 
-import { createSignal } from "solid-js"
+import { createSignal, Show, For } from "solid-js"
 import type { TextareaRenderable, KeyEvent } from "@opentui/core"
 import { useAgent } from "../context/agent"
 import { useSession } from "../context/session"
 import { useMessages } from "../context/messages"
 import { useSync } from "../context/sync"
-import { createCommandRegistry } from "../../commands/registry"
+import { createCommandRegistry, type SlashCommand } from "../../commands/registry"
 
 const commandRegistry = createCommandRegistry()
+
+/** Maximum number of items visible in the autocomplete dropdown */
+const MAX_VISIBLE_ITEMS = 6
 
 // Input history for Up/Down arrow recall
 const inputHistory: string[] = []
@@ -43,6 +46,13 @@ export function InputArea() {
   const { setState: setMessages } = useMessages()
   const sync = useSync()
   let textareaRef: TextareaRenderable | undefined
+
+  // Autocomplete dropdown state
+  const [showAutocomplete, setShowAutocomplete] = createSignal(false)
+  const [autocompleteItems, setAutocompleteItems] = createSignal<SlashCommand[]>([])
+  const [selectedIndex, setSelectedIndex] = createSignal(0)
+
+  // Legacy tab completion hint (kept for non-dropdown fallback)
   const [completionHint, setCompletionHint] = createSignal("")
   let tabIndex = -1
   let tabMatches: string[] = []
@@ -74,10 +84,54 @@ export function InputArea() {
     session.sessionState === "WAITING_FOR_ELIC" ||
     session.sessionState === "SHUTTING_DOWN"
 
+  /** Dismiss the autocomplete dropdown */
+  const dismissAutocomplete = () => {
+    setShowAutocomplete(false)
+    setAutocompleteItems([])
+    setSelectedIndex(0)
+  }
+
+  /** Update autocomplete based on current input text */
+  const updateAutocomplete = (text: string) => {
+    // Only trigger when "/" is at position 0 with no space yet after the command
+    if (!text.startsWith("/")) {
+      dismissAutocomplete()
+      return
+    }
+
+    // If there's a space after the command name, dismiss (command is "complete")
+    const afterSlash = text.slice(1)
+    if (afterSlash.includes(" ")) {
+      dismissAutocomplete()
+      return
+    }
+
+    const query = afterSlash
+    const matches = commandRegistry.search(query)
+
+    if (matches.length === 0) {
+      dismissAutocomplete()
+      return
+    }
+
+    setAutocompleteItems(matches)
+    setSelectedIndex(0)
+    setShowAutocomplete(true)
+  }
+
+  /** Select a command from the autocomplete dropdown */
+  const selectCommand = (command: SlashCommand) => {
+    setTextareaContent(`/${command.name} `)
+    dismissAutocomplete()
+  }
+
   const submit = async () => {
     if (!textareaRef) return
     const text = textareaRef.plainText?.trim()
     if (!text) return
+
+    // Dismiss autocomplete on submit
+    dismissAutocomplete()
 
     // Try slash command first
     const handled = await commandRegistry.tryExecute(text, {
@@ -113,10 +167,14 @@ export function InputArea() {
   }
 
   const handleKeyDown = (e: KeyEvent) => {
-    // Escape = dismiss completion or clear input
+    // Escape = dismiss autocomplete, then completion hint, then clear input
     if (e.name === "escape") {
       e.preventDefault()
-      if (tabMatches.length > 0) {
+      if (showAutocomplete()) {
+        dismissAutocomplete()
+        // Also clear the "/" text per Claude Code behavior
+        textareaRef?.clear()
+      } else if (tabMatches.length > 0) {
         // Dismiss active tab completion
         setCompletionHint("")
         tabIndex = -1
@@ -128,6 +186,50 @@ export function InputArea() {
         savedInput = ""
       }
       return
+    }
+
+    // When autocomplete is open, intercept navigation keys
+    if (showAutocomplete()) {
+      const items = autocompleteItems()
+
+      // Up arrow = move selection up (wraps)
+      if (e.name === "up") {
+        e.preventDefault()
+        const idx = selectedIndex()
+        setSelectedIndex(idx <= 0 ? items.length - 1 : idx - 1)
+        return
+      }
+
+      // Down arrow = move selection down (wraps)
+      if (e.name === "down") {
+        e.preventDefault()
+        const idx = selectedIndex()
+        setSelectedIndex(idx >= items.length - 1 ? 0 : idx + 1)
+        return
+      }
+
+      // Enter = execute selected command
+      if (e.name === "return" && !e.shift && !e.meta) {
+        e.preventDefault()
+        const selected = items[selectedIndex()]
+        if (selected) {
+          // Fill command into input and submit
+          setTextareaContent(`/${selected.name}`)
+          dismissAutocomplete()
+          submit()
+        }
+        return
+      }
+
+      // Tab = fill selected command into input (without executing)
+      if (e.name === "tab") {
+        e.preventDefault()
+        const selected = items[selectedIndex()]
+        if (selected) {
+          selectCommand(selected)
+        }
+        return
+      }
     }
 
     // Clear completion hint on non-Tab keys
@@ -144,7 +246,7 @@ export function InputArea() {
       return
     }
 
-    // Tab = slash command completion
+    // Tab = slash command completion (fallback when dropdown is not showing)
     if (e.name === "tab") {
       e.preventDefault()
       const text = textareaRef?.plainText ?? ""
@@ -202,10 +304,44 @@ export function InputArea() {
       }
       return
     }
+
+    // After the key is processed, schedule autocomplete update
+    // Use queueMicrotask so the textarea value reflects the keystroke
+    queueMicrotask(() => {
+      const text = textareaRef?.plainText ?? ""
+      updateAutocomplete(text)
+    })
   }
 
   return (
     <box flexDirection="column">
+      {/* Autocomplete dropdown — rendered above the input */}
+      <Show when={showAutocomplete() && autocompleteItems().length > 0}>
+        <box
+          flexDirection="column"
+          borderStyle="single"
+          borderColor="gray"
+          maxHeight={MAX_VISIBLE_ITEMS + 2}
+        >
+          <For each={autocompleteItems().slice(0, MAX_VISIBLE_ITEMS)}>
+            {(cmd, index) => (
+              <box flexDirection="row" paddingLeft={1} paddingRight={1}>
+                <text
+                  bold={index() === selectedIndex()}
+                  color={index() === selectedIndex() ? "cyan" : "white"}
+                >
+                  /{cmd.name}
+                </text>
+                <text color="gray" dimmed={index() !== selectedIndex()}>
+                  {" "}{cmd.description}
+                </text>
+              </box>
+            )}
+          </For>
+        </box>
+      </Show>
+
+      {/* Input row */}
       <box flexDirection="row">
         <textarea
           ref={(el: TextareaRenderable) => { textareaRef = el; _sharedTextareaRef = el }}

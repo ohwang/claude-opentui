@@ -11,9 +11,14 @@
  *
  * Global toggle via Ctrl+O. Ctrl+E for show all.
  * Auto-resets to collapsed on new turn.
+ *
+ * Enhanced rendering:
+ * - Unified diffs render via <diff> with color-coded additions/deletions
+ * - Code output renders via <code> with tree-sitter syntax highlighting
+ * - Falls back to plain <text> when format cannot be determined
  */
 
-import { createSignal, For, Show } from "solid-js"
+import { For, Show } from "solid-js"
 import type { ToolResult, ActiveTool } from "../../protocol/types"
 
 type ViewLevel = "collapsed" | "expanded" | "show_all"
@@ -97,10 +102,9 @@ function ToolSummary(props: {
 }
 
 /** Detect if output looks like a unified diff */
-function isDiffOutput(tool: ToolResult): boolean {
-  if (tool.tool !== "Edit" && tool.tool !== "Write") return false
-  const output = tool.output
-  // Unified diffs start with --- or contain @@ hunks
+function isDiffOutput(output: string): boolean {
+  if (!output) return false
+  // Unified diffs have @@ hunk headers and --- / +++ file markers
   return (
     output.includes("@@") &&
     (output.includes("---") || output.includes("+++"))
@@ -110,10 +114,113 @@ function isDiffOutput(tool: ToolResult): boolean {
 /** Extract file extension from tool input for syntax highlighting */
 function fileExtension(tool: ToolResult): string | undefined {
   const input = tool.input as Record<string, unknown>
-  const path = input?.file_path as string
+  if (!input) return undefined
+  // Check file_path (Read, Write, Edit) and pattern (Grep, Glob)
+  const path = (input.file_path ?? input.path) as string | undefined
   if (!path) return undefined
-  const parts = path.split(".")
-  return parts.length > 1 ? parts[parts.length - 1] : undefined
+  const dot = path.lastIndexOf(".")
+  return dot !== -1 ? path.slice(dot + 1) : undefined
+}
+
+/**
+ * Map file extension to tree-sitter filetype identifier.
+ * Returns undefined for unknown extensions — caller falls back to plain text.
+ */
+const EXT_TO_FILETYPE: Record<string, string> = {
+  ts: "typescript",
+  tsx: "tsx",
+  js: "javascript",
+  jsx: "jsx",
+  py: "python",
+  rb: "ruby",
+  rs: "rust",
+  go: "go",
+  java: "java",
+  kt: "kotlin",
+  c: "c",
+  h: "c",
+  cpp: "cpp",
+  cc: "cpp",
+  hpp: "cpp",
+  cs: "c_sharp",
+  swift: "swift",
+  zig: "zig",
+  lua: "lua",
+  sh: "bash",
+  bash: "bash",
+  zsh: "bash",
+  fish: "fish",
+  json: "json",
+  jsonc: "json",
+  yaml: "yaml",
+  yml: "yaml",
+  toml: "toml",
+  xml: "xml",
+  html: "html",
+  htm: "html",
+  css: "css",
+  scss: "scss",
+  sql: "sql",
+  md: "markdown",
+  mdx: "markdown",
+  dockerfile: "dockerfile",
+  ex: "elixir",
+  exs: "elixir",
+  erl: "erlang",
+  hs: "haskell",
+  ml: "ocaml",
+  r: "r",
+  php: "php",
+  pl: "perl",
+  scala: "scala",
+  vue: "vue",
+  svelte: "svelte",
+  tf: "hcl",
+  proto: "proto",
+  graphql: "graphql",
+  gql: "graphql",
+}
+
+function extToFiletype(ext: string | undefined): string | undefined {
+  if (!ext) return undefined
+  return EXT_TO_FILETYPE[ext.toLowerCase()]
+}
+
+/** Tools whose output represents file content (candidates for syntax highlighting) */
+const FILE_CONTENT_TOOLS = new Set(["Read", "NotebookRead"])
+
+/**
+ * Determine the rendering strategy for a tool's output.
+ * Priority: diff > code (with known filetype) > plain text.
+ */
+function outputRenderMode(tool: ToolResult): {
+  mode: "diff" | "code" | "text"
+  filetype?: string
+} {
+  const output = tool.output
+  if (!output) return { mode: "text" }
+
+  // 1. Diff detection — works for any tool (Edit, Write, Bash, etc.)
+  if (isDiffOutput(output)) {
+    const ext = fileExtension(tool)
+    return { mode: "diff", filetype: extToFiletype(ext) }
+  }
+
+  // 2. Code detection — for tools that read/produce file content
+  if (FILE_CONTENT_TOOLS.has(tool.tool)) {
+    const ext = fileExtension(tool)
+    const ft = extToFiletype(ext)
+    if (ft) return { mode: "code", filetype: ft }
+  }
+
+  // 3. Edit/Write tool output that wasn't a diff — still try syntax highlighting
+  if (tool.tool === "Edit" || tool.tool === "Write") {
+    const ext = fileExtension(tool)
+    const ft = extToFiletype(ext)
+    if (ft) return { mode: "code", filetype: ft }
+  }
+
+  return { mode: "text" }
 }
 
 function ToolBlock(props: { tool: ToolResult; showAll: boolean }) {
@@ -134,7 +241,7 @@ function ToolBlock(props: { tool: ToolResult; showAll: boolean }) {
     }
   }
 
-  const showDiff = () => isDiffOutput(props.tool)
+  const renderMode = () => outputRenderMode(props.tool)
 
   return (
     <box flexDirection="column" paddingLeft={1}>
@@ -145,15 +252,38 @@ function ToolBlock(props: { tool: ToolResult; showAll: boolean }) {
         <text color="red">{"✗ "}{props.tool.error}</text>
       </Show>
       <Show when={props.tool.output && !props.tool.error}>
-        <Show when={showDiff()} fallback={<code content={truncatedOutput()} />}>
-          <diff
-            diff={props.showAll ? props.tool.output : truncatedOutput()}
-            view="unified"
-            filetype={fileExtension(props.tool)}
-          />
-        </Show>
+        <ToolOutput
+          output={props.showAll ? props.tool.output : truncatedOutput()}
+          renderMode={renderMode()}
+        />
       </Show>
     </box>
+  )
+}
+
+/** Renders tool output using the appropriate renderable based on content type */
+function ToolOutput(props: {
+  output: string
+  renderMode: { mode: "diff" | "code" | "text"; filetype?: string }
+}) {
+  return (
+    <Show
+      when={props.renderMode.mode === "diff"}
+      fallback={
+        <Show
+          when={props.renderMode.mode === "code"}
+          fallback={<text>{props.output}</text>}
+        >
+          <code content={props.output} filetype={props.renderMode.filetype} />
+        </Show>
+      }
+    >
+      <diff
+        diff={props.output}
+        view="unified"
+        filetype={props.renderMode.filetype}
+      />
+    </Show>
   )
 }
 

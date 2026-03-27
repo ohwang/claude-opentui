@@ -6,7 +6,7 @@
  * Ctrl+O toggles tool view level, Ctrl+E shows all.
  */
 
-import { createSignal, onCleanup, For, Show } from "solid-js"
+import { createSignal, onCleanup, For, Show, Index } from "solid-js"
 import type { ScrollBoxRenderable } from "@opentui/core"
 import { useKeyboard } from "@opentui/solid"
 import { useMessages } from "../context/messages"
@@ -82,8 +82,38 @@ function MessageContentView(props: {
   }
 }
 
-function MessageBlock(props: { message: Message; viewLevel: ViewLevel }) {
+// ---------------------------------------------------------------------------
+// Turn separator — thin line between turns for visual separation
+// ---------------------------------------------------------------------------
+
+function TurnSeparator() {
+  return (
+    <box paddingTop={1} paddingBottom={0}>
+      <text color="gray" dimmed>
+        {"────────────────────────────────────────"}
+      </text>
+    </box>
+  )
+}
+
+function MessageBlock(props: {
+  message: Message
+  viewLevel: ViewLevel
+  isFirstMessage: boolean
+  previousRole?: "user" | "assistant" | "system"
+}) {
   const isUser = () => props.message.role === "user"
+  const isSystem = () => props.message.role === "system"
+  const isAssistant = () => props.message.role === "assistant"
+
+  // Show turn separator when transitioning between user and assistant
+  const showSeparator = () => {
+    if (props.isFirstMessage) return false
+    const prev = props.previousRole
+    const curr = props.message.role
+    // Separator on role transitions (user->assistant, assistant->user)
+    return prev !== undefined && prev !== curr && prev !== "system" && curr !== "system"
+  }
 
   // Extract text/thinking content vs tool content
   const textContent = () =>
@@ -113,11 +143,57 @@ function MessageBlock(props: { message: Message; viewLevel: ViewLevel }) {
 
   return (
     <box flexDirection="column">
+      {/* Turn separator between role transitions */}
+      <Show when={showSeparator()}>
+        <TurnSeparator />
+      </Show>
+
+      {/* User message — bold blue prefix, left border, top margin */}
       <Show when={isUser()}>
-        <box flexDirection="row">
-          <text color="blue" bold>
-            {"> "}
-          </text>
+        <box
+          flexDirection="column"
+          marginTop={props.isFirstMessage ? 0 : 1}
+          borderLeft
+          borderColor="blue"
+          paddingLeft={1}
+        >
+          <box flexDirection="row">
+            <text color="blue" bold>
+              {"> "}
+            </text>
+            <For each={textContent()}>
+              {(content) => (
+                <MessageContentView
+                  content={content}
+                  viewLevel={props.viewLevel}
+                />
+              )}
+            </For>
+          </box>
+        </box>
+      </Show>
+
+      {/* System message — dimmed italic with info prefix */}
+      <Show when={isSystem()}>
+        <box flexDirection="column" paddingLeft={2} marginTop={1}>
+          <For each={textContent()}>
+            {(content) => (
+              <text color="gray" dimmed italic>
+                {content.type === "text" ? `\u2139 ${content.text}` : ""}
+              </text>
+            )}
+          </For>
+        </box>
+      </Show>
+
+      {/* Assistant message — left border in cyan, markdown rendering */}
+      <Show when={isAssistant()}>
+        <box
+          flexDirection="column"
+          borderLeft
+          borderColor="cyan"
+          paddingLeft={1}
+        >
           <For each={textContent()}>
             {(content) => (
               <MessageContentView
@@ -126,35 +202,14 @@ function MessageBlock(props: { message: Message; viewLevel: ViewLevel }) {
               />
             )}
           </For>
-        </box>
-      </Show>
-      <Show when={props.message.role === "system"}>
-        <For each={textContent()}>
-          {(content) => (
-            <box>
-              <text color="gray" dimmed>
-                {content.type === "text" ? content.text : ""}
-              </text>
-            </box>
-          )}
-        </For>
-      </Show>
-      <Show when={props.message.role === "assistant"}>
-        <For each={textContent()}>
-          {(content) => (
-            <MessageContentView
-              content={content}
+          <Show when={toolResults().length > 0}>
+            <ToolView
+              completedTools={toolResults()}
+              activeTools={[]}
               viewLevel={props.viewLevel}
             />
-          )}
-        </For>
-        <Show when={toolResults().length > 0}>
-          <ToolView
-            completedTools={toolResults()}
-            activeTools={[]}
-            viewLevel={props.viewLevel}
-          />
-        </Show>
+          </Show>
+        </box>
       </Show>
     </box>
   )
@@ -215,11 +270,16 @@ export function ConversationView() {
         </Show>
 
         {/* Rendered messages */}
-        <For each={state.messages}>
-          {(message) => (
-            <MessageBlock message={message} viewLevel={viewLevel()} />
+        <Index each={state.messages}>
+          {(message, index) => (
+            <MessageBlock
+              message={message()}
+              viewLevel={viewLevel()}
+              isFirstMessage={index === 0}
+              previousRole={index > 0 ? state.messages[index - 1]?.role : undefined}
+            />
           )}
-        </For>
+        </Index>
 
         {/* Active tools (during streaming) */}
         <Show
@@ -239,9 +299,11 @@ export function ConversationView() {
           <ThinkingBlock text={state.streamingThinking} collapsed={false} />
         </Show>
 
-        {/* Streaming text (live) */}
+        {/* Streaming text (live) — styled as assistant with left border */}
         <Show when={state.streamingText}>
-          <markdown content={state.streamingText} />
+          <box borderLeft borderColor="cyan" paddingLeft={1}>
+            <markdown content={state.streamingText} />
+          </box>
         </Show>
 
         {/* Streaming spinner — visible when agent is working but no text yet */}

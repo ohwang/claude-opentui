@@ -21,7 +21,7 @@ export function ThinkingBlock(props: { text: string; collapsed?: boolean }) {
       <Show
         when={expanded()}
         fallback={
-          <text color="gray" dimmed>
+          <text color="gray" dimmed italic>
             {"💭 "}{preview()}
           </text>
         }

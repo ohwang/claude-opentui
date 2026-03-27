@@ -9,7 +9,7 @@ import { render, useKeyboard, useRenderer } from "@opentui/solid"
 import { ErrorBoundary, Show } from "solid-js"
 import type { AgentBackend, SessionConfig } from "../protocol/types"
 import { AgentProvider, useAgent, type AgentContextValue } from "./context/agent"
-import { MessagesProvider } from "./context/messages"
+import { MessagesProvider, useMessages } from "./context/messages"
 import { SessionProvider, useSession } from "./context/session"
 import { PermissionsProvider } from "./context/permissions"
 import { SyncProvider, useSync } from "./context/sync"
@@ -36,6 +36,7 @@ function Layout() {
   const { state: session } = useSession()
   const agent = useAgent()
   const sync = useSync()
+  const { setState: setMessages } = useMessages()
 
   // Global keyboard shortcuts
   useKeyboard((event) => {
@@ -46,6 +47,12 @@ function Layout() {
       }
       agent.backend.close()
       process.exit(0)
+    }
+
+    // Ctrl+L to clear the conversation display
+    if (event.ctrl && event.name === "l") {
+      setMessages({ messages: [], streamingText: "", streamingThinking: "" })
+      return
     }
 
     // Ctrl+C to interrupt during RUNNING, clear input during IDLE

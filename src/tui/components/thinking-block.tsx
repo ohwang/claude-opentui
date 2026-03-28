@@ -18,19 +18,24 @@ export function ThinkingBlock(props: { text: string; collapsed?: boolean }) {
   }
 
   return (
-    <box flexDirection="column">
+    <box flexDirection="column" paddingLeft={2}>
       <Show
         when={expanded()}
         fallback={
-          <text fg="gray" attributes={TextAttributes.DIM | TextAttributes.ITALIC}>
-            {"Thinking: "}{preview()}
-          </text>
+          <box flexDirection="row">
+            <text fg="gray" attributes={TextAttributes.DIM | TextAttributes.BOLD}>
+              {"\u25B8 Thinking"}
+            </text>
+            <text fg="gray" attributes={TextAttributes.DIM}>
+              {"  " + preview()}
+            </text>
+          </box>
         }
       >
-        <box flexDirection="column" paddingLeft={2}>
-          <text fg="gray" attributes={TextAttributes.DIM | TextAttributes.BOLD}>
-            {"Thinking"}
-          </text>
+        <text fg="gray" attributes={TextAttributes.DIM | TextAttributes.BOLD}>
+          {"\u25BE Thinking"}
+        </text>
+        <box paddingLeft={2}>
           <text fg="gray" attributes={TextAttributes.DIM}>
             {props.text}
           </text>

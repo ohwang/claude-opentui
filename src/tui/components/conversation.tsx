@@ -80,12 +80,38 @@ function ToolBlockView(props: { block: Extract<Block, { type: "tool" }>; viewLev
     if (!b().duration) return ""
     return b().duration! < 1000 ? `${b().duration}ms` : `${(b().duration! / 1000).toFixed(1)}s`
   }
+  const toolSummary = () => {
+    const inp = b().input as Record<string, unknown> | null
+    if (!inp) return ""
+
+    // Common tool input patterns
+    if (inp.file_path) return String(inp.file_path)
+    if (inp.command) {
+      const cmd = String(inp.command)
+      return cmd.length > 60 ? cmd.slice(0, 57) + "..." : cmd
+    }
+    if (inp.pattern) {
+      const p = String(inp.pattern)
+      const path = inp.path ? ` in ${inp.path}` : ""
+      const full = p + path
+      return full.length > 60 ? full.slice(0, 57) + "..." : full
+    }
+    if (inp.description) {
+      const d = String(inp.description)
+      return d.length > 60 ? d.slice(0, 57) + "..." : d
+    }
+
+    return ""
+  }
 
   return (
     <box flexDirection="column" paddingLeft={2}>
       <box flexDirection="row">
         <text fg={statusColor()}>{statusIcon()} </text>
         <text fg="white" attributes={TextAttributes.BOLD}>{b().tool}</text>
+        <Show when={toolSummary()}>
+          <text fg="gray" attributes={TextAttributes.DIM}>{" " + toolSummary()}</text>
+        </Show>
         <Show when={duration()}>
           <text fg="gray" attributes={TextAttributes.DIM}>{" (" + duration() + ")"}</text>
         </Show>

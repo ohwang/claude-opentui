@@ -12,7 +12,6 @@ import type { AgentBackend, SessionConfig } from "../protocol/types"
 export interface CommandContext {
   backend: AgentBackend
   pushEvent: (event: any) => void
-  clearMessages: () => void
   clearConversation: () => void
   setModel: (model: string) => Promise<void>
 }

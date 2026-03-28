@@ -10,7 +10,7 @@ import { TextAttributes } from "@opentui/core"
 import { ErrorBoundary, Show } from "solid-js"
 import type { AgentBackend, SessionConfig } from "../protocol/types"
 import { AgentProvider, useAgent, type AgentContextValue } from "./context/agent"
-import { MessagesProvider, useMessages } from "./context/messages"
+import { MessagesProvider } from "./context/messages"
 import { SessionProvider, useSession } from "./context/session"
 import { PermissionsProvider } from "./context/permissions"
 import { SyncProvider, useSync } from "./context/sync"
@@ -50,8 +50,6 @@ function Layout() {
   const { state: session } = useSession()
   const agent = useAgent()
   const sync = useSync()
-  const { setState: setMessages } = useMessages()
-
   // Counter-based rapid-press exit (matches Claude Code behavior)
   let ctrlDCount = 0
   let ctrlDTimer: ReturnType<typeof setTimeout> | undefined
@@ -79,7 +77,7 @@ function Layout() {
 
     // Ctrl+L to clear the conversation display
     if (event.ctrl && event.name === "l") {
-      setMessages({ messages: [], streamingText: "", streamingThinking: "" })
+      sync.clearConversation()
       return
     }
 

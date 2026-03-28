@@ -10,7 +10,6 @@ import { createSignal, Show, For } from "solid-js"
 import { TextAttributes, type TextareaRenderable, type KeyEvent } from "@opentui/core"
 import { useAgent } from "../context/agent"
 import { useSession } from "../context/session"
-import { useMessages } from "../context/messages"
 import { useSync } from "../context/sync"
 import { createCommandRegistry, type SlashCommand } from "../../commands/registry"
 
@@ -46,7 +45,6 @@ let _resetLineCount: (() => void) | undefined
 export function InputArea() {
   const agent = useAgent()
   const { state: session } = useSession()
-  const { setState: setMessages } = useMessages()
   const sync = useSync()
   let textareaRef: TextareaRenderable | undefined
 
@@ -136,9 +134,6 @@ export function InputArea() {
     const handled = await commandRegistry.tryExecute(text, {
       backend: agent.backend,
       pushEvent: sync.pushEvent,
-      clearMessages: () => {
-        setMessages({ messages: [], streamingText: "", streamingThinking: "" })
-      },
       clearConversation: sync.clearConversation,
       setModel: (model: string) => agent.backend.setModel(model),
     })

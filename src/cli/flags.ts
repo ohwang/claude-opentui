@@ -80,6 +80,10 @@ export function parseFlags(argv: string[]): CLIFlags {
         flags.config.permissionMode = args[++i] as PermissionMode
         break
 
+      case "--dangerously-skip-permissions":
+        flags.config.permissionMode = "bypassPermissions"
+        break
+
       // Limits
       case "--max-turns":
         flags.config.maxTurns = parseInt(args[++i], 10)
@@ -139,6 +143,7 @@ Options:
   -r, --resume <id>       Resume a specific session
   -b, --backend <name>    Backend (claude, claude-v2)
   --permission-mode <m>   Permission mode (default, acceptEdits, bypassPermissions, plan, dontAsk)
+  --dangerously-skip-permissions  Shorthand for --permission-mode bypassPermissions
   --max-turns <n>         Maximum turns
   --max-budget <usd>      Maximum budget in USD
   --cwd <path>            Working directory

@@ -231,12 +231,20 @@ export function reduce(
 
     // ----- Permission flow -----
 
-    case "permission_request":
+    case "permission_request": {
+      // Update the tool block's input with the full input from canUseTool
+      const blocks = state.blocks.map(b =>
+        b.type === "tool" && b.id === event.id
+          ? { ...b, input: event.input }
+          : b
+      )
       return {
         ...next,
+        blocks,
         sessionState: "WAITING_FOR_PERM",
         pendingPermission: event,
       }
+    }
 
     case "permission_response":
       return {

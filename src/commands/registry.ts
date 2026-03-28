@@ -145,15 +145,22 @@ export function createCommandRegistry(): CommandRegistry {
         return
       }
       const modelName = args.trim()
-      await ctx.setModel(modelName)
-      ctx.pushEvent({
-        type: "model_changed",
-        model: modelName,
-      })
-      ctx.pushEvent({
-        type: "system_message",
-        text: `Switched to ${modelName}`,
-      })
+      try {
+        await ctx.setModel(modelName)
+        ctx.pushEvent({
+          type: "model_changed",
+          model: modelName,
+        })
+        ctx.pushEvent({
+          type: "system_message",
+          text: `Switched to ${modelName}`,
+        })
+      } catch (error) {
+        ctx.pushEvent({
+          type: "system_message",
+          text: `Error: Could not switch to model '${modelName}'. ${error instanceof Error ? error.message : 'Unknown error'}`,
+        })
+      }
     },
   })
 

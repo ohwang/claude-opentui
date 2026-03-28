@@ -11,6 +11,7 @@ import { TextAttributes, type ScrollBoxRenderable } from "@opentui/core"
 import { useKeyboard } from "@opentui/solid"
 import { useMessages } from "../context/messages"
 import { useSession } from "../context/session"
+import { useSync } from "../context/sync"
 import { ThinkingBlock } from "./thinking-block"
 import { TaskView } from "./task-view"
 import { syntaxStyle } from "../theme"
@@ -216,6 +217,7 @@ function BlockView(props: { block: Block; viewLevel: ViewLevel }) {
 export function ConversationView() {
   const { state } = useMessages()
   const { state: session } = useSession()
+  const sync = useSync()
   const [viewLevel, setViewLevel] = createSignal<ViewLevel>("collapsed")
   let scrollboxRef: ScrollBoxRenderable | undefined
 
@@ -252,14 +254,30 @@ export function ConversationView() {
     }
   })
 
+  // View-level notification helper
+  const viewLevelHint = (level: ViewLevel): string => {
+    switch (level) {
+      case "collapsed":
+        return "Showing collapsed view · ctrl+o to expand · ctrl+e to show all"
+      case "expanded":
+        return "Showing detailed transcript · ctrl+o to collapse · ctrl+e to show all"
+      case "show_all":
+        return "Showing detailed transcript · ctrl+o to toggle · ctrl+e to collapse"
+    }
+  }
+
   // Ctrl+O toggles collapsed/expanded, Ctrl+E shows all
   // Ctrl+Up/Down scrolls the conversation
   useKeyboard((event) => {
     if (event.ctrl && event.name === "o") {
-      setViewLevel((prev) => prev === "collapsed" ? "expanded" : "collapsed")
+      const next: ViewLevel = viewLevel() === "collapsed" ? "expanded" : "collapsed"
+      setViewLevel(next)
+      sync.pushEvent({ type: "system_message", text: viewLevelHint(next) })
     }
     if (event.ctrl && event.name === "e") {
-      setViewLevel((prev) => prev === "show_all" ? "collapsed" : "show_all")
+      const next: ViewLevel = viewLevel() === "show_all" ? "collapsed" : "show_all"
+      setViewLevel(next)
+      sync.pushEvent({ type: "system_message", text: viewLevelHint(next) })
     }
     if (event.ctrl && event.name === "up") {
       scrollboxRef?.scrollBy(-3)

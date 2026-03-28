@@ -10,7 +10,7 @@
  * - Turn duration timer
  */
 
-import { createSignal, createMemo, onCleanup } from "solid-js"
+import { createSignal, createEffect, createMemo, onCleanup } from "solid-js"
 import path from "node:path"
 import { TextAttributes } from "@opentui/core"
 import { useSession } from "../context/session"
@@ -120,8 +120,18 @@ export function StatusBar() {
   // -- Project name (basename of cwd) --
   const projectName = path.basename(process.cwd())
 
-  // -- Git info (cached once at mount) --
-  const [gitInfo] = createSignal<GitInfo | null>(getGitInfo())
+  // -- Git info (refreshed when a turn completes) --
+  const [gitInfo, setGitInfo] = createSignal<GitInfo | null>(getGitInfo())
+
+  // Re-fetch git info on RUNNING → IDLE transition (files may have changed)
+  let prevState: string = state.sessionState
+  createEffect(() => {
+    const current = state.sessionState
+    if (current === "IDLE" && prevState === "RUNNING") {
+      setGitInfo(getGitInfo())
+    }
+    prevState = current
+  })
 
   // -- Turn timer state --
   const [turnStartTime, setTurnStartTime] = createSignal<number | null>(null)

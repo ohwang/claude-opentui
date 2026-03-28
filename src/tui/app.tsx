@@ -28,7 +28,7 @@ function DashLine() {
   const dashes = () => "─".repeat(Math.max(width(), 40))
   return (
     <box height={1} flexShrink={0}>
-      <text color={244}>{dashes()}</text>
+      <text fg={244}>{dashes()}</text>
     </box>
   )
 }
@@ -36,11 +36,11 @@ function DashLine() {
 function ErrorFallback(props: { error: Error; reset: () => void }) {
   return (
     <box flexDirection="column" padding={2}>
-      <text color="red" bold>
+      <text fg="red" attributes={1}>
         Fatal Error
       </text>
-      <text color="red">{props.error.message}</text>
-      <text color="gray">Press Ctrl+D to exit.</text>
+      <text fg="red">{props.error.message}</text>
+      <text fg="gray">Press Ctrl+D to exit.</text>
     </box>
   )
 }

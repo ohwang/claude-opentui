@@ -164,10 +164,17 @@ export function createCommandRegistry(): CommandRegistry {
     execute: async (_args, ctx) => {
       const models = await ctx.backend.availableModels()
       const caps = ctx.backend.capabilities()
-      const modelList = models.map((m) => m.name || m.id).join(", ")
+      const modelNames = models
+        .map((m) => m.name || m.id)
+        .filter((name) => name)
+      const lines = [`Backend: ${caps.name}`]
+      if (modelNames.length > 0) {
+        lines.push(`Models: ${modelNames.join(", ")}`)
+      }
+      lines.push("Use the status bar for live cost/token tracking.")
       ctx.pushEvent({
         type: "system_message",
-        text: `Backend: ${caps.name}\nModels: ${modelList || "unknown"}\nUse the status bar for live cost/token tracking.`,
+        text: lines.join("\n"),
       })
     },
   })

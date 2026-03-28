@@ -11,9 +11,8 @@
     "dev": "bun run --conditions=browser ./src/index.ts",
     "dev:mock": "bun run --conditions=browser ./src/index.ts -- --backend mock",
     "test": "bun test --timeout 30000",
-    "lint": "eslint src/ tests/",
-    "lint:fix": "eslint src/ tests/ --fix",
-    "spike": "bun run --conditions=browser ./spike/spike.tsx"
+    "spike": "bun run --conditions=browser ./spike/spike.tsx",
+    "lint:opentui": "bash scripts/lint-opentui.sh"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "0.2.85",
@@ -23,10 +22,6 @@
   },
   "devDependencies": {
     "@types/bun": "latest",
-    "@typescript-eslint/eslint-plugin": "^8.57.2",
-    "@typescript-eslint/parser": "^8.57.2",
-    "eslint": "^10.1.0",
-    "eslint-plugin-solid": "^0.14.5",
     "typescript": "^5.8.0"
   }
 }

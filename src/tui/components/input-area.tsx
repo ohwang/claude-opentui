@@ -331,12 +331,12 @@ export function InputArea() {
             {(cmd, index) => (
               <box flexDirection="row" paddingLeft={1} paddingRight={1}>
                 <text
-                  attributes={index() === selectedIndex() ? TextAttributes.BOLD : TextAttributes.NONE}
+                  attributes={index() === selectedIndex() ? TextAttributes.BOLD : 0}
                   fg={index() === selectedIndex() ? "cyan" : "white"}
                 >
                   /{cmd.name}
                 </text>
-                <text fg="gray" attributes={index() !== selectedIndex() ? TextAttributes.DIM : TextAttributes.NONE}>
+                <text fg="gray" attributes={index() !== selectedIndex() ? TextAttributes.DIM : 0}>
                   {" "}{cmd.description}
                 </text>
               </box>

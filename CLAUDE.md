@@ -47,6 +47,20 @@ The protocol layer is the load-bearing abstraction. All backends implement `Agen
 - **Test contracts, not implementations.** Adapter contract tests validate event ordering and lifecycle rules.
 - **Explicit over clever.** No metaprogramming, no deep inheritance, no magic.
 
+## OpenTUI Prop Rules (CRITICAL)
+
+These rules prevent silent rendering failures and Zig FFI crashes:
+
+1. **`fg=` not `color=`** — `<text color="red">` is silently ignored. Use `<text fg="red">`.
+2. **`attributes=` not `bold`/`dimmed`/`italic`** — Boolean styling props are ignored. Use `attributes={TextAttributes.BOLD}` from `@opentui/core`. Combine with `|`: `attributes={TextAttributes.DIM | TextAttributes.ITALIC}`.
+3. **Hex strings not numbers for colors** — `fg={174}` crashes the Zig FFI. Use `fg="#d78787"` instead. Reference: ANSI 174 = #d78787, 244 = #808080, 246 = #a8a8a8, 231 = #ffffff, 237 = #3a3a3a.
+4. **Never `await render()`** — `render()` resolves immediately. Awaiting causes `main()` to return and the process to exit. Call without await, add `.catch()`.
+5. **`dims()?.width` not `dims()?.columns`** — `useTerminalDimensions()` returns `{ width, height }`.
+6. **No `borderTop`/`borderBottom` on box with textarea** — Causes Zig segfault. Use a `<text>` dash line component instead.
+7. **`scrollBy()` not `scrollToEnd()`** — `ScrollBoxRenderable` has `scrollBy()` and `scrollTo()`, not `scrollToEnd()`.
+
+Run `bun run lint:opentui` to check for violations.
+
 ## Project Structure
 
 ```

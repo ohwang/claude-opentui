@@ -137,7 +137,7 @@ export function MessageBlock(props: {
         >
           <box flexDirection="row">
             <text fg="white">
-              {"● "}
+              {"⏺ "}
             </text>
             <box flexDirection="column" flexGrow={1}>
               <For each={textContent()}>

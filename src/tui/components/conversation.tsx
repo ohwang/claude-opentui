@@ -140,7 +140,7 @@ export function ConversationView() {
         <Show when={state.streamingText}>
           <box flexDirection="row">
             <text fg="white">
-              {"● "}
+              {"⏺ "}
             </text>
             <box flexGrow={1}>
               <markdown content={state.streamingText} syntaxStyle={syntaxStyle} streaming={true} />

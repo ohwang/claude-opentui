@@ -6,6 +6,7 @@
  */
 
 import { render, useKeyboard, useRenderer } from "@opentui/solid"
+import { TextAttributes } from "@opentui/core"
 import { ErrorBoundary, Show } from "solid-js"
 import type { AgentBackend, SessionConfig } from "../protocol/types"
 import { AgentProvider, useAgent, type AgentContextValue } from "./context/agent"
@@ -36,7 +37,7 @@ function DashLine() {
 function ErrorFallback(props: { error: Error; reset: () => void }) {
   return (
     <box flexDirection="column" padding={2}>
-      <text fg="red" attributes={1}>
+      <text fg="red" attributes={TextAttributes.BOLD}>
         Fatal Error
       </text>
       <text fg="red">{props.error.message}</text>
@@ -51,31 +52,28 @@ function Layout() {
   const sync = useSync()
   const { setState: setMessages } = useMessages()
 
-  // Counter-based rapid-press exit for Ctrl+D (3 presses within 1s)
+  // Counter-based rapid-press exit (matches Claude Code behavior)
   let ctrlDCount = 0
   let ctrlDTimer: ReturnType<typeof setTimeout> | undefined
-
-  // Counter-based rapid-press exit for Ctrl+C on empty input (2 presses within 1s)
   let ctrlCEmptyCount = 0
   let ctrlCTimer: ReturnType<typeof setTimeout> | undefined
 
   const cleanExit = () => {
     agent.backend.close()
+    process.stdout.write("\n")
     process.exit(0)
   }
 
   // Global keyboard shortcuts
   useKeyboard((event) => {
-    // Ctrl+D: 3+ rapid presses = exit, single/double = no effect
+    // Ctrl+D: single = no effect, 3+ rapid = exit
     if (event.ctrl && event.name === "d") {
       ctrlDCount++
       clearTimeout(ctrlDTimer)
       ctrlDTimer = setTimeout(() => { ctrlDCount = 0 }, 1000)
-
       if (ctrlDCount >= 3) {
         cleanExit()
       }
-      // Single/double Ctrl+D = no effect
       return
     }
 
@@ -85,11 +83,7 @@ function Layout() {
       return
     }
 
-    // Ctrl+C behavior:
-    // - During RUNNING/WAITING: interrupt the current turn
-    // - With text in input: clear the input
-    // - Empty input, single press: no effect
-    // - Empty input, 2 rapid presses: exit
+    // Ctrl+C: text=clear, empty single=nothing, empty double=exit, running=interrupt
     if (event.ctrl && event.name === "c") {
       if (
         session.sessionState === "RUNNING" ||
@@ -101,7 +95,6 @@ function Layout() {
       } else {
         const hadText = clearInput()
         if (!hadText) {
-          // Empty input — count rapid presses
           ctrlCEmptyCount++
           clearTimeout(ctrlCTimer)
           ctrlCTimer = setTimeout(() => { ctrlCEmptyCount = 0 }, 1000)
@@ -109,11 +102,9 @@ function Layout() {
             cleanExit()
           }
         } else {
-          // Had text, cleared it — reset the empty counter
           ctrlCEmptyCount = 0
         }
       }
-      return
     }
   })
 
@@ -160,10 +151,6 @@ export function startApp(options: AppOptions): void {
     config: options.config,
   }
 
-  // Do NOT await render() — the OpenTUI native event loop keeps the process alive.
-  // Awaiting would resolve immediately (render() only awaits createCliRenderer()),
-  // causing main() to return and the process to exit.
-  // Catch rejections to prevent unhandledRejection from killing the process.
   render(() => (
     <ErrorBoundary
       fallback={(error, reset) => (
@@ -182,8 +169,5 @@ export function startApp(options: AppOptions): void {
         </SessionProvider>
       </AgentProvider>
     </ErrorBoundary>
-  )).catch((err) => {
-    console.error("Render error:", err)
-    process.exit(1)
-  })
+  ))
 }

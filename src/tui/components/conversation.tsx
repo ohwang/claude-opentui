@@ -105,19 +105,6 @@ export function ConversationView() {
   return (
     <scrollbox ref={scrollboxRef} stickyScroll stickyStart="bottom" flexGrow={1}>
       <box flexDirection="column" gap={1} padding={1}>
-        {/* Welcome message when empty */}
-        <Show
-          when={
-            state.messages.length === 0 &&
-            !state.streamingText &&
-            session.sessionState === "IDLE"
-          }
-        >
-          <text color="gray">
-            Welcome to claude-opentui. Type a message to begin.
-          </text>
-        </Show>
-
         {/* Rendered messages */}
         <Index each={state.messages}>
           {(message, index) => (

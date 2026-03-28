@@ -103,6 +103,10 @@ export class ClaudeAdapter implements AgentBackend {
   private eventChannel: EventChannel<AgentEvent> | null = null
   private closed = false
 
+  // Tool input JSON accumulation from streaming deltas
+  private toolInputJsons = new Map<string, string>()
+  private currentToolIds = new Map<number, string>()
+
   capabilities(): BackendCapabilities {
     return {
       name: "claude",
@@ -452,6 +456,8 @@ export class ClaudeAdapter implements AgentBackend {
       case "content_block_start": {
         const block = event.content_block
         if (block?.type === "tool_use") {
+          this.currentToolIds.set(event.index, block.id)
+          this.toolInputJsons.set(block.id, "")
           events.push({
             type: "tool_use_start",
             id: block.id,
@@ -470,17 +476,38 @@ export class ClaudeAdapter implements AgentBackend {
         } else if (delta?.type === "thinking_delta") {
           events.push({ type: "thinking_delta", text: delta.thinking })
         } else if (delta?.type === "input_json_delta") {
-          // Tool input is streamed as JSON fragments
-          // We accumulate and emit as progress
-          // The full input comes with tool_use_end
+          // Accumulate tool input JSON fragments
+          const toolId = this.currentToolIds.get(event.index)
+          if (toolId) {
+            const prev = this.toolInputJsons.get(toolId) ?? ""
+            this.toolInputJsons.set(toolId, prev + delta.partial_json)
+          }
         }
         break
       }
 
-      case "content_block_stop":
-        // Content block finished. For text blocks, we could emit text_complete
-        // but we let turn_complete handle message finalization instead.
+      case "content_block_stop": {
+        const toolId = this.currentToolIds.get(event.index)
+        if (toolId) {
+          const jsonStr = this.toolInputJsons.get(toolId)
+          if (jsonStr) {
+            try {
+              const parsedInput = JSON.parse(jsonStr)
+              events.push({
+                type: "tool_use_progress",
+                id: toolId,
+                output: "",
+                input: parsedInput,
+              })
+            } catch {
+              // JSON parse failed — leave input as-is
+            }
+          }
+          this.currentToolIds.delete(event.index)
+          this.toolInputJsons.delete(toolId)
+        }
         break
+      }
 
       case "message_delta":
         // Contains stop_reason and usage delta. Cost update.

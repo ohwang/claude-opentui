@@ -27,6 +27,7 @@ export type ToolUseProgressEvent = {
   type: "tool_use_progress"
   id: string
   output: string
+  input?: unknown // Set when tool input JSON is fully accumulated from streaming deltas
 }
 export type ToolUseEndEvent = {
   type: "tool_use_end"

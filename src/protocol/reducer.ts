@@ -208,7 +208,11 @@ export function reduce(
         ...next,
         blocks: state.blocks.map(b =>
           b.type === "tool" && b.id === event.id
-            ? { ...b, output: (b.output ?? "") + event.output }
+            ? {
+                ...b,
+                output: (b.output ?? "") + event.output,
+                ...(event.input !== undefined ? { input: event.input } : {}),
+              }
             : b
         ),
       }

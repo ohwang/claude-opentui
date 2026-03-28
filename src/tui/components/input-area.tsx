@@ -275,8 +275,8 @@ export function InputArea() {
       return
     }
 
-    // Up arrow = recall previous history entry
-    if (e.name === "up" && inputHistory.length > 0) {
+    // Up arrow = recall previous history entry (not Ctrl+Up which scrolls conversation)
+    if (e.name === "up" && !e.ctrl && inputHistory.length > 0) {
       e.preventDefault()
       if (historyIndex === -1) {
         // Save current input before navigating history
@@ -289,8 +289,8 @@ export function InputArea() {
       return
     }
 
-    // Down arrow = move forward in history
-    if (e.name === "down" && historyIndex !== -1) {
+    // Down arrow = move forward in history (not Ctrl+Down which scrolls conversation)
+    if (e.name === "down" && !e.ctrl && historyIndex !== -1) {
       e.preventDefault()
       if (historyIndex < inputHistory.length - 1) {
         historyIndex++

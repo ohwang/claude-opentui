@@ -99,6 +99,9 @@ describe("ClaudeAdapter", () => {
         { name: "Write" },
         { name: "Bash" },
       ])
+      expect(events[0].models).toEqual([
+        { id: "claude-sonnet-4-6", name: "claude-sonnet-4-6", provider: "anthropic" },
+      ])
     })
 
     it("maps result success to turn_complete", () => {

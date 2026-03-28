@@ -297,37 +297,6 @@ export interface ConversationState {
 // Supporting types
 // ---------------------------------------------------------------------------
 
-export interface Message {
-  role: "user" | "assistant" | "system"
-  content: MessageContent[]
-  timestamp: number
-  turnNumber: number
-}
-
-export type MessageContent =
-  | { type: "text"; text: string }
-  | { type: "thinking"; text: string }
-  | { type: "tool_use"; id: string; tool: string; input: unknown }
-  | { type: "tool_result"; id: string; output: string; error?: string }
-  | { type: "compact"; summary: string }
-
-export interface ActiveTool {
-  id: string
-  tool: string
-  input: unknown
-  output: string
-  startTime: number
-}
-
-export interface ToolResult {
-  id: string
-  tool: string
-  input: unknown
-  output: string
-  error?: string
-  duration: number
-}
-
 export interface UserMessage {
   text: string
   images?: ImageContent[]

@@ -159,6 +159,17 @@ export function ConversationView() {
           <StreamingSpinner label={spinnerLabel()} />
         </Show>
 
+        {/* Queued message indicator */}
+        <Show when={state.pendingMessages.length > 0}>
+          <box paddingLeft={2} marginTop={1}>
+            <text fg="#808080" attributes={TextAttributes.DIM}>
+              {state.pendingMessages.length === 1
+                ? "Message queued — will send after current response"
+                : `${state.pendingMessages.length} messages queued`}
+            </text>
+          </box>
+        </Show>
+
         {/* Background tasks / subagents */}
         <Show when={state.activeTasks.length > 0}>
           <TaskView tasks={state.activeTasks} />

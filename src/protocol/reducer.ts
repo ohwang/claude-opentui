@@ -92,6 +92,16 @@ export function reduce(
         })
       }
 
+      // Drain pending user messages (sent during this turn)
+      for (const pending of state.pendingMessages) {
+        newMessages.push({
+          role: "user",
+          content: [{ type: "text", text: pending.text }],
+          timestamp: Date.now(),
+          turnNumber: state.turnNumber + 1,
+        })
+      }
+
       // Update cost totals
       const cost = { ...state.cost }
       if (event.usage) {
@@ -112,6 +122,7 @@ export function reduce(
         completedTools: [],
         pendingPermission: null,
         pendingElicitation: null,
+        pendingMessages: [],
         cost,
       }
     }
@@ -119,6 +130,19 @@ export function reduce(
     // ----- User messages -----
 
     case "user_message": {
+      // During active turns, queue the message instead of showing immediately
+      if (
+        state.sessionState === "RUNNING" ||
+        state.sessionState === "WAITING_FOR_PERM" ||
+        state.sessionState === "WAITING_FOR_ELIC" ||
+        state.sessionState === "INTERRUPTING"
+      ) {
+        return {
+          ...next,
+          pendingMessages: [...state.pendingMessages, { text: event.text }],
+        }
+      }
+      // IDLE/INITIALIZING: show immediately
       const messages = [...state.messages]
       messages.push({
         role: "user",

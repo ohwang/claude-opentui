@@ -714,6 +714,113 @@ describe("ConversationState reducer", () => {
   })
 
   // -----------------------------------------------------------------------
+  // Message ordering during streaming
+  // -----------------------------------------------------------------------
+
+  describe("message ordering during streaming", () => {
+    it("user_message during RUNNING queues instead of displaying", () => {
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "turn_start" },
+        { type: "text_delta", text: "hello" },
+        { type: "user_message", text: "msg2" },
+      ])
+      expect(state.messages).toHaveLength(0)
+      expect(state.pendingMessages).toHaveLength(1)
+      expect(state.pendingMessages[0].text).toBe("msg2")
+    })
+
+    it("turn_complete drains pending messages in correct order", () => {
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "user_message", text: "msg1" },
+        { type: "turn_start" },
+        { type: "text_delta", text: "response" },
+        { type: "user_message", text: "msg2" },
+        { type: "turn_complete" },
+      ])
+      expect(state.messages).toHaveLength(3)
+      expect(state.messages[0].role).toBe("user")
+      expect(state.messages[0].content[0]).toEqual({
+        type: "text",
+        text: "msg1",
+      })
+      expect(state.messages[1].role).toBe("assistant")
+      expect(state.messages[1].content[0]).toEqual({
+        type: "text",
+        text: "response",
+      })
+      expect(state.messages[2].role).toBe("user")
+      expect(state.messages[2].content[0]).toEqual({
+        type: "text",
+        text: "msg2",
+      })
+      expect(state.pendingMessages).toHaveLength(0)
+    })
+
+    it("multiple queued messages maintain order", () => {
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "user_message", text: "msg1" },
+        { type: "turn_start" },
+        { type: "text_delta", text: "resp" },
+        { type: "user_message", text: "msg2" },
+        { type: "user_message", text: "msg3" },
+        { type: "turn_complete" },
+      ])
+      expect(state.messages).toHaveLength(4)
+      expect(state.messages[0].role).toBe("user")
+      expect(state.messages[0].content[0]).toEqual({
+        type: "text",
+        text: "msg1",
+      })
+      expect(state.messages[1].role).toBe("assistant")
+      expect(state.messages[1].content[0]).toEqual({
+        type: "text",
+        text: "resp",
+      })
+      expect(state.messages[2].role).toBe("user")
+      expect(state.messages[2].content[0]).toEqual({
+        type: "text",
+        text: "msg2",
+      })
+      expect(state.messages[3].role).toBe("user")
+      expect(state.messages[3].content[0]).toEqual({
+        type: "text",
+        text: "msg3",
+      })
+      expect(state.pendingMessages).toHaveLength(0)
+    })
+
+    it("user_message in IDLE still adds immediately", () => {
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "user_message", text: "msg1" },
+      ])
+      expect(state.messages).toHaveLength(1)
+      expect(state.messages[0].role).toBe("user")
+      expect(state.pendingMessages).toHaveLength(0)
+    })
+
+    it("user_message during WAITING_FOR_PERM queues", () => {
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "turn_start" },
+        {
+          type: "permission_request",
+          id: "perm1",
+          tool: "Bash",
+          input: { command: "ls" },
+        },
+        { type: "user_message", text: "queued" },
+      ])
+      expect(state.messages).toHaveLength(0)
+      expect(state.pendingMessages).toHaveLength(1)
+      expect(state.pendingMessages[0].text).toBe("queued")
+    })
+  })
+
+  // -----------------------------------------------------------------------
   // Edge cases
   // -----------------------------------------------------------------------
 

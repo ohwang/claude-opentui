@@ -28,7 +28,7 @@ function DashLine() {
   const dashes = () => "─".repeat(Math.max(width(), 40))
   return (
     <box height={1} flexShrink={0}>
-      <text fg="#808080">{dashes()}</text>
+      <text fg="#b2b2b2">{dashes()}</text>
     </box>
   )
 }

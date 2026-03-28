@@ -359,7 +359,7 @@ export function StatusBar() {
         )}
 
         {/* Help hint */}
-        <text fg="gray" attributes={TextAttributes.DIM}>{"  /h"}</text>
+        <text fg="#d787af">{"  /h"}</text>
 
         {/* Git branch + status */}
         {gitStr() && (

@@ -32,7 +32,7 @@ export function validateEventSequence(events: AgentEvent[]): ContractViolation[]
   let seenSessionInit = false
   let inTurn = false
   let turnCount = 0
-  let closed = false
+  const closed = false
 
   for (let i = 0; i < events.length; i++) {
     const event = events[i]

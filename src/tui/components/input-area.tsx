@@ -186,6 +186,13 @@ export function InputArea() {
       return
     }
 
+    // Ctrl+A = select all text
+    if (e.ctrl && e.name === "a") {
+      e.preventDefault()
+      textareaRef?.selectAll()
+      return
+    }
+
     // When autocomplete is open, intercept navigation keys
     if (showAutocomplete()) {
       const items = autocompleteItems()

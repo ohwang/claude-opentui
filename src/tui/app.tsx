@@ -20,7 +20,6 @@ import { InputArea, clearInput } from "./components/input-area"
 import { StatusBar } from "./components/status-bar"
 import { PermissionDialog } from "./components/permission-dialog"
 import { ElicitationDialog } from "./components/elicitation"
-import { HeaderBar } from "./components/header-bar"
 
 /** Render a full-width dash separator line (Claude Code style) */
 function DashLine() {
@@ -108,9 +107,6 @@ function Layout() {
 
   return (
     <box flexDirection="column" width="100%" height="100%">
-      {/* Header bar - fixed 1 line at top */}
-      <HeaderBar />
-
       {/* Conversation area - fills available space, shrinks when terminal is small */}
       <box flexGrow={1} flexShrink={1} overflow="hidden">
         <ConversationView />

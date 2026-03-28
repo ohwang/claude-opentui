@@ -14,6 +14,7 @@ import { useSession } from "../context/session"
 import { ThinkingBlock } from "./thinking-block"
 import { TaskView } from "./task-view"
 import { syntaxStyle } from "../theme"
+import { HeaderBar } from "./header-bar"
 import type { Block } from "../../protocol/types"
 
 type ViewLevel = "collapsed" | "expanded" | "show_all"
@@ -234,6 +235,9 @@ export function ConversationView() {
   return (
     <scrollbox ref={scrollboxRef} stickyScroll stickyStart="bottom" flexGrow={1}>
       <box flexDirection="column" gap={1} padding={1}>
+        {/* Header bar — scrolls with content */}
+        <HeaderBar />
+
         {/* Committed blocks (non-queued) */}
         <For each={nonQueuedBlocks()}>
           {(block) => <BlockView block={block} viewLevel={viewLevel()} />}

@@ -22,13 +22,13 @@ export function ThinkingBlock(props: { text: string; collapsed?: boolean }) {
         when={expanded()}
         fallback={
           <text color="gray" dimmed italic>
-            {"💭 "}{preview()}
+            {"Thinking: "}{preview()}
           </text>
         }
       >
         <box flexDirection="column" paddingLeft={2}>
           <text color="gray" dimmed bold>
-            {"💭 Thinking"}
+            {"Thinking"}
           </text>
           <text color="gray" dimmed>
             {props.text}

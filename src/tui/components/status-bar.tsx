@@ -352,10 +352,10 @@ export function StatusBar() {
 
         {/* Cost */}
         {costStr() && (
-          <>
+          <box flexDirection="row">
             <text fg="gray">{"  "}</text>
             <text fg="green">{costStr()}</text>
-          </>
+          </box>
         )}
 
         {/* Help hint */}
@@ -363,10 +363,10 @@ export function StatusBar() {
 
         {/* Git branch + status */}
         {gitStr() && (
-          <>
+          <box flexDirection="row">
             <text fg="gray">{"  "}</text>
             <text fg="cyan">{gitStr()}</text>
-          </>
+          </box>
         )}
 
         {/* Spacer pushes right-aligned items */}
@@ -374,18 +374,18 @@ export function StatusBar() {
 
         {/* Tokens */}
         {tokenStr() && (
-          <>
+          <box flexDirection="row">
             <text fg="gray">{tokenStr()}</text>
             <text fg="gray">{" "}</text>
-          </>
+          </box>
         )}
 
         {/* Tok/s (only during streaming) */}
         {tokPerSecStr() && (
-          <>
+          <box flexDirection="row">
             <text fg="cyan">{tokPerSecStr()}</text>
             <text fg="gray">{" "}</text>
-          </>
+          </box>
         )}
 
         {/* Timer (only during streaming) */}

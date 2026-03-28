@@ -139,47 +139,58 @@ function ToolBlockView(props: { block: Extract<Block, { type: "tool" }>; viewLev
 function BlockView(props: { block: Block; viewLevel: ViewLevel }) {
   const b = () => props.block
 
+  // Typed narrowing helpers — each returns the narrowed variant or null.
+  // Used with <Show when={...}>{(val) => ...}</Show> so the callback
+  // receives the non-null typed block, eliminating all `as any` casts.
+  const userBlock = () => b().type === "user" ? b() as Extract<Block, { type: "user" }> : null
+  const assistantBlock = () => b().type === "assistant" ? b() as Extract<Block, { type: "assistant" }> : null
+  const thinkingBlock = () => b().type === "thinking" ? b() as Extract<Block, { type: "thinking" }> : null
+  const toolBlock = () => b().type === "tool" ? b() as Extract<Block, { type: "tool" }> : null
+  const systemBlock = () => b().type === "system" ? b() as Extract<Block, { type: "system" }> : null
+  const compactBlock = () => b().type === "compact" ? b() as Extract<Block, { type: "compact" }> : null
+  const errorBlock = () => b().type === "error" ? b() as Extract<Block, { type: "error" }> : null
+
   return (
     <box flexDirection="column">
       {/* User block */}
-      <Show when={b().type === "user"}>
+      <Show when={userBlock()}>{(ub) =>
         <box flexDirection="row" marginTop={1}>
           <text fg="gray" attributes={TextAttributes.DIM}>{"> "}</text>
-          <text fg="white">{(b() as any).text}</text>
+          <text fg="white">{ub().text}</text>
         </box>
-      </Show>
+      }</Show>
 
       {/* Assistant text block */}
-      <Show when={b().type === "assistant"}>
+      <Show when={assistantBlock()}>{(ab) =>
         <box flexDirection="row" marginTop={1}>
           <text fg="white">{"\u23FA "}</text>
           <box flexGrow={1}>
-            <markdown content={(b() as any).text} syntaxStyle={syntaxStyle} />
+            <markdown content={ab().text} syntaxStyle={syntaxStyle} />
           </box>
         </box>
-      </Show>
+      }</Show>
 
       {/* Thinking block */}
-      <Show when={b().type === "thinking"}>
-        <ThinkingBlock text={(b() as any).text} collapsed={props.viewLevel === "collapsed"} />
-      </Show>
+      <Show when={thinkingBlock()}>{(tb) =>
+        <ThinkingBlock text={tb().text} collapsed={props.viewLevel === "collapsed"} />
+      }</Show>
 
       {/* Tool block */}
-      <Show when={b().type === "tool"}>
-        <ToolBlockView block={b() as Extract<Block, { type: "tool" }>} viewLevel={props.viewLevel} />
-      </Show>
+      <Show when={toolBlock()}>{(tb) =>
+        <ToolBlockView block={tb()} viewLevel={props.viewLevel} />
+      }</Show>
 
       {/* System block */}
-      <Show when={b().type === "system"}>
+      <Show when={systemBlock()}>{(sb) =>
         <box paddingLeft={2} marginTop={1}>
           <text fg="gray" attributes={TextAttributes.DIM | TextAttributes.ITALIC}>
-            {"\u2139 " + (b() as any).text}
+            {"\u2139 " + sb().text}
           </text>
         </box>
-      </Show>
+      }</Show>
 
       {/* Compact block */}
-      <Show when={b().type === "compact"}>
+      <Show when={compactBlock()}>
         <box paddingTop={1} paddingBottom={1}>
           <text fg="gray" attributes={TextAttributes.DIM}>
             {"\u2500\u2500 Context compacted \u2500\u2500"}
@@ -188,12 +199,12 @@ function BlockView(props: { block: Block; viewLevel: ViewLevel }) {
       </Show>
 
       {/* Error block */}
-      <Show when={b().type === "error"}>
+      <Show when={errorBlock()}>{(eb) =>
         <box flexDirection="column" paddingTop={1} paddingBottom={1} paddingLeft={2} paddingRight={2} borderStyle="single" borderColor="red">
-          <text fg="red" attributes={TextAttributes.BOLD}>Error: {(b() as any).code}</text>
-          <text fg="red">{(b() as any).message}</text>
+          <text fg="red" attributes={TextAttributes.BOLD}>Error: {eb().code}</text>
+          <text fg="red">{eb().message}</text>
         </box>
-      </Show>
+      }</Show>
     </box>
   )
 }

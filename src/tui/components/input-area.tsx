@@ -347,7 +347,7 @@ export function InputArea() {
 
       {/* Input row with > prompt prefix */}
       <box flexDirection="row">
-        <text fg="white">{"> "}</text>
+        <text fg="white">{"❯ "}</text>
         <textarea
           ref={(el: TextareaRenderable) => { textareaRef = el; _sharedTextareaRef = el }}
           focused={!isDisabled()}

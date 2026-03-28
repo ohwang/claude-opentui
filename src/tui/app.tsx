@@ -6,7 +6,6 @@
  */
 
 import { render, useKeyboard, useRenderer } from "@opentui/solid"
-import { TextAttributes } from "@opentui/core"
 import { ErrorBoundary, Show } from "solid-js"
 import type { AgentBackend, SessionConfig } from "../protocol/types"
 import { AgentProvider, useAgent, type AgentContextValue } from "./context/agent"
@@ -29,7 +28,7 @@ function DashLine() {
   const dashes = () => "─".repeat(Math.max(width(), 40))
   return (
     <box height={1} flexShrink={0}>
-      <text fg={244}>{dashes()}</text>
+      <text color={244}>{dashes()}</text>
     </box>
   )
 }
@@ -37,11 +36,11 @@ function DashLine() {
 function ErrorFallback(props: { error: Error; reset: () => void }) {
   return (
     <box flexDirection="column" padding={2}>
-      <text fg="red" attributes={TextAttributes.BOLD}>
+      <text color="red" bold>
         Fatal Error
       </text>
-      <text fg="red">{props.error.message}</text>
-      <text fg="gray">Press Ctrl+D to exit.</text>
+      <text color="red">{props.error.message}</text>
+      <text color="gray">Press Ctrl+D to exit.</text>
     </box>
   )
 }
@@ -52,15 +51,32 @@ function Layout() {
   const sync = useSync()
   const { setState: setMessages } = useMessages()
 
+  // Counter-based rapid-press exit for Ctrl+D (3 presses within 1s)
+  let ctrlDCount = 0
+  let ctrlDTimer: ReturnType<typeof setTimeout> | undefined
+
+  // Counter-based rapid-press exit for Ctrl+C on empty input (2 presses within 1s)
+  let ctrlCEmptyCount = 0
+  let ctrlCTimer: ReturnType<typeof setTimeout> | undefined
+
+  const cleanExit = () => {
+    agent.backend.close()
+    process.exit(0)
+  }
+
   // Global keyboard shortcuts
   useKeyboard((event) => {
-    // Ctrl+D to exit (first press = graceful, second = force)
+    // Ctrl+D: 3+ rapid presses = exit, single/double = no effect
     if (event.ctrl && event.name === "d") {
-      if (session.sessionState === "SHUTTING_DOWN") {
-        process.exit(130)
+      ctrlDCount++
+      clearTimeout(ctrlDTimer)
+      ctrlDTimer = setTimeout(() => { ctrlDCount = 0 }, 1000)
+
+      if (ctrlDCount >= 3) {
+        cleanExit()
       }
-      agent.backend.close()
-      process.exit(0)
+      // Single/double Ctrl+D = no effect
+      return
     }
 
     // Ctrl+L to clear the conversation display
@@ -69,7 +85,11 @@ function Layout() {
       return
     }
 
-    // Ctrl+C to interrupt during RUNNING, clear input during IDLE
+    // Ctrl+C behavior:
+    // - During RUNNING/WAITING: interrupt the current turn
+    // - With text in input: clear the input
+    // - Empty input, single press: no effect
+    // - Empty input, 2 rapid presses: exit
     if (event.ctrl && event.name === "c") {
       if (
         session.sessionState === "RUNNING" ||
@@ -78,13 +98,22 @@ function Layout() {
       ) {
         sync.pushEvent({ type: "interrupt" })
         agent.backend.interrupt()
-      } else if (session.sessionState === "IDLE" || session.sessionState === "ERROR") {
-        // Clear input text; if already empty, show exit hint
+      } else {
         const hadText = clearInput()
         if (!hadText) {
-          sync.pushEvent({ type: "system_message", text: "Use Ctrl+D to exit." })
+          // Empty input — count rapid presses
+          ctrlCEmptyCount++
+          clearTimeout(ctrlCTimer)
+          ctrlCTimer = setTimeout(() => { ctrlCEmptyCount = 0 }, 1000)
+          if (ctrlCEmptyCount >= 2) {
+            cleanExit()
+          }
+        } else {
+          // Had text, cleared it — reset the empty counter
+          ctrlCEmptyCount = 0
         }
       }
+      return
     }
   })
 

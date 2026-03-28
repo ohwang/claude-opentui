@@ -50,16 +50,28 @@ function Layout() {
   const agent = useAgent()
   const sync = useSync()
   const { setState: setMessages } = useMessages()
+  const renderer = useRenderer()
+
+  /** Clean exit: suspend renderer, write trailing newline, close backend, exit. */
+  function cleanExit(code: number) {
+    try {
+      renderer.suspend()
+    } catch {
+      // Renderer may already be gone — ignore
+    }
+    agent.backend.close()
+    process.stdout.write("\n")
+    process.exit(code)
+  }
 
   // Global keyboard shortcuts
   useKeyboard((event) => {
     // Ctrl+D to exit (first press = graceful, second = force)
     if (event.ctrl && event.name === "d") {
       if (session.sessionState === "SHUTTING_DOWN") {
-        process.exit(130)
+        cleanExit(130)
       }
-      agent.backend.close()
-      process.exit(0)
+      cleanExit(0)
     }
 
     // Ctrl+L to clear the conversation display

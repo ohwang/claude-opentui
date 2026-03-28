@@ -338,8 +338,9 @@ export function StatusBar() {
         {/* Tokens */}
         {tokenStr() && (
           <>
+            <text color="gray">{"  "}</text>
             <text color="gray">{tokenStr()}</text>
-            <text color="gray">{" "}</text>
+            <text color="gray">{"  "}</text>
           </>
         )}
 
@@ -347,7 +348,7 @@ export function StatusBar() {
         {tokPerSecStr() && (
           <>
             <text color="cyan">{tokPerSecStr()}</text>
-            <text color="gray">{" "}</text>
+            <text color="gray">{"  "}</text>
           </>
         )}
 

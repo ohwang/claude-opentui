@@ -16,6 +16,7 @@ import { ToolView } from "./tool-view"
 import type { ViewLevel } from "./tool-view"
 import { TaskView } from "./task-view"
 import { MessageBlock } from "./message-block"
+import { syntaxStyle } from "../theme"
 
 // ---------------------------------------------------------------------------
 // Braille spinner — animated activity indicator
@@ -142,7 +143,7 @@ export function ConversationView() {
               {"● "}
             </text>
             <box flexGrow={1}>
-              <markdown content={state.streamingText} />
+              <markdown content={state.streamingText} syntaxStyle={syntaxStyle} streaming={true} />
             </box>
           </box>
         </Show>

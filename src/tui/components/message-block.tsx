@@ -14,6 +14,7 @@ import type { Message, MessageContent } from "../../protocol/types"
 import { ThinkingBlock } from "./thinking-block"
 import { ToolView } from "./tool-view"
 import type { ViewLevel } from "./tool-view"
+import { syntaxStyle } from "../theme"
 
 // ---------------------------------------------------------------------------
 // Message content renderer — dispatches by content type
@@ -25,7 +26,7 @@ function MessageContentView(props: {
 }) {
   switch (props.content.type) {
     case "text":
-      return <markdown content={props.content.text} />
+      return <markdown content={props.content.text} syntaxStyle={syntaxStyle} streaming={false} />
     case "thinking":
       return (
         <ThinkingBlock

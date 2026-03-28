@@ -9,6 +9,7 @@
  */
 
 import { createSignal, For, Show } from "solid-js"
+import { TextAttributes } from "@opentui/core"
 import { useKeyboard } from "@opentui/solid"
 import { usePermissions } from "../context/permissions"
 import { useAgent } from "../context/agent"
@@ -69,7 +70,7 @@ function QuestionView(props: {
       paddingLeft={1}
       paddingRight={1}
     >
-      <text color="cyan" bold>
+      <text fg="cyan" attributes={TextAttributes.BOLD}>
         {props.question.question}
       </text>
 
@@ -77,22 +78,22 @@ function QuestionView(props: {
         <For each={options()}>
           {(option, index) => (
             <box flexDirection="row">
-              <text color={index() === selected() ? "cyan" : "white"}>
+              <text fg={index() === selected() ? "cyan" : "white"}>
                 {index() === selected() ? " > " : "   "}
               </text>
-              <text color={index() === selected() ? "cyan" : "white"}>
+              <text fg={index() === selected() ? "cyan" : "white"}>
                 {index() + 1}) {option.label}
               </text>
             </box>
           )}
         </For>
-        <text color="gray">
+        <text fg="gray">
           {"  "}Arrow keys to navigate, Enter to select, Esc to cancel
         </text>
       </Show>
 
       <Show when={showFreeText()}>
-        <text color="gray">Type your answer and press Enter:</text>
+        <text fg="gray">Type your answer and press Enter:</text>
         <textarea
           focused
           height={2}

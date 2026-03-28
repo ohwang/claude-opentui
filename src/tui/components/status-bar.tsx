@@ -12,6 +12,7 @@
 
 import { createSignal, createMemo, onCleanup } from "solid-js"
 import path from "node:path"
+import { TextAttributes } from "@opentui/core"
 import { useSession } from "../context/session"
 import { useAgent } from "../context/agent"
 import type { PermissionMode } from "../../protocol/types"
@@ -295,40 +296,40 @@ export function StatusBar() {
       {/* Line 1: info bar */}
       <box height={1} flexDirection="row" paddingLeft={1} paddingRight={1}>
         {/* Left: project name */}
-        <text bold color="yellow">
+        <text fg="yellow" attributes={TextAttributes.BOLD}>
           {projectName}
         </text>
 
-        <text color="gray">{"  "}</text>
+        <text fg="gray">{"  "}</text>
 
         {/* Model name */}
-        <text bold color="white">
+        <text fg="white" attributes={TextAttributes.BOLD}>
           {modelName()}
         </text>
 
-        <text color="gray">{" "}</text>
+        <text fg="gray">{" "}</text>
 
         {/* State icon */}
-        <text color={stateColor()}>
+        <text fg={stateColor()}>
           {stateIcon()}
         </text>
 
         {/* Cost */}
         {costStr() && (
           <>
-            <text color="gray">{"  "}</text>
-            <text color="green">{costStr()}</text>
+            <text fg="gray">{"  "}</text>
+            <text fg="green">{costStr()}</text>
           </>
         )}
 
         {/* Help hint */}
-        <text dimmed color="gray">{"  /h"}</text>
+        <text fg="gray" attributes={TextAttributes.DIM}>{"  /h"}</text>
 
         {/* Git branch + status */}
         {gitStr() && (
           <>
-            <text color="gray">{"  "}</text>
-            <text color="cyan">{gitStr()}</text>
+            <text fg="gray">{"  "}</text>
+            <text fg="cyan">{gitStr()}</text>
           </>
         )}
 
@@ -338,31 +339,30 @@ export function StatusBar() {
         {/* Tokens */}
         {tokenStr() && (
           <>
-            <text color="gray">{"  "}</text>
-            <text color="gray">{tokenStr()}</text>
-            <text color="gray">{"  "}</text>
+            <text fg="gray">{tokenStr()}</text>
+            <text fg="gray">{" "}</text>
           </>
         )}
 
         {/* Tok/s (only during streaming) */}
         {tokPerSecStr() && (
           <>
-            <text color="cyan">{tokPerSecStr()}</text>
-            <text color="gray">{"  "}</text>
+            <text fg="cyan">{tokPerSecStr()}</text>
+            <text fg="gray">{" "}</text>
           </>
         )}
 
         {/* Timer (only during streaming) */}
         {timerStr() && (
-          <text color="yellow">{timerStr()}</text>
+          <text fg="yellow">{timerStr()}</text>
         )}
       </box>
 
       {/* Line 2: permission mode */}
       <box height={1} flexDirection="row" paddingLeft={1} paddingRight={1}>
-        <text color="#d787af">{"\u25C6"}</text>
-        <text color="#d787af">{` ${permissionModeLabel(permMode())}`}</text>
-        <text dimmed color="gray">{" (shift+tab to cycle)"}</text>
+        <text fg="#d787af">{"\u25C6"}</text>
+        <text fg="#d787af">{` ${permissionModeLabel(permMode())}`}</text>
+        <text fg="gray" attributes={TextAttributes.DIM}>{" (shift+tab to cycle)"}</text>
       </box>
     </box>
   )

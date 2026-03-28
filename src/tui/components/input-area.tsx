@@ -7,7 +7,7 @@
  */
 
 import { createSignal, Show, For } from "solid-js"
-import type { TextareaRenderable, KeyEvent } from "@opentui/core"
+import { TextAttributes, type TextareaRenderable, type KeyEvent } from "@opentui/core"
 import { useAgent } from "../context/agent"
 import { useSession } from "../context/session"
 import { useMessages } from "../context/messages"
@@ -331,12 +331,12 @@ export function InputArea() {
             {(cmd, index) => (
               <box flexDirection="row" paddingLeft={1} paddingRight={1}>
                 <text
-                  bold={index() === selectedIndex()}
-                  color={index() === selectedIndex() ? "cyan" : "white"}
+                  attributes={index() === selectedIndex() ? TextAttributes.BOLD : TextAttributes.NONE}
+                  fg={index() === selectedIndex() ? "cyan" : "white"}
                 >
                   /{cmd.name}
                 </text>
-                <text color="gray" dimmed={index() !== selectedIndex()}>
+                <text fg="gray" attributes={index() !== selectedIndex() ? TextAttributes.DIM : TextAttributes.NONE}>
                   {" "}{cmd.description}
                 </text>
               </box>
@@ -347,7 +347,7 @@ export function InputArea() {
 
       {/* Input row with > prompt prefix */}
       <box flexDirection="row">
-        <text color="white">{"> "}</text>
+        <text fg="white">{"> "}</text>
         <textarea
           ref={(el: TextareaRenderable) => { textareaRef = el; _sharedTextareaRef = el }}
           focused={!isDisabled()}
@@ -363,7 +363,7 @@ export function InputArea() {
           flexGrow={1}
         />
         {completionHint() ? (
-          <text color="gray" dimmed>
+          <text fg="gray" attributes={TextAttributes.DIM}>
             {completionHint()}
           </text>
         ) : null}

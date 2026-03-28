@@ -6,6 +6,7 @@
  */
 
 import { render, useKeyboard, useRenderer } from "@opentui/solid"
+import { TextAttributes } from "@opentui/core"
 import { ErrorBoundary, Show } from "solid-js"
 import type { AgentBackend, SessionConfig } from "../protocol/types"
 import { AgentProvider, useAgent, type AgentContextValue } from "./context/agent"
@@ -28,7 +29,7 @@ function DashLine() {
   const dashes = () => "─".repeat(Math.max(width(), 40))
   return (
     <box height={1} flexShrink={0}>
-      <text color={244}>{dashes()}</text>
+      <text fg={244}>{dashes()}</text>
     </box>
   )
 }
@@ -36,11 +37,11 @@ function DashLine() {
 function ErrorFallback(props: { error: Error; reset: () => void }) {
   return (
     <box flexDirection="column" padding={2}>
-      <text color="red" bold>
+      <text fg="red" attributes={TextAttributes.BOLD}>
         Fatal Error
       </text>
-      <text color="red">{props.error.message}</text>
-      <text color="gray">Press Ctrl+D to exit.</text>
+      <text fg="red">{props.error.message}</text>
+      <text fg="gray">Press Ctrl+D to exit.</text>
     </box>
   )
 }
@@ -50,28 +51,16 @@ function Layout() {
   const agent = useAgent()
   const sync = useSync()
   const { setState: setMessages } = useMessages()
-  const renderer = useRenderer()
-
-  /** Clean exit: suspend renderer, write trailing newline, close backend, exit. */
-  function cleanExit(code: number) {
-    try {
-      renderer.suspend()
-    } catch {
-      // Renderer may already be gone — ignore
-    }
-    agent.backend.close()
-    process.stdout.write("\n")
-    process.exit(code)
-  }
 
   // Global keyboard shortcuts
   useKeyboard((event) => {
     // Ctrl+D to exit (first press = graceful, second = force)
     if (event.ctrl && event.name === "d") {
       if (session.sessionState === "SHUTTING_DOWN") {
-        cleanExit(130)
+        process.exit(130)
       }
-      cleanExit(0)
+      agent.backend.close()
+      process.exit(0)
     }
 
     // Ctrl+L to clear the conversation display

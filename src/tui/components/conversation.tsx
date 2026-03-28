@@ -7,7 +7,7 @@
  */
 
 import { createSignal, createEffect, onCleanup, Show, Index } from "solid-js"
-import type { ScrollBoxRenderable } from "@opentui/core"
+import { TextAttributes, type ScrollBoxRenderable } from "@opentui/core"
 import { useKeyboard } from "@opentui/solid"
 import { useMessages } from "../context/messages"
 import { useSession } from "../context/session"
@@ -44,7 +44,7 @@ function StreamingSpinner(props: { label: string }) {
 
   return (
     <box flexDirection="row">
-      <text color="gray" dimmed>
+      <text fg="gray" attributes={TextAttributes.DIM}>
         {SPINNER_FRAMES[frameIndex()]} {props.label}
       </text>
     </box>
@@ -139,7 +139,7 @@ export function ConversationView() {
         {/* Streaming text (live) — styled as assistant with prefix */}
         <Show when={state.streamingText}>
           <box flexDirection="row">
-            <text color="white">
+            <text fg="white">
               {"● "}
             </text>
             <box flexGrow={1}>
@@ -175,10 +175,10 @@ export function ConversationView() {
             borderStyle="single"
             borderColor="red"
           >
-            <text color="red" bold>
+            <text fg="red" attributes={TextAttributes.BOLD}>
               Error: {session.lastError!.code}
             </text>
-            <text color="red">{session.lastError!.message}</text>
+            <text fg="red">{session.lastError!.message}</text>
           </box>
         </Show>
       </box>

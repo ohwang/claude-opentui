@@ -19,6 +19,7 @@
  */
 
 import { For, Show } from "solid-js"
+import { TextAttributes } from "@opentui/core"
 import type { ToolResult, ActiveTool } from "../../protocol/types"
 
 export type ViewLevel = "collapsed" | "expanded" | "show_all"
@@ -94,7 +95,7 @@ function ToolSummary(props: {
 
   return (
     <box>
-      <text color="gray">
+      <text fg="gray">
         {"─ "}{summary()}{" (ctrl+o to expand)"}
       </text>
     </box>
@@ -245,11 +246,11 @@ function ToolBlock(props: { tool: ToolResult; showAll: boolean }) {
 
   return (
     <box flexDirection="column" paddingLeft={1}>
-      <text color="cyan" bold>
+      <text fg="cyan" attributes={TextAttributes.BOLD}>
         {props.tool.tool}({inputStr()})
       </text>
       <Show when={props.tool.error}>
-        <text color="red">{"✗ "}{props.tool.error}</text>
+        <text fg="red">{"✗ "}{props.tool.error}</text>
       </Show>
       <Show when={props.tool.output && !props.tool.error}>
         <ToolOutput
@@ -290,10 +291,10 @@ function ToolOutput(props: {
 function ActiveToolBlock(props: { tool: ActiveTool }) {
   return (
     <box flexDirection="row" paddingLeft={1}>
-      <text color="yellow">
+      <text fg="yellow">
         {"⟳ "}{props.tool.tool}
       </text>
-      <text color="gray">
+      <text fg="gray">
         {" "}({Math.round((Date.now() - props.tool.startTime) / 1000)}s)
       </text>
     </box>

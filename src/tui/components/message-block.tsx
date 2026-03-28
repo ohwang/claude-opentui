@@ -10,11 +10,12 @@
  */
 
 import { For, Show } from "solid-js"
+import { TextAttributes } from "@opentui/core"
 import type { Message, MessageContent } from "../../protocol/types"
 import { ThinkingBlock } from "./thinking-block"
+import { syntaxStyle } from "../theme"
 import { ToolView } from "./tool-view"
 import type { ViewLevel } from "./tool-view"
-import { syntaxStyle } from "../theme"
 
 // ---------------------------------------------------------------------------
 // Message content renderer — dispatches by content type
@@ -26,7 +27,7 @@ function MessageContentView(props: {
 }) {
   switch (props.content.type) {
     case "text":
-      return <markdown content={props.content.text} syntaxStyle={syntaxStyle} streaming={false} />
+      return <markdown content={props.content.text} syntaxStyle={syntaxStyle} />
     case "thinking":
       return (
         <ThinkingBlock
@@ -41,7 +42,7 @@ function MessageContentView(props: {
     case "compact":
       return (
         <box paddingTop={1} paddingBottom={1}>
-          <text color="gray" dimmed>
+          <text fg="gray" attributes={TextAttributes.DIM}>
             {"── Context compacted ──"}
           </text>
         </box>
@@ -100,7 +101,7 @@ export function MessageBlock(props: {
           marginTop={props.isFirstMessage ? 0 : 1}
         >
           <box flexDirection="row">
-            <text color="gray" dimmed>
+            <text fg="gray" attributes={TextAttributes.DIM}>
               {"> "}
             </text>
             <For each={textContent()}>
@@ -120,7 +121,7 @@ export function MessageBlock(props: {
         <box flexDirection="column" paddingLeft={2} marginTop={1}>
           <For each={textContent()}>
             {(content) => (
-              <text color="gray" dimmed italic>
+              <text fg="gray" attributes={TextAttributes.DIM | TextAttributes.ITALIC}>
                 {content.type === "text" ? `\u2139 ${content.text}` : ""}
               </text>
             )}
@@ -135,7 +136,7 @@ export function MessageBlock(props: {
           marginTop={props.isFirstMessage ? 0 : 1}
         >
           <box flexDirection="row">
-            <text color="white">
+            <text fg="white">
               {"● "}
             </text>
             <box flexDirection="column" flexGrow={1}>

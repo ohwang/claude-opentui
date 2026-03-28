@@ -9,6 +9,7 @@
  */
 
 import { homedir } from "node:os"
+import { TextAttributes } from "@opentui/core"
 import { useSession } from "../context/session"
 import { useAgent } from "../context/agent"
 
@@ -30,21 +31,21 @@ export function HeaderBar() {
     <box flexDirection="column" flexShrink={0} paddingBottom={1}>
       {/* Logo line 1 */}
       <box flexDirection="row">
-        <text color={174}>{" ╭━━━╮"}</text>
+        <text fg={174}>{" ╭━━━╮"}</text>
       </box>
       {/* Logo line 2 + app name + version */}
       <box flexDirection="row">
-        <text color={174}>{" ┃   ┃  claude-opentui"}</text>
-        <text dimmed color="gray">{"  v0.0.1"}</text>
+        <text fg={174}>{" ┃   ┃  claude-opentui"}</text>
+        <text fg="gray" attributes={TextAttributes.DIM}>{"  v0.0.1"}</text>
       </box>
       {/* Logo line 3 + model info */}
       <box flexDirection="row">
-        <text color={174}>{" ╰━━━╯  "}</text>
-        <text dimmed color="gray">{modelInfo()}</text>
+        <text fg={174}>{" ╰━━━╯  "}</text>
+        <text fg="gray" attributes={TextAttributes.DIM}>{modelInfo()}</text>
       </box>
       {/* Working directory */}
       <box>
-        <text dimmed color="gray">{"        " + projectPath}</text>
+        <text fg="gray" attributes={TextAttributes.DIM}>{"        " + projectPath}</text>
       </box>
     </box>
   )

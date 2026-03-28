@@ -6,6 +6,7 @@
  */
 
 import { Show } from "solid-js"
+import { TextAttributes } from "@opentui/core"
 import { useKeyboard } from "@opentui/solid"
 import { usePermissions } from "../context/permissions"
 import { useAgent } from "../context/agent"
@@ -51,17 +52,17 @@ export function PermissionDialog() {
         return (
           <box flexDirection="column">
             <box height={1} paddingLeft={1}>
-              <text color="yellow" bold>
+              <text fg="yellow" attributes={TextAttributes.BOLD}>
                 {perm().tool}
               </text>
             </box>
             <box height={1} paddingLeft={1}>
-              <text color="white">
+              <text fg="white">
                 {inputStr()}
               </text>
             </box>
             <box height={1} paddingLeft={1}>
-              <text color="gray">
+              <text fg="gray">
                 [y] approve  [n] deny  [a] always allow
               </text>
             </box>

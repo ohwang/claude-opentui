@@ -7,6 +7,7 @@
  */
 
 import { For, Show } from "solid-js"
+import { TextAttributes } from "@opentui/core"
 import type { TaskInfo } from "../../protocol/types"
 
 export function TaskView(props: { tasks: [string, TaskInfo][] }) {
@@ -31,7 +32,7 @@ export function TaskView(props: { tasks: [string, TaskInfo][] }) {
   return (
     <Show when={hasAny()}>
       <box flexDirection="column" paddingTop={1}>
-        <text color="magenta" bold>
+        <text fg="magenta" attributes={TextAttributes.BOLD}>
           {header()}
         </text>
         <For each={props.tasks}>
@@ -43,11 +44,11 @@ export function TaskView(props: { tasks: [string, TaskInfo][] }) {
 
             return (
               <box flexDirection="row" paddingLeft={1}>
-                <text color="gray">{prefix()} </text>
-                <text color={color()}>{icon()} </text>
-                <text color="white">{task.description}</text>
+                <text fg="gray">{prefix()} </text>
+                <text fg={color()}>{icon()} </text>
+                <text fg="white">{task.description}</text>
                 <Show when={task.status === "running"}>
-                  <text color="gray">
+                  <text fg="gray">
                     {" "}({Math.round((Date.now() - task.startTime) / 1000)}s)
                   </text>
                 </Show>
@@ -60,7 +61,7 @@ export function TaskView(props: { tasks: [string, TaskInfo][] }) {
             {([id, task]) => (
               <Show when={task.output}>
                 <box paddingLeft={3}>
-                  <text color="gray" dimmed>
+                  <text fg="gray" attributes={TextAttributes.DIM}>
                     {task.output.length > 80
                       ? task.output.slice(0, 77) + "..."
                       : task.output}

@@ -334,8 +334,9 @@ export class ClaudeAdapter implements AgentBackend {
     switch (msg.type) {
       case "system":
         if (msg.subtype === "init") {
-          const models: ModelInfo[] = msg.model
-            ? [{ id: msg.model, name: msg.model, provider: "anthropic" }]
+          const cleanModel = msg.model?.replace(/\s*\[.*\]$/, "")
+          const models: ModelInfo[] = cleanModel
+            ? [{ id: cleanModel, name: cleanModel, provider: "anthropic" }]
             : []
           events.push({
             type: "session_init",

@@ -13,9 +13,21 @@
 import { createSignal, createEffect, createMemo, onCleanup } from "solid-js"
 import path from "node:path"
 import { TextAttributes } from "@opentui/core"
+import { useKeyboard } from "@opentui/solid"
 import { useSession } from "../context/session"
 import { useAgent } from "../context/agent"
 import type { PermissionMode } from "../../protocol/types"
+
+// ---------------------------------------------------------------------------
+// Permission mode cycle order
+// ---------------------------------------------------------------------------
+
+const PERM_MODE_CYCLE: PermissionMode[] = [
+  "default",
+  "acceptEdits",
+  "bypassPermissions",
+  "plan",
+]
 
 // ---------------------------------------------------------------------------
 // Token-rate tracking ring buffer
@@ -116,6 +128,22 @@ function abbreviateModel(name: string): string {
 export function StatusBar() {
   const { state } = useSession()
   const agent = useAgent()
+
+  // -- Permission mode (local signal so it's reactive) --
+  const [permMode, setPermMode] = createSignal<PermissionMode>(
+    agent.config.permissionMode ?? "default",
+  )
+
+  useKeyboard((event) => {
+    if (event.shift && event.name === "tab") {
+      const current = permMode()
+      const idx = PERM_MODE_CYCLE.indexOf(current)
+      const nextIdx = (idx + 1) % PERM_MODE_CYCLE.length
+      const nextMode = PERM_MODE_CYCLE[nextIdx] ?? "default"
+      setPermMode(nextMode)
+      void agent.backend.setPermissionMode(nextMode)
+    }
+  })
 
   // -- Project name (basename of cwd) --
   const projectName = path.basename(process.cwd())
@@ -294,8 +322,6 @@ export function StatusBar() {
     }
     return `[${parts.join(" ")}]`
   })
-
-  const permMode = () => agent.config.permissionMode
 
   // ---------------------------------------------------------------------------
   // Render — 2 lines

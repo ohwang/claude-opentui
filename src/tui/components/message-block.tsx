@@ -2,11 +2,11 @@
  * Message Block — User/assistant/system message rendering
  *
  * Renders a single message with role-specific styling:
- * - User: blue left border with ">" prefix
- * - Assistant: cyan left border with markdown rendering
+ * - User: dimmed gray ">" prefix, no border
+ * - Assistant: "●" prefix, no border, markdown rendering
  * - System: dimmed italic with info prefix
  *
- * Includes turn separators between role transitions.
+ * Turn spacing via marginTop only — no separators.
  */
 
 import { For, Show } from "solid-js"
@@ -51,20 +51,6 @@ function MessageContentView(props: {
 }
 
 // ---------------------------------------------------------------------------
-// Turn separator — thin line between turns for visual separation
-// ---------------------------------------------------------------------------
-
-function TurnSeparator() {
-  return (
-    <box paddingTop={1} paddingBottom={0}>
-      <text color="gray" dimmed>
-        {"────────────────────────────────────────"}
-      </text>
-    </box>
-  )
-}
-
-// ---------------------------------------------------------------------------
 // MessageBlock — renders a single message with role-specific styling
 // ---------------------------------------------------------------------------
 
@@ -77,15 +63,6 @@ export function MessageBlock(props: {
   const isUser = () => props.message.role === "user"
   const isSystem = () => props.message.role === "system"
   const isAssistant = () => props.message.role === "assistant"
-
-  // Show turn separator when transitioning between user and assistant
-  const showSeparator = () => {
-    if (props.isFirstMessage) return false
-    const prev = props.previousRole
-    const curr = props.message.role
-    // Separator on role transitions (user->assistant, assistant->user)
-    return prev !== undefined && prev !== curr && prev !== "system" && curr !== "system"
-  }
 
   // Extract text/thinking content vs tool content
   const textContent = () =>
@@ -115,22 +92,14 @@ export function MessageBlock(props: {
 
   return (
     <box flexDirection="column">
-      {/* Turn separator between role transitions */}
-      <Show when={showSeparator()}>
-        <TurnSeparator />
-      </Show>
-
-      {/* User message — bold blue prefix, left border, top margin */}
+      {/* User message — dimmed gray ">" prefix, no border */}
       <Show when={isUser()}>
         <box
           flexDirection="column"
           marginTop={props.isFirstMessage ? 0 : 1}
-          borderLeft
-          borderColor="blue"
-          paddingLeft={1}
         >
           <box flexDirection="row">
-            <text color="blue" bold>
+            <text color="gray" dimmed>
               {"> "}
             </text>
             <For each={textContent()}>
@@ -158,22 +127,27 @@ export function MessageBlock(props: {
         </box>
       </Show>
 
-      {/* Assistant message — left border in cyan, markdown rendering */}
+      {/* Assistant message — "●" prefix, no border, markdown rendering */}
       <Show when={isAssistant()}>
         <box
           flexDirection="column"
-          borderLeft
-          borderColor="cyan"
-          paddingLeft={1}
+          marginTop={props.isFirstMessage ? 0 : 1}
         >
-          <For each={textContent()}>
-            {(content) => (
-              <MessageContentView
-                content={content}
-                viewLevel={props.viewLevel}
-              />
-            )}
-          </For>
+          <box flexDirection="row">
+            <text color="white">
+              {"● "}
+            </text>
+            <box flexDirection="column" flexGrow={1}>
+              <For each={textContent()}>
+                {(content) => (
+                  <MessageContentView
+                    content={content}
+                    viewLevel={props.viewLevel}
+                  />
+                )}
+              </For>
+            </box>
+          </box>
           <Show when={toolResults().length > 0}>
             <ToolView
               completedTools={toolResults()}

@@ -1,27 +1,51 @@
 /**
- * Header Bar — Project path, app name, help hint
+ * Header Bar — Claude Code-style multi-line logo block
  *
- * Fixed 1-line bar at the top of the TUI.
+ * Displays:
+ * - ASCII logo in salmon/pink (ANSI 174) + app name
+ * - Version info
+ * - Model name + context window
+ * - Working directory (shortened with ~)
  */
 
-import path from "node:path"
+import { homedir } from "node:os"
+import { useSession } from "../context/session"
+import { useAgent } from "../context/agent"
 
 export function HeaderBar() {
-  const projectName = path.basename(process.cwd())
+  const { state } = useSession()
+  const agent = useAgent()
+
+  const projectPath = process.cwd().replace(homedir(), "~")
+
+  const modelInfo = () => {
+    // Prefer session metadata model name, fall back to config
+    const model = state.session?.models?.[0]
+    if (model) return model.name
+    if (agent.config.model) return agent.config.model
+    return "claude"
+  }
 
   return (
-    <box height={1} flexDirection="row" borderBottom="single" borderColor="gray" flexShrink={0} paddingLeft={1} paddingRight={1}>
-      <text bold color="blue">
-        {projectName}
-      </text>
-      <box flexGrow={1} />
-      <text dimmed color="gray">
-        claude-opentui
-      </text>
-      <box flexGrow={1} />
-      <text dimmed color="gray">
-        /help
-      </text>
+    <box flexDirection="column" flexShrink={0} paddingBottom={1}>
+      {/* Logo line 1 */}
+      <box flexDirection="row">
+        <text color={174}>{" ╭━━━╮"}</text>
+      </box>
+      {/* Logo line 2 + app name + version */}
+      <box flexDirection="row">
+        <text color={174}>{" ┃   ┃  claude-opentui"}</text>
+        <text dimmed color="gray">{"  v0.0.1"}</text>
+      </box>
+      {/* Logo line 3 + model info */}
+      <box flexDirection="row">
+        <text color={174}>{" ╰━━━╯  "}</text>
+        <text dimmed color="gray">{modelInfo()}</text>
+      </box>
+      {/* Working directory */}
+      <box>
+        <text dimmed color="gray">{"        " + projectPath}</text>
+      </box>
     </box>
   )
 }

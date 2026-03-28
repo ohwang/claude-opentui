@@ -90,13 +90,12 @@ function Layout() {
       {/* Elicitation dialog (shown inline when WAITING_FOR_ELIC) */}
       <ElicitationDialog />
 
-      {/* Input area - never shrink, height adapts for autocomplete dropdown */}
-      <box flexShrink={0} flexDirection="column">
-        <box height={1} borderBottom="single" borderColor="gray" />
+      {/* Input area - Claude Code-style dash lines top and bottom */}
+      <box flexShrink={0} flexDirection="column" borderTop="single" borderBottom="single" borderColor={244}>
         <InputArea />
       </box>
 
-      {/* Status bar - fixed 1 line at bottom, never shrink */}
+      {/* Status bar - fixed 2 lines at bottom, never shrink */}
       <box flexShrink={0}>
         <StatusBar />
       </box>

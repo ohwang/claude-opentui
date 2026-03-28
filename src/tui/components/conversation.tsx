@@ -147,10 +147,15 @@ export function ConversationView() {
           <ThinkingBlock text={state.streamingThinking} collapsed={false} />
         </Show>
 
-        {/* Streaming text (live) — styled as assistant with left border */}
+        {/* Streaming text (live) — styled as assistant with prefix */}
         <Show when={state.streamingText}>
-          <box borderLeft borderColor="cyan" paddingLeft={1}>
-            <markdown content={state.streamingText} />
+          <box flexDirection="row">
+            <text color="white">
+              {"● "}
+            </text>
+            <box flexGrow={1}>
+              <markdown content={state.streamingText} />
+            </box>
           </box>
         </Show>
 

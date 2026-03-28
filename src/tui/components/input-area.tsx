@@ -75,26 +75,8 @@ export function InputArea() {
   let tabMatches: string[] = []
   let lastTabText = ""
 
-  const placeholder = () => {
-    switch (session.sessionState) {
-      case "INITIALIZING":
-        return "Starting..."
-      case "IDLE":
-        return "Type a message... (Enter to send, / for commands)"
-      case "RUNNING":
-        return "Type a message... (will be queued)"
-      case "WAITING_FOR_PERM":
-        return "Waiting for permission response (y/n/a)..."
-      case "WAITING_FOR_ELIC":
-        return "Waiting for your choice..."
-      case "INTERRUPTING":
-        return "Interrupting..."
-      case "ERROR":
-        return "Error occurred. Type to retry."
-      default:
-        return "Type a message..."
-    }
-  }
+  // No placeholder text — Claude Code style shows just "> " prompt with cursor
+  const placeholder = () => ""
 
   const isDisabled = () =>
     session.sessionState === "WAITING_FOR_PERM" ||
@@ -363,8 +345,9 @@ export function InputArea() {
         </box>
       </Show>
 
-      {/* Input row */}
+      {/* Input row with > prompt prefix */}
       <box flexDirection="row">
+        <text color="white">{"> "}</text>
         <textarea
           ref={(el: TextareaRenderable) => { textareaRef = el; _sharedTextareaRef = el }}
           focused={!isDisabled()}

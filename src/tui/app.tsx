@@ -163,5 +163,5 @@ export function startApp(options: AppOptions): void {
         </SessionProvider>
       </AgentProvider>
     </ErrorBoundary>
-  ))
+  ), { exitOnCtrlC: false })
 }

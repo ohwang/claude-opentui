@@ -9,11 +9,51 @@
 
 import type {
   AgentEvent,
+  Block,
   ConversationState,
-  Message,
-  ActiveTool,
-  ToolResult,
+  ToolStatus,
 } from "./types"
+
+/**
+ * Commit streaming buffers to blocks. Called on tool_use_start, text_complete,
+ * turn_complete, and interrupt to ensure chronological ordering.
+ * Thinking is flushed before text (thinking precedes text chronologically).
+ */
+function flushBuffers(state: ConversationState): ConversationState {
+  let streamingThinking = state.streamingThinking
+  let streamingText = state.streamingText
+
+  const flushed: Block[] = []
+  if (streamingThinking) {
+    flushed.push({ type: "thinking", text: streamingThinking })
+    streamingThinking = ""
+  }
+  if (streamingText) {
+    flushed.push({ type: "assistant", text: streamingText })
+    streamingText = ""
+  }
+
+  if (flushed.length === 0) return state // no changes
+
+  // Insert flushed blocks before any queued user blocks so that the
+  // assistant's streaming content (which was produced during the turn)
+  // appears chronologically before messages the user queued mid-turn.
+  const firstQueuedIdx = state.blocks.findIndex(
+    b => b.type === "user" && b.queued,
+  )
+  let blocks: Block[]
+  if (firstQueuedIdx === -1) {
+    blocks = [...state.blocks, ...flushed]
+  } else {
+    blocks = [
+      ...state.blocks.slice(0, firstQueuedIdx),
+      ...flushed,
+      ...state.blocks.slice(firstQueuedIdx),
+    ]
+  }
+
+  return { ...state, blocks, streamingThinking, streamingText }
+}
 
 export function reduce(
   state: ConversationState,
@@ -48,59 +88,21 @@ export function reduce(
         turnNumber: state.turnNumber + 1,
         streamingText: "",
         streamingThinking: "",
-        completedTools: [],
       }
 
     case "turn_complete": {
-      // Ignore duplicate turn_complete
+      // Guard: ignore if not in RUNNING or INTERRUPTING
       if (state.sessionState !== "RUNNING" && state.sessionState !== "INTERRUPTING") {
         return next
       }
 
-      // Finalize any accumulated streaming text into a message
-      const newMessages = [...state.messages]
-      const content: Message["content"] = []
+      // Flush any remaining buffers as committed blocks
+      const flushed = flushBuffers({ ...next })
 
-      if (state.streamingThinking) {
-        content.push({ type: "thinking", text: state.streamingThinking })
-      }
-      if (state.streamingText) {
-        content.push({ type: "text", text: state.streamingText })
-      }
-      // Add completed tool results as message content
-      for (const tool of state.completedTools) {
-        content.push({
-          type: "tool_use",
-          id: tool.id,
-          tool: tool.tool,
-          input: tool.input,
-        })
-        content.push({
-          type: "tool_result",
-          id: tool.id,
-          output: tool.output,
-          error: tool.error,
-        })
-      }
-
-      if (content.length > 0) {
-        newMessages.push({
-          role: "assistant",
-          content,
-          timestamp: Date.now(),
-          turnNumber: state.turnNumber,
-        })
-      }
-
-      // Drain pending user messages (sent during this turn)
-      for (const pending of state.pendingMessages) {
-        newMessages.push({
-          role: "user",
-          content: [{ type: "text", text: pending.text }],
-          timestamp: Date.now(),
-          turnNumber: state.turnNumber + 1,
-        })
-      }
+      // Unqueue any queued user blocks
+      const blocks = flushed.blocks.map(b =>
+        b.type === "user" && b.queued ? { ...b, queued: undefined } : b
+      )
 
       // Update cost totals
       const cost = { ...state.cost }
@@ -113,16 +115,13 @@ export function reduce(
       }
 
       return {
-        ...next,
+        ...flushed,
+        blocks,
         sessionState: "IDLE",
-        messages: newMessages,
         streamingText: "",
         streamingThinking: "",
-        activeTools: new Map(),
-        completedTools: [],
         pendingPermission: null,
         pendingElicitation: null,
-        pendingMessages: [],
         cost,
       }
     }
@@ -130,7 +129,7 @@ export function reduce(
     // ----- User messages -----
 
     case "user_message": {
-      // During active turns, queue the message instead of showing immediately
+      // During active turns, show as queued
       if (
         state.sessionState === "RUNNING" ||
         state.sessionState === "WAITING_FOR_PERM" ||
@@ -139,18 +138,14 @@ export function reduce(
       ) {
         return {
           ...next,
-          pendingMessages: [...state.pendingMessages, { text: event.text }],
+          blocks: [...state.blocks, { type: "user", text: event.text, queued: true }],
         }
       }
-      // IDLE/INITIALIZING: show immediately
-      const messages = [...state.messages]
-      messages.push({
-        role: "user",
-        content: [{ type: "text", text: event.text }],
-        timestamp: Date.now(),
-        turnNumber: state.turnNumber,
-      })
-      return { ...next, messages }
+      // IDLE: show immediately
+      return {
+        ...next,
+        blocks: [...state.blocks, { type: "user", text: event.text }],
+      }
     }
 
     case "interrupt":
@@ -159,7 +154,13 @@ export function reduce(
         state.sessionState === "WAITING_FOR_PERM" ||
         state.sessionState === "WAITING_FOR_ELIC"
       ) {
-        return { ...next, sessionState: "INTERRUPTING" }
+        const flushed = flushBuffers({ ...next })
+        return {
+          ...flushed,
+          sessionState: "INTERRUPTING",
+          pendingPermission: null,
+          pendingElicitation: null,
+        }
       }
       return next
 
@@ -178,62 +179,55 @@ export function reduce(
       }
 
     case "text_complete": {
-      // Store finalized text for turn_complete to bundle into the message.
-      // Do NOT create a message here — turn_complete is the single place
-      // that assembles the final assistant message (text + thinking + tools).
-      return {
-        ...next,
-        streamingText: event.text,
-      }
+      // Flush buffers with the finalized text — commits as an assistant block
+      const withFinalText = { ...next, streamingText: event.text }
+      return flushBuffers(withFinalText)
     }
 
     // ----- Tool lifecycle -----
 
     case "tool_use_start": {
-      const activeTools = new Map(state.activeTools)
-      activeTools.set(event.id, {
-        id: event.id,
-        tool: event.tool,
-        input: event.input,
-        output: "",
-        startTime: Date.now(),
-      })
-      return { ...next, activeTools }
+      // CRITICAL: flush buffers FIRST so text/thinking appear before this tool
+      const flushedState = flushBuffers({ ...next })
+      return {
+        ...flushedState,
+        blocks: [...flushedState.blocks, {
+          type: "tool" as const,
+          id: event.id,
+          tool: event.tool,
+          input: event.input,
+          status: "running" as ToolStatus,
+          output: "",
+          startTime: Date.now(),
+        }],
+      }
     }
 
-    case "tool_use_progress": {
-      const activeTools = new Map(state.activeTools)
-      const tool = activeTools.get(event.id)
-      if (tool) {
-        activeTools.set(event.id, {
-          ...tool,
-          output: tool.output + event.output,
-        })
-      }
-      return { ...next, activeTools }
-    }
-
-    case "tool_use_end": {
-      const activeTools = new Map(state.activeTools)
-      const tool = activeTools.get(event.id)
-      const duration = tool ? Date.now() - tool.startTime : 0
-      activeTools.delete(event.id)
-
-      const result: ToolResult = {
-        id: event.id,
-        tool: tool?.tool ?? "unknown",
-        input: tool?.input ?? {},
-        output: event.output,
-        error: event.error,
-        duration,
-      }
-
+    case "tool_use_progress":
       return {
         ...next,
-        activeTools,
-        completedTools: [...state.completedTools, result],
+        blocks: state.blocks.map(b =>
+          b.type === "tool" && b.id === event.id
+            ? { ...b, output: (b.output ?? "") + event.output }
+            : b
+        ),
       }
-    }
+
+    case "tool_use_end":
+      return {
+        ...next,
+        blocks: state.blocks.map(b =>
+          b.type === "tool" && b.id === event.id
+            ? {
+                ...b,
+                status: (event.error ? "error" : "done") as ToolStatus,
+                output: event.output,
+                error: event.error,
+                duration: Date.now() - b.startTime,
+              }
+            : b
+        ),
+      }
 
     // ----- Permission flow -----
 
@@ -276,6 +270,7 @@ export function reduce(
           ...next,
           sessionState: "ERROR",
           lastError: event,
+          blocks: [...state.blocks, { type: "error", code: event.code, message: event.message }],
         }
       }
       // Recoverable: stay in current state, just record
@@ -336,16 +331,11 @@ export function reduce(
 
     // ----- Compact -----
 
-    case "compact": {
-      const messages = [...state.messages]
-      messages.push({
-        role: "system",
-        content: [{ type: "compact", summary: event.summary }],
-        timestamp: Date.now(),
-        turnNumber: state.turnNumber,
-      })
-      return { ...next, messages }
-    }
+    case "compact":
+      return {
+        ...next,
+        blocks: [...state.blocks, { type: "compact", summary: event.summary }],
+      }
 
     // ----- Model changed -----
 
@@ -357,16 +347,11 @@ export function reduce(
 
     // ----- System messages -----
 
-    case "system_message": {
-      const messages = [...state.messages]
-      messages.push({
-        role: "system",
-        content: [{ type: "text", text: event.text }],
-        timestamp: Date.now(),
-        turnNumber: state.turnNumber,
-      })
-      return { ...next, messages }
-    }
+    case "system_message":
+      return {
+        ...next,
+        blocks: [...state.blocks, { type: "system", text: event.text }],
+      }
 
     // ----- Informational / passthrough -----
 

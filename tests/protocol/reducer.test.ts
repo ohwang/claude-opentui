@@ -109,7 +109,7 @@ describe("ConversationState reducer", () => {
       expect(state.cost.totalCostUsd).toBe(0.005)
     })
 
-    it("finalizes streaming text into a message", () => {
+    it("turn_complete flushes streaming text as assistant block", () => {
       const state = applyEvents([
         { type: "session_init", tools: [], models: [] },
         { type: "turn_start" },
@@ -117,15 +117,12 @@ describe("ConversationState reducer", () => {
         { type: "text_delta", text: "world" },
         { type: "turn_complete" },
       ])
-      expect(state.messages).toHaveLength(1)
-      expect(state.messages[0].role).toBe("assistant")
-      expect(state.messages[0].content[0]).toEqual({
-        type: "text",
-        text: "Hello world",
-      })
+      expect(state.blocks).toHaveLength(1)
+      expect(state.blocks[0].type).toBe("assistant")
+      expect(state.blocks[0]).toMatchObject({ type: "assistant", text: "Hello world" })
     })
 
-    it("bundles text and tools into a single assistant message", () => {
+    it("produces chronological blocks: text then tool", () => {
       const state = applyEvents([
         { type: "session_init", tools: [], models: [] },
         { type: "turn_start" },
@@ -140,30 +137,20 @@ describe("ConversationState reducer", () => {
         { type: "tool_use_end", id: "t1", output: "file contents" },
         { type: "turn_complete" },
       ])
-      // Must produce exactly ONE assistant message
-      expect(state.messages).toHaveLength(1)
-      expect(state.messages[0].role).toBe("assistant")
-      // Should contain text + tool_use + tool_result
-      const content = state.messages[0].content
-      expect(content).toHaveLength(3)
-      expect(content[0]).toEqual({
-        type: "text",
+      // text_complete flushes text, tool_use_start flushes before appending tool
+      expect(state.blocks).toHaveLength(2)
+      expect(state.blocks[0]).toMatchObject({
+        type: "assistant",
         text: "Let me read that file.",
       })
-      expect(content[1]).toEqual({
-        type: "tool_use",
-        id: "t1",
-        tool: "Read",
-        input: { path: "/foo" },
-      })
-      expect(content[2]).toMatchObject({
-        type: "tool_result",
-        id: "t1",
-        output: "file contents",
-      })
+      expect(state.blocks[1].type).toBe("tool")
+      if (state.blocks[1].type === "tool") {
+        expect(state.blocks[1].status).toBe("done")
+        expect(state.blocks[1].output).toBe("file contents")
+      }
     })
 
-    it("bundles thinking, text, and tools into a single assistant message", () => {
+    it("produces chronological blocks: thinking, text, tool", () => {
       const state = applyEvents([
         { type: "session_init", tools: [], models: [] },
         { type: "turn_start" },
@@ -179,21 +166,22 @@ describe("ConversationState reducer", () => {
         { type: "tool_use_end", id: "t1", output: "bar contents" },
         { type: "turn_complete" },
       ])
-      expect(state.messages).toHaveLength(1)
-      const content = state.messages[0].content
-      expect(content[0]).toEqual({
+      expect(state.blocks).toHaveLength(3)
+      expect(state.blocks[0]).toMatchObject({
         type: "thinking",
         text: "I should read the file.",
       })
-      expect(content[1]).toEqual({
-        type: "text",
+      expect(state.blocks[1]).toMatchObject({
+        type: "assistant",
         text: "Reading the file now.",
       })
-      expect(content[2]).toMatchObject({ type: "tool_use", id: "t1" })
-      expect(content[3]).toMatchObject({ type: "tool_result", id: "t1" })
+      expect(state.blocks[2].type).toBe("tool")
+      if (state.blocks[2].type === "tool") {
+        expect(state.blocks[2].id).toBe("t1")
+      }
     })
 
-    it("produces one assistant message for tools-only turn", () => {
+    it("produces tool block for tools-only turn", () => {
       const state = applyEvents([
         { type: "session_init", tools: [], models: [] },
         { type: "turn_start" },
@@ -206,13 +194,12 @@ describe("ConversationState reducer", () => {
         { type: "tool_use_end", id: "t1", output: "file1\nfile2" },
         { type: "turn_complete" },
       ])
-      expect(state.messages).toHaveLength(1)
-      expect(state.messages[0].role).toBe("assistant")
-      expect(state.messages[0].content).toHaveLength(2) // tool_use + tool_result
-      expect(state.messages[0].content[0]).toMatchObject({ type: "tool_use" })
-      expect(state.messages[0].content[1]).toMatchObject({
-        type: "tool_result",
-      })
+      expect(state.blocks).toHaveLength(1)
+      expect(state.blocks[0].type).toBe("tool")
+      if (state.blocks[0].type === "tool") {
+        expect(state.blocks[0].status).toBe("done")
+        expect(state.blocks[0].output).toBe("file1\nfile2")
+      }
     })
 
     it("ignores duplicate turn_complete", () => {
@@ -232,19 +219,19 @@ describe("ConversationState reducer", () => {
   // -----------------------------------------------------------------------
 
   describe("user_message", () => {
-    it("adds a user message to the messages array", () => {
+    it("adds a user block to the blocks array", () => {
       const state = applyEvents([
         { type: "session_init", tools: [], models: [] },
         { type: "user_message", text: "Hello, world!" },
       ])
-      expect(state.messages).toHaveLength(1)
-      expect(state.messages[0].role).toBe("user")
-      expect(state.messages[0].content).toEqual([
-        { type: "text", text: "Hello, world!" },
-      ])
+      expect(state.blocks).toHaveLength(1)
+      expect(state.blocks[0]).toMatchObject({
+        type: "user",
+        text: "Hello, world!",
+      })
     })
 
-    it("preserves existing messages when adding user message", () => {
+    it("preserves existing blocks when adding user message", () => {
       const state = applyEvents([
         { type: "session_init", tools: [], models: [] },
         { type: "user_message", text: "First" },
@@ -253,10 +240,10 @@ describe("ConversationState reducer", () => {
         { type: "turn_complete" },
         { type: "user_message", text: "Second" },
       ])
-      expect(state.messages).toHaveLength(3)
-      expect(state.messages[0].role).toBe("user")
-      expect(state.messages[1].role).toBe("assistant")
-      expect(state.messages[2].role).toBe("user")
+      expect(state.blocks).toHaveLength(3)
+      expect(state.blocks[0]).toMatchObject({ type: "user", text: "First" })
+      expect(state.blocks[1]).toMatchObject({ type: "assistant", text: "Response" })
+      expect(state.blocks[2]).toMatchObject({ type: "user", text: "Second" })
     })
   })
 
@@ -288,16 +275,16 @@ describe("ConversationState reducer", () => {
   // -----------------------------------------------------------------------
 
   describe("system_message", () => {
-    it("adds system message to messages array", () => {
+    it("adds system block to blocks array", () => {
       const state = applyEvents([
         { type: "session_init", tools: [], models: [] },
         { type: "system_message", text: "Command output here" },
       ])
-      expect(state.messages).toHaveLength(1)
-      expect(state.messages[0].role).toBe("system")
-      expect(state.messages[0].content).toEqual([
-        { type: "text", text: "Command output here" },
-      ])
+      expect(state.blocks).toHaveLength(1)
+      expect(state.blocks[0]).toMatchObject({
+        type: "system",
+        text: "Command output here",
+      })
     })
   })
 
@@ -330,25 +317,28 @@ describe("ConversationState reducer", () => {
   })
 
   describe("text_complete", () => {
-    it("stores finalized text without creating a message", () => {
+    it("commits text as assistant block", () => {
       const state = applyEvents([
         { type: "session_init", tools: [], models: [] },
         { type: "turn_start" },
         { type: "text_complete", text: "Hello world" },
       ])
-      // text_complete no longer creates a message — turn_complete does
-      expect(state.messages).toHaveLength(0)
-      expect(state.streamingText).toBe("Hello world")
+      // text_complete flushes the finalized text as a block
+      expect(state.blocks).toHaveLength(1)
+      expect(state.blocks[0]).toMatchObject({ type: "assistant", text: "Hello world" })
+      expect(state.streamingText).toBe("")
     })
 
-    it("overwrites streaming text with finalized text", () => {
+    it("overwrites streaming text with finalized text and flushes", () => {
       const state = applyEvents([
         { type: "session_init", tools: [], models: [] },
         { type: "turn_start" },
         { type: "text_delta", text: "partial" },
         { type: "text_complete", text: "full text" },
       ])
-      expect(state.streamingText).toBe("full text")
+      expect(state.blocks).toHaveLength(1)
+      expect(state.blocks[0]).toMatchObject({ type: "assistant", text: "full text" })
+      expect(state.streamingText).toBe("")
     })
   })
 
@@ -357,7 +347,7 @@ describe("ConversationState reducer", () => {
   // -----------------------------------------------------------------------
 
   describe("tool_use_start", () => {
-    it("adds to active tools", () => {
+    it("tool_use_start appends running tool block", () => {
       const state = applyEvents([
         { type: "session_init", tools: [], models: [] },
         { type: "turn_start" },
@@ -368,13 +358,19 @@ describe("ConversationState reducer", () => {
           input: { path: "/foo" },
         },
       ])
-      expect(state.activeTools.has("tool1")).toBe(true)
-      expect(state.activeTools.get("tool1")!.tool).toBe("Read")
+      const toolBlock = state.blocks.find(
+        b => b.type === "tool" && b.id === "tool1"
+      )
+      expect(toolBlock).toBeDefined()
+      if (toolBlock && toolBlock.type === "tool") {
+        expect(toolBlock.tool).toBe("Read")
+        expect(toolBlock.status).toBe("running")
+      }
     })
   })
 
   describe("tool_use_progress", () => {
-    it("appends output to active tool", () => {
+    it("tool_use_progress updates tool block output", () => {
       const state = applyEvents([
         { type: "session_init", tools: [], models: [] },
         { type: "turn_start" },
@@ -387,12 +383,18 @@ describe("ConversationState reducer", () => {
         { type: "tool_use_progress", id: "tool1", output: "line 1\n" },
         { type: "tool_use_progress", id: "tool1", output: "line 2\n" },
       ])
-      expect(state.activeTools.get("tool1")!.output).toBe("line 1\nline 2\n")
+      const toolBlock = state.blocks.find(
+        b => b.type === "tool" && b.id === "tool1"
+      )
+      expect(toolBlock).toBeDefined()
+      if (toolBlock && toolBlock.type === "tool") {
+        expect(toolBlock.output).toBe("line 1\nline 2\n")
+      }
     })
   })
 
   describe("tool_use_end", () => {
-    it("moves tool from active to completed", () => {
+    it("tool_use_end sets tool block to done", () => {
       const state = applyEvents([
         { type: "session_init", tools: [], models: [] },
         { type: "turn_start" },
@@ -404,9 +406,14 @@ describe("ConversationState reducer", () => {
         },
         { type: "tool_use_end", id: "tool1", output: "file contents" },
       ])
-      expect(state.activeTools.has("tool1")).toBe(false)
-      expect(state.completedTools).toHaveLength(1)
-      expect(state.completedTools[0].output).toBe("file contents")
+      const toolBlock = state.blocks.find(
+        b => b.type === "tool" && b.id === "tool1"
+      )
+      expect(toolBlock).toBeDefined()
+      if (toolBlock && toolBlock.type === "tool") {
+        expect(toolBlock.status).toBe("done")
+        expect(toolBlock.output).toBe("file contents")
+      }
     })
 
     it("preserves error on tool failure", () => {
@@ -426,7 +433,14 @@ describe("ConversationState reducer", () => {
           error: "File not found",
         },
       ])
-      expect(state.completedTools[0].error).toBe("File not found")
+      const toolBlock = state.blocks.find(
+        b => b.type === "tool" && b.id === "tool1"
+      )
+      expect(toolBlock).toBeDefined()
+      if (toolBlock && toolBlock.type === "tool") {
+        expect(toolBlock.status).toBe("error")
+        expect(toolBlock.error).toBe("File not found")
+      }
     })
   })
 
@@ -525,6 +539,25 @@ describe("ConversationState reducer", () => {
       expect(state.sessionState).toBe("ERROR")
       expect(state.lastError).not.toBeNull()
       expect(state.lastError!.code).toBe("error_max_turns")
+    })
+
+    it("fatal error appends error block", () => {
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "turn_start" },
+        {
+          type: "error",
+          code: "error_max_turns",
+          message: "Too many turns",
+          severity: "fatal",
+        },
+      ])
+      expect(state.blocks).toHaveLength(1)
+      expect(state.blocks[0]).toMatchObject({
+        type: "error",
+        code: "error_max_turns",
+        message: "Too many turns",
+      })
     })
 
     it("recoverable error stays in current state", () => {
@@ -628,16 +661,17 @@ describe("ConversationState reducer", () => {
   // -----------------------------------------------------------------------
 
   describe("compact", () => {
-    it("adds compact message", () => {
+    it("adds compact block", () => {
       const state = applyEvents([
         { type: "session_init", tools: [], models: [] },
         { type: "turn_start" },
         { type: "compact", summary: "Conversation was compacted" },
       ])
-      const compactMsg = state.messages.find(
-        (m) => m.content[0]?.type === "compact",
-      )
-      expect(compactMsg).toBeDefined()
+      const compactBlock = state.blocks.find(b => b.type === "compact")
+      expect(compactBlock).toBeDefined()
+      if (compactBlock && compactBlock.type === "compact") {
+        expect(compactBlock.summary).toBe("Conversation was compacted")
+      }
     })
   })
 
@@ -705,9 +739,9 @@ describe("ConversationState reducer", () => {
         createInitialState(),
       )
 
-      // States should match (except Maps need special comparison)
+      // States should match
       expect(state2.sessionState).toBe(state1.sessionState)
-      expect(state2.messages).toEqual(state1.messages)
+      expect(state2.blocks).toEqual(state1.blocks)
       expect(state2.cost).toEqual(state1.cost)
       expect(state2.turnNumber).toBe(state1.turnNumber)
     })
@@ -718,19 +752,21 @@ describe("ConversationState reducer", () => {
   // -----------------------------------------------------------------------
 
   describe("message ordering during streaming", () => {
-    it("user_message during RUNNING queues instead of displaying", () => {
+    it("user_message during RUNNING shows as queued block", () => {
       const state = applyEvents([
         { type: "session_init", tools: [], models: [] },
         { type: "turn_start" },
         { type: "text_delta", text: "hello" },
         { type: "user_message", text: "msg2" },
       ])
-      expect(state.messages).toHaveLength(0)
-      expect(state.pendingMessages).toHaveLength(1)
-      expect(state.pendingMessages[0].text).toBe("msg2")
+      const userBlock = state.blocks.find(
+        b => b.type === "user" && b.text === "msg2"
+      )
+      expect(userBlock).toBeDefined()
+      expect(userBlock!.queued).toBe(true)
     })
 
-    it("turn_complete drains pending messages in correct order", () => {
+    it("turn_complete unqueues user blocks and preserves order", () => {
       const state = applyEvents([
         { type: "session_init", tools: [], models: [] },
         { type: "user_message", text: "msg1" },
@@ -739,23 +775,12 @@ describe("ConversationState reducer", () => {
         { type: "user_message", text: "msg2" },
         { type: "turn_complete" },
       ])
-      expect(state.messages).toHaveLength(3)
-      expect(state.messages[0].role).toBe("user")
-      expect(state.messages[0].content[0]).toEqual({
-        type: "text",
-        text: "msg1",
-      })
-      expect(state.messages[1].role).toBe("assistant")
-      expect(state.messages[1].content[0]).toEqual({
-        type: "text",
-        text: "response",
-      })
-      expect(state.messages[2].role).toBe("user")
-      expect(state.messages[2].content[0]).toEqual({
-        type: "text",
-        text: "msg2",
-      })
-      expect(state.pendingMessages).toHaveLength(0)
+      expect(state.blocks).toHaveLength(3)
+      expect(state.blocks[0]).toMatchObject({ type: "user", text: "msg1" })
+      expect(state.blocks[1]).toMatchObject({ type: "assistant", text: "response" })
+      expect(state.blocks[2]).toMatchObject({ type: "user", text: "msg2" })
+      // msg2 should be unqueued after turn_complete
+      expect(state.blocks[2].queued).toBeUndefined()
     })
 
     it("multiple queued messages maintain order", () => {
@@ -768,28 +793,14 @@ describe("ConversationState reducer", () => {
         { type: "user_message", text: "msg3" },
         { type: "turn_complete" },
       ])
-      expect(state.messages).toHaveLength(4)
-      expect(state.messages[0].role).toBe("user")
-      expect(state.messages[0].content[0]).toEqual({
-        type: "text",
-        text: "msg1",
-      })
-      expect(state.messages[1].role).toBe("assistant")
-      expect(state.messages[1].content[0]).toEqual({
-        type: "text",
-        text: "resp",
-      })
-      expect(state.messages[2].role).toBe("user")
-      expect(state.messages[2].content[0]).toEqual({
-        type: "text",
-        text: "msg2",
-      })
-      expect(state.messages[3].role).toBe("user")
-      expect(state.messages[3].content[0]).toEqual({
-        type: "text",
-        text: "msg3",
-      })
-      expect(state.pendingMessages).toHaveLength(0)
+      expect(state.blocks).toHaveLength(4)
+      expect(state.blocks[0]).toMatchObject({ type: "user", text: "msg1" })
+      expect(state.blocks[1]).toMatchObject({ type: "assistant", text: "resp" })
+      expect(state.blocks[2]).toMatchObject({ type: "user", text: "msg2" })
+      expect(state.blocks[3]).toMatchObject({ type: "user", text: "msg3" })
+      // Both should be unqueued
+      expect(state.blocks[2].queued).toBeUndefined()
+      expect(state.blocks[3].queued).toBeUndefined()
     })
 
     it("user_message in IDLE still adds immediately", () => {
@@ -797,9 +808,9 @@ describe("ConversationState reducer", () => {
         { type: "session_init", tools: [], models: [] },
         { type: "user_message", text: "msg1" },
       ])
-      expect(state.messages).toHaveLength(1)
-      expect(state.messages[0].role).toBe("user")
-      expect(state.pendingMessages).toHaveLength(0)
+      expect(state.blocks).toHaveLength(1)
+      expect(state.blocks[0]).toMatchObject({ type: "user", text: "msg1" })
+      expect(state.blocks[0].queued).toBeUndefined()
     })
 
     it("user_message during WAITING_FOR_PERM queues", () => {
@@ -814,9 +825,102 @@ describe("ConversationState reducer", () => {
         },
         { type: "user_message", text: "queued" },
       ])
-      expect(state.messages).toHaveLength(0)
-      expect(state.pendingMessages).toHaveLength(1)
-      expect(state.pendingMessages[0].text).toBe("queued")
+      const userBlock = state.blocks.find(
+        b => b.type === "user" && b.text === "queued"
+      )
+      expect(userBlock).toBeDefined()
+      expect(userBlock!.queued).toBe(true)
+    })
+  })
+
+  // -----------------------------------------------------------------------
+  // flushBuffers ordering
+  // -----------------------------------------------------------------------
+
+  describe("flushBuffers ordering", () => {
+    it("tool_use_start flushes buffers before appending tool block", () => {
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "turn_start" },
+        { type: "thinking_delta", text: "Let me think" },
+        { type: "text_delta", text: "I'll read the file" },
+        { type: "tool_use_start", id: "t1", tool: "Read", input: {} },
+      ])
+      // Thinking and text should be committed BEFORE the tool
+      expect(state.blocks).toHaveLength(3)
+      expect(state.blocks[0].type).toBe("thinking")
+      expect(state.blocks[1].type).toBe("assistant")
+      expect(state.blocks[2].type).toBe("tool")
+    })
+
+    it("multi-turn tool loop produces continuous block sequence", () => {
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "user_message", text: "Fix the bug" },
+        // Turn 1: text + tool
+        { type: "turn_start" },
+        { type: "text_delta", text: "I'll read first" },
+        { type: "tool_use_start", id: "t1", tool: "Read", input: {} },
+        { type: "tool_use_end", id: "t1", output: "contents" },
+        { type: "turn_complete" },
+        // Turn 2: text + tool
+        { type: "turn_start" },
+        { type: "text_delta", text: "Now I'll edit" },
+        { type: "tool_use_start", id: "t2", tool: "Edit", input: {} },
+        { type: "tool_use_end", id: "t2", output: "edited" },
+        { type: "turn_complete" },
+        // Turn 3: final text
+        { type: "turn_start" },
+        { type: "text_delta", text: "Done!" },
+        { type: "turn_complete" },
+      ])
+      // Should be: user, text, tool, text, tool, text -- continuous, no gaps
+      expect(state.blocks).toHaveLength(6)
+      expect(state.blocks[0]).toMatchObject({ type: "user", text: "Fix the bug" })
+      expect(state.blocks[1]).toMatchObject({ type: "assistant", text: "I'll read first" })
+      expect(state.blocks[2]).toMatchObject({ type: "tool", tool: "Read", status: "done" })
+      expect(state.blocks[3]).toMatchObject({ type: "assistant", text: "Now I'll edit" })
+      expect(state.blocks[4]).toMatchObject({ type: "tool", tool: "Edit", status: "done" })
+      expect(state.blocks[5]).toMatchObject({ type: "assistant", text: "Done!" })
+    })
+
+    it("text_complete commits text as assistant block", () => {
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "turn_start" },
+        { type: "text_delta", text: "partial" },
+        { type: "text_complete", text: "full text" },
+      ])
+      // text_complete should flush the finalized text as a block
+      expect(state.blocks).toHaveLength(1)
+      expect(state.blocks[0]).toMatchObject({ type: "assistant", text: "full text" })
+      expect(state.streamingText).toBe("")
+    })
+
+    it("interrupt flushes buffers before transitioning", () => {
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "turn_start" },
+        { type: "text_delta", text: "partial response" },
+        { type: "interrupt" },
+      ])
+      expect(state.sessionState).toBe("INTERRUPTING")
+      expect(state.blocks).toHaveLength(1)
+      expect(state.blocks[0]).toMatchObject({ type: "assistant", text: "partial response" })
+      expect(state.streamingText).toBe("")
+    })
+
+    it("queued user blocks get unqueued on turn_complete", () => {
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "turn_start" },
+        { type: "text_delta", text: "response" },
+        { type: "user_message", text: "queued msg" },
+        { type: "turn_complete" },
+      ])
+      const userBlock = state.blocks.find(b => b.type === "user" && b.text === "queued msg")
+      expect(userBlock).toBeDefined()
+      expect(userBlock!.queued).toBeUndefined() // unqueued after turn_complete
     })
   })
 

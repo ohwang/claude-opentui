@@ -234,6 +234,21 @@ export type SessionState =
   | "SHUTTING_DOWN"
 
 // ---------------------------------------------------------------------------
+// Block types — flat, append-only conversation model
+// ---------------------------------------------------------------------------
+
+export type ToolStatus = "running" | "done" | "error" | "canceled"
+
+export type Block =
+  | { type: "user"; text: string; queued?: boolean }
+  | { type: "assistant"; text: string }
+  | { type: "thinking"; text: string }
+  | { type: "tool"; id: string; tool: string; input: unknown; status: ToolStatus; output?: string; error?: string; startTime: number; duration?: number }
+  | { type: "system"; text: string }
+  | { type: "compact"; summary: string }
+  | { type: "error"; code: string; message: string }
+
+// ---------------------------------------------------------------------------
 // Conversation State — event-sourced, derived via reducer
 // ---------------------------------------------------------------------------
 
@@ -241,8 +256,8 @@ export interface ConversationState {
   /** Current session lifecycle state */
   sessionState: SessionState
 
-  /** All messages in the conversation */
-  messages: Message[]
+  /** Flat, append-only block list */
+  blocks: Block[]
 
   /** Currently streaming text (accumulated text_deltas) */
   streamingText: string
@@ -250,20 +265,11 @@ export interface ConversationState {
   /** Currently streaming thinking (accumulated thinking_deltas) */
   streamingThinking: string
 
-  /** Active tool calls (in progress) */
-  activeTools: Map<string, ActiveTool>
-
-  /** Completed tool calls (for display) */
-  completedTools: ToolResult[]
-
   /** Pending permission request (at most one at a time) */
   pendingPermission: PermissionRequestEvent | null
 
   /** Pending elicitation request */
   pendingElicitation: ElicitationRequestEvent | null
-
-  /** Messages queued while a turn is running */
-  pendingMessages: UserMessage[]
 
   /** Active background tasks */
   activeTasks: Map<string, TaskInfo>
@@ -483,14 +489,11 @@ export type PermissionUpdate =
 export function createInitialState(): ConversationState {
   return {
     sessionState: "INITIALIZING",
-    messages: [],
+    blocks: [],
     streamingText: "",
     streamingThinking: "",
-    activeTools: new Map(),
-    completedTools: [],
     pendingPermission: null,
     pendingElicitation: null,
-    pendingMessages: [],
     activeTasks: new Map(),
     currentModel: null,
     session: null,

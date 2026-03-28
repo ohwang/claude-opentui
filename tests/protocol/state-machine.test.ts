@@ -165,12 +165,10 @@ describe("State Machine Transitions", () => {
 
     expect(state.sessionState).toBe("IDLE")
     expect(state.turnNumber).toBe(1)
-    // text_complete creates a message, then turn_complete creates another
-    // (with thinking + tools)
-    expect(state.messages.length).toBeGreaterThanOrEqual(1)
+    // Blocks should contain thinking, tool, and text blocks
+    expect(state.blocks.length).toBeGreaterThanOrEqual(1)
     expect(state.cost.inputTokens).toBe(200)
     expect(state.cost.outputTokens).toBe(80)
-    expect(state.activeTools.size).toBe(0)
     expect(state.streamingText).toBe("")
     expect(state.streamingThinking).toBe("")
   })

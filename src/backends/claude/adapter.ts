@@ -22,6 +22,7 @@ import type {
   SessionInfo,
   UserMessage,
 } from "../../protocol/types"
+import { EventChannel } from "../../utils/event-channel"
 
 // ---------------------------------------------------------------------------
 // Types for bridging SDK ↔ adapter
@@ -99,7 +100,7 @@ export class ClaudeAdapter implements AgentBackend {
   private pendingPermissions = new Map<string, PendingPermission>()
   private pendingElicitations = new Map<string, PendingElicitation>()
   private childPid: number | null = null
-  private eventBuffer: AgentEvent[] = []
+  private eventChannel: EventChannel<AgentEvent> | null = null
   private closed = false
 
   capabilities(): BackendCapabilities {
@@ -188,7 +189,7 @@ export class ClaudeAdapter implements AgentBackend {
     this.pendingPermissions.delete(id)
 
     // Emit event to transition state machine WAITING_FOR_PERM → RUNNING
-    this.eventBuffer.push({ type: "permission_response", id, behavior: "allow" })
+    this.eventChannel?.push({ type: "permission_response", id, behavior: "allow" })
   }
 
   denyToolUse(id: string, reason?: string): void {
@@ -202,7 +203,7 @@ export class ClaudeAdapter implements AgentBackend {
     this.pendingPermissions.delete(id)
 
     // Emit event to transition state machine WAITING_FOR_PERM → RUNNING
-    this.eventBuffer.push({ type: "permission_response", id, behavior: "deny" })
+    this.eventChannel?.push({ type: "permission_response", id, behavior: "deny" })
   }
 
   respondToElicitation(id: string, answers: Record<string, string>): void {
@@ -260,6 +261,12 @@ export class ClaudeAdapter implements AgentBackend {
     this.closed = true
     this.messageQueue.close()
 
+    // Close the event channel (unblocks iterateQuery consumer)
+    if (this.eventChannel) {
+      this.eventChannel.close()
+      this.eventChannel = null
+    }
+
     // Close the active query
     if (this.activeQuery) {
       this.activeQuery.close()
@@ -285,30 +292,36 @@ export class ClaudeAdapter implements AgentBackend {
   private async *iterateQuery(): AsyncGenerator<AgentEvent> {
     if (!this.activeQuery) return
 
-    try {
-      for await (const msg of this.activeQuery) {
-        if (this.closed) break
+    this.eventChannel = new EventChannel<AgentEvent>()
 
-        const events = this.mapSDKMessage(msg)
-        for (const event of events) {
-          yield event
+    // Run SDK iteration in background — pushes events to channel.
+    // This decouples the SDK's async iterable from the consumer, so
+    // canUseTool callbacks can push permission_request events to the
+    // same channel without waiting for the SDK to yield next.
+    const sdkLoop = (async () => {
+      try {
+        for await (const msg of this.activeQuery!) {
+          if (this.closed) break
+          const events = this.mapSDKMessage(msg)
+          for (const event of events) {
+            this.eventChannel!.push(event)
+          }
         }
-
-        // Yield buffered events from canUseTool callbacks
-        while (this.eventBuffer.length > 0) {
-          yield this.eventBuffer.shift()!
+      } catch (err) {
+        if (!this.closed) {
+          this.eventChannel!.push({
+            type: "error" as const,
+            code: "adapter_error",
+            message: err instanceof Error ? err.message : String(err),
+            severity: "fatal" as const,
+          })
         }
       }
-    } catch (err) {
-      if (!this.closed) {
-        yield {
-          type: "error",
-          code: "adapter_error",
-          message: err instanceof Error ? err.message : String(err),
-          severity: "fatal",
-        }
-      }
-    }
+      this.eventChannel!.close()
+    })()
+
+    // Yield from channel — receives both SDK events AND canUseTool callback events
+    yield* this.eventChannel[Symbol.asyncIterator]()
   }
 
   private mapSDKMessage(msg: any): AgentEvent[] {
@@ -543,8 +556,9 @@ export class ClaudeAdapter implements AgentBackend {
     return new Promise<PermissionResult>((resolve, reject) => {
       this.pendingPermissions.set(id, { resolve, reject })
 
-      // Buffer a permission_request event
-      this.eventBuffer.push({
+      // Push permission_request to the event channel so the TUI sees it
+      // immediately, even while the SDK is blocked waiting for canUseTool
+      this.eventChannel?.push({
         type: "permission_request",
         id,
         tool: toolName,
@@ -564,7 +578,9 @@ export class ClaudeAdapter implements AgentBackend {
       // Parse AskUserQuestion input into ElicitationQuestion[]
       const questions = this.parseElicitationInput(input)
 
-      this.eventBuffer.push({
+      // Push elicitation_request to the event channel so the TUI sees it
+      // immediately, even while the SDK is blocked waiting for the callback
+      this.eventChannel?.push({
         type: "elicitation_request",
         id,
         questions,

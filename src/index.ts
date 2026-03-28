@@ -115,8 +115,8 @@ async function main() {
     flags.config.initialPrompt = flags.prompt
   }
 
-  // Start the TUI
-  await startApp({
+  // Start the TUI — do not await; OpenTUI's native event loop keeps the process alive
+  startApp({
     backend,
     config: flags.config,
     onExit: cleanup,

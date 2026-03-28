@@ -31,16 +31,16 @@ export function HeaderBar() {
     <box flexDirection="column" flexShrink={0} paddingBottom={1}>
       {/* Logo line 1 */}
       <box flexDirection="row">
-        <text fg={174}>{" ╭━━━╮"}</text>
+        <text fg="#d78787">{" ╭━━━╮"}</text>
       </box>
       {/* Logo line 2 + app name + version */}
       <box flexDirection="row">
-        <text fg={174}>{" ┃   ┃  claude-opentui"}</text>
+        <text fg="#d78787">{" ┃   ┃  claude-opentui"}</text>
         <text fg="gray" attributes={TextAttributes.DIM}>{"  v0.0.1"}</text>
       </box>
       {/* Logo line 3 + model info */}
       <box flexDirection="row">
-        <text fg={174}>{" ╰━━━╯  "}</text>
+        <text fg="#d78787">{" ╰━━━╯  "}</text>
         <text fg="gray" attributes={TextAttributes.DIM}>{modelInfo()}</text>
       </box>
       {/* Working directory */}

@@ -24,11 +24,11 @@ import { HeaderBar } from "./components/header-bar"
 /** Render a full-width dash separator line (Claude Code style) */
 function DashLine() {
   const dims = useTerminalDimensions()
-  const width = () => dims()?.columns ?? 120
+  const width = () => dims()?.width ?? 120
   const dashes = () => "─".repeat(Math.max(width(), 40))
   return (
     <box height={1} flexShrink={0}>
-      <text fg={244}>{dashes()}</text>
+      <text fg="#808080">{dashes()}</text>
     </box>
   )
 }
@@ -154,13 +154,17 @@ export interface AppOptions {
   onExit?: () => void
 }
 
-export async function startApp(options: AppOptions): Promise<void> {
+export function startApp(options: AppOptions): void {
   const agentValue: AgentContextValue = {
     backend: options.backend,
     config: options.config,
   }
 
-  await render(() => (
+  // Do NOT await render() — the OpenTUI native event loop keeps the process alive.
+  // Awaiting would resolve immediately (render() only awaits createCliRenderer()),
+  // causing main() to return and the process to exit.
+  // Catch rejections to prevent unhandledRejection from killing the process.
+  render(() => (
     <ErrorBoundary
       fallback={(error, reset) => (
         <ErrorFallback error={error} reset={reset} />
@@ -178,5 +182,8 @@ export async function startApp(options: AppOptions): Promise<void> {
         </SessionProvider>
       </AgentProvider>
     </ErrorBoundary>
-  ))
+  )).catch((err) => {
+    console.error("Render error:", err)
+    process.exit(1)
+  })
 }

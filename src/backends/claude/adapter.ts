@@ -122,18 +122,6 @@ export class ClaudeAdapter implements AgentBackend {
   }
 
   async *start(config: SessionConfig): AsyncGenerator<AgentEvent> {
-    // Validate API key before attempting SDK connection
-    if (!process.env.ANTHROPIC_API_KEY) {
-      yield {
-        type: "error",
-        code: "missing_api_key",
-        message:
-          "ANTHROPIC_API_KEY not set. Export it or add to your shell profile.",
-        severity: "fatal",
-      }
-      return
-    }
-
     // Build SDK options
     const options = this.buildOptions(config)
 
@@ -146,8 +134,8 @@ export class ClaudeAdapter implements AgentBackend {
       options,
     })
 
-    // Iterate SDK messages with startup timeout
-    yield* this.iterateQueryWithTimeout()
+    // Iterate SDK messages — let the underlying claude binary handle auth/errors
+    yield* this.iterateQuery()
   }
 
   async *resume(sessionId: string): AsyncGenerator<AgentEvent> {
@@ -294,79 +282,21 @@ export class ClaudeAdapter implements AgentBackend {
   // Private: SDK message → AgentEvent mapping
   // -----------------------------------------------------------------------
 
-  /** Timeout in ms to wait for the first session_init event from the SDK. */
-  static readonly STARTUP_TIMEOUT_MS = 15_000
-
-  private async *iterateQueryWithTimeout(): AsyncGenerator<AgentEvent> {
+  private async *iterateQuery(): AsyncGenerator<AgentEvent> {
     if (!this.activeQuery) return
 
-    let receivedInit = false
-    let startupTimer: ReturnType<typeof setTimeout> | null = null
-
-    // Race the first event against a startup timeout.
-    // Once session_init arrives, the timeout is cleared and we proceed normally.
-    const timeoutPromise = new Promise<"timeout">((resolve) => {
-      startupTimer = setTimeout(
-        () => resolve("timeout"),
-        ClaudeAdapter.STARTUP_TIMEOUT_MS,
-      )
-    })
-
     try {
-      const iterator = this.activeQuery[Symbol.asyncIterator]()
+      for await (const msg of this.activeQuery) {
+        if (this.closed) break
 
-      // Wait for the first event with a timeout guard
-      while (!this.closed) {
-        const nextPromise = iterator.next()
+        const events = this.mapSDKMessage(msg)
+        for (const event of events) {
+          yield event
+        }
 
-        if (!receivedInit) {
-          // Race next event vs timeout
-          const result = await Promise.race([nextPromise, timeoutPromise])
-
-          if (result === "timeout") {
-            yield {
-              type: "error",
-              code: "startup_timeout",
-              message:
-                "Timed out waiting for Claude backend to respond. Check your API key and network connection.",
-              severity: "fatal",
-            }
-            return
-          }
-
-          // result is an IteratorResult
-          const iterResult = result as IteratorResult<any>
-          if (iterResult.done) break
-
-          const events = this.mapSDKMessage(iterResult.value)
-          for (const event of events) {
-            if (event.type === "session_init") {
-              receivedInit = true
-              if (startupTimer) {
-                clearTimeout(startupTimer)
-                startupTimer = null
-              }
-            }
-            yield event
-          }
-
-          // Yield buffered events from canUseTool callbacks
-          while (this.eventBuffer.length > 0) {
-            yield this.eventBuffer.shift()!
-          }
-        } else {
-          // After init, iterate normally (no timeout)
-          const iterResult = await nextPromise
-          if (iterResult.done) break
-
-          const events = this.mapSDKMessage(iterResult.value)
-          for (const event of events) {
-            yield event
-          }
-
-          while (this.eventBuffer.length > 0) {
-            yield this.eventBuffer.shift()!
-          }
+        // Yield buffered events from canUseTool callbacks
+        while (this.eventBuffer.length > 0) {
+          yield this.eventBuffer.shift()!
         }
       }
     } catch (err) {
@@ -377,10 +307,6 @@ export class ClaudeAdapter implements AgentBackend {
           message: err instanceof Error ? err.message : String(err),
           severity: "fatal",
         }
-      }
-    } finally {
-      if (startupTimer) {
-        clearTimeout(startupTimer)
       }
     }
   }

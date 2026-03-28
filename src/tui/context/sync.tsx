@@ -129,16 +129,6 @@ export function SyncProvider(props: ParentProps) {
       for await (const event of generator) {
         if (aborted) break
         batcher.push(event)
-
-        // Fatal errors during init should flush immediately so the UI
-        // reflects the error state without waiting for the batcher timer
-        if (
-          event.type === "error" &&
-          event.severity === "fatal" &&
-          conversationState.sessionState === "INITIALIZING"
-        ) {
-          batcher.flush()
-        }
       }
     } catch (err) {
       if (!aborted) {

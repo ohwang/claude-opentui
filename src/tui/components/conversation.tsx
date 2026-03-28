@@ -21,14 +21,14 @@ import type { Block } from "../../protocol/types"
 type ViewLevel = "collapsed" | "expanded" | "show_all"
 
 // ---------------------------------------------------------------------------
-// Braille spinner — animated activity indicator
+// Breathing asterisk spinner — animated activity indicator
 // ---------------------------------------------------------------------------
 
-const SPINNER_FRAMES = ["\u280B", "\u2819", "\u2839", "\u2838", "\u283C", "\u2834", "\u2826", "\u2827", "\u2807", "\u280F"]
-const SPINNER_INTERVAL_MS = 80
+const SPINNER_FRAMES = ['·', '⁺', '✦', '✶', '✻', '✽', '✻', '✶', '✦', '⁺']
+const SPINNER_INTERVAL_MS = 120
 
 /**
- * StreamingSpinner — braille dot spinner with contextual verb.
+ * StreamingSpinner — breathing asterisk spinner with contextual verb.
  *
  * Shown in the conversation area while the agent is working
  * (RUNNING state, before text starts streaming). The label adapts
@@ -46,7 +46,7 @@ function StreamingSpinner(props: { label: string }) {
 
   return (
     <box flexDirection="row">
-      <text fg="gray" attributes={TextAttributes.DIM}>
+      <text fg="#a8a8a8">
         {SPINNER_FRAMES[frameIndex()]} {props.label}
       </text>
     </box>

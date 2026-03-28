@@ -6,7 +6,7 @@
  * Ctrl+O toggles tool view level, Ctrl+E shows all.
  */
 
-import { createSignal, createEffect, onCleanup, Show, For } from "solid-js"
+import { createSignal, createEffect, createMemo, onCleanup, Show, For } from "solid-js"
 import { TextAttributes, type ScrollBoxRenderable } from "@opentui/core"
 import { useKeyboard } from "@opentui/solid"
 import { useMessages } from "../context/messages"
@@ -80,7 +80,7 @@ function ToolBlockView(props: { block: Extract<Block, { type: "tool" }>; viewLev
     if (!b().duration) return ""
     return b().duration! < 1000 ? `${b().duration}ms` : `${(b().duration! / 1000).toFixed(1)}s`
   }
-  const toolSummary = () => {
+  const toolSummary = createMemo(() => {
     const inp = b().input as Record<string, unknown> | null
     if (!inp) return ""
 
@@ -102,7 +102,7 @@ function ToolBlockView(props: { block: Extract<Block, { type: "tool" }>; viewLev
     }
 
     return ""
-  }
+  })
 
   return (
     <box flexDirection="column" paddingLeft={2}>

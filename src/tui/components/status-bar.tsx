@@ -250,13 +250,13 @@ export function StatusBar() {
     return abbreviateModel(raw)
   }
 
-  const costStr = () => {
+  const costStr = createMemo(() => {
     const c = state.cost.totalCostUsd
     if (c === 0) return ""
     // 4 decimal places during streaming, 2 when idle
     const decimals = isRunning() ? 4 : 2
     return `$${c.toFixed(decimals)}`
-  }
+  })
 
   const tokenStr = () => {
     const total = state.cost.inputTokens + state.cost.outputTokens
@@ -265,23 +265,23 @@ export function StatusBar() {
     return `${total} tok`
   }
 
-  const tokPerSecStr = () => {
+  const tokPerSecStr = createMemo(() => {
     if (!isRunning()) return ""
     const rate = tokPerSec()
     if (rate <= 0) return ""
     return `${rate} tok/s`
-  }
+  })
 
-  const timerStr = () => {
+  const timerStr = createMemo(() => {
     if (!isRunning()) return ""
     const secs = elapsedSeconds()
     if (secs < 60) return `${secs}s`
     const mins = Math.floor(secs / 60)
     const remSecs = secs % 60
     return `${mins}m ${remSecs}s`
-  }
+  })
 
-  const gitStr = () => {
+  const gitStr = createMemo(() => {
     const info = gitInfo()
     if (!info) return ""
     const parts: string[] = [info.branch]
@@ -293,7 +293,7 @@ export function StatusBar() {
       parts.push("| " + statusParts.join(" "))
     }
     return `[${parts.join(" ")}]`
-  }
+  })
 
   const permMode = () => agent.config.permissionMode
 

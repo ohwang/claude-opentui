@@ -13,20 +13,14 @@ import {
 } from "solid-js"
 import { createStore, type SetStoreFunction } from "solid-js/store"
 import type {
-  Message,
-  UserMessage,
-  ActiveTool,
-  ToolResult,
+  Block,
   TaskInfo,
 } from "../../protocol/types"
 
 export interface MessagesState {
-  messages: Message[]
+  blocks: Block[]
   streamingText: string
   streamingThinking: string
-  activeTools: [string, ActiveTool][]
-  completedTools: ToolResult[]
-  pendingMessages: UserMessage[]
   activeTasks: [string, TaskInfo][]
 }
 
@@ -39,12 +33,9 @@ const MessagesContext = createContext<MessagesContextValue>()
 
 export function MessagesProvider(props: ParentProps) {
   const [state, setState] = createStore<MessagesState>({
-    messages: [],
+    blocks: [],
     streamingText: "",
     streamingThinking: "",
-    activeTools: [],
-    completedTools: [],
-    pendingMessages: [],
     activeTasks: [],
   })
 

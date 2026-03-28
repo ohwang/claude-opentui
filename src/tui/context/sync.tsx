@@ -58,12 +58,9 @@ export function SyncProvider(props: ParentProps) {
 
     batch(() => {
       messages.setState({
-        messages: conversationState.messages,
+        blocks: conversationState.blocks,
         streamingText: conversationState.streamingText,
         streamingThinking: conversationState.streamingThinking,
-        activeTools: Array.from(conversationState.activeTools.entries()),
-        completedTools: conversationState.completedTools,
-        pendingMessages: conversationState.pendingMessages,
         activeTasks: Array.from(conversationState.activeTasks.entries()),
       })
 
@@ -106,12 +103,9 @@ export function SyncProvider(props: ParentProps) {
     // Clear the SolidJS stores to match
     batch(() => {
       messages.setState({
-        messages: [],
+        blocks: [],
         streamingText: "",
         streamingThinking: "",
-        activeTools: [],
-        completedTools: [],
-        pendingMessages: [],
         activeTasks: [],
       })
     })

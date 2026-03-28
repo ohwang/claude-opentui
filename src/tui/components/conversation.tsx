@@ -1,28 +1,28 @@
 /**
  * Conversation View — Scrollbox with sticky scroll
  *
- * Renders all messages, streaming content, active tools.
+ * Renders all blocks, streaming content, active tools.
  * Uses OpenTUI stickyScroll for auto-following.
  * Ctrl+O toggles tool view level, Ctrl+E shows all.
  */
 
-import { createSignal, createEffect, onCleanup, Show, Index } from "solid-js"
+import { createSignal, createEffect, onCleanup, Show, For } from "solid-js"
 import { TextAttributes, type ScrollBoxRenderable } from "@opentui/core"
 import { useKeyboard } from "@opentui/solid"
 import { useMessages } from "../context/messages"
 import { useSession } from "../context/session"
 import { ThinkingBlock } from "./thinking-block"
-import { ToolView } from "./tool-view"
-import type { ViewLevel } from "./tool-view"
 import { TaskView } from "./task-view"
-import { MessageBlock } from "./message-block"
 import { syntaxStyle } from "../theme"
+import type { Block } from "../../protocol/types"
+
+type ViewLevel = "collapsed" | "expanded" | "show_all"
 
 // ---------------------------------------------------------------------------
 // Braille spinner — animated activity indicator
 // ---------------------------------------------------------------------------
 
-const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+const SPINNER_FRAMES = ["\u280B", "\u2819", "\u2839", "\u2838", "\u283C", "\u2834", "\u2826", "\u2827", "\u2807", "\u280F"]
 const SPINNER_INTERVAL_MS = 80
 
 /**
@@ -51,50 +51,178 @@ function StreamingSpinner(props: { label: string }) {
   )
 }
 
+// ---------------------------------------------------------------------------
+// ToolBlockView — renders a single tool block
+// ---------------------------------------------------------------------------
+
+function ToolBlockView(props: { block: Extract<Block, { type: "tool" }>; viewLevel: ViewLevel }) {
+  const b = () => props.block
+  const statusIcon = () => {
+    switch (b().status) {
+      case "running": return "\u23FA"
+      case "done": return "\u2713"
+      case "error": return "\u2717"
+      case "canceled": return "\u2298"
+      default: return "\u23FA"
+    }
+  }
+  const statusColor = () => {
+    switch (b().status) {
+      case "running": return "#d78787"
+      case "done": return "green"
+      case "error": return "red"
+      case "canceled": return "gray"
+      default: return "gray"
+    }
+  }
+  const duration = () => {
+    if (!b().duration) return ""
+    return b().duration! < 1000 ? `${b().duration}ms` : `${(b().duration! / 1000).toFixed(1)}s`
+  }
+
+  return (
+    <box flexDirection="column" paddingLeft={2}>
+      <box flexDirection="row">
+        <text fg={statusColor()}>{statusIcon()} </text>
+        <text fg="white" attributes={TextAttributes.BOLD}>{b().tool}</text>
+        <Show when={duration()}>
+          <text fg="gray" attributes={TextAttributes.DIM}>{" (" + duration() + ")"}</text>
+        </Show>
+      </box>
+      <Show when={props.viewLevel !== "collapsed" && b().output}>
+        <box paddingLeft={4}>
+          <text fg="gray" attributes={TextAttributes.DIM}>
+            {(b().output ?? "").slice(0, props.viewLevel === "show_all" ? undefined : 200)}
+          </text>
+        </box>
+      </Show>
+      <Show when={b().error}>
+        <box paddingLeft={4}>
+          <text fg="red">{b().error}</text>
+        </box>
+      </Show>
+    </box>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// BlockView — dispatches rendering by block type
+// ---------------------------------------------------------------------------
+
+function BlockView(props: { block: Block; viewLevel: ViewLevel }) {
+  const b = () => props.block
+
+  return (
+    <box flexDirection="column">
+      {/* User block */}
+      <Show when={b().type === "user"}>
+        <box flexDirection="row" marginTop={1}>
+          <text fg="gray" attributes={TextAttributes.DIM}>{"> "}</text>
+          <text fg="white">{(b() as any).text}</text>
+        </box>
+      </Show>
+
+      {/* Assistant text block */}
+      <Show when={b().type === "assistant"}>
+        <box flexDirection="row" marginTop={1}>
+          <text fg="white">{"\u23FA "}</text>
+          <box flexGrow={1}>
+            <markdown content={(b() as any).text} syntaxStyle={syntaxStyle} />
+          </box>
+        </box>
+      </Show>
+
+      {/* Thinking block */}
+      <Show when={b().type === "thinking"}>
+        <ThinkingBlock text={(b() as any).text} collapsed={props.viewLevel === "collapsed"} />
+      </Show>
+
+      {/* Tool block */}
+      <Show when={b().type === "tool"}>
+        <ToolBlockView block={b() as Extract<Block, { type: "tool" }>} viewLevel={props.viewLevel} />
+      </Show>
+
+      {/* System block */}
+      <Show when={b().type === "system"}>
+        <box paddingLeft={2} marginTop={1}>
+          <text fg="gray" attributes={TextAttributes.DIM | TextAttributes.ITALIC}>
+            {"\u2139 " + (b() as any).text}
+          </text>
+        </box>
+      </Show>
+
+      {/* Compact block */}
+      <Show when={b().type === "compact"}>
+        <box paddingTop={1} paddingBottom={1}>
+          <text fg="gray" attributes={TextAttributes.DIM}>
+            {"\u2500\u2500 Context compacted \u2500\u2500"}
+          </text>
+        </box>
+      </Show>
+
+      {/* Error block */}
+      <Show when={b().type === "error"}>
+        <box flexDirection="column" paddingTop={1} paddingBottom={1} paddingLeft={2} paddingRight={2} borderStyle="single" borderColor="red">
+          <text fg="red" attributes={TextAttributes.BOLD}>Error: {(b() as any).code}</text>
+          <text fg="red">{(b() as any).message}</text>
+        </box>
+      </Show>
+    </box>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// ConversationView — main export
+// ---------------------------------------------------------------------------
+
 export function ConversationView() {
   const { state } = useMessages()
   const { state: session } = useSession()
   const [viewLevel, setViewLevel] = createSignal<ViewLevel>("collapsed")
   let scrollboxRef: ScrollBoxRenderable | undefined
 
-  // Derive spinner label from active tools
+  // Derived: separate queued vs non-queued blocks
+  const nonQueuedBlocks = () => state.blocks.filter(b => !(b.type === "user" && b.queued))
+  const queuedBlocks = () => state.blocks.filter(b => b.type === "user" && b.queued) as Array<Extract<Block, { type: "user" }>>
+
+  // Spinner label from running tools in blocks
   const spinnerLabel = () => {
-    if (state.activeTools.length > 0) {
-      // Show the name of the first active tool
-      const [, tool] = state.activeTools[0]
-      return `Running ${tool.tool}...`
+    const blocks = state.blocks
+    for (let i = blocks.length - 1; i >= 0; i--) {
+      const b = blocks[i]
+      if (b.type === "tool" && b.status === "running") {
+        return `Running ${b.tool}...`
+      }
     }
     return "Thinking..."
   }
 
-  // Re-engage stickyScroll when new messages arrive.
-  // When the user manually scrolls up (Ctrl+Up), OpenTUI disengages stickyScroll.
-  // After sending a new message, we want to scroll back to the bottom so
-  // stickyScroll re-engages and streaming content stays visible.
-  let prevMessageCount = 0
+  // Re-engage stickyScroll when new blocks arrive
+  let prevBlockCount = 0
   createEffect(() => {
-    const count = state.messages.length
-    if (count > prevMessageCount) {
-      // scrollBy(1, "content") scrolls to 100% of content = end
+    const count = state.blocks.length
+    if (count > prevBlockCount) {
       scrollboxRef?.scrollBy(1, "content")
     }
-    prevMessageCount = count
+    prevBlockCount = count
+  })
+
+  // Also re-engage on streaming text changes
+  createEffect(() => {
+    if (state.streamingText || state.streamingThinking) {
+      scrollboxRef?.scrollBy(1, "content")
+    }
   })
 
   // Ctrl+O toggles collapsed/expanded, Ctrl+E shows all
   // Ctrl+Up/Down scrolls the conversation
   useKeyboard((event) => {
     if (event.ctrl && event.name === "o") {
-      setViewLevel((prev) =>
-        prev === "collapsed" ? "expanded" : "collapsed",
-      )
+      setViewLevel((prev) => prev === "collapsed" ? "expanded" : "collapsed")
     }
     if (event.ctrl && event.name === "e") {
-      setViewLevel((prev) =>
-        prev === "show_all" ? "collapsed" : "show_all",
-      )
+      setViewLevel((prev) => prev === "show_all" ? "collapsed" : "show_all")
     }
-    // Scroll shortcuts
     if (event.ctrl && event.name === "up") {
       scrollboxRef?.scrollBy(-3)
     }
@@ -106,68 +234,44 @@ export function ConversationView() {
   return (
     <scrollbox ref={scrollboxRef} stickyScroll stickyStart="bottom" flexGrow={1}>
       <box flexDirection="column" gap={1} padding={1}>
-        {/* Rendered messages */}
-        <Index each={state.messages}>
-          {(message, index) => (
-            <MessageBlock
-              message={message()}
-              viewLevel={viewLevel()}
-              isFirstMessage={index === 0}
-              previousRole={index > 0 ? state.messages[index - 1]?.role : undefined}
-            />
-          )}
-        </Index>
+        {/* Committed blocks (non-queued) */}
+        <For each={nonQueuedBlocks()}>
+          {(block) => <BlockView block={block} viewLevel={viewLevel()} />}
+        </For>
 
-        {/* Active tools (during streaming) */}
-        <Show
-          when={
-            state.activeTools.length > 0 || state.completedTools.length > 0
-          }
-        >
-          <ToolView
-            completedTools={state.completedTools}
-            activeTools={state.activeTools}
-            viewLevel={viewLevel()}
-          />
-        </Show>
-
-        {/* Streaming thinking (live) */}
+        {/* Streaming thinking (transient) */}
         <Show when={state.streamingThinking}>
           <ThinkingBlock text={state.streamingThinking} collapsed={false} />
         </Show>
 
-        {/* Streaming text (live) — styled as assistant with prefix */}
+        {/* Streaming text (transient) — styled as assistant with prefix */}
         <Show when={state.streamingText}>
-          <box flexDirection="row">
-            <text fg="white">
-              {"⏺ "}
-            </text>
+          <box flexDirection="row" marginTop={1}>
+            <text fg="white">{"\u23FA "}</text>
             <box flexGrow={1}>
               <markdown content={state.streamingText} syntaxStyle={syntaxStyle} streaming={true} />
             </box>
           </box>
         </Show>
 
-        {/* Streaming spinner — visible when agent is working but no text yet */}
-        <Show
-          when={
-            session.sessionState === "RUNNING" &&
-            !state.streamingText &&
-            !state.streamingThinking
-          }
-        >
-          <StreamingSpinner label={spinnerLabel()} />
-        </Show>
+        {/* Queued user messages (muted, after streaming) */}
+        <For each={queuedBlocks()}>
+          {(block) => (
+            <box flexDirection="row" paddingLeft={2} marginTop={1}>
+              <text fg="#808080" attributes={TextAttributes.DIM}>
+                {"> " + block.text + " (queued)"}
+              </text>
+            </box>
+          )}
+        </For>
 
-        {/* Queued message indicator */}
-        <Show when={state.pendingMessages.length > 0}>
-          <box paddingLeft={2} marginTop={1}>
-            <text fg="#808080" attributes={TextAttributes.DIM}>
-              {state.pendingMessages.length === 1
-                ? "Message queued — will send after current response"
-                : `${state.pendingMessages.length} messages queued`}
-            </text>
-          </box>
+        {/* Spinner — visible when RUNNING but no streaming content */}
+        <Show when={
+          session.sessionState === "RUNNING" &&
+          !state.streamingText &&
+          !state.streamingThinking
+        }>
+          <StreamingSpinner label={spinnerLabel()} />
         </Show>
 
         {/* Background tasks / subagents */}

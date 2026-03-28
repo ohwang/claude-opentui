@@ -260,7 +260,7 @@ export function ConversationView() {
 
   return (
     <scrollbox ref={scrollboxRef} stickyScroll stickyStart="bottom" flexGrow={1}>
-      <box flexDirection="column" gap={1} padding={1}>
+      <box flexDirection="column" padding={1}>
         {/* Header bar — scrolls with content */}
         <HeaderBar />
 

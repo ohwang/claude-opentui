@@ -99,9 +99,14 @@ export function reduce(
       // Flush any remaining buffers as committed blocks
       const flushed = flushBuffers({ ...next })
 
-      // Unqueue any queued user blocks
+      // Unqueue any queued user blocks AND close any running tool blocks
+      // (SDK doesn't emit explicit tool_use_end — tools finish internally)
       const blocks = flushed.blocks.map(b =>
         b.type === "user" && b.queued ? { ...b, queued: undefined } : b
+      ).map(b =>
+        b.type === "tool" && b.status === "running"
+          ? { ...b, status: "done" as ToolStatus, duration: Date.now() - b.startTime }
+          : b
       )
 
       // Update cost totals
@@ -155,8 +160,15 @@ export function reduce(
         state.sessionState === "WAITING_FOR_ELIC"
       ) {
         const flushed = flushBuffers({ ...next })
+        // Transition running tools to "canceled" on interrupt
+        const blocks = flushed.blocks.map(b =>
+          b.type === "tool" && b.status === "running"
+            ? { ...b, status: "canceled" as ToolStatus, duration: Date.now() - b.startTime }
+            : b
+        )
         return {
           ...flushed,
+          blocks,
           sessionState: "INTERRUPTING",
           pendingPermission: null,
           pendingElicitation: null,

@@ -396,7 +396,7 @@ export class ClaudeAdapter implements AgentBackend {
         events.push({
           type: "tool_use_progress",
           id: msg.tool_use_id,
-          output: `[${msg.tool_name}] ${msg.elapsed_time_seconds}s elapsed`,
+          output: msg.content ?? `[${msg.tool_name}] ${msg.elapsed_time_seconds}s elapsed`,
         })
         break
 

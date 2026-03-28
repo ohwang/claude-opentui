@@ -74,7 +74,8 @@ export function ConversationView() {
   createEffect(() => {
     const count = state.messages.length
     if (count > prevMessageCount) {
-      scrollboxRef?.scrollToEnd()
+      // scrollBy(1, "content") scrolls to 100% of content = end
+      scrollboxRef?.scrollBy(1, "content")
     }
     prevMessageCount = count
   })

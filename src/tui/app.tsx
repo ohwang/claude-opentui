@@ -13,12 +13,25 @@ import { MessagesProvider, useMessages } from "./context/messages"
 import { SessionProvider, useSession } from "./context/session"
 import { PermissionsProvider } from "./context/permissions"
 import { SyncProvider, useSync } from "./context/sync"
+import { useTerminalDimensions } from "@opentui/solid"
 import { ConversationView } from "./components/conversation"
 import { InputArea, clearInput } from "./components/input-area"
 import { StatusBar } from "./components/status-bar"
 import { PermissionDialog } from "./components/permission-dialog"
 import { ElicitationDialog } from "./components/elicitation"
 import { HeaderBar } from "./components/header-bar"
+
+/** Render a full-width dash separator line (Claude Code style) */
+function DashLine() {
+  const dims = useTerminalDimensions()
+  const width = () => dims()?.columns ?? 120
+  const dashes = () => "─".repeat(Math.max(width(), 40))
+  return (
+    <box height={1} flexShrink={0}>
+      <text color={244}>{dashes()}</text>
+    </box>
+  )
+}
 
 function ErrorFallback(props: { error: Error; reset: () => void }) {
   return (
@@ -91,8 +104,10 @@ function Layout() {
       <ElicitationDialog />
 
       {/* Input area - Claude Code-style dash lines top and bottom */}
-      <box flexShrink={0} flexDirection="column" borderTop="single" borderBottom="single" borderColor={244}>
+      <box flexShrink={0} flexDirection="column">
+        <DashLine />
         <InputArea />
+        <DashLine />
       </box>
 
       {/* Status bar - fixed 2 lines at bottom, never shrink */}

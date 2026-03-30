@@ -609,7 +609,7 @@ describe("ConversationState reducer", () => {
   // -----------------------------------------------------------------------
 
   describe("cost_update", () => {
-    it("accumulates cost totals", () => {
+    it("is ignored to prevent double-counting with turn_complete", () => {
       const state = applyEvents([
         { type: "session_init", tools: [], models: [] },
         { type: "turn_start" },
@@ -626,8 +626,42 @@ describe("ConversationState reducer", () => {
           cost: 0.01,
         },
       ])
+      // cost_update events are no-ops; turn_complete is the authoritative source
+      expect(state.cost.inputTokens).toBe(0)
+      expect(state.cost.outputTokens).toBe(0)
+      expect(state.cost.totalCostUsd).toBe(0)
+    })
+
+    it("turn_complete is the sole source of cost accumulation", () => {
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        // Turn 1: streaming cost_update + turn_complete with usage
+        { type: "turn_start" },
+        { type: "cost_update", inputTokens: 50, outputTokens: 25, cost: 0.003 },
+        {
+          type: "turn_complete",
+          usage: {
+            inputTokens: 100,
+            outputTokens: 50,
+            cacheReadTokens: 10,
+            totalCostUsd: 0.005,
+          },
+        },
+        // Turn 2: another turn_complete with usage
+        { type: "turn_start" },
+        {
+          type: "turn_complete",
+          usage: {
+            inputTokens: 200,
+            outputTokens: 75,
+            totalCostUsd: 0.01,
+          },
+        },
+      ])
+      // Only turn_complete usage is counted, cost_update is ignored
       expect(state.cost.inputTokens).toBe(300)
       expect(state.cost.outputTokens).toBe(125)
+      expect(state.cost.cacheReadTokens).toBe(10)
       expect(state.cost.totalCostUsd).toBeCloseTo(0.015)
     })
   })
@@ -696,7 +730,7 @@ describe("ConversationState reducer", () => {
   // -----------------------------------------------------------------------
 
   describe("backend_specific", () => {
-    it("is recorded in event log but does not change state", () => {
+    it("does not change state", () => {
       const state = applyEvents([
         { type: "session_init", tools: [], models: [] },
         {
@@ -705,7 +739,7 @@ describe("ConversationState reducer", () => {
           data: { hook: "PreToolUse" },
         },
       ])
-      expect(state.eventLog).toHaveLength(2) // session_init + backend_specific
+      expect(state.sessionState).toBe("IDLE")
     })
   })
 
@@ -714,7 +748,7 @@ describe("ConversationState reducer", () => {
   // -----------------------------------------------------------------------
 
   describe("event log invariant", () => {
-    it("every event is recorded in eventLog", () => {
+    it("eventLog is not grown by the reducer (caller-managed)", () => {
       const events: AgentEvent[] = [
         { type: "session_init", tools: [], models: [] },
         { type: "turn_start" },
@@ -723,10 +757,11 @@ describe("ConversationState reducer", () => {
         { type: "turn_complete" },
       ]
       const state = applyEvents(events)
-      expect(state.eventLog).toHaveLength(events.length)
+      // Reducer no longer copies events into eventLog (O(n²) fix)
+      expect(state.eventLog).toHaveLength(0)
     })
 
-    it("state is reconstructable from event log (tape replay)", () => {
+    it("state is reconstructable from replaying events", () => {
       const events: AgentEvent[] = [
         { type: "session_init", tools: [{ name: "Read" }], models: [] },
         { type: "turn_start" },
@@ -749,8 +784,8 @@ describe("ConversationState reducer", () => {
       // Apply all at once
       const state1 = applyEvents(events)
 
-      // Replay from event log
-      const state2 = state1.eventLog.reduce(
+      // Replay from the same event array
+      const state2 = events.reduce(
         (s, e) => reduce(s, e),
         createInitialState(),
       )
@@ -958,13 +993,13 @@ describe("ConversationState reducer", () => {
       expect(state.sessionState).toBe("IDLE")
     })
 
-    it("session_state event is recorded but state machine takes precedence", () => {
+    it("session_state event does not override state machine", () => {
       const state = applyEvents([
         { type: "session_init", tools: [], models: [] },
         { type: "session_state", state: "running" },
       ])
       // session_state is informational, doesn't override our state machine
-      expect(state.eventLog).toHaveLength(2)
+      expect(state.sessionState).toBe("IDLE")
     })
   })
 })

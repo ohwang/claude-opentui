@@ -1,10 +1,11 @@
 /**
  * Event-sourced ConversationState reducer.
  *
- * Invariant: state is always reconstructable from the event log.
- *   reduce(events) === state
- *
  * The TUI renders from ConversationState, never raw events.
+ * State is reconstructable by replaying events through reduce().
+ *
+ * Note: eventLog is maintained by the caller, not the reducer.
+ * The reducer does not copy events into eventLog to avoid O(n²) allocations.
  */
 
 import type {
@@ -59,10 +60,11 @@ export function reduce(
   state: ConversationState,
   event: AgentEvent,
 ): ConversationState {
-  // Always record in event log (source of truth)
+  // eventLog maintained by caller if needed; not copied per-event to avoid
+  // O(n²) allocation during streaming (eventLog was never consumed by TUI).
   const next: ConversationState = {
     ...state,
-    eventLog: [...state.eventLog, event],
+    eventLog: state.eventLog,
   }
 
   switch (event.type) {
@@ -308,18 +310,10 @@ export function reduce(
     // ----- Cost tracking -----
 
     case "cost_update":
-      return {
-        ...next,
-        cost: {
-          inputTokens: state.cost.inputTokens + event.inputTokens,
-          outputTokens: state.cost.outputTokens + event.outputTokens,
-          cacheReadTokens:
-            state.cost.cacheReadTokens + (event.cacheReadTokens ?? 0),
-          cacheWriteTokens:
-            state.cost.cacheWriteTokens + (event.cacheWriteTokens ?? 0),
-          totalCostUsd: state.cost.totalCostUsd + (event.cost ?? 0),
-        },
-      }
+      // Cost updates are handled authoritatively by turn_complete usage.
+      // Streaming cost_update events from message_delta are ignored to
+      // prevent double-counting.
+      return next
 
     // ----- Tasks / subagents -----
 
@@ -385,7 +379,7 @@ export function reduce(
 
     case "session_state":
     case "backend_specific":
-      // Recorded in eventLog but don't change reducer state
+      // Informational — don't change reducer state
       return next
 
     default:

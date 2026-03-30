@@ -7,7 +7,7 @@
 
 import { render, useKeyboard, useRenderer } from "@opentui/solid"
 import { TextAttributes } from "@opentui/core"
-import { ErrorBoundary, Show } from "solid-js"
+import { createSignal, ErrorBoundary, Show } from "solid-js"
 import type { AgentBackend, SessionConfig } from "../protocol/types"
 import { log } from "../utils/logger"
 import { AgentProvider, useAgent, type AgentContextValue } from "./context/agent"
@@ -55,6 +55,8 @@ function Layout() {
   let ctrlDTimer: ReturnType<typeof setTimeout> | undefined
   let ctrlCEmptyCount = 0
   let ctrlCTimer: ReturnType<typeof setTimeout> | undefined
+  const [statusHint, setStatusHint] = createSignal<string | null>(null)
+  let statusHintTimer: ReturnType<typeof setTimeout> | undefined
 
   const cleanExit = (reason: string) => {
     log.info("Clean exit", { reason })
@@ -97,12 +99,18 @@ function Layout() {
         if (!hadText) {
           ctrlCEmptyCount++
           clearTimeout(ctrlCTimer)
-          ctrlCTimer = setTimeout(() => { ctrlCEmptyCount = 0 }, 1000)
+          ctrlCTimer = setTimeout(() => { ctrlCEmptyCount = 0 }, 2000)
           if (ctrlCEmptyCount >= 2) {
             cleanExit("ctrl+c double-press")
+          } else {
+            // Show "Press Ctrl-C again to exit" hint in status bar
+            setStatusHint("Press Ctrl-C again to exit")
+            clearTimeout(statusHintTimer)
+            statusHintTimer = setTimeout(() => setStatusHint(null), 2000)
           }
         } else {
           ctrlCEmptyCount = 0
+          setStatusHint(null)
         }
       }
     }
@@ -123,7 +131,7 @@ function Layout() {
         <DashLine />
 
         {/* Status bar */}
-        <StatusBar />
+        <StatusBar hint={statusHint()} />
       </ConversationView>
     </box>
   )

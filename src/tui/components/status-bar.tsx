@@ -10,7 +10,7 @@
  * - Turn duration timer
  */
 
-import { createSignal, createEffect, createMemo, onCleanup } from "solid-js"
+import { createSignal, createEffect, createMemo, onCleanup, Show } from "solid-js"
 import path from "node:path"
 import { TextAttributes } from "@opentui/core"
 import { useKeyboard } from "@opentui/solid"
@@ -149,7 +149,7 @@ function abbreviateModel(name: string): string {
 // Component
 // ---------------------------------------------------------------------------
 
-export function StatusBar() {
+export function StatusBar(props: { hint?: string | null }) {
   const { state } = useSession()
   const agent = useAgent()
 
@@ -376,72 +376,79 @@ export function StatusBar() {
   // Render — single status line (matches Claude Code)
   // ---------------------------------------------------------------------------
 
+  // When hint is active, show only the hint text (replaces full status bar)
   return (
-    <box height={1} flexDirection="row" paddingLeft={2} paddingRight={1}>
-      {/* Left: project name */}
-      <text fg="yellow" attributes={TextAttributes.BOLD}>
-        {projectName}
-      </text>
+    <Show when={!props.hint} fallback={
+      <box height={1} flexDirection="row" paddingLeft={2}>
+        <text fg="gray">{props.hint}</text>
+      </box>
+    }>
+      <box height={1} flexDirection="row" paddingLeft={2} paddingRight={1}>
+        {/* Left: project name */}
+        <text fg="yellow" attributes={TextAttributes.BOLD}>
+          {projectName}
+        </text>
 
-      <text fg="gray">{"  "}</text>
+        <text fg="gray">{"  "}</text>
 
-      {/* Model name */}
-      <text fg="white" attributes={TextAttributes.BOLD}>
-        {modelName()}
-      </text>
+        {/* Model name */}
+        <text fg="white" attributes={TextAttributes.BOLD}>
+          {modelName()}
+        </text>
 
-      <text fg="gray">{" "}</text>
+        <text fg="gray">{" "}</text>
 
-      {/* Help hint */}
-      <text fg="#d787af">{"/h"}</text>
+        {/* Help hint */}
+        <text fg="#d787af">{"/h"}</text>
 
-      {/* Cost */}
-      {costStr() && (
-        <box flexDirection="row">
-          <text fg="gray">{"  "}</text>
-          <text fg="green">{costStr()}</text>
-        </box>
-      )}
+        {/* Cost */}
+        {costStr() && (
+          <box flexDirection="row">
+            <text fg="gray">{"  "}</text>
+            <text fg="green">{costStr()}</text>
+          </box>
+        )}
 
-      {/* Git branch + status */}
-      {gitStr() && (
-        <box flexDirection="row">
-          <text fg="gray">{"  "}</text>
-          <text fg="cyan">{gitStr()}</text>
-        </box>
-      )}
+        {/* Git branch + status */}
+        {gitStr() && (
+          <box flexDirection="row">
+            <text fg="gray">{"  "}</text>
+            <text fg="cyan">{gitStr()}</text>
+          </box>
+        )}
 
-      {/* Context window usage */}
-      {ctxStr() && (
-        <box flexDirection="row">
-          <text fg="gray">{"  "}</text>
-          <text fg="gray">{ctxStr()}</text>
-        </box>
-      )}
+        {/* Context window usage */}
+        {ctxStr() && (
+          <box flexDirection="row">
+            <text fg="gray">{"  "}</text>
+            <text fg="gray">{ctxStr()}</text>
+          </box>
+        )}
 
-      {/* Spacer pushes right-aligned items */}
-      <box flexGrow={1} />
+        {/* Spacer pushes right-aligned items */}
+        <box flexGrow={1} />
 
-      {/* Tok/s (only during streaming) */}
-      {tokPerSecStr() && (
-        <box flexDirection="row">
-          <text fg="cyan">{tokPerSecStr()}</text>
-          <text fg="gray">{" "}</text>
-        </box>
-      )}
+        {/* Tok/s (only during streaming) */}
+        {tokPerSecStr() && (
+          <box flexDirection="row">
+            <text fg="cyan">{tokPerSecStr()}</text>
+            <text fg="gray">{" "}</text>
+          </box>
+        )}
 
-      {/* Timer (only during streaming) */}
-      {timerStr() && (
-        <box flexDirection="row">
-          <text fg="yellow">{timerStr()}</text>
-          <text fg="gray">{"  "}</text>
-        </box>
-      )}
+        {/* Timer (only during streaming) */}
+        {timerStr() && (
+          <box flexDirection="row">
+            <text fg="yellow">{timerStr()}</text>
+            <text fg="gray">{"  "}</text>
+          </box>
+        )}
 
-      {/* Permission mode indicator (right-aligned) */}
-      <text fg={permModeColor()}>{"\u25CF "}</text>
-      <text fg="#d787af">{permissionModeLabel(permMode())}</text>
-      <text fg="gray" attributes={TextAttributes.DIM}>{" · shift+tab"}</text>
-    </box>
+        {/* Permission mode indicator (right-aligned) */}
+        <text fg={permModeColor()}>{"\u25CF "}</text>
+        <text fg="#d787af">{permissionModeLabel(permMode())}</text>
+        <text fg="gray" attributes={TextAttributes.DIM}>{" · shift+tab"}</text>
+      </box>
+    </Show>
   )
 }

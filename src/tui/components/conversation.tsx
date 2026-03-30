@@ -38,6 +38,16 @@ function formatTimestamp(ts: number): string {
 const SPINNER_FRAMES = ['·', '⁺', '✦', '✶', '✻', '✽', '✻', '✶', '✦', '⁺']
 const SPINNER_INTERVAL_MS = 120
 
+const THINKING_VERBS = [
+  "Thinking",
+  "Reasoning",
+  "Analyzing",
+  "Considering",
+  "Processing",
+  "Evaluating",
+  "Reflecting",
+]
+
 /**
  * StreamingSpinner — breathing asterisk spinner with contextual verb.
  *
@@ -45,20 +55,42 @@ const SPINNER_INTERVAL_MS = 120
  * (RUNNING state, before text starts streaming). The label adapts
  * to the current activity: "Thinking..." by default, or
  * "Running [toolName]..." when a tool is executing.
+ *
+ * During the "Thinking..." phase, the verb cycles every 3 seconds
+ * through synonyms (Reasoning, Analyzing, etc.) to give visual
+ * feedback that the model is actively working.
  */
 function StreamingSpinner(props: { label: string }) {
   const [frameIndex, setFrameIndex] = createSignal(0)
+  const [verbIndex, setVerbIndex] = createSignal(0)
 
   const timer = setInterval(() => {
     setFrameIndex((i) => (i + 1) % SPINNER_FRAMES.length)
   }, SPINNER_INTERVAL_MS)
 
-  onCleanup(() => clearInterval(timer))
+  // Cycle thinking verbs every 3 seconds (only when label is "Thinking...")
+  const verbTimer = setInterval(() => {
+    if (props.label === "Thinking...") {
+      setVerbIndex((i) => (i + 1) % THINKING_VERBS.length)
+    }
+  }, 3000)
+
+  onCleanup(() => {
+    clearInterval(timer)
+    clearInterval(verbTimer)
+  })
+
+  const displayLabel = () => {
+    if (props.label === "Thinking...") {
+      return THINKING_VERBS[verbIndex()] + "..."
+    }
+    return props.label
+  }
 
   return (
     <box flexDirection="row">
       <text fg="#a8a8a8">
-        {SPINNER_FRAMES[frameIndex()]} {props.label}
+        {SPINNER_FRAMES[frameIndex()]} {displayLabel()}
       </text>
     </box>
   )

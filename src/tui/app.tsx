@@ -7,7 +7,7 @@
 
 import { render, useKeyboard, useRenderer } from "@opentui/solid"
 import { TextAttributes } from "@opentui/core"
-import { createSignal, ErrorBoundary, Show } from "solid-js"
+import { createSignal, createEffect, on, ErrorBoundary, Show } from "solid-js"
 import type { AgentBackend, SessionConfig } from "../protocol/types"
 import { log } from "../utils/logger"
 import { AgentProvider, useAgent, type AgentContextValue } from "./context/agent"
@@ -57,6 +57,7 @@ function Layout(props: { onExit?: () => void }) {
   let ctrlCTimer: ReturnType<typeof setTimeout> | undefined
   const [statusHint, setStatusHint] = createSignal<string | null>(null)
   let statusHintTimer: ReturnType<typeof setTimeout> | undefined
+  let interruptTimeout: ReturnType<typeof setTimeout> | undefined
 
   const renderer = useRenderer()
 
@@ -67,6 +68,17 @@ function Layout(props: { onExit?: () => void }) {
     renderer.destroy()
     process.exit(0)
   }
+
+  // Clear interrupt timeout when state transitions away from INTERRUPTING
+  createEffect(on(
+    () => session.sessionState,
+    (state) => {
+      if (state !== "INTERRUPTING" && interruptTimeout) {
+        clearTimeout(interruptTimeout)
+        interruptTimeout = undefined
+      }
+    }
+  ))
 
   // Global keyboard shortcuts
   useKeyboard((event) => {
@@ -92,11 +104,31 @@ function Layout(props: { onExit?: () => void }) {
       if (
         session.sessionState === "RUNNING" ||
         session.sessionState === "WAITING_FOR_PERM" ||
-        session.sessionState === "WAITING_FOR_ELIC"
+        session.sessionState === "WAITING_FOR_ELIC" ||
+        session.sessionState === "INTERRUPTING"
       ) {
-        sync.pushEvent({ type: "interrupt" })
-        sync.pushEvent({ type: "system_message", text: "⎿  Interrupted \u00B7 What should Claude do instead?" })
-        agent.backend.interrupt()
+        if (session.sessionState === "INTERRUPTING") {
+          // Already interrupting \u2014 show hint about force exit
+          setStatusHint("Interrupt pending... Press Ctrl+D\u00D73 to force exit")
+          clearTimeout(statusHintTimer)
+          statusHintTimer = setTimeout(() => setStatusHint(null), 3000)
+        } else {
+          sync.pushEvent({ type: "interrupt" })
+          sync.pushEvent({ type: "system_message", text: "⎿  Interrupted \u00B7 What should Claude do instead?" })
+          agent.backend.interrupt()
+
+          // Interrupt timeout \u2014 if the SDK doesn't respond within 10s, force recovery
+          interruptTimeout = setTimeout(() => {
+            if (session.sessionState === "INTERRUPTING") {
+              log.warn("Interrupt timed out after 10s \u2014 forcing recovery")
+              sync.pushEvent({ type: "system_message", text: "Interrupt timed out \u2014 recovering." })
+              sync.pushEvent({
+                type: "turn_complete",
+                usage: { inputTokens: 0, outputTokens: 0 },
+              })
+            }
+          }, 10_000)
+        }
       } else {
         const hadText = clearInput()
         if (!hadText) {

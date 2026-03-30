@@ -13,6 +13,33 @@ import { useAgent } from "../context/agent"
 import { useSession } from "../context/session"
 import { useSync } from "../context/sync"
 
+/** Format tool input for display in the permission dialog */
+function formatToolInput(tool: string, input: unknown): string {
+  const inp = input as Record<string, unknown> | null
+  if (!inp) return ""
+
+  switch (tool) {
+    case "Read": {
+      const path = inp.file_path ? String(inp.file_path) : ""
+      const extras: string[] = []
+      if (inp.limit) extras.push(`limit: ${inp.limit}`)
+      if (inp.offset) extras.push(`offset: ${inp.offset}`)
+      return extras.length > 0 ? `${path} (${extras.join(", ")})` : path
+    }
+    case "Edit":
+    case "Write":
+      return inp.file_path ? String(inp.file_path) : ""
+    case "Bash":
+      return inp.command ? String(inp.command) : ""
+    case "Glob":
+      return inp.pattern ? `${inp.pattern}${inp.path ? ` in ${inp.path}` : ""}` : ""
+    case "Grep":
+      return inp.pattern ? `${inp.pattern}${inp.path ? ` in ${inp.path}` : ""}` : ""
+    default:
+      try { return JSON.stringify(inp) } catch { return String(inp) }
+  }
+}
+
 export function PermissionDialog() {
   const { state } = usePermissions()
   const { state: session } = useSession()
@@ -42,13 +69,7 @@ export function PermissionDialog() {
   return (
     <Show when={state.pendingPermission}>
       {(perm) => {
-        const inputStr = () => {
-          try {
-            return JSON.stringify(perm().input)
-          } catch {
-            return String(perm().input)
-          }
-        }
+        const formattedInput = () => formatToolInput(perm().tool, perm().input)
         return (
           <box flexDirection="column">
             <box height={1} paddingLeft={1}>
@@ -56,11 +77,11 @@ export function PermissionDialog() {
                 {perm().tool}
               </text>
             </box>
-            <box height={1} paddingLeft={1}>
-              <text fg="white">
-                {inputStr()}
-              </text>
-            </box>
+            <Show when={formattedInput()}>
+              <box paddingLeft={3}>
+                <text fg="white">{formattedInput()}</text>
+              </box>
+            </Show>
             <box height={1} paddingLeft={1}>
               <text fg="gray">
                 [y] approve  [n] deny  [a] always allow

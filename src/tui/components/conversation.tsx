@@ -60,74 +60,93 @@ function StreamingSpinner(props: { label: string }) {
 
 function ToolBlockView(props: { block: Extract<Block, { type: "tool" }>; viewLevel: ViewLevel }) {
   const b = () => props.block
-  const statusIcon = () => {
-    switch (b().status) {
-      case "running": return "\u23FA"
-      case "done": return "\u2713"
-      case "error": return "\u2717"
-      case "canceled": return "\u2298"
-      default: return "\u23FA"
-    }
-  }
-  const statusColor = () => {
-    switch (b().status) {
-      case "running": return "#d78787"
-      case "done": return "green"
-      case "error": return "red"
-      case "canceled": return "gray"
-      default: return "gray"
-    }
-  }
-  const duration = () => {
-    if (!b().duration) return ""
-    return b().duration! < 1000 ? `${b().duration}ms` : `${(b().duration! / 1000).toFixed(1)}s`
-  }
-  const toolSummary = createMemo(() => {
+
+  /** Primary arg for the tool invocation display: ToolName(arg) */
+  const primaryArg = createMemo(() => {
     const inp = b().input as Record<string, unknown> | null
     if (!inp) return ""
-
-    // Common tool input patterns
     if (inp.file_path) return String(inp.file_path)
     if (inp.command) {
       const cmd = String(inp.command)
-      return cmd.length > 60 ? cmd.slice(0, 57) + "..." : cmd
+      return cmd.length > 80 ? cmd.slice(0, 77) + "..." : cmd
     }
     if (inp.pattern) {
       const p = String(inp.pattern)
       const path = inp.path ? ` in ${inp.path}` : ""
       const full = p + path
-      return full.length > 60 ? full.slice(0, 57) + "..." : full
+      return full.length > 80 ? full.slice(0, 77) + "..." : full
     }
     if (inp.description) {
       const d = String(inp.description)
-      return d.length > 60 ? d.slice(0, 57) + "..." : d
+      return d.length > 80 ? d.slice(0, 77) + "..." : d
     }
-
     return ""
   })
 
+  /** Brief result summary for the ⎿ line */
+  const resultSummary = createMemo(() => {
+    if (b().status === "running") return ""
+    if (b().error) return ""
+    const out = b().output ?? ""
+    if (!out) return ""
+
+    // Generate summary based on tool type
+    switch (b().tool) {
+      case "Read": {
+        const lines = out.split("\n").length
+        return `Read ${lines} line${lines === 1 ? "" : "s"}`
+      }
+      case "Write":
+        return `Wrote to ${primaryArg()}`
+      case "Edit":
+        return `Edited ${primaryArg()}`
+      case "Bash": {
+        // Show first line of output, truncated
+        const firstLine = out.split("\n")[0] ?? ""
+        return firstLine.length > 100 ? firstLine.slice(0, 97) + "..." : firstLine
+      }
+      case "Glob":
+      case "Grep": {
+        const lines = out.trim().split("\n").filter(l => l.trim()).length
+        return `${lines} result${lines === 1 ? "" : "s"}`
+      }
+      default:
+        return out.length > 100 ? out.slice(0, 97) + "..." : out.split("\n")[0] ?? ""
+    }
+  })
+
   return (
-    <box flexDirection="column" paddingLeft={2}>
+    <box flexDirection="column">
+      {/* Invocation line: ⏺ ToolName(arg) */}
       <box flexDirection="row">
-        <text fg={statusColor()}>{statusIcon()} </text>
-        <text fg="white" attributes={TextAttributes.BOLD}>{b().tool}</text>
-        <Show when={toolSummary()}>
-          <text fg="gray" attributes={TextAttributes.DIM}>{" " + toolSummary()}</text>
-        </Show>
-        <Show when={duration()}>
-          <text fg="gray" attributes={TextAttributes.DIM}>{" (" + duration() + ")"}</text>
+        <text fg="#d78787">{"\u23FA "}</text>
+        <text fg="white">{b().tool}</text>
+        <Show when={primaryArg()}>
+          <text fg="gray">{"(" + primaryArg() + ")"}</text>
         </Show>
       </box>
-      <Show when={props.viewLevel !== "collapsed" && b().output}>
-        <box paddingLeft={4}>
+      {/* Result line: ⎿  summary */}
+      <Show when={props.viewLevel !== "collapsed" && resultSummary()}>
+        <box paddingLeft={2}>
           <text fg="gray" attributes={TextAttributes.DIM}>
-            {(b().output ?? "").slice(0, props.viewLevel === "show_all" ? undefined : 200)}
+            {"\u23BF  " + resultSummary()}
           </text>
         </box>
       </Show>
-      <Show when={b().error}>
+      {/* Full output (show_all mode) */}
+      <Show when={props.viewLevel === "show_all" && b().output}>
         <box paddingLeft={4}>
-          <text fg="red">{b().error}</text>
+          <text fg="gray" attributes={TextAttributes.DIM}>
+            {b().output}
+          </text>
+        </box>
+      </Show>
+      {/* Error line */}
+      <Show when={b().error}>
+        <box paddingLeft={2}>
+          <text fg="red">
+            {"\u23BF  " + b().error}
+          </text>
         </box>
       </Show>
     </box>

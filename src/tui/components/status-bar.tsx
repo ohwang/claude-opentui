@@ -256,6 +256,17 @@ export function StatusBar() {
 
   const isRunning = createMemo(() => state.sessionState === "RUNNING")
 
+  const permModeColor = () => {
+    switch (permMode()) {
+      case "default": return "green"
+      case "acceptEdits": return "yellow"
+      case "bypassPermissions": return "red"
+      case "plan": return "cyan"
+      case "dontAsk": return "#d787af"
+      default: return "green"
+    }
+  }
+
   const stateIcon = () => {
     switch (state.sessionState) {
       case "INITIALIZING":
@@ -418,8 +429,16 @@ export function StatusBar() {
 
       {/* Timer (only during streaming) */}
       {timerStr() && (
-        <text fg="yellow">{timerStr()}</text>
+        <box flexDirection="row">
+          <text fg="yellow">{timerStr()}</text>
+          <text fg="gray">{"  "}</text>
+        </box>
       )}
+
+      {/* Permission mode indicator (right-aligned) */}
+      <text fg={permModeColor()}>{"\u25CF "}</text>
+      <text fg="#d787af">{permissionModeLabel(permMode())}</text>
+      <text fg="gray" attributes={TextAttributes.DIM}>{" · shift+tab"}</text>
     </box>
   )
 }

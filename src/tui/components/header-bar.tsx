@@ -36,7 +36,7 @@ export function HeaderBar() {
   const modelInfo = () => {
     // Prefer session metadata model name, fall back to config
     const model = state.session?.models?.[0]
-    const raw = model?.name ?? agent.config.model ?? "claude"
+    const raw = model?.name ?? agent.config.model ?? ""
     const friendly = friendlyModelName(raw)
     // Append plan info if available (e.g., "Opus 4.6 · Claude Max")
     const plan = state.session?.account?.plan
@@ -58,7 +58,7 @@ export function HeaderBar() {
       {/* Logo line 3 + model info */}
       <box flexDirection="row">
         <text fg="#d78787">{" ╰━━━╯  "}</text>
-        <text fg="gray" attributes={TextAttributes.DIM}>{modelInfo()}</text>
+        <text fg="gray" attributes={TextAttributes.DIM}>{modelInfo() || "Connecting..."}</text>
       </box>
       {/* Working directory */}
       <box>

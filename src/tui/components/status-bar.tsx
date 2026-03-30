@@ -315,7 +315,7 @@ export function StatusBar(props: { hint?: string | null }) {
   }
 
   const modelName = () => {
-    const raw = state.currentModel || state.session?.models?.[0]?.name || "claude"
+    const raw = state.currentModel || state.session?.models?.[0]?.name || ""
     return abbreviateModel(raw)
   }
 

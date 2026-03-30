@@ -30,6 +30,21 @@ function formatTimestamp(ts: number): string {
   return `${h.toString().padStart(2, "0")}:${m} ${ampm}`
 }
 
+/** Map raw API model IDs to friendly display names */
+const MODEL_NAMES: Record<string, string> = {
+  "claude-opus-4-6": "Opus 4.6",
+  "claude-sonnet-4-6": "Sonnet 4.6",
+  "claude-haiku-4-5-20251001": "Haiku 4.5",
+  "claude-sonnet-4-5-20250514": "Sonnet 4.5",
+  "claude-3-5-sonnet-20241022": "Sonnet 3.5",
+  "claude-3-5-haiku-20241022": "Haiku 3.5",
+}
+
+function friendlyModelName(name: string): string {
+  if (MODEL_NAMES[name]) return MODEL_NAMES[name]
+  return name.replace(/^[Cc]laude\s+/, "")
+}
+
 // ---------------------------------------------------------------------------
 // Breathing asterisk spinner — animated activity indicator
 // ---------------------------------------------------------------------------
@@ -273,7 +288,7 @@ function BlockView(props: { block: Block; viewLevel: ViewLevel }) {
           <Show when={props.viewLevel !== "collapsed" && ab().timestamp}>
             <box flexDirection="row" justifyContent="flex-end" marginTop={1}>
               <text fg="gray" attributes={TextAttributes.DIM}>
-                {formatTimestamp(ab().timestamp!) + (ab().model ? " " + ab().model : "")}
+                {formatTimestamp(ab().timestamp!) + (ab().model ? " " + friendlyModelName(ab().model) : "")}
               </text>
             </box>
           </Show>

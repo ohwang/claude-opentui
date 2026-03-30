@@ -356,16 +356,6 @@ export function ConversationView(props: { children?: JSX.Element }) {
     return "Thinking..."
   }
 
-  // Re-engage stickyScroll when new blocks arrive
-  let prevBlockCount = 0
-  createEffect(() => {
-    const count = state.blocks.length
-    if (count > prevBlockCount) {
-      scrollboxRef?.scrollBy(1, "content")
-    }
-    prevBlockCount = count
-  })
-
   // Re-engage stickyScroll when streaming starts (not on every delta —
   // stickyScroll handles auto-following once engaged, and per-delta
   // scrollBy causes layout thrashing that contributes to text flicker)

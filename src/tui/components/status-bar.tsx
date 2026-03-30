@@ -117,6 +117,17 @@ function permissionModeLabel(mode: PermissionMode | undefined): string {
 // Model name abbreviation — drop "Claude " prefix
 // ---------------------------------------------------------------------------
 
+/** Model context window sizes (in tokens) for context usage calculation */
+const MODEL_CONTEXT_WINDOWS: Record<string, number> = {
+  "claude-opus-4-6": 200_000,
+  "claude-sonnet-4-6": 200_000,
+  "claude-haiku-4-5-20251001": 200_000,
+  "claude-sonnet-4-5-20250514": 200_000,
+  "claude-3-5-sonnet-20241022": 200_000,
+  "claude-3-5-haiku-20241022": 200_000,
+}
+const DEFAULT_CONTEXT_WINDOW = 200_000
+
 /** Convert raw model IDs to friendly display names */
 function abbreviateModel(name: string): string {
   // Map raw API model IDs to friendly names
@@ -306,6 +317,15 @@ export function StatusBar() {
     return `${total} tok`
   }
 
+  const ctxStr = createMemo(() => {
+    const total = state.cost.inputTokens + state.cost.outputTokens
+    if (total === 0) return ""
+    const raw = state.currentModel || state.session?.models?.[0]?.name || ""
+    const ctxWindow = MODEL_CONTEXT_WINDOWS[raw] ?? DEFAULT_CONTEXT_WINDOW
+    const pct = Math.round((total / ctxWindow) * 100)
+    return `ctx:${pct}%`
+  })
+
   const tokPerSecStr = createMemo(() => {
     if (!isRunning()) return ""
     const rate = tokPerSec()
@@ -375,16 +395,16 @@ export function StatusBar() {
         </box>
       )}
 
-      {/* Spacer pushes right-aligned items */}
-      <box flexGrow={1} />
-
-      {/* Tokens */}
-      {tokenStr() && (
+      {/* Context window usage */}
+      {ctxStr() && (
         <box flexDirection="row">
-          <text fg="gray">{tokenStr()}</text>
-          <text fg="gray">{" "}</text>
+          <text fg="gray">{"  "}</text>
+          <text fg="gray">{ctxStr()}</text>
         </box>
       )}
+
+      {/* Spacer pushes right-aligned items */}
+      <box flexGrow={1} />
 
       {/* Tok/s (only during streaming) */}
       {tokPerSecStr() && (

@@ -169,9 +169,9 @@ function ToolSummaryView(props: { tools: ToolBlock[] }) {
   }
 
   return (
-    <box paddingLeft={2}>
+    <box paddingLeft={2} marginTop={1}>
       <text fg="#a8a8a8" attributes={TextAttributes.DIM}>
-        {"  " + summary() + " (ctrl+o to expand)"}
+        {summary() + " (ctrl+o to expand)"}
       </text>
     </box>
   )

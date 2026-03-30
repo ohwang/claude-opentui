@@ -188,12 +188,14 @@ function ToolSummaryView(props: { tools: ToolBlock[] }) {
   const summary = () => {
     const completed: Record<string, number> = {}
     const running: string[] = []
+    let errorCount = 0
 
     for (const tool of props.tools) {
       if (tool.status === "running") {
         running.push(tool.tool)
       } else {
         completed[tool.tool] = (completed[tool.tool] || 0) + 1
+        if (tool.error) errorCount++
       }
     }
 
@@ -206,7 +208,12 @@ function ToolSummaryView(props: { tools: ToolBlock[] }) {
     for (const [name, count] of Object.entries(completed)) {
       parts.push(toolSummaryText(name, count))
     }
-    return parts.join(", ")
+
+    let text = parts.join(", ")
+    if (errorCount > 0) {
+      text += ` (${errorCount} error${errorCount > 1 ? "s" : ""})`
+    }
+    return text
   }
 
   return (

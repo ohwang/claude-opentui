@@ -99,17 +99,17 @@ function getGitInfo(): GitInfo | null {
 function permissionModeLabel(mode: PermissionMode | undefined): string {
   switch (mode) {
     case "default":
-      return "default permissions"
+      return "default"
     case "acceptEdits":
       return "accept edits"
     case "bypassPermissions":
-      return "bypass permissions"
+      return "YOLO"
     case "plan":
-      return "plan mode"
+      return "plan"
     case "dontAsk":
-      return "don't ask"
+      return "auto"
     default:
-      return "default permissions"
+      return "default"
   }
 }
 

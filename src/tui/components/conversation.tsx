@@ -17,6 +17,7 @@ import { TaskView } from "./task-view"
 import { syntaxStyle } from "../theme"
 import { HeaderBar } from "./header-bar"
 import type { Block } from "../../protocol/types"
+import { friendlyModelName } from "../models"
 
 type ViewLevel = "collapsed" | "expanded" | "show_all"
 
@@ -28,21 +29,6 @@ function formatTimestamp(ts: number): string {
   h = h % 12 || 12
   const m = d.getMinutes().toString().padStart(2, "0")
   return `${h.toString().padStart(2, "0")}:${m} ${ampm}`
-}
-
-/** Map raw API model IDs to friendly display names */
-const MODEL_NAMES: Record<string, string> = {
-  "claude-opus-4-6": "Opus 4.6",
-  "claude-sonnet-4-6": "Sonnet 4.6",
-  "claude-haiku-4-5-20251001": "Haiku 4.5",
-  "claude-sonnet-4-5-20250514": "Sonnet 4.5",
-  "claude-3-5-sonnet-20241022": "Sonnet 3.5",
-  "claude-3-5-haiku-20241022": "Haiku 3.5",
-}
-
-function friendlyModelName(name: string): string {
-  if (MODEL_NAMES[name]) return MODEL_NAMES[name]
-  return name.replace(/^[Cc]laude\s+/, "")
 }
 
 // ---------------------------------------------------------------------------

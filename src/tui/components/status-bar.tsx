@@ -17,6 +17,7 @@ import { useKeyboard, useTerminalDimensions } from "@opentui/solid"
 import { useSession } from "../context/session"
 import { useAgent } from "../context/agent"
 import type { PermissionMode } from "../../protocol/types"
+import { friendlyModelName, MODEL_CONTEXT_WINDOWS, DEFAULT_CONTEXT_WINDOW } from "../models"
 
 // ---------------------------------------------------------------------------
 // Permission mode cycle order
@@ -114,38 +115,6 @@ function permissionModeLabel(mode: PermissionMode | undefined): string {
     default:
       return "default"
   }
-}
-
-// ---------------------------------------------------------------------------
-// Model name abbreviation — drop "Claude " prefix
-// ---------------------------------------------------------------------------
-
-/** Model context window sizes (in tokens) for context usage calculation */
-const MODEL_CONTEXT_WINDOWS: Record<string, number> = {
-  "claude-opus-4-6": 200_000,
-  "claude-sonnet-4-6": 200_000,
-  "claude-haiku-4-5-20251001": 200_000,
-  "claude-sonnet-4-5-20250514": 200_000,
-  "claude-3-5-sonnet-20241022": 200_000,
-  "claude-3-5-haiku-20241022": 200_000,
-}
-const DEFAULT_CONTEXT_WINDOW = 200_000
-
-/** Convert raw model IDs to friendly display names */
-function abbreviateModel(name: string): string {
-  // Map raw API model IDs to friendly names
-  const MODEL_NAMES: Record<string, string> = {
-    "claude-opus-4-6": "Opus 4.6",
-    "claude-sonnet-4-6": "Sonnet 4.6",
-    "claude-haiku-4-5-20251001": "Haiku 4.5",
-    "claude-sonnet-4-5-20250514": "Sonnet 4.5",
-    "claude-3-5-sonnet-20241022": "Sonnet 3.5",
-    "claude-3-5-haiku-20241022": "Haiku 3.5",
-  }
-  // Exact match on raw ID
-  if (MODEL_NAMES[name]) return MODEL_NAMES[name]
-  // Strip "Claude " prefix from friendly names like "Claude Opus 4.6"
-  return name.replace(/^[Cc]laude\s+/, "")
 }
 
 // ---------------------------------------------------------------------------
@@ -324,7 +293,7 @@ export function StatusBar(props: { hint?: string | null }) {
 
   const modelName = () => {
     const raw = state.currentModel || state.session?.models?.[0]?.name || ""
-    return abbreviateModel(raw)
+    return friendlyModelName(raw)
   }
 
   const costStr = createMemo(() => {

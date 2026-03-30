@@ -7,12 +7,17 @@
  */
 
 import { createSignal, Show, For } from "solid-js"
-import { TextAttributes, type TextareaRenderable, type KeyEvent } from "@opentui/core"
+import { TextAttributes, type TextareaRenderable, type KeyEvent, type CliRenderer } from "@opentui/core"
+import { useRenderer } from "@opentui/solid"
+import { tmpdir } from "os"
+import { join } from "path"
+import { writeFileSync, readFileSync, unlinkSync } from "fs"
 import { useAgent } from "../context/agent"
 import { useSession } from "../context/session"
 import { useSync } from "../context/sync"
 import { createCommandRegistry, type SlashCommand } from "../../commands/registry"
 import { triggerCleanExit } from "../app"
+import { log } from "../../utils/logger"
 
 const commandRegistry = createCommandRegistry()
 
@@ -43,10 +48,64 @@ let _sharedTextareaRef: TextareaRenderable | undefined
 /** Module-level callback to reset line count when clearInput() is called externally */
 let _resetLineCount: (() => void) | undefined
 
+/**
+ * Open the user's preferred editor ($VISUAL or $EDITOR, falling back to vi)
+ * with the current input text. On save+quit, the edited content replaces
+ * the textarea input. The TUI renderer is suspended while the editor runs.
+ *
+ * Ctrl+G keybinding — matches Claude Code behavior.
+ */
+async function openExternalEditor(
+  textareaRef: TextareaRenderable | undefined,
+  renderer: CliRenderer,
+): Promise<void> {
+  const editor = process.env["VISUAL"] || process.env["EDITOR"] || "vi"
+  const tmpFile = join(tmpdir(), `claude-opentui-${Date.now()}.md`)
+
+  // Write current input to temp file
+  const currentText = textareaRef?.plainText ?? ""
+  writeFileSync(tmpFile, currentText)
+
+  try {
+    // Suspend TUI rendering so the editor can take over the terminal
+    renderer.suspend()
+    renderer.currentRenderBuffer.clear()
+
+    try {
+      const parts = editor.split(/\s+/)
+      const proc = Bun.spawn([...parts, tmpFile], {
+        stdin: "inherit",
+        stdout: "inherit",
+        stderr: "inherit",
+      })
+      await proc.exited
+
+      // Read back the edited content
+      const newText = readFileSync(tmpFile, "utf-8").trimEnd()
+      if (textareaRef) {
+        textareaRef.clear()
+        if (newText) {
+          textareaRef.insertText(newText)
+        }
+      }
+    } finally {
+      // Always resume the TUI, even if the editor crashed
+      renderer.currentRenderBuffer.clear()
+      renderer.resume()
+      renderer.requestRender()
+    }
+  } catch (err) {
+    log.warn("External editor failed", { error: String(err) })
+  } finally {
+    try { unlinkSync(tmpFile) } catch {}
+  }
+}
+
 export function InputArea() {
   const agent = useAgent()
   const { state: session } = useSession()
   const sync = useSync()
+  const renderer = useRenderer()
   let textareaRef: TextareaRenderable | undefined
 
   // Dynamic textarea height: grows with content lines (min 1, max 6)
@@ -195,6 +254,15 @@ export function InputArea() {
     if (e.ctrl && e.name === "a") {
       e.preventDefault()
       textareaRef?.selectAll()
+      return
+    }
+
+    // Ctrl+G = open external editor for multi-line prompt composition
+    if (e.ctrl && e.name === "g") {
+      e.preventDefault()
+      openExternalEditor(textareaRef, renderer).then(() => {
+        updateLineCount()
+      })
       return
     }
 

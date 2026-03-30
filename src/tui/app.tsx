@@ -58,10 +58,12 @@ function Layout() {
   const [statusHint, setStatusHint] = createSignal<string | null>(null)
   let statusHintTimer: ReturnType<typeof setTimeout> | undefined
 
+  const renderer = useRenderer()
+
   const cleanExit = (reason: string) => {
     log.info("Clean exit", { reason })
     agent.backend.close()
-    process.stdout.write("\n")
+    renderer.destroy()
     process.exit(0)
   }
 

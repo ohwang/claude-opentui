@@ -8,7 +8,6 @@ Open-source, drop-in replacement for Claude Code's terminal UI. Decouples the TU
 bun install
 bun run dev          # Start the TUI
 bun test             # Run all tests
-bun run spike        # Run spike validation
 ```
 
 ## Build Requirements

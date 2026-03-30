@@ -11,7 +11,6 @@
     "dev": "bun run --conditions=browser ./src/index.ts",
     "dev:mock": "bun run --conditions=browser ./src/index.ts -- --backend mock",
     "test": "bun test --timeout 30000",
-    "spike": "bun run --conditions=browser ./spike/spike.tsx",
     "lint:opentui": "bash scripts/lint-opentui.sh"
   },
   "dependencies": {

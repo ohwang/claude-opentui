@@ -24,6 +24,7 @@ import {
   type ConversationState,
 } from "../../protocol/types"
 import { EventBatcher } from "../../utils/event-batcher"
+import { log } from "../../utils/logger"
 import { useAgent } from "./agent"
 import { useMessages } from "./messages"
 import { useSession } from "./session"
@@ -53,6 +54,12 @@ export function SyncProvider(props: ParentProps) {
   // Apply a batch of events through the reducer, then update all stores
   const applyEvents = (events: AgentEvent[]) => {
     for (const event of events) {
+      // Log lifecycle events at info, streaming deltas at debug
+      if (event.type === "text_delta" || event.type === "thinking_delta" || event.type === "tool_use_progress") {
+        log.debug(`Event: ${event.type}`)
+      } else {
+        log.info(`Event: ${event.type}`, event.type === "error" ? { code: event.code, message: event.message } : undefined)
+      }
       conversationState = reduce(conversationState, event)
     }
 
@@ -115,6 +122,9 @@ export function SyncProvider(props: ParentProps) {
   const startEventLoop = async () => {
     if (aborted) return
 
+    const mode = agent.config.resume ? "resume" : "start"
+    log.info(`Event loop starting (${mode})`, agent.config.resume ? { sessionId: agent.config.resume } : undefined)
+
     try {
       const generator = agent.config.resume
         ? agent.backend.resume(agent.config.resume)
@@ -124,12 +134,16 @@ export function SyncProvider(props: ParentProps) {
         if (aborted) break
         batcher.push(event)
       }
+
+      log.info("Event loop ended (generator exhausted)")
     } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      log.error("Event loop error", { error: message })
       if (!aborted) {
         batcher.push({
           type: "error",
           code: "stream_error",
-          message: err instanceof Error ? err.message : String(err),
+          message,
           severity: "fatal",
         })
       }
@@ -153,6 +167,7 @@ export function SyncProvider(props: ParentProps) {
   })
 
   onCleanup(() => {
+    log.info("SyncProvider cleanup")
     aborted = true
     batcher.destroy()
     agent.backend.close()

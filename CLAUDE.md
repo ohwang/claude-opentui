@@ -97,6 +97,7 @@ src/
     builtin/              # /help, /clear, /compact, /model
   utils/
     event-batcher.ts      # 16ms batching with Solid batch()
+    logger.ts             # File-based session logging (singleton `log`)
 tests/
   protocol/               # Contract tests + reducer tests (written FIRST)
   backends/               # Adapter tests
@@ -131,6 +132,10 @@ Contract tests validate:
 - `turn_complete` must follow every turn
 - `permission_request` must block until approve/deny
 - No events after `close()`
+
+## Logging
+
+Session logs live at `~/.claude-opentui/logs/<session-id>.log`. Each app run gets a unique log file. The session ID and log path are printed to stdout on exit. Use `--debug` for verbose (event-level) logging; default level is `info`. Import the singleton via `import { log } from "./utils/logger"`.
 
 ## Key Reference Files
 

@@ -16,6 +16,7 @@ import { ClaudeAdapter } from "./backends/claude/adapter"
 import { ClaudeV2Adapter } from "./backends/claude/adapter-v2"
 import { MockAdapter } from "./backends/mock/adapter"
 import { startApp } from "./tui/app"
+import { log } from "./utils/logger"
 import type { AgentBackend } from "./protocol/types"
 
 const VERSION = "0.0.1"
@@ -33,6 +34,18 @@ async function main() {
     process.exit(0)
   }
 
+  // Configure logging
+  if (flags.debug) {
+    log.setLevel("debug")
+  }
+  log.info("Starting claude-opentui", { version: VERSION, backend: flags.backend, debug: flags.debug })
+  log.debug("Session config", flags.config)
+
+  // Print session ID on exit so users can correlate with log files
+  process.on("exit", () => {
+    process.stdout.write(`\nSession: ${log.getSessionId()} | Log: ${log.getLogFile()}\n`)
+  })
+
   // Create backend
   let backend: AgentBackend
 
@@ -48,12 +61,16 @@ async function main() {
       backend = new MockAdapter()
       break
     default:
+      log.error("Unknown backend", { backend: flags.backend })
       console.error(`Unknown backend: ${flags.backend}`)
       process.exit(1)
   }
 
+  log.info("Backend created", { backend: flags.backend })
+
   // Process lifecycle management
   const cleanup = () => {
+    log.info("Cleanup: closing backend")
     backend.close()
   }
 
@@ -87,12 +104,14 @@ async function main() {
   })
 
   process.on("unhandledRejection", (err) => {
+    log.error("Unhandled rejection", { error: String(err) })
     console.error("Unhandled rejection:", err)
     cleanup()
     process.exit(1)
   })
 
   process.on("uncaughtException", (err) => {
+    log.error("Uncaught exception", { error: err.message, stack: err.stack })
     console.error("Uncaught exception:", err)
     cleanup()
     process.exit(1)

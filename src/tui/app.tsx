@@ -9,6 +9,7 @@ import { render, useKeyboard, useRenderer } from "@opentui/solid"
 import { TextAttributes } from "@opentui/core"
 import { ErrorBoundary, Show } from "solid-js"
 import type { AgentBackend, SessionConfig } from "../protocol/types"
+import { log } from "../utils/logger"
 import { AgentProvider, useAgent, type AgentContextValue } from "./context/agent"
 import { MessagesProvider } from "./context/messages"
 import { SessionProvider, useSession } from "./context/session"
@@ -55,7 +56,8 @@ function Layout() {
   let ctrlCEmptyCount = 0
   let ctrlCTimer: ReturnType<typeof setTimeout> | undefined
 
-  const cleanExit = () => {
+  const cleanExit = (reason: string) => {
+    log.info("Clean exit", { reason })
     agent.backend.close()
     process.stdout.write("\n")
     process.exit(0)
@@ -69,7 +71,7 @@ function Layout() {
       clearTimeout(ctrlDTimer)
       ctrlDTimer = setTimeout(() => { ctrlDCount = 0 }, 1000)
       if (ctrlDCount >= 3) {
-        cleanExit()
+        cleanExit("ctrl+d triple-press")
       }
       return
     }
@@ -96,7 +98,7 @@ function Layout() {
           clearTimeout(ctrlCTimer)
           ctrlCTimer = setTimeout(() => { ctrlCEmptyCount = 0 }, 1000)
           if (ctrlCEmptyCount >= 2) {
-            cleanExit()
+            cleanExit("ctrl+c double-press")
           }
         } else {
           ctrlCEmptyCount = 0

@@ -181,7 +181,7 @@ export class ClaudeAdapter implements AgentBackend {
 
   approveToolUse(
     id: string,
-    options?: { updatedInput?: unknown; alwaysAllow?: boolean },
+    options?: { updatedInput?: unknown; alwaysAllow?: boolean; updatedPermissions?: any[] },
   ): void {
     const pending = this.pendingPermissions.get(id)
     if (!pending) return
@@ -189,6 +189,7 @@ export class ClaudeAdapter implements AgentBackend {
     const result: PermissionResult = {
       behavior: "allow",
       updatedInput: options?.updatedInput as Record<string, unknown>,
+      updatedPermissions: options?.updatedPermissions,
     }
     pending.resolve(result)
     this.pendingPermissions.delete(id)
@@ -654,6 +655,11 @@ export class ClaudeAdapter implements AgentBackend {
         tool: toolName,
         input,
         suggestions: options?.suggestions,
+        displayName: options?.displayName,
+        title: options?.title,
+        description: options?.description,
+        decisionReason: options?.decisionReason,
+        blockedPath: options?.blockedPath,
       })
     })
   }

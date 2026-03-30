@@ -43,6 +43,16 @@ export type PermissionRequestEvent = {
   tool: string
   input: unknown
   suggestions?: PermissionUpdate[]
+  /** Short noun phrase for the tool action (e.g., "Read file") — from SDK */
+  displayName?: string
+  /** Full permission prompt sentence (e.g., "Claude wants to read foo.txt") — from SDK */
+  title?: string
+  /** Human-readable subtitle (e.g., "Claude will have read and write access to files in ~/Downloads") */
+  description?: string
+  /** Why this permission request was triggered */
+  decisionReason?: string
+  /** File path that triggered the permission request */
+  blockedPath?: string
 }
 
 /** Permission response (approval/denial from user) */
@@ -195,7 +205,7 @@ export interface AgentBackend {
   /** Approve a pending tool use request. */
   approveToolUse(
     id: string,
-    options?: { updatedInput?: unknown; alwaysAllow?: boolean },
+    options?: { updatedInput?: unknown; alwaysAllow?: boolean; updatedPermissions?: PermissionUpdate[] },
   ): void
 
   /** Deny a pending tool use request. */

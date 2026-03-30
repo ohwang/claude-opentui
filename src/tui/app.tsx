@@ -92,7 +92,7 @@ function Layout() {
         session.sessionState === "WAITING_FOR_ELIC"
       ) {
         sync.pushEvent({ type: "interrupt" })
-        sync.pushEvent({ type: "system_message", text: "⎿  Interrupted" })
+        sync.pushEvent({ type: "system_message", text: "⎿  Interrupted \u00B7 What should Claude do instead?" })
         agent.backend.interrupt()
       } else {
         const hadText = clearInput()

@@ -289,9 +289,9 @@ function BlockView(props: { block: Block; viewLevel: ViewLevel }) {
         </box>
       }</Show>
 
-      {/* Thinking block */}
-      <Show when={thinkingBlock()}>{(tb) =>
-        <ThinkingBlock text={tb().text} collapsed={props.viewLevel === "collapsed"} />
+      {/* Thinking block — hidden in collapsed view (matches Claude Code) */}
+      <Show when={thinkingBlock() && props.viewLevel !== "collapsed"}>{(tb) =>
+        <ThinkingBlock text={tb().text} collapsed={props.viewLevel === "expanded"} />
       }</Show>
 
       {/* Tool block */}
@@ -441,9 +441,9 @@ export function ConversationView(props: { children?: JSX.Element }) {
           }
         </For>
 
-        {/* Streaming thinking (transient) */}
-        <Show when={state.streamingThinking}>
-          <ThinkingBlock text={state.streamingThinking} collapsed={false} />
+        {/* Streaming thinking (transient) — hidden in collapsed view, spinner shows instead */}
+        <Show when={state.streamingThinking && viewLevel() !== "collapsed"}>
+          <ThinkingBlock text={state.streamingThinking} collapsed={viewLevel() === "expanded"} />
         </Show>
 
         {/* Streaming text (transient) — styled as assistant with prefix */}

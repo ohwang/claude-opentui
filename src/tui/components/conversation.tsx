@@ -432,74 +432,97 @@ export function ConversationView(props: { children?: JSX.Element }) {
         {/* Header bar — scrolls with content */}
         <HeaderBar />
 
+        {/*
+          IMPORTANT: Every dynamic section (<For>, <Show>) is wrapped in a
+          stable <box> so the parent layout always has a fixed set of children.
+          Without wrappers, SolidJS's reactive primitives dynamically
+          insert/remove direct children and OpenTUI's Zig layout engine can
+          place them at the wrong position (e.g., streaming text above committed
+          blocks instead of below).
+        */}
+
         {/* Committed blocks (non-queued) — tool blocks grouped in collapsed view */}
-        <For each={renderItems()}>
-          {(item) =>
-            item.kind === "tool-summary"
-              ? <ToolSummaryView tools={item.tools} />
-              : <BlockView block={item.block} viewLevel={viewLevel()} />
-          }
-        </For>
+        <box flexDirection="column">
+          <For each={renderItems()}>
+            {(item) =>
+              item.kind === "tool-summary"
+                ? <ToolSummaryView tools={item.tools} />
+                : <BlockView block={item.block} viewLevel={viewLevel()} />
+            }
+          </For>
+        </box>
 
         {/* Streaming thinking (transient) — hidden in collapsed view, spinner shows instead */}
-        <Show when={state.streamingThinking && viewLevel() !== "collapsed"}>
-          <ThinkingBlock text={state.streamingThinking} collapsed={viewLevel() === "expanded"} />
-        </Show>
+        <box flexDirection="column">
+          <Show when={state.streamingThinking && viewLevel() !== "collapsed"}>
+            <ThinkingBlock text={state.streamingThinking} collapsed={viewLevel() === "expanded"} />
+          </Show>
+        </box>
 
         {/* Streaming text (transient) — styled as assistant with prefix */}
-        <Show when={state.streamingText}>
-          <box flexDirection="row" marginTop={1}>
-            <box width={2} flexShrink={0}>
-              <text fg="white">{"\u23FA"}</text>
+        <box flexDirection="column">
+          <Show when={state.streamingText}>
+            <box flexDirection="row" marginTop={1}>
+              <box width={2} flexShrink={0}>
+                <text fg="white">{"\u23FA"}</text>
+              </box>
+              <box flexGrow={1}>
+                <markdown content={state.streamingText} syntaxStyle={syntaxStyle} streaming={true} />
+              </box>
             </box>
-            <box flexGrow={1}>
-              <markdown content={state.streamingText} syntaxStyle={syntaxStyle} streaming={true} />
-            </box>
-          </box>
-        </Show>
+          </Show>
+        </box>
 
         {/* Queued user messages (muted, after streaming) */}
-        <For each={queuedBlocks()}>
-          {(block) => (
-            <box flexDirection="row" paddingLeft={2} marginTop={1}>
-              <text fg="#808080" attributes={TextAttributes.DIM}>
-                {"> " + block.text + " (queued)"}
-              </text>
-            </box>
-          )}
-        </For>
+        <box flexDirection="column">
+          <For each={queuedBlocks()}>
+            {(block) => (
+              <box flexDirection="row" paddingLeft={2} marginTop={1}>
+                <text fg="#808080" attributes={TextAttributes.DIM}>
+                  {"> " + block.text + " (queued)"}
+                </text>
+              </box>
+            )}
+          </For>
+        </box>
 
         {/* Spinner — visible when RUNNING but no streaming content */}
-        <Show when={
-          session.sessionState === "RUNNING" &&
-          !state.streamingText &&
-          !state.streamingThinking
-        }>
-          <StreamingSpinner label={spinnerLabel()} />
-        </Show>
+        <box flexDirection="column">
+          <Show when={
+            session.sessionState === "RUNNING" &&
+            !state.streamingText &&
+            !state.streamingThinking
+          }>
+            <StreamingSpinner label={spinnerLabel()} />
+          </Show>
+        </box>
 
         {/* Background tasks / subagents */}
-        <Show when={state.activeTasks.length > 0}>
-          <TaskView tasks={state.activeTasks} />
-        </Show>
+        <box flexDirection="column">
+          <Show when={state.activeTasks.length > 0}>
+            <TaskView tasks={state.activeTasks} />
+          </Show>
+        </box>
 
         {/* Error display */}
-        <Show when={session.sessionState === "ERROR" && session.lastError}>
-          <box
-            flexDirection="column"
-            paddingTop={1}
-            paddingBottom={1}
-            paddingLeft={2}
-            paddingRight={2}
-            borderStyle="single"
-            borderColor="red"
-          >
-            <text fg="red" attributes={TextAttributes.BOLD}>
-              Error: {session.lastError!.code}
-            </text>
-            <text fg="red">{session.lastError!.message}</text>
-          </box>
-        </Show>
+        <box flexDirection="column">
+          <Show when={session.sessionState === "ERROR" && session.lastError}>
+            <box
+              flexDirection="column"
+              paddingTop={1}
+              paddingBottom={1}
+              paddingLeft={2}
+              paddingRight={2}
+              borderStyle="single"
+              borderColor="red"
+            >
+              <text fg="red" attributes={TextAttributes.BOLD}>
+                Error: {session.lastError!.code}
+              </text>
+              <text fg="red">{session.lastError!.message}</text>
+            </box>
+          </Show>
+        </box>
       </box>
 
       {/* Input area, status bar, dialogs — rendered inside scrollbox so they flow with content */}

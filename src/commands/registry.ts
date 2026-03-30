@@ -203,7 +203,8 @@ export function createCommandRegistry(): CommandRegistry {
     name: "exit",
     description: "Exit the application",
     aliases: ["quit", "q"],
-    execute: () => {
+    execute: (_args, ctx) => {
+      ctx.backend.close()
       process.exit(0)
     },
   })

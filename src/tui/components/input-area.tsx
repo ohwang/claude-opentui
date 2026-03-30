@@ -123,6 +123,7 @@ export function InputArea() {
   }
 
   const submit = async () => {
+    if (isDisabled()) return // Don't submit when disabled
     if (!textareaRef) return
     const text = textareaRef.plainText?.trim()
     if (!text) return
@@ -163,6 +164,8 @@ export function InputArea() {
   }
 
   const handleKeyDown = (e: KeyEvent) => {
+    if (isDisabled()) return // Don't handle any keys when disabled
+
     // Escape = dismiss autocomplete, then completion hint, then clear input
     if (e.name === "escape") {
       e.preventDefault()
@@ -329,7 +332,7 @@ export function InputArea() {
           focused={!isDisabled()}
           height={textareaHeight()}
           placeholder={placeholder()}
-          keyBindings={[
+          keyBindings={isDisabled() ? [] : [
             { name: "return", action: "submit" },
             { name: "return", shift: true, action: "newline" },
             { name: "return", meta: true, action: "newline" },

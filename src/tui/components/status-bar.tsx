@@ -324,82 +324,67 @@ export function StatusBar() {
   })
 
   // ---------------------------------------------------------------------------
-  // Render — 2 lines
+  // Render — single status line (matches Claude Code)
   // ---------------------------------------------------------------------------
 
   return (
-    <box flexDirection="column">
-      {/* Line 1: info bar */}
-      <box height={1} flexDirection="row" paddingLeft={1} paddingRight={1}>
-        {/* Left: project name */}
-        <text fg="yellow" attributes={TextAttributes.BOLD}>
-          {projectName}
-        </text>
+    <box height={1} flexDirection="row" paddingLeft={1} paddingRight={1}>
+      {/* Left: project name */}
+      <text fg="yellow" attributes={TextAttributes.BOLD}>
+        {projectName}
+      </text>
 
-        <text fg="gray">{"  "}</text>
+      <text fg="gray">{"  "}</text>
 
-        {/* Model name */}
-        <text fg="white" attributes={TextAttributes.BOLD}>
-          {modelName()}
-        </text>
+      {/* Model name */}
+      <text fg="white" attributes={TextAttributes.BOLD}>
+        {modelName()}
+      </text>
 
-        <text fg="gray">{" "}</text>
+      <text fg="gray">{" "}</text>
 
-        {/* State icon */}
-        <text fg={stateColor()}>
-          {stateIcon()}
-        </text>
+      {/* Help hint */}
+      <text fg="#d787af">{"/h"}</text>
 
-        {/* Cost */}
-        {costStr() && (
-          <box flexDirection="row">
-            <text fg="gray">{"  "}</text>
-            <text fg="green">{costStr()}</text>
-          </box>
-        )}
+      {/* Cost */}
+      {costStr() && (
+        <box flexDirection="row">
+          <text fg="gray">{"  "}</text>
+          <text fg="green">{costStr()}</text>
+        </box>
+      )}
 
-        {/* Help hint */}
-        <text fg="#d787af">{"  /h"}</text>
+      {/* Git branch + status */}
+      {gitStr() && (
+        <box flexDirection="row">
+          <text fg="gray">{"  "}</text>
+          <text fg="cyan">{gitStr()}</text>
+        </box>
+      )}
 
-        {/* Git branch + status */}
-        {gitStr() && (
-          <box flexDirection="row">
-            <text fg="gray">{"  "}</text>
-            <text fg="cyan">{gitStr()}</text>
-          </box>
-        )}
+      {/* Spacer pushes right-aligned items */}
+      <box flexGrow={1} />
 
-        {/* Spacer pushes right-aligned items */}
-        <box flexGrow={1} />
+      {/* Tokens */}
+      {tokenStr() && (
+        <box flexDirection="row">
+          <text fg="gray">{tokenStr()}</text>
+          <text fg="gray">{" "}</text>
+        </box>
+      )}
 
-        {/* Tokens */}
-        {tokenStr() && (
-          <box flexDirection="row">
-            <text fg="gray">{tokenStr()}</text>
-            <text fg="gray">{" "}</text>
-          </box>
-        )}
+      {/* Tok/s (only during streaming) */}
+      {tokPerSecStr() && (
+        <box flexDirection="row">
+          <text fg="cyan">{tokPerSecStr()}</text>
+          <text fg="gray">{" "}</text>
+        </box>
+      )}
 
-        {/* Tok/s (only during streaming) */}
-        {tokPerSecStr() && (
-          <box flexDirection="row">
-            <text fg="cyan">{tokPerSecStr()}</text>
-            <text fg="gray">{" "}</text>
-          </box>
-        )}
-
-        {/* Timer (only during streaming) */}
-        {timerStr() && (
-          <text fg="yellow">{timerStr()}</text>
-        )}
-      </box>
-
-      {/* Line 2: permission mode */}
-      <box height={1} flexDirection="row" paddingLeft={1} paddingRight={1}>
-        <text fg="#d787af">{"\u25C6"}</text>
-        <text fg="#d787af">{` ${permissionModeLabel(permMode())}`}</text>
-        <text fg="gray" attributes={TextAttributes.DIM}>{" (shift+tab to cycle)"}</text>
-      </box>
+      {/* Timer (only during streaming) */}
+      {timerStr() && (
+        <text fg="yellow">{timerStr()}</text>
+      )}
     </box>
   )
 }

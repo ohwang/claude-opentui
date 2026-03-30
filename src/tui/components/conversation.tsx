@@ -157,7 +157,7 @@ function BlockView(props: { block: Block; viewLevel: ViewLevel }) {
       {/* User block */}
       <Show when={userBlock()}>{(ub) =>
         <box flexDirection="row" marginTop={1}>
-          <text fg="gray" attributes={TextAttributes.DIM}>{"❯ "}</text>
+          <text fg="white" attributes={TextAttributes.BOLD}>{"❯ "}</text>
           <text fg="white">{ub().text}</text>
         </box>
       }</Show>

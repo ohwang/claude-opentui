@@ -261,8 +261,8 @@ function BlockView(props: { block: Block; viewLevel: ViewLevel }) {
       {/* System block */}
       <Show when={systemBlock()}>{(sb) =>
         <box paddingLeft={2} marginTop={1}>
-          <text fg="gray" attributes={TextAttributes.DIM | TextAttributes.ITALIC}>
-            {"\u2139 " + sb().text}
+          <text fg="gray" attributes={TextAttributes.DIM}>
+            {sb().text}
           </text>
         </box>
       }</Show>

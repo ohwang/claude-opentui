@@ -117,7 +117,20 @@ function permissionModeLabel(mode: PermissionMode | undefined): string {
 // Model name abbreviation — drop "Claude " prefix
 // ---------------------------------------------------------------------------
 
+/** Convert raw model IDs to friendly display names */
 function abbreviateModel(name: string): string {
+  // Map raw API model IDs to friendly names
+  const MODEL_NAMES: Record<string, string> = {
+    "claude-opus-4-6": "Opus 4.6",
+    "claude-sonnet-4-6": "Sonnet 4.6",
+    "claude-haiku-4-5-20251001": "Haiku 4.5",
+    "claude-sonnet-4-5-20250514": "Sonnet 4.5",
+    "claude-3-5-sonnet-20241022": "Sonnet 3.5",
+    "claude-3-5-haiku-20241022": "Haiku 3.5",
+  }
+  // Exact match on raw ID
+  if (MODEL_NAMES[name]) return MODEL_NAMES[name]
+  // Strip "Claude " prefix from friendly names like "Claude Opus 4.6"
   return name.replace(/^[Cc]laude\s+/, "")
 }
 

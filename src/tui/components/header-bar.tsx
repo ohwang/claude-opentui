@@ -13,6 +13,20 @@ import { TextAttributes } from "@opentui/core"
 import { useSession } from "../context/session"
 import { useAgent } from "../context/agent"
 
+const MODEL_NAMES: Record<string, string> = {
+  "claude-opus-4-6": "Opus 4.6",
+  "claude-sonnet-4-6": "Sonnet 4.6",
+  "claude-haiku-4-5-20251001": "Haiku 4.5",
+  "claude-sonnet-4-5-20250514": "Sonnet 4.5",
+  "claude-3-5-sonnet-20241022": "Sonnet 3.5",
+  "claude-3-5-haiku-20241022": "Haiku 3.5",
+}
+
+function friendlyModelName(name: string): string {
+  if (MODEL_NAMES[name]) return MODEL_NAMES[name]
+  return name.replace(/^[Cc]laude\s+/, "")
+}
+
 export function HeaderBar() {
   const { state } = useSession()
   const agent = useAgent()
@@ -22,9 +36,8 @@ export function HeaderBar() {
   const modelInfo = () => {
     // Prefer session metadata model name, fall back to config
     const model = state.session?.models?.[0]
-    if (model) return model.name
-    if (agent.config.model) return agent.config.model
-    return "claude"
+    const raw = model?.name ?? agent.config.model ?? "claude"
+    return friendlyModelName(raw)
   }
 
   return (

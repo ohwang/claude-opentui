@@ -29,6 +29,18 @@ export interface CLIFlags {
   debug: boolean
 }
 
+/**
+ * Validate that a flag's required value argument is present and not another flag.
+ */
+function requireArg(flag: string, args: string[], i: number): string {
+  const value = args[i]
+  if (value === undefined || value.startsWith("-")) {
+    console.error(`Error: ${flag} requires a value`)
+    process.exit(1)
+  }
+  return value
+}
+
 export function parseFlags(argv: string[]): CLIFlags {
   const args = argv.slice(2) // Skip bun and script path
 
@@ -67,17 +79,17 @@ export function parseFlags(argv: string[]): CLIFlags {
 
       case "--resume":
       case "-r":
-        flags.config.resume = args[++i]
+        flags.config.resume = requireArg("--resume", args, ++i)
         break
 
       // Model & execution
       case "--model":
       case "-m":
-        flags.config.model = args[++i]
+        flags.config.model = requireArg("--model", args, ++i)
         break
 
       case "--permission-mode":
-        flags.config.permissionMode = args[++i] as PermissionMode
+        flags.config.permissionMode = requireArg("--permission-mode", args, ++i) as PermissionMode
         break
 
       case "--dangerously-skip-permissions":
@@ -85,34 +97,46 @@ export function parseFlags(argv: string[]): CLIFlags {
         break
 
       // Limits
-      case "--max-turns":
-        flags.config.maxTurns = parseInt(args[++i], 10)
+      case "--max-turns": {
+        const val = parseInt(requireArg("--max-turns", args, ++i), 10)
+        if (isNaN(val) || val <= 0) {
+          console.error("Error: --max-turns must be a positive integer")
+          process.exit(1)
+        }
+        flags.config.maxTurns = val
         break
+      }
 
-      case "--max-budget":
-        flags.config.maxBudgetUsd = parseFloat(args[++i])
+      case "--max-budget": {
+        const val = parseFloat(requireArg("--max-budget", args, ++i))
+        if (isNaN(val) || val <= 0) {
+          console.error("Error: --max-budget must be a positive number")
+          process.exit(1)
+        }
+        flags.config.maxBudgetUsd = val
         break
+      }
 
       // Working directory
       case "--cwd":
-        flags.config.cwd = args[++i]
+        flags.config.cwd = requireArg("--cwd", args, ++i)
         break
 
       // System prompt
       case "--system-prompt":
-        flags.config.systemPrompt = args[++i]
+        flags.config.systemPrompt = requireArg("--system-prompt", args, ++i)
         break
 
       // Backend selection
       case "--backend":
       case "-b":
-        flags.backend = args[++i]
+        flags.backend = requireArg("--backend", args, ++i)
         break
 
       // Prompt
       case "--prompt":
       case "-p":
-        flags.prompt = args[++i]
+        flags.prompt = requireArg("--prompt", args, ++i)
         break
 
       default:

@@ -46,7 +46,7 @@ function ErrorFallback(props: { error: Error; reset: () => void }) {
   )
 }
 
-function Layout() {
+function Layout(props: { onExit?: () => void }) {
   const { state: session } = useSession()
   const agent = useAgent()
   const sync = useSync()
@@ -63,6 +63,7 @@ function Layout() {
   const cleanExit = (reason: string) => {
     log.info("Clean exit", { reason })
     agent.backend.close()
+    props.onExit?.()
     renderer.destroy()
     process.exit(0)
   }
@@ -162,7 +163,7 @@ export function startApp(options: AppOptions): void {
           <MessagesProvider>
             <PermissionsProvider>
               <SyncProvider>
-                <Layout />
+                <Layout onExit={options.onExit} />
               </SyncProvider>
             </PermissionsProvider>
           </MessagesProvider>

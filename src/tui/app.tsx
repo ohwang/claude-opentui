@@ -22,6 +22,12 @@ import { StatusBar } from "./components/status-bar"
 import { PermissionDialog } from "./components/permission-dialog"
 import { ElicitationDialog } from "./components/elicitation"
 
+// Module-level exit function so slash commands can trigger clean shutdown
+let _cleanExit: (() => void) | undefined
+export function triggerCleanExit(): void {
+  _cleanExit?.()
+}
+
 /** Render a full-width dash separator line (Claude Code style) */
 function DashLine() {
   const dims = useTerminalDimensions()
@@ -68,6 +74,9 @@ function Layout(props: { onExit?: () => void }) {
     renderer.destroy()
     process.exit(0)
   }
+
+  // Expose clean exit for slash commands (/exit, /quit, /q)
+  _cleanExit = () => cleanExit("slash-command")
 
   // Clear interrupt timeout when state transitions away from INTERRUPTING
   createEffect(on(

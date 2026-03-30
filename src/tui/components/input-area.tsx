@@ -12,6 +12,7 @@ import { useAgent } from "../context/agent"
 import { useSession } from "../context/session"
 import { useSync } from "../context/sync"
 import { createCommandRegistry, type SlashCommand } from "../../commands/registry"
+import { triggerCleanExit } from "../app"
 
 const commandRegistry = createCommandRegistry()
 
@@ -137,6 +138,7 @@ export function InputArea() {
       pushEvent: sync.pushEvent,
       clearConversation: sync.clearConversation,
       setModel: (model: string) => agent.backend.setModel(model),
+      exit: triggerCleanExit,
     })
 
     if (!handled) {

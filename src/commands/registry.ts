@@ -14,6 +14,7 @@ export interface CommandContext {
   pushEvent: (event: any) => void
   clearConversation: () => void
   setModel: (model: string) => Promise<void>
+  exit?: () => void
 }
 
 export interface SlashCommand {
@@ -204,8 +205,12 @@ export function createCommandRegistry(): CommandRegistry {
     description: "Exit the application",
     aliases: ["quit", "q"],
     execute: (_args, ctx) => {
-      ctx.backend.close()
-      process.exit(0)
+      if (ctx.exit) {
+        ctx.exit()
+      } else {
+        ctx.backend.close()
+        process.exit(0)
+      }
     },
   })
 

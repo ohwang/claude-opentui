@@ -314,6 +314,22 @@ describe("ConversationState reducer", () => {
       ])
       expect(state.streamingThinking).toBe("Let me think...")
     })
+
+    it("flushed thinking block always has a string text property", () => {
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "turn_start" },
+        { type: "thinking_delta", text: "reasoning" },
+        { type: "text_delta", text: "response" },
+        { type: "turn_complete" },
+      ])
+      const thinkingBlocks = state.blocks.filter((b) => b.type === "thinking")
+      expect(thinkingBlocks.length).toBeGreaterThan(0)
+      for (const block of thinkingBlocks) {
+        expect(typeof block.text).toBe("string")
+        expect(block.text.length).toBeGreaterThan(0)
+      }
+    })
   })
 
   describe("text_complete", () => {

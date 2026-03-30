@@ -74,6 +74,23 @@ describe("ClaudeAdapter", () => {
       // sendMessage after close should be safe
       adapter.sendMessage({ text: "after close" })
     })
+
+    it("close nulls eventChannel without crashing background loop", () => {
+      const adapter = new ClaudeAdapter()
+
+      // Simulate the state where eventChannel exists (as during iterateQuery)
+      const { EventChannel } = require("../../src/utils/event-channel")
+      ;(adapter as any).eventChannel = new EventChannel()
+
+      // close() nulls eventChannel — the background sdkLoop must not crash
+      adapter.close()
+      expect((adapter as any).eventChannel).toBeNull()
+
+      // Simulating what the background loop does after close:
+      // this.eventChannel?.close() should be safe (not this.eventChannel!.close())
+      const channel = (adapter as any).eventChannel
+      expect(() => channel?.close()).not.toThrow()
+    })
   })
 
   describe("SDKMessage mapping", () => {

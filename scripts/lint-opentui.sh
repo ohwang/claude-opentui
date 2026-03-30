@@ -79,6 +79,20 @@ if grep -rn --include="*.tsx" --include="*.ts" 'scrollToEnd()' src/tui/ 2>/dev/n
   errors=1
 fi
 
+# Check for keyed <Show> where && puts a boolean last (keyed callback gets true instead of the object).
+# Pattern: <Show when={obj() && boolExpr}>{(val) => ...}  — val would be true, not obj.
+# Safe pattern: <Show when={boolExpr && obj()}>{(val) => ...}  — val is the object.
+if grep -rn --include="*.tsx" -E 'Show when=\{.*\(\) &&[^}]+\}>\{\(' src/tui/ 2>/dev/null \
+   | grep -v '//' \
+   | grep -v '\.test\.' \
+   | grep -q .; then
+  grep -rn --include="*.tsx" -E 'Show when=\{.*\(\) &&[^}]+\}>\{\(' src/tui/ 2>/dev/null \
+    | grep -v '//' \
+    | grep -v '\.test\.'
+  echo "ERROR: Keyed <Show> with && must put the object last: <Show when={bool && obj()}>{(v) => v().prop}</Show>"
+  errors=1
+fi
+
 if [ $errors -eq 0 ]; then
   echo "OpenTUI prop checks passed"
 fi

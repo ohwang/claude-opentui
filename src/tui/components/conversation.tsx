@@ -155,7 +155,7 @@ function ToolBlockView(props: { block: Extract<Block, { type: "tool" }>; viewLev
       <Show when={b().error}>
         <box paddingLeft={2}>
           <text fg="red">
-            {"\u23BF  " + b().error}
+            {"\u23BF  " + (b().error!.split("\n")[0]!.length > 100 ? b().error!.split("\n")[0]!.slice(0, 97) + "..." : b().error!.split("\n")[0]!)}
           </text>
         </box>
       </Show>

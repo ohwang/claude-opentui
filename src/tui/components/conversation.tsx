@@ -197,15 +197,27 @@ function toolSummaryText(toolName: string, count: number): string {
   }
 }
 
-/** Collapsed tool summary view — "Read 2 files, ran 1 command (ctrl+o to expand)" */
+/** Collapsed tool summary view — "Running Bash..., Read 2 files (ctrl+o to expand)" */
 function ToolSummaryView(props: { tools: ToolBlock[] }) {
   const summary = () => {
-    const counts: Record<string, number> = {}
+    const completed: Record<string, number> = {}
+    const running: string[] = []
+
     for (const tool of props.tools) {
-      counts[tool.tool] = (counts[tool.tool] || 0) + 1
+      if (tool.status === "running") {
+        running.push(tool.tool)
+      } else {
+        completed[tool.tool] = (completed[tool.tool] || 0) + 1
+      }
     }
+
     const parts: string[] = []
-    for (const [name, count] of Object.entries(counts)) {
+    // Running tools first
+    for (const name of running) {
+      parts.push(`Running ${name}...`)
+    }
+    // Then completed tools
+    for (const [name, count] of Object.entries(completed)) {
       parts.push(toolSummaryText(name, count))
     }
     return parts.join(", ")

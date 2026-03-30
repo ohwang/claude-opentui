@@ -311,15 +311,15 @@ export class ClaudeAdapter implements AgentBackend {
     const sdkLoop = (async () => {
       try {
         for await (const msg of this.activeQuery!) {
-          if (this.closed) break
+          if (this.closed || !this.eventChannel) break
           const events = this.mapSDKMessage(msg)
           for (const event of events) {
-            this.eventChannel!.push(event)
+            this.eventChannel?.push(event)
           }
         }
       } catch (err) {
-        if (!this.closed) {
-          this.eventChannel!.push({
+        if (!this.closed && this.eventChannel) {
+          this.eventChannel.push({
             type: "error" as const,
             code: "adapter_error",
             message: err instanceof Error ? err.message : String(err),

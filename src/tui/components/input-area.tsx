@@ -321,32 +321,6 @@ export function InputArea() {
 
   return (
     <box flexDirection="column">
-      {/* Autocomplete dropdown — rendered above the input */}
-      <Show when={showAutocomplete() && autocompleteItems().length > 0}>
-        <box
-          flexDirection="column"
-          borderStyle="single"
-          borderColor="gray"
-          maxHeight={MAX_VISIBLE_ITEMS + 2}
-        >
-          <For each={autocompleteItems().slice(0, MAX_VISIBLE_ITEMS)}>
-            {(cmd, index) => (
-              <box flexDirection="row" paddingLeft={1} paddingRight={1}>
-                <text
-                  attributes={index() === selectedIndex() ? TextAttributes.BOLD : 0}
-                  fg={index() === selectedIndex() ? "cyan" : "white"}
-                >
-                  /{cmd.name}
-                </text>
-                <text fg="gray" attributes={index() !== selectedIndex() ? TextAttributes.DIM : 0}>
-                  {" "}{cmd.description}
-                </text>
-              </box>
-            )}
-          </For>
-        </box>
-      </Show>
-
       {/* Input row with > prompt prefix */}
       <box flexDirection="row">
         <text fg="white">{"❯ "}</text>
@@ -370,6 +344,27 @@ export function InputArea() {
           </text>
         ) : null}
       </box>
+
+      {/* Autocomplete dropdown — rendered below input, no border (matches Claude Code) */}
+      <Show when={showAutocomplete() && autocompleteItems().length > 0}>
+        <box flexDirection="column" paddingLeft={2}>
+          <For each={autocompleteItems().slice(0, MAX_VISIBLE_ITEMS)}>
+            {(cmd, index) => (
+              <box flexDirection="row">
+                <text
+                  attributes={index() === selectedIndex() ? TextAttributes.BOLD : 0}
+                  fg={index() === selectedIndex() ? "cyan" : "white"}
+                >
+                  /{cmd.name}
+                </text>
+                <text fg="gray" attributes={index() !== selectedIndex() ? TextAttributes.DIM : 0}>
+                  {"  \u2013  "}{cmd.description}
+                </text>
+              </box>
+            )}
+          </For>
+        </box>
+      </Show>
     </box>
   )
 }

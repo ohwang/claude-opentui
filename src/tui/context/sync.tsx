@@ -14,6 +14,7 @@ import {
   useContext,
   onMount,
   onCleanup,
+  createEffect,
   batch,
   type ParentProps,
 } from "solid-js"
@@ -159,13 +160,17 @@ export function SyncProvider(props: ParentProps) {
   onMount(() => {
     startEventLoop()
 
-    // Send initial prompt from CLI flags (--prompt or positional arg)
+    // Send initial prompt after backend is ready (session_init received)
     if (agent.config.initialPrompt) {
       const text = agent.config.initialPrompt
-      setTimeout(() => {
-        pushEvent({ type: "user_message", text })
-        agent.backend.sendMessage({ text })
-      }, 100)
+      let sent = false
+      createEffect(() => {
+        if (!sent && session.state.sessionState === "IDLE") {
+          sent = true
+          pushEvent({ type: "user_message", text })
+          agent.backend.sendMessage({ text })
+        }
+      })
     }
   })
 

@@ -3,28 +3,31 @@
  *
  * Renders within the conversation flow when WAITING_FOR_PERM.
  * Features:
- * - Periwinkle ─ borders (top and bottom)
+ * - Top ─ border, content preview between ╌ dashed borders
  * - Action label header (displayName or tool name)
- * - Content preview (file path, command, etc.)
- * - Description subtitle when available
+ * - File/command content preview with line numbers
  * - 3-option radio selector with ↑/↓ arrow key navigation
  * - ❯ selection indicator with periwinkle accent
- * - Esc to cancel footer hint
+ * - Context-specific question and option text from SDK metadata
+ * - Esc to cancel · Tab to amend footer hints
  */
 
-import { createSignal, Show } from "solid-js"
+import { createSignal, Show, For } from "solid-js"
 import { TextAttributes } from "@opentui/core"
 import { useKeyboard, useTerminalDimensions } from "@opentui/solid"
 import { usePermissions } from "../context/permissions"
 import { useAgent } from "../context/agent"
 import { useSession } from "../context/session"
 import { useSync } from "../context/sync"
-import path from "node:path"
+import type { PermissionRequestEvent } from "../../protocol/types"
 
 // ANSI 153 = #afd7ff (periwinkle — Claude Code accent)
 const ACCENT = "#afd7ff"
 // ANSI 246 = #a8a8a8 (muted gray)
 const MUTED = "#a8a8a8"
+
+// Max lines to show in content preview
+const MAX_PREVIEW_LINES = 20
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -36,70 +39,21 @@ function relativePath(absPath: string): string {
   if (absPath.startsWith(cwd + "/")) {
     return absPath.slice(cwd.length + 1)
   }
-  // Try home dir shorthand
-  const home = process.env.HOME
-  if (home && absPath.startsWith(home + "/")) {
-    return "~/" + absPath.slice(home.length + 1)
-  }
-  return absPath
+  // For paths outside cwd, compute relative using path.relative
+  const rel = require("node:path").relative(cwd, absPath)
+  return rel
 }
 
-/** Extract the primary display content from tool input */
-function extractContent(tool: string, input: unknown): { primary: string; secondary?: string } {
-  const inp = input as Record<string, unknown> | null
-  if (!inp) return { primary: "" }
+/** Extract the filename from a path */
+function fileName(filePath: string): string {
+  const parts = filePath.split("/")
+  return parts[parts.length - 1] || filePath
+}
 
-  switch (tool) {
-    case "Read": {
-      const filePath = inp.file_path ? relativePath(String(inp.file_path)) : ""
-      const extras: string[] = []
-      if (inp.limit) extras.push(`limit: ${inp.limit}`)
-      if (inp.offset) extras.push(`offset: ${inp.offset}`)
-      return {
-        primary: filePath,
-        secondary: extras.length > 0 ? extras.join(", ") : undefined,
-      }
-    }
-    case "Edit": {
-      const filePath = inp.file_path ? relativePath(String(inp.file_path)) : ""
-      return { primary: filePath }
-    }
-    case "Write": {
-      const filePath = inp.file_path ? relativePath(String(inp.file_path)) : ""
-      return { primary: filePath }
-    }
-    case "Bash": {
-      const cmd = inp.command ? String(inp.command) : ""
-      return { primary: cmd }
-    }
-    case "Glob": {
-      const pattern = inp.pattern ? String(inp.pattern) : ""
-      const dir = inp.path ? relativePath(String(inp.path)) : ""
-      return { primary: pattern, secondary: dir ? `in ${dir}` : undefined }
-    }
-    case "Grep": {
-      const pattern = inp.pattern ? String(inp.pattern) : ""
-      const dir = inp.path ? relativePath(String(inp.path)) : ""
-      return { primary: pattern, secondary: dir ? `in ${dir}` : undefined }
-    }
-    case "Agent": {
-      const desc = inp.description ? String(inp.description) : ""
-      const prompt = inp.prompt ? String(inp.prompt) : ""
-      return { primary: desc || prompt.slice(0, 80) }
-    }
-    default: {
-      // Try common field names
-      if (inp.file_path) return { primary: relativePath(String(inp.file_path)) }
-      if (inp.command) return { primary: String(inp.command) }
-      if (inp.path) return { primary: relativePath(String(inp.path)) }
-      try {
-        const json = JSON.stringify(inp)
-        return { primary: json.length > 120 ? json.slice(0, 117) + "..." : json }
-      } catch {
-        return { primary: String(inp) }
-      }
-    }
-  }
+/** Extract the parent directory name from a path */
+function parentDir(filePath: string): string {
+  const parts = filePath.replace(/\/$/, "").split("/")
+  return parts[parts.length - 1] || filePath
 }
 
 /** Get a human-readable action label for the tool */
@@ -108,8 +62,8 @@ function actionLabel(tool: string, displayName?: string): string {
   switch (tool) {
     case "Read": return "Read file"
     case "Edit": return "Edit file"
-    case "Write": return "Write file"
-    case "Bash": return "Run command"
+    case "Write": return "Create file"
+    case "Bash": return "Bash command"
     case "Glob": return "Search files"
     case "Grep": return "Search content"
     case "Agent": return "Launch agent"
@@ -117,6 +71,93 @@ function actionLabel(tool: string, displayName?: string): string {
     case "WebSearch": return "Web search"
     default: return tool
   }
+}
+
+/** Extract path string from tool input */
+function extractPath(tool: string, input: unknown): string {
+  const inp = input as Record<string, unknown> | null
+  if (!inp) return ""
+  if (inp.file_path) return relativePath(String(inp.file_path))
+  if (inp.command) return String(inp.command)
+  if (inp.pattern) {
+    const dir = inp.path ? relativePath(String(inp.path)) : ""
+    return `${inp.pattern}${dir ? ` in ${dir}` : ""}`
+  }
+  if (inp.path) return relativePath(String(inp.path))
+  return ""
+}
+
+/** Extract content lines for preview (Write content, Edit diff, Bash command) */
+function extractPreviewLines(tool: string, input: unknown): string[] | null {
+  const inp = input as Record<string, unknown> | null
+  if (!inp) return null
+
+  switch (tool) {
+    case "Write": {
+      const content = inp.content
+      if (typeof content === "string" && content.trim()) {
+        return content.split("\n").slice(0, MAX_PREVIEW_LINES)
+      }
+      return null
+    }
+    case "Edit": {
+      // Show the new_string as preview (what will be written)
+      const newStr = inp.new_string
+      if (typeof newStr === "string" && newStr.trim()) {
+        return newStr.split("\n").slice(0, MAX_PREVIEW_LINES)
+      }
+      return null
+    }
+    case "Bash": {
+      const cmd = inp.command
+      if (typeof cmd === "string" && cmd.trim()) {
+        return cmd.split("\n").slice(0, MAX_PREVIEW_LINES)
+      }
+      return null
+    }
+    default:
+      return null
+  }
+}
+
+/** Build the question text from SDK title or tool context */
+function questionText(perm: PermissionRequestEvent): string {
+  if (perm.title) return perm.title
+  const inp = perm.input as Record<string, unknown> | null
+  const filePath = inp?.file_path ? String(inp.file_path) : ""
+  const name = filePath ? fileName(filePath) : ""
+  switch (perm.tool) {
+    case "Write": return name ? `Do you want to create ${name}?` : "Do you want to proceed?"
+    case "Edit": return name ? `Do you want to edit ${name}?` : "Do you want to proceed?"
+    case "Bash": return "Do you want to run this command?"
+    default: return "Do you want to proceed?"
+  }
+}
+
+/** Build option 2 text from SDK suggestions or derive from context */
+function option2Text(perm: PermissionRequestEvent): string {
+  // Try to derive from suggestions
+  if (perm.suggestions && perm.suggestions.length > 0) {
+    const s = perm.suggestions[0]
+    if ((s.type === "addRules" || s.type === "replaceRules") && s.toolName) {
+      return `Yes, and don\u2019t ask again for ${s.toolName} (shift+tab)`
+    }
+    if (s.type === "addDirectories" && s.paths?.length > 0) {
+      const dir = parentDir(s.paths[0])
+      return `Yes, allow all edits in ${dir}/ during this session (shift+tab)`
+    }
+  }
+  // Derive from tool and path context
+  const inp = perm.input as Record<string, unknown> | null
+  const filePath = inp?.file_path ? String(inp.file_path) : ""
+  if (filePath) {
+    const parts = filePath.split("/")
+    const dir = parts.length > 1 ? parts[parts.length - 2] : ""
+    if (dir && dir !== ".") {
+      return `Yes, allow all edits in ${dir}/ during this session (shift+tab)`
+    }
+  }
+  return `Yes, and don\u2019t ask again for this tool`
 }
 
 // ---------------------------------------------------------------------------
@@ -136,9 +177,9 @@ export function PermissionDialog() {
   // Reset selection when a new permission request arrives
   let lastPermId: string | null = null
 
-  const borderLine = () => {
+  const dashedLine = () => {
     const width = (dims()?.width ?? 120) - 4 // account for padding
-    return "─".repeat(Math.max(width, 40))
+    return "\u254C".repeat(Math.max(width, 40))
   }
 
   useKeyboard((event) => {
@@ -234,47 +275,64 @@ export function PermissionDialog() {
         }
 
         const label = () => actionLabel(perm().tool, perm().displayName)
-        const content = () => extractContent(perm().tool, perm().input)
-        const title = () => perm().title
+        const previewLines = () => extractPreviewLines(perm().tool, perm().input)
+        // Don't show path separately for Bash (command is shown in preview)
+        const pathStr = () => {
+          if (perm().tool === "Bash" && previewLines()) return ""
+          return extractPath(perm().tool, perm().input)
+        }
+        const question = () => questionText(perm())
+        const opt2 = () => option2Text(perm())
         const description = () => perm().description
 
         return (
-          <box flexDirection="column" paddingLeft={2} paddingRight={2}>
-            {/* Top border */}
-            <box height={1}>
-              <text fg={ACCENT}>{borderLine()}</text>
-            </box>
-
+          <box flexDirection="column" paddingLeft={1} paddingRight={1}>
             {/* Action label */}
-            <box height={1} paddingLeft={1} marginTop={0}>
+            <box height={1} paddingLeft={1}>
               <text fg={ACCENT} attributes={TextAttributes.BOLD}>
                 {label()}
               </text>
             </box>
 
-            {/* Content preview (file path, command, etc.) */}
-            <Show when={content().primary}>
-              <box paddingLeft={3}>
-                <text fg={MUTED}>{content().primary}</text>
-              </box>
-            </Show>
-            <Show when={content().secondary}>
-              <box paddingLeft={3}>
-                <text fg={MUTED}>{content().secondary}</text>
+            {/* Path / primary content info */}
+            <Show when={pathStr()}>
+              <box paddingLeft={1}>
+                <text fg={MUTED}>{pathStr()}</text>
               </box>
             </Show>
 
             {/* Description from SDK */}
             <Show when={description()}>
-              <box paddingLeft={3} marginTop={0}>
+              <box paddingLeft={1}>
                 <text fg={MUTED}>{description()}</text>
               </box>
             </Show>
 
-            {/* Title / question prompt */}
-            <box height={1} paddingLeft={1} marginTop={1}>
+            {/* Content preview between ╌ dashed borders */}
+            <Show when={previewLines()}>
+              {(lines) => (
+                <box flexDirection="column">
+                  <box height={1}>
+                    <text fg={ACCENT}>{dashedLine()}</text>
+                  </box>
+                  <For each={lines()}>
+                    {(line, idx) => (
+                      <box height={1} paddingLeft={2}>
+                        <text fg="white">{`${String(idx() + 1).padStart(3, " ")} ${line || " "}`}</text>
+                      </box>
+                    )}
+                  </For>
+                  <box height={1}>
+                    <text fg={ACCENT}>{dashedLine()}</text>
+                  </box>
+                </box>
+              )}
+            </Show>
+
+            {/* Question prompt */}
+            <box height={1} paddingLeft={1} marginTop={previewLines() ? 0 : 1}>
               <text fg="white">
-                {title() ?? "Do you want to proceed?"}
+                {question()}
               </text>
             </box>
 
@@ -296,12 +354,12 @@ export function PermissionDialog() {
               <Show when={selectedOption() === 1}
                 fallback={
                   <text fg="white" attributes={TextAttributes.BOLD}>
-                    {"  2. Yes, and don\u2019t ask again for this tool"}
+                    {"  2. " + opt2()}
                   </text>
                 }
               >
                 <text fg={ACCENT} attributes={TextAttributes.BOLD}>
-                  {"\u276F 2. Yes, and don\u2019t ask again for this tool"}
+                  {"\u276F 2. " + opt2()}
                 </text>
               </Show>
             </box>
@@ -320,13 +378,8 @@ export function PermissionDialog() {
             {/* Footer hints */}
             <box height={1} paddingLeft={1} marginTop={1}>
               <text fg={MUTED}>
-                {"Esc to cancel"}
+                {"Esc to cancel \u00B7 Tab to amend"}
               </text>
-            </box>
-
-            {/* Bottom border */}
-            <box height={1}>
-              <text fg={ACCENT}>{borderLine()}</text>
             </box>
           </box>
         )

@@ -359,6 +359,17 @@ export class ClaudeAdapter implements AgentBackend {
               summary: "Conversation context is being compacted...",
             })
           }
+        } else if (msg.subtype === "compact_boundary") {
+          const meta = msg.compact_metadata ?? {}
+          events.push({
+            type: "compact",
+            summary: `Conversation compacted (${meta.trigger ?? "manual"}, ${meta.pre_tokens ?? "?"} tokens before).`,
+          })
+        } else if (msg.subtype === "local_command_output") {
+          events.push({
+            type: "system_message",
+            text: msg.content ?? "",
+          })
         }
         break
 

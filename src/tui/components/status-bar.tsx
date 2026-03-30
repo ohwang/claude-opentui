@@ -50,6 +50,7 @@ interface GitInfo {
   modified: number
   untracked: number
   ahead: number
+  hasUpstream: boolean
 }
 
 function getGitInfo(): GitInfo | null {
@@ -75,18 +76,20 @@ function getGitInfo(): GitInfo | null {
 
     // Try to get ahead count (may fail for detached HEAD or no upstream)
     let ahead = 0
+    let hasUpstream = false
     try {
       const aheadResult = Bun.spawnSync([
         "git", "rev-list", "--count", "@{upstream}..HEAD",
       ])
       if (aheadResult.exitCode === 0) {
+        hasUpstream = true
         ahead = parseInt(aheadResult.stdout.toString().trim(), 10) || 0
       }
     } catch {
       // No upstream configured, that's fine
     }
 
-    return { branch, modified, untracked, ahead }
+    return { branch, modified, untracked, ahead, hasUpstream }
   } catch {
     return null
   }
@@ -363,6 +366,7 @@ export function StatusBar(props: { hint?: string | null }) {
     if (!info) return ""
     const parts: string[] = [info.branch]
     if (info.ahead > 0) parts.push(`\u2191${info.ahead}`)
+    else if (info.hasUpstream) parts.push("\u2261") // ≡ = in sync with upstream
     const statusParts: string[] = []
     if (info.modified > 0) statusParts.push(`~${info.modified}`)
     if (info.untracked > 0) statusParts.push(`+${info.untracked}`)

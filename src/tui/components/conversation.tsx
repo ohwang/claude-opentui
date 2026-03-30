@@ -356,16 +356,32 @@ export function ConversationView(props: { children?: JSX.Element }) {
     return "Thinking..."
   }
 
-  // Re-engage stickyScroll when streaming starts (not on every delta —
-  // stickyScroll handles auto-following once engaged, and per-delta
-  // scrollBy causes layout thrashing that contributes to text flicker)
-  let wasStreaming = false
+  // Periodic stickyScroll re-engagement during streaming
+  // Uses a 200ms interval (not per-delta) to avoid scroll thrashing
+  // that was fixed in commit 91901ca
+  let scrollNudgeTimer: ReturnType<typeof setInterval> | undefined
   createEffect(() => {
     const isStreaming = !!(state.streamingText || state.streamingThinking)
-    if (isStreaming && !wasStreaming) {
-      scrollboxRef?.scrollBy(1, "content")
+    if (isStreaming) {
+      if (!scrollNudgeTimer) {
+        // Initial nudge
+        scrollboxRef?.scrollBy(1, "content")
+        // Periodic nudge every 200ms
+        scrollNudgeTimer = setInterval(() => {
+          scrollboxRef?.scrollBy(1, "content")
+        }, 200)
+      }
+    } else {
+      if (scrollNudgeTimer) {
+        clearInterval(scrollNudgeTimer)
+        scrollNudgeTimer = undefined
+      }
     }
-    wasStreaming = isStreaming
+  })
+  onCleanup(() => {
+    if (scrollNudgeTimer) {
+      clearInterval(scrollNudgeTimer)
+    }
   })
 
   // View-level notification helper — transient hint, not a permanent message

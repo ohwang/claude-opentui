@@ -241,8 +241,8 @@ function BlockView(props: { block: Block; viewLevel: ViewLevel }) {
       {/* Assistant text block */}
       <Show when={assistantBlock()}>{(ab) =>
         <box flexDirection="row" marginTop={1}>
-          <text fg="white">{"\u23FA "}</text>
-          <box flexGrow={1}>
+          <text fg="white">{"\u23FA"}</text>
+          <box flexGrow={1} marginLeft={1}>
             <markdown content={ab().text} syntaxStyle={syntaxStyle} />
           </box>
         </box>
@@ -388,8 +388,8 @@ export function ConversationView(props: { children?: JSX.Element }) {
         {/* Streaming text (transient) — styled as assistant with prefix */}
         <Show when={state.streamingText}>
           <box flexDirection="row" marginTop={1}>
-            <text fg="white">{"\u23FA "}</text>
-            <box flexGrow={1}>
+            <text fg="white">{"\u23FA"}</text>
+            <box flexGrow={1} marginLeft={1}>
               <markdown content={state.streamingText} syntaxStyle={syntaxStyle} streaming={true} />
             </box>
           </box>

@@ -15,13 +15,9 @@ export function TaskView(props: { tasks: [string, TaskInfo][] }) {
   const timer = setInterval(() => setTick((t) => t + 1), 1000)
   onCleanup(() => clearInterval(timer))
 
-  const runningTasks = () => props.tasks.filter(([, t]) => t.status === "running")
-  const completedTasks = () =>
-    props.tasks.filter(([, t]) => t.status === "completed")
-
   const hasAny = () => props.tasks.length > 0
-  const runningCount = () => runningTasks().length
-  const completedCount = () => completedTasks().length
+  const runningCount = () => props.tasks.filter(([, t]) => t.status === "running").length
+  const completedCount = () => props.tasks.filter(([, t]) => t.status === "completed").length
 
   const header = () => {
     if (runningCount() > 0 && completedCount() > 0) {
@@ -47,34 +43,30 @@ export function TaskView(props: { tasks: [string, TaskInfo][] }) {
             const color = () => (task.status === "running" ? "yellow" : "green")
 
             return (
-              <box flexDirection="row" paddingLeft={1}>
-                <text fg="gray">{prefix()} </text>
-                <text fg={color()}>{icon()} </text>
-                <text fg="white">{task.description}</text>
-                <Show when={task.status === "running"}>
-                  <text fg="gray">
-                    {" "}({(() => { tick(); return Math.round((Date.now() - task.startTime) / 1000) })()}s)
-                  </text>
+              <box flexDirection="column">
+                <box flexDirection="row" paddingLeft={1}>
+                  <text fg="gray">{prefix()} </text>
+                  <text fg={color()}>{icon()} </text>
+                  <text fg="white">{task.description}</text>
+                  <Show when={task.status === "running"}>
+                    <text fg="gray">
+                      {" "}({(() => { tick(); return Math.round((Date.now() - task.startTime) / 1000) })()}s)
+                    </text>
+                  </Show>
+                </box>
+                <Show when={task.status === "completed" && task.output}>
+                  <box paddingLeft={5}>
+                    <text fg="gray" attributes={TextAttributes.DIM}>
+                      {task.output.length > 80
+                        ? task.output.slice(0, 77) + "..."
+                        : task.output}
+                    </text>
+                  </box>
                 </Show>
               </box>
             )
           }}
         </For>
-        <Show when={completedTasks().length > 0 && runningCount() === 0}>
-          <For each={completedTasks()}>
-            {([id, task]) => (
-              <Show when={task.output}>
-                <box paddingLeft={3}>
-                  <text fg="gray" attributes={TextAttributes.DIM}>
-                    {task.output.length > 80
-                      ? task.output.slice(0, 77) + "..."
-                      : task.output}
-                  </text>
-                </box>
-              </Show>
-            )}
-          </For>
-        </Show>
       </box>
     </Show>
   )

@@ -284,12 +284,6 @@ export function PermissionDialog() {
   return (
     <Show when={state.pendingPermission}>
       {(perm) => {
-        // Reset selection for new permission
-        if (perm().id !== lastPermId) {
-          lastPermId = perm().id
-          setSelectedOption(0)
-        }
-
         const label = () => actionLabel(perm().tool, perm().displayName)
         const previewLines = () => extractPreviewLines(perm().tool, perm().input)
         // Don't show path separately for Bash (command is shown in preview)

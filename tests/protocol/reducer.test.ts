@@ -67,6 +67,40 @@ describe("ConversationState reducer", () => {
       ])
       expect(state.turnNumber).toBe(1)
     })
+
+    it("is ignored during INTERRUPTING state", () => {
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "turn_start" },
+        { type: "text_delta", text: "working..." },
+        { type: "interrupt" },
+        { type: "turn_start" }, // should be ignored
+      ])
+      expect(state.sessionState).toBe("INTERRUPTING")
+      expect(state.turnNumber).toBe(1) // not incremented
+    })
+
+    it("is ignored during ERROR state", () => {
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "error", code: "fatal", message: "something broke", severity: "fatal" },
+        { type: "turn_start" }, // should be ignored
+      ])
+      expect(state.sessionState).toBe("ERROR")
+      expect(state.turnNumber).toBe(0)
+    })
+
+    it("is ignored during RUNNING state (duplicate turn_start)", () => {
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "turn_start" },
+        { type: "text_delta", text: "hello" },
+        { type: "turn_start" }, // duplicate, should be ignored
+      ])
+      expect(state.sessionState).toBe("RUNNING")
+      expect(state.turnNumber).toBe(1) // not incremented again
+      expect(state.streamingText).toBe("hello") // not cleared
+    })
   })
 
   describe("turn_complete", () => {

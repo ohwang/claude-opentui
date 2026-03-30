@@ -84,7 +84,11 @@ export function reduce(
 
     // ----- Turn lifecycle -----
 
-    case "turn_start":
+    case "turn_start": {
+      // Guard: only transition to RUNNING from IDLE or INITIALIZING
+      if (state.sessionState !== "IDLE" && state.sessionState !== "INITIALIZING") {
+        return next
+      }
       return {
         ...next,
         sessionState: "RUNNING",
@@ -92,6 +96,7 @@ export function reduce(
         streamingText: "",
         streamingThinking: "",
       }
+    }
 
     case "turn_complete": {
       // Guard: ignore if not in RUNNING or INTERRUPTING

@@ -124,18 +124,20 @@ export function ElicitationDialog() {
   }
 
   return (
-    <Show when={state.pendingElicitation && session.sessionState === "WAITING_FOR_ELIC"}>
-      <box flexDirection="column" gap={1}>
-        <For each={state.pendingElicitation!.questions}>
-          {(question, index) => (
-            <QuestionView
-              question={question}
-              questionIndex={index()}
-              onAnswer={(value) => handleAnswer(index(), value)}
-            />
-          )}
-        </For>
-      </box>
+    <Show when={session.sessionState === "WAITING_FOR_ELIC" && state.pendingElicitation}>
+      {(elicitation) => (
+        <box flexDirection="column" gap={1}>
+          <For each={elicitation().questions}>
+            {(question, index) => (
+              <QuestionView
+                question={question}
+                questionIndex={index()}
+                onAnswer={(value) => handleAnswer(index(), value)}
+              />
+            )}
+          </For>
+        </box>
+      )}
     </Show>
   )
 }

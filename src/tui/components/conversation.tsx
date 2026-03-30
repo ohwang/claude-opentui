@@ -290,7 +290,7 @@ function BlockView(props: { block: Block; viewLevel: ViewLevel }) {
       }</Show>
 
       {/* Thinking block — hidden in collapsed view (matches Claude Code) */}
-      <Show when={thinkingBlock() && props.viewLevel !== "collapsed"}>{(tb) =>
+      <Show when={props.viewLevel !== "collapsed" && thinkingBlock()}>{(tb) =>
         <ThinkingBlock text={tb().text} collapsed={props.viewLevel === "expanded"} />
       }</Show>
 

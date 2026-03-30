@@ -10,11 +10,13 @@ import { TextAttributes } from "@opentui/core"
 
 export function ThinkingBlock(props: { text: string; collapsed?: boolean }) {
   const expanded = () => !props.collapsed
+  const text = () => props.text ?? ""
 
   const preview = () => {
-    const lines = props.text.split("\n")
-    if (lines.length <= 1 && props.text.length <= 80) return props.text
-    return props.text.slice(0, 77) + "..."
+    const t = text()
+    const lines = t.split("\n")
+    if (lines.length <= 1 && t.length <= 80) return t
+    return t.slice(0, 77) + "..."
   }
 
   return (
@@ -37,7 +39,7 @@ export function ThinkingBlock(props: { text: string; collapsed?: boolean }) {
         </text>
         <box paddingLeft={2}>
           <text fg="gray" attributes={TextAttributes.DIM}>
-            {props.text}
+            {text()}
           </text>
         </box>
       </Show>

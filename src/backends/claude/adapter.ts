@@ -323,7 +323,7 @@ export class ClaudeAdapter implements AgentBackend {
           })
         }
       }
-      this.eventChannel!.close()
+      this.eventChannel?.close()
     })()
 
     // Yield from channel — receives both SDK events AND canUseTool callback events

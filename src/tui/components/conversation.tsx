@@ -135,6 +135,82 @@ function ToolBlockView(props: { block: Extract<Block, { type: "tool" }>; viewLev
 }
 
 // ---------------------------------------------------------------------------
+// Tool summary — collapsed view aggregation (matches Claude Code)
+// ---------------------------------------------------------------------------
+
+type ToolBlock = Extract<Block, { type: "tool" }>
+
+/** Human-readable tool summary text */
+function toolSummaryText(toolName: string, count: number): string {
+  const s = count === 1 ? "" : "s"
+  switch (toolName) {
+    case "Read": return `Read ${count} file${s}`
+    case "Edit": return `Edited ${count} file${s}`
+    case "Write": return `Wrote ${count} file${s}`
+    case "Bash": return `Ran ${count} command${s}`
+    case "Glob": case "Grep": return `Searched ${count} pattern${s}`
+    case "Agent": return `Spawned ${count} agent${s}`
+    default: return `${toolName} (${count})`
+  }
+}
+
+/** Collapsed tool summary view — "Read 2 files, ran 1 command (ctrl+o to expand)" */
+function ToolSummaryView(props: { tools: ToolBlock[] }) {
+  const summary = () => {
+    const counts: Record<string, number> = {}
+    for (const tool of props.tools) {
+      counts[tool.tool] = (counts[tool.tool] || 0) + 1
+    }
+    const parts: string[] = []
+    for (const [name, count] of Object.entries(counts)) {
+      parts.push(toolSummaryText(name, count))
+    }
+    return parts.join(", ")
+  }
+
+  return (
+    <box paddingLeft={2}>
+      <text fg="#a8a8a8" attributes={TextAttributes.DIM}>
+        {"  " + summary() + " (ctrl+o to expand)"}
+      </text>
+    </box>
+  )
+}
+
+/** Render item: either a block or a tool summary */
+type RenderItem =
+  | { kind: "block"; block: Block }
+  | { kind: "tool-summary"; tools: ToolBlock[] }
+
+/** Group consecutive tool blocks into summaries when in collapsed view */
+function groupBlocksForRendering(blocks: Block[], viewLevel: ViewLevel): RenderItem[] {
+  if (viewLevel !== "collapsed") {
+    return blocks.map(b => ({ kind: "block" as const, block: b }))
+  }
+
+  const items: RenderItem[] = []
+  let toolGroup: ToolBlock[] = []
+
+  for (const block of blocks) {
+    if (block.type === "tool") {
+      toolGroup.push(block as ToolBlock)
+    } else {
+      if (toolGroup.length > 0) {
+        items.push({ kind: "tool-summary", tools: [...toolGroup] })
+        toolGroup = []
+      }
+      items.push({ kind: "block", block })
+    }
+  }
+
+  if (toolGroup.length > 0) {
+    items.push({ kind: "tool-summary", tools: [...toolGroup] })
+  }
+
+  return items
+}
+
+// ---------------------------------------------------------------------------
 // BlockView — dispatches rendering by block type
 // ---------------------------------------------------------------------------
 
@@ -222,9 +298,10 @@ export function ConversationView(props: { children?: JSX.Element }) {
   const [viewLevel, setViewLevel] = createSignal<ViewLevel>("collapsed")
   let scrollboxRef: ScrollBoxRenderable | undefined
 
-  // Derived: separate queued vs non-queued blocks
+  // Derived: separate queued vs non-queued blocks, group tools for rendering
   const nonQueuedBlocks = () => state.blocks.filter(b => !(b.type === "user" && b.queued))
   const queuedBlocks = () => state.blocks.filter(b => b.type === "user" && b.queued) as Array<Extract<Block, { type: "user" }>>
+  const renderItems = () => groupBlocksForRendering(nonQueuedBlocks(), viewLevel())
 
   // Spinner label from running tools in blocks
   const spinnerLabel = () => {
@@ -294,9 +371,13 @@ export function ConversationView(props: { children?: JSX.Element }) {
         {/* Header bar — scrolls with content */}
         <HeaderBar />
 
-        {/* Committed blocks (non-queued) */}
-        <For each={nonQueuedBlocks()}>
-          {(block) => <BlockView block={block} viewLevel={viewLevel()} />}
+        {/* Committed blocks (non-queued) — tool blocks grouped in collapsed view */}
+        <For each={renderItems()}>
+          {(item) =>
+            item.kind === "tool-summary"
+              ? <ToolSummaryView tools={item.tools} />
+              : <BlockView block={item.block} viewLevel={viewLevel()} />
+          }
         </For>
 
         {/* Streaming thinking (transient) */}

@@ -23,6 +23,7 @@ export interface SessionContextState {
   cost: CostTotals
   lastError: ErrorEvent | null
   turnNumber: number
+  lastTurnInputTokens: number
 }
 
 export interface SessionContextValue {
@@ -45,6 +46,7 @@ export function SessionProvider(props: ParentProps) {
     },
     lastError: null,
     turnNumber: 0,
+    lastTurnInputTokens: 0,
   })
 
   return (

@@ -128,6 +128,9 @@ export function reduce(
         pendingPermission: null,
         pendingElicitation: null,
         cost,
+        lastTurnInputTokens: event.usage
+          ? (event.usage.inputTokens + (event.usage.cacheReadTokens ?? 0) + (event.usage.cacheWriteTokens ?? 0))
+          : state.lastTurnInputTokens,
       }
     }
 

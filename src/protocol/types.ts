@@ -292,6 +292,9 @@ export interface ConversationState {
 
   /** Current turn number (incremented on turn_start) */
   turnNumber: number
+
+  /** Input tokens from the last completed turn — approximates context window fill */
+  lastTurnInputTokens: number
 }
 
 // ---------------------------------------------------------------------------
@@ -477,5 +480,6 @@ export function createInitialState(): ConversationState {
     eventLog: [],
     lastError: null,
     turnNumber: 0,
+    lastTurnInputTokens: 0,
   }
 }

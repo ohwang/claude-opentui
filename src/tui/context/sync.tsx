@@ -77,6 +77,7 @@ export function SyncProvider(props: ParentProps) {
         cost: { ...conversationState.cost },
         lastError: conversationState.lastError,
         turnNumber: conversationState.turnNumber,
+        lastTurnInputTokens: conversationState.lastTurnInputTokens,
       })
 
       permissions.setState({

@@ -318,11 +318,13 @@ export function StatusBar() {
   }
 
   const ctxStr = createMemo(() => {
-    const total = state.cost.inputTokens + state.cost.outputTokens
-    if (total === 0) return ""
+    // Use last turn's input tokens — these represent the actual context window fill
+    // (system prompt + conversation history + current turn input)
+    const fill = state.lastTurnInputTokens
+    if (fill === 0) return ""
     const raw = state.currentModel || state.session?.models?.[0]?.name || ""
     const ctxWindow = MODEL_CONTEXT_WINDOWS[raw] ?? DEFAULT_CONTEXT_WINDOW
-    const pct = Math.round((total / ctxWindow) * 100)
+    const pct = Math.round((fill / ctxWindow) * 100)
     return `ctx:${pct}%`
   })
 

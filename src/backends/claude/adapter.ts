@@ -224,6 +224,9 @@ export class ClaudeAdapter implements AgentBackend {
       updatedInput: answers,
     })
     this.pendingElicitations.delete(id)
+
+    // Emit event to transition state machine WAITING_FOR_ELIC → RUNNING
+    this.eventChannel?.push({ type: "elicitation_response", id, answers })
   }
 
   async setModel(model: string): Promise<void> {

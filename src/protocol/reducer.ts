@@ -273,12 +273,17 @@ export function reduce(
       }
     }
 
-    case "permission_response":
+    case "permission_response": {
+      // Guard: only transition from WAITING_FOR_PERM
+      if (state.sessionState !== "WAITING_FOR_PERM") {
+        return next
+      }
       return {
         ...next,
         sessionState: "RUNNING",
         pendingPermission: null,
       }
+    }
 
     // ----- Elicitation flow -----
 
@@ -289,12 +294,17 @@ export function reduce(
         pendingElicitation: event,
       }
 
-    case "elicitation_response":
+    case "elicitation_response": {
+      // Guard: only transition from WAITING_FOR_ELIC
+      if (state.sessionState !== "WAITING_FOR_ELIC") {
+        return next
+      }
       return {
         ...next,
         sessionState: "RUNNING",
         pendingElicitation: null,
       }
+    }
 
     // ----- Errors -----
 

@@ -571,6 +571,60 @@ describe("ConversationState reducer", () => {
   })
 
   // -----------------------------------------------------------------------
+  // Response state guards (interrupt vs response race)
+  // -----------------------------------------------------------------------
+
+  describe("permission_response state guard", () => {
+    it("is ignored during INTERRUPTING state", () => {
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "turn_start" },
+        {
+          type: "permission_request",
+          id: "perm1",
+          tool: "Bash",
+          input: { command: "rm -rf /" },
+        },
+        { type: "interrupt" }, // Ctrl+C while waiting for permission
+        {
+          type: "permission_response",
+          id: "perm1",
+          approved: true,
+        },
+      ])
+      // Interrupt should NOT be overridden by the late permission_response
+      expect(state.sessionState).toBe("INTERRUPTING")
+    })
+  })
+
+  describe("elicitation_response state guard", () => {
+    it("is ignored during INTERRUPTING state", () => {
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "turn_start" },
+        {
+          type: "elicitation_request",
+          id: "elic1",
+          questions: [
+            {
+              question: "Which?",
+              options: [{ label: "A", value: "a" }],
+            },
+          ],
+        },
+        { type: "interrupt" }, // Ctrl+C while waiting for elicitation
+        {
+          type: "elicitation_response",
+          id: "elic1",
+          answers: { "0": "a" },
+        },
+      ])
+      // Interrupt should NOT be overridden by the late elicitation_response
+      expect(state.sessionState).toBe("INTERRUPTING")
+    })
+  })
+
+  // -----------------------------------------------------------------------
   // Error handling
   // -----------------------------------------------------------------------
 

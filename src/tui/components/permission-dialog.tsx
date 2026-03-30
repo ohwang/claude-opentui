@@ -9,7 +9,7 @@
  * - 3-option radio selector with ↑/↓ arrow key navigation
  * - ❯ selection indicator with periwinkle accent
  * - Context-specific question and option text from SDK metadata
- * - Esc to cancel · Tab to amend · ctrl+e to explain footer hints
+ * - Esc to cancel footer hint
  */
 
 import { createSignal, Show, For } from "solid-js"
@@ -145,11 +145,11 @@ function option2Text(perm: PermissionRequestEvent): string {
   if (perm.suggestions && perm.suggestions.length > 0) {
     const s = perm.suggestions[0]
     if ((s.type === "addRules" || s.type === "replaceRules") && s.rules?.[0]?.toolName) {
-      return `Yes, and don\u2019t ask again for ${s.rules[0].toolName} (shift+tab)`
+      return `Yes, and don\u2019t ask again for ${s.rules[0].toolName}`
     }
     if (s.type === "addDirectories" && s.directories?.length > 0) {
       const dir = parentDir(s.directories[0])
-      return `Yes, allow all edits in ${dir}/ during this session (shift+tab)`
+      return `Yes, allow all edits in ${dir}/ during this session`
     }
   }
   // Derive from tool and path context
@@ -159,7 +159,7 @@ function option2Text(perm: PermissionRequestEvent): string {
     const parts = filePath.split("/")
     const dir = parts.length > 1 ? parts[parts.length - 2] : ""
     if (dir && dir !== ".") {
-      return `Yes, allow all edits in ${dir}/ during this session (shift+tab)`
+      return `Yes, allow all edits in ${dir}/ during this session`
     }
   }
   return `Yes, and don\u2019t ask again for this tool`
@@ -388,7 +388,7 @@ export function PermissionDialog() {
             {/* Footer hints */}
             <box height={1} paddingLeft={1} marginTop={1}>
               <text fg={MUTED}>
-                {"Esc to cancel \u00B7 Tab to amend \u00B7 ctrl+e to explain"}
+                {"Esc to cancel"}
               </text>
             </box>
           </box>

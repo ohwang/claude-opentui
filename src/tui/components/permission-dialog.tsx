@@ -9,7 +9,7 @@
  * - 3-option radio selector with ↑/↓ arrow key navigation
  * - ❯ selection indicator with periwinkle accent
  * - Context-specific question and option text from SDK metadata
- * - Esc to cancel · Tab to amend footer hints
+ * - Esc to cancel · Tab to amend · ctrl+e to explain footer hints
  */
 
 import { createSignal, Show, For } from "solid-js"
@@ -39,8 +39,13 @@ function relativePath(absPath: string): string {
   if (absPath.startsWith(cwd + "/")) {
     return absPath.slice(cwd.length + 1)
   }
-  // For paths outside cwd, compute relative using path.relative
+  // For paths outside cwd, compute relative
   const rel = require("node:path").relative(cwd, absPath)
+  // If the relative path is too deep, just show the filename
+  const upCount = (rel.match(/\.\.\//g) || []).length
+  if (upCount > 2) {
+    return require("node:path").basename(absPath)
+  }
   return rel
 }
 
@@ -389,7 +394,7 @@ export function PermissionDialog() {
             {/* Footer hints */}
             <box height={1} paddingLeft={1} marginTop={1}>
               <text fg={MUTED}>
-                {"Esc to cancel \u00B7 Tab to amend"}
+                {"Esc to cancel \u00B7 Tab to amend \u00B7 ctrl+e to explain"}
               </text>
             </box>
           </box>

@@ -9,7 +9,7 @@
  */
 
 import { createSignal, For, Show } from "solid-js"
-import { TextAttributes } from "@opentui/core"
+import { TextAttributes, type TextareaRenderable } from "@opentui/core"
 import { useKeyboard } from "@opentui/solid"
 import { usePermissions } from "../context/permissions"
 import { useAgent } from "../context/agent"
@@ -22,8 +22,8 @@ function QuestionView(props: {
   onAnswer: (value: string) => void
 }) {
   const [selected, setSelected] = createSignal(0)
-  const [freeText, setFreeText] = createSignal("")
   const [showFreeText, setShowFreeText] = createSignal(false)
+  let freeTextRef: TextareaRenderable | undefined
 
   const options = () => {
     const opts = [...props.question.options]
@@ -34,7 +34,13 @@ function QuestionView(props: {
   }
 
   useKeyboard((event) => {
-    if (showFreeText()) return // Let textarea handle input
+    if (showFreeText()) {
+      // Escape in free-text mode goes back to option list
+      if (event.name === "escape") {
+        setShowFreeText(false)
+      }
+      return // Let textarea handle all other input
+    }
 
     if (event.name === "up" || event.name === "k") {
       setSelected((prev) => Math.max(0, prev - 1))
@@ -93,16 +99,20 @@ function QuestionView(props: {
       </Show>
 
       <Show when={showFreeText()}>
-        <text fg="gray">Type your answer and press Enter:</text>
+        <text fg="gray">Type your answer and press Enter (Esc to go back):</text>
         <textarea
+          ref={(el: TextareaRenderable) => { freeTextRef = el }}
           focused
           height={2}
           placeholder="Type here..."
+          keyBindings={[
+            { name: "return", action: "submit" },
+            { name: "return", shift: true, action: "newline" },
+          ]}
           onSubmit={() => {
-            // Read content from the textarea
-            props.onAnswer(freeText() || "")
+            const text = freeTextRef?.plainText?.trim() ?? ""
+            props.onAnswer(text)
           }}
-          onContentChange={(value: string) => setFreeText(value)}
         />
       </Show>
     </box>

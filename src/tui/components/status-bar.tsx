@@ -300,7 +300,13 @@ export function StatusBar(props: { hint?: string | null }) {
 
   const modelName = () => {
     const raw = state.currentModel || state.session?.models?.[0]?.name || ""
-    return friendlyModelName(raw)
+    if (!raw) return ""
+    const friendly = friendlyModelName(raw)
+    const ctxWindow = MODEL_CONTEXT_WINDOWS[raw] ?? DEFAULT_CONTEXT_WINDOW
+    const ctxAbbrev = ctxWindow >= 1_000_000
+      ? `${ctxWindow / 1_000_000}M`
+      : `${ctxWindow / 1_000}K`
+    return `${friendly} (${ctxAbbrev})`
   }
 
   const costStr = createMemo(() => {

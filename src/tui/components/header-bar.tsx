@@ -12,7 +12,7 @@ import { homedir } from "node:os"
 import { TextAttributes } from "@opentui/core"
 import { useSession } from "../context/session"
 import { useAgent } from "../context/agent"
-import { friendlyModelName } from "../models"
+import { friendlyModelName, MODEL_CONTEXT_WINDOWS, DEFAULT_CONTEXT_WINDOW } from "../models"
 
 export function HeaderBar() {
   const { state } = useSession()
@@ -25,10 +25,21 @@ export function HeaderBar() {
     const model = state.session?.models?.[0]
     const raw = model?.name ?? agent.config.model ?? ""
     const friendly = friendlyModelName(raw)
-    // Append plan info if available (e.g., "Opus 4.6 · Claude Max")
+
+    // Get context window from model metadata
+    const ctxWindow = MODEL_CONTEXT_WINDOWS[raw] ?? DEFAULT_CONTEXT_WINDOW
+    const ctxLabel = ctxWindow >= 1_000_000
+      ? `${ctxWindow / 1_000_000}M context`
+      : `${ctxWindow / 1_000}K context`
+
+    // Build the model info line
+    const parts = [friendly]
+    if (raw) parts.push(`(${ctxLabel})`)  // Only show if model is known
+
     const plan = state.session?.account?.plan
-    if (plan) return `${friendly} · ${plan}`
-    return friendly
+    if (plan) parts.push(`- ${plan}`)
+
+    return parts.join(" ")
   }
 
   return (

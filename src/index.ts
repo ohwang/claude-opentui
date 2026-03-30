@@ -104,15 +104,17 @@ async function main() {
   })
 
   process.on("unhandledRejection", (err) => {
-    log.error("Unhandled rejection", { error: String(err) })
-    console.error("Unhandled rejection:", err)
-    cleanup()
-    process.exit(1)
+    // Log but don't crash — many rejections are non-fatal (e.g., backend API
+    // calls that fail after the user already moved on). Fatal errors should
+    // be caught and handled explicitly at their call sites.
+    const message = err instanceof Error ? err.message : String(err)
+    const stack = err instanceof Error ? err.stack : undefined
+    log.error("Unhandled rejection", { error: message, stack })
   })
 
   process.on("uncaughtException", (err) => {
+    // Uncaught exceptions are always fatal — log details and exit cleanly.
     log.error("Uncaught exception", { error: err.message, stack: err.stack })
-    console.error("Uncaught exception:", err)
     cleanup()
     process.exit(1)
   })

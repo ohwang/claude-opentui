@@ -165,7 +165,10 @@ export function StatusBar() {
       const nextIdx = (idx + 1) % PERM_MODE_CYCLE.length
       const nextMode = PERM_MODE_CYCLE[nextIdx] ?? "default"
       setPermMode(nextMode)
-      void agent.backend.setPermissionMode(nextMode)
+      agent.backend.setPermissionMode(nextMode).catch(() => {
+        // Silently ignore — the local UI already updated, and the backend
+        // will pick up the mode on the next tool invocation if available.
+      })
     }
   })
 

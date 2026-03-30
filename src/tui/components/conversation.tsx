@@ -400,11 +400,31 @@ export function ConversationView(props: { children?: JSX.Element }) {
     }
     if (event.ctrl && event.name === "up") {
       scrollboxRef?.scrollBy(-3)
+      showScrollbarBriefly()
     }
     if (event.ctrl && event.name === "down") {
       scrollboxRef?.scrollBy(3)
+      showScrollbarBriefly()
     }
   })
+
+  // Auto-hide scrollbar: show on scroll, hide after 1s idle (matches Claude Code)
+  let scrollbarTimer: ReturnType<typeof setTimeout> | undefined
+  const showScrollbarBriefly = () => {
+    if (scrollboxRef) {
+      scrollboxRef.verticalScrollBar.visible = true
+      clearTimeout(scrollbarTimer)
+      scrollbarTimer = setTimeout(() => {
+        if (scrollboxRef) scrollboxRef.verticalScrollBar.visible = false
+      }, 1000)
+    }
+  }
+  createEffect(() => {
+    if (scrollboxRef) {
+      scrollboxRef.verticalScrollBar.visible = false
+    }
+  })
+  onCleanup(() => clearTimeout(scrollbarTimer))
 
   return (
     <scrollbox ref={scrollboxRef} stickyScroll flexGrow={1}>

@@ -12,7 +12,6 @@ import { TextAttributes, type ScrollBoxRenderable } from "@opentui/core"
 import { useKeyboard } from "@opentui/solid"
 import { useMessages } from "../context/messages"
 import { useSession } from "../context/session"
-import { useSync } from "../context/sync"
 import { ThinkingBlock } from "./thinking-block"
 import { TaskView } from "./task-view"
 import { syntaxStyle } from "../theme"
@@ -335,8 +334,9 @@ function BlockView(props: { block: Block; viewLevel: ViewLevel }) {
 export function ConversationView(props: { children?: JSX.Element }) {
   const { state } = useMessages()
   const { state: session } = useSession()
-  const sync = useSync()
   const [viewLevel, setViewLevel] = createSignal<ViewLevel>("collapsed")
+  const [viewLevelHint, setViewLevelHint] = createSignal<string | null>(null)
+  let viewLevelHintTimer: ReturnType<typeof setTimeout> | undefined
   let scrollboxRef: ScrollBoxRenderable | undefined
 
   // Derived: separate queued vs non-queued blocks, group tools for rendering
@@ -373,17 +373,18 @@ export function ConversationView(props: { children?: JSX.Element }) {
     }
   })
 
-  // View-level notification helper
-  const viewLevelHint = (level: ViewLevel): string => {
-    switch (level) {
-      case "collapsed":
-        return "Showing collapsed view · ctrl+o to expand · ctrl+e to show all"
-      case "expanded":
-        return "Showing detailed transcript · ctrl+o to toggle · ctrl+e to show all"
-      case "show_all":
-        return "Showing detailed transcript · ctrl+o to toggle · ctrl+e to collapse"
-    }
+  // View-level notification helper — transient hint, not a permanent message
+  const showViewLevelHint = (level: ViewLevel) => {
+    const text = level === "collapsed"
+      ? "Showing collapsed view · ctrl+o to expand · ctrl+e to show all"
+      : level === "expanded"
+      ? "Showing detailed transcript · ctrl+o to toggle · ctrl+e to show all"
+      : "Showing detailed transcript · ctrl+o to toggle · ctrl+e to collapse"
+    setViewLevelHint(text)
+    clearTimeout(viewLevelHintTimer)
+    viewLevelHintTimer = setTimeout(() => setViewLevelHint(null), 3000)
   }
+  onCleanup(() => clearTimeout(viewLevelHintTimer))
 
   // Ctrl+O toggles collapsed/expanded, Ctrl+E shows all
   // Ctrl+Up/Down scrolls the conversation
@@ -391,12 +392,12 @@ export function ConversationView(props: { children?: JSX.Element }) {
     if (event.ctrl && event.name === "o") {
       const next: ViewLevel = viewLevel() === "collapsed" ? "expanded" : "collapsed"
       setViewLevel(next)
-      sync.pushEvent({ type: "system_message", text: viewLevelHint(next) })
+      showViewLevelHint(next)
     }
     if (event.ctrl && event.name === "e") {
       const next: ViewLevel = viewLevel() === "show_all" ? "collapsed" : "show_all"
       setViewLevel(next)
-      sync.pushEvent({ type: "system_message", text: viewLevelHint(next) })
+      showViewLevelHint(next)
     }
     if (event.ctrl && event.name === "up") {
       scrollboxRef?.scrollBy(-3)
@@ -484,6 +485,13 @@ export function ConversationView(props: { children?: JSX.Element }) {
               </box>
             )}
           </For>
+        </box>
+
+        {/* Transient view-level hint — replaces itself, auto-clears after 3s */}
+        <box flexDirection="column">
+          <Show when={viewLevelHint()}>
+            <text fg="#808080" attributes={TextAttributes.DIM}>{viewLevelHint()}</text>
+          </Show>
         </box>
 
         {/* Spinner — visible when RUNNING but no streaming content */}

@@ -24,6 +24,7 @@ export interface SessionContextState {
   lastError: ErrorEvent | null
   turnNumber: number
   lastTurnInputTokens: number
+  currentModel: string
 }
 
 export interface SessionContextValue {
@@ -47,6 +48,7 @@ export function SessionProvider(props: ParentProps) {
     lastError: null,
     turnNumber: 0,
     lastTurnInputTokens: 0,
+    currentModel: "",
   })
 
   return (

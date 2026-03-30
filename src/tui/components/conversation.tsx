@@ -359,7 +359,7 @@ export function ConversationView(props: { children?: JSX.Element }) {
       case "collapsed":
         return "Showing collapsed view · ctrl+o to expand · ctrl+e to show all"
       case "expanded":
-        return "Showing detailed transcript · ctrl+o to collapse · ctrl+e to show all"
+        return "Showing detailed transcript · ctrl+o to toggle · ctrl+e to show all"
       case "show_all":
         return "Showing detailed transcript · ctrl+o to toggle · ctrl+e to collapse"
     }

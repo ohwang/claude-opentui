@@ -383,8 +383,12 @@ export function StatusBar(props: { hint?: string | null }) {
   // When hint is active, show only the hint text (replaces full status bar)
   return (
     <Show when={!props.hint} fallback={
-      <box height={1} flexDirection="row" paddingLeft={2}>
+      <box height={1} flexDirection="row" paddingLeft={2} paddingRight={1}>
         <text fg="gray">{props.hint}</text>
+        <box flexGrow={1} />
+        <text fg={permModeColor()}>{"\u25CF "}</text>
+        <text fg="#d787af">{permissionModeLabel(permMode())}</text>
+        <text fg="gray" attributes={TextAttributes.DIM}>{" · shift+tab"}</text>
       </box>
     }>
       <box height={1} flexDirection="row" paddingLeft={2} paddingRight={1}>

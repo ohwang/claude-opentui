@@ -204,7 +204,7 @@ export class ClaudeAdapter implements AgentBackend {
 
     pending.resolve({
       behavior: "deny",
-      message: reason ?? "Denied by user",
+      message: reason ?? "User denied",
     })
     this.pendingPermissions.delete(id)
 

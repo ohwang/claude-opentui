@@ -429,40 +429,54 @@ export interface ElicitationOption {
   preview?: string
 }
 
+/** Matches SDK PermissionRuleValue */
+export interface PermissionRuleValue {
+  toolName: string
+  ruleContent?: string
+}
+
+/** Matches SDK PermissionUpdateDestination */
+export type PermissionUpdateDestination =
+  | "userSettings"
+  | "projectSettings"
+  | "localSettings"
+  | "session"
+  | "cliArg"
+
+/** Matches SDK PermissionUpdate — used in canUseTool results */
 export type PermissionUpdate =
   | {
       type: "addRules"
-      toolName: string
-      ruleContent: string
+      rules: PermissionRuleValue[]
       behavior: "allow" | "deny"
-      destination: "project" | "user"
+      destination: PermissionUpdateDestination
     }
   | {
       type: "replaceRules"
-      toolName: string
-      ruleContent: string
+      rules: PermissionRuleValue[]
       behavior: "allow" | "deny"
-      destination: "project" | "user"
+      destination: PermissionUpdateDestination
     }
   | {
       type: "removeRules"
-      toolName: string
-      destination: "project" | "user"
+      rules: PermissionRuleValue[]
+      behavior: "allow" | "deny"
+      destination: PermissionUpdateDestination
     }
   | {
       type: "setMode"
       mode: PermissionMode
-      destination: "project" | "user"
+      destination: PermissionUpdateDestination
     }
   | {
       type: "addDirectories"
-      paths: string[]
-      destination: "project" | "user"
+      directories: string[]
+      destination: PermissionUpdateDestination
     }
   | {
       type: "removeDirectories"
-      paths: string[]
-      destination: "project" | "user"
+      directories: string[]
+      destination: PermissionUpdateDestination
     }
 
 // ---------------------------------------------------------------------------

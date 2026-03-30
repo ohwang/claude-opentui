@@ -139,11 +139,11 @@ function option2Text(perm: PermissionRequestEvent): string {
   // Try to derive from suggestions
   if (perm.suggestions && perm.suggestions.length > 0) {
     const s = perm.suggestions[0]
-    if ((s.type === "addRules" || s.type === "replaceRules") && s.toolName) {
-      return `Yes, and don\u2019t ask again for ${s.toolName} (shift+tab)`
+    if ((s.type === "addRules" || s.type === "replaceRules") && s.rules?.[0]?.toolName) {
+      return `Yes, and don\u2019t ask again for ${s.rules[0].toolName} (shift+tab)`
     }
-    if (s.type === "addDirectories" && s.paths?.length > 0) {
-      const dir = parentDir(s.paths[0])
+    if (s.type === "addDirectories" && s.directories?.length > 0) {
+      const dir = parentDir(s.directories[0])
       return `Yes, allow all edits in ${dir}/ during this session (shift+tab)`
     }
   }
@@ -251,14 +251,25 @@ export function PermissionDialog() {
   }
 
   function approveAlways(id: string, perm: typeof state.pendingPermission & {}) {
+    // Use SDK-provided suggestions if available, otherwise generate fallback
+    // (matches claude-go behavior: always send updatedPermissions for "always allow")
+    const permissions = (perm.suggestions && perm.suggestions.length > 0)
+      ? perm.suggestions
+      : [{
+          type: "addRules" as const,
+          rules: [{ toolName: perm.tool }],
+          behavior: "allow" as const,
+          destination: "session" as const,
+        }]
+
     agent.backend.approveToolUse(id, {
       alwaysAllow: true,
-      updatedPermissions: perm.suggestions,
+      updatedPermissions: permissions,
     })
   }
 
   function deny(id: string, toolName: string) {
-    agent.backend.denyToolUse(id, "Denied by user")
+    agent.backend.denyToolUse(id, "User denied")
     sync.pushEvent({
       type: "system_message",
       text: `Tool "${toolName}" denied by user`,

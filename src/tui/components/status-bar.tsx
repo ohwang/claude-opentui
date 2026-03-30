@@ -341,7 +341,7 @@ export function StatusBar() {
   // ---------------------------------------------------------------------------
 
   return (
-    <box height={1} flexDirection="row" paddingLeft={1} paddingRight={1}>
+    <box height={1} flexDirection="row" paddingLeft={2} paddingRight={1}>
       {/* Left: project name */}
       <text fg="yellow" attributes={TextAttributes.BOLD}>
         {projectName}

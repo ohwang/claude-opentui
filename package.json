@@ -5,7 +5,7 @@
   "license": "MIT",
   "description": "Open-source, drop-in replacement for Claude Code's terminal UI",
   "bin": {
-    "claude-opentui": "./src/index.ts"
+    "claude-opentui": "./bin/claude-opentui"
   },
   "scripts": {
     "dev": "bun run --conditions=browser ./src/index.ts",

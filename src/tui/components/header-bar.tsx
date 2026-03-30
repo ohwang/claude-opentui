@@ -37,7 +37,11 @@ export function HeaderBar() {
     // Prefer session metadata model name, fall back to config
     const model = state.session?.models?.[0]
     const raw = model?.name ?? agent.config.model ?? "claude"
-    return friendlyModelName(raw)
+    const friendly = friendlyModelName(raw)
+    // Append plan info if available (e.g., "Opus 4.6 · Claude Max")
+    const plan = state.session?.account?.plan
+    if (plan) return `${friendly} · ${plan}`
+    return friendly
   }
 
   return (

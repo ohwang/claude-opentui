@@ -48,9 +48,9 @@ export function InputArea() {
   const sync = useSync()
   let textareaRef: TextareaRenderable | undefined
 
-  // Dynamic textarea height: grows with content lines (min 2, max 6)
+  // Dynamic textarea height: grows with content lines (min 1, max 6)
   const [lineCount, setLineCount] = createSignal(1)
-  const textareaHeight = () => Math.min(Math.max(lineCount() + 1, 2), 6)
+  const textareaHeight = () => Math.min(Math.max(lineCount(), 1), 6)
 
   // Register module-level reset so clearInput() can reset height
   _resetLineCount = () => setLineCount(1)

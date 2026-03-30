@@ -56,14 +56,14 @@ interface PendingElicitation {
 
 class AsyncQueue<T> {
   private queue: T[] = []
-  private waiting: ((value: T) => void)[] = []
+  private waiting: { resolve: (value: T) => void; reject: (error: Error) => void }[] = []
   private closed = false
 
   push(item: T): void {
     if (this.closed) return
     const waiter = this.waiting.shift()
     if (waiter) {
-      waiter(item)
+      waiter.resolve(item)
     } else {
       this.queue.push(item)
     }
@@ -73,16 +73,16 @@ class AsyncQueue<T> {
     const item = this.queue.shift()
     if (item !== undefined) return item
     if (this.closed) throw new Error("Queue closed")
-    return new Promise<T>((resolve) => {
-      this.waiting.push(resolve)
+    return new Promise<T>((resolve, reject) => {
+      this.waiting.push({ resolve, reject })
     })
   }
 
   close(): void {
     this.closed = true
-    // Reject waiting pulls so the iterable ends
+    const err = new Error("Queue closed")
     for (const waiter of this.waiting) {
-      waiter(null as any)
+      waiter.reject(err)
     }
     this.waiting = []
   }

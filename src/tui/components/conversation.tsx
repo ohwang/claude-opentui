@@ -6,6 +6,7 @@
  * Ctrl+O toggles tool view level, Ctrl+E shows all.
  */
 
+import type { JSX } from "solid-js"
 import { createSignal, createEffect, createMemo, onCleanup, Show, For } from "solid-js"
 import { TextAttributes, type ScrollBoxRenderable } from "@opentui/core"
 import { useKeyboard } from "@opentui/solid"
@@ -214,7 +215,7 @@ function BlockView(props: { block: Block; viewLevel: ViewLevel }) {
 // ConversationView — main export
 // ---------------------------------------------------------------------------
 
-export function ConversationView() {
+export function ConversationView(props: { children?: JSX.Element }) {
   const { state } = useMessages()
   const { state: session } = useSession()
   const sync = useSync()
@@ -288,7 +289,7 @@ export function ConversationView() {
   })
 
   return (
-    <scrollbox ref={scrollboxRef} stickyScroll stickyStart="bottom" flexGrow={1}>
+    <scrollbox ref={scrollboxRef} stickyScroll flexGrow={1}>
       <box flexDirection="column" padding={1}>
         {/* Header bar — scrolls with content */}
         <HeaderBar />
@@ -356,6 +357,9 @@ export function ConversationView() {
           </box>
         </Show>
       </box>
+
+      {/* Input area, status bar, dialogs — rendered inside scrollbox so they flow with content */}
+      {props.children}
     </scrollbox>
   )
 }

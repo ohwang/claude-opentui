@@ -109,28 +109,21 @@ function Layout() {
 
   return (
     <box flexDirection="column" width="100%" height="100%">
-      {/* Conversation area - fills available space, shrinks when terminal is small */}
-      <box flexGrow={1} flexShrink={1} overflow="hidden">
-        <ConversationView />
-      </box>
+      <ConversationView>
+        {/* Permission dialog (shown inline when WAITING_FOR_PERM) */}
+        <PermissionDialog />
 
-      {/* Permission dialog (shown inline when WAITING_FOR_PERM) */}
-      <PermissionDialog />
+        {/* Elicitation dialog (shown inline when WAITING_FOR_ELIC) */}
+        <ElicitationDialog />
 
-      {/* Elicitation dialog (shown inline when WAITING_FOR_ELIC) */}
-      <ElicitationDialog />
-
-      {/* Input area - Claude Code-style dash lines top and bottom */}
-      <box flexShrink={0} flexDirection="column">
+        {/* Input area - Claude Code-style dash lines top and bottom */}
         <DashLine />
         <InputArea />
         <DashLine />
-      </box>
 
-      {/* Status bar - fixed 2 lines at bottom, never shrink */}
-      <box flexShrink={0}>
+        {/* Status bar */}
         <StatusBar />
-      </box>
+      </ConversationView>
     </box>
   )
 }

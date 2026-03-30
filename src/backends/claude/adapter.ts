@@ -34,6 +34,7 @@ type SDKQuery = ReturnType<typeof sdkQuery>
 interface PendingPermission {
   resolve: (result: PermissionResult) => void
   reject: (error: Error) => void
+  input: Record<string, unknown>
 }
 
 interface PermissionResult {
@@ -188,7 +189,7 @@ export class ClaudeAdapter implements AgentBackend {
 
     const result: PermissionResult = {
       behavior: "allow",
-      updatedInput: options?.updatedInput as Record<string, unknown>,
+      updatedInput: (options?.updatedInput as Record<string, unknown>) ?? pending.input,
       updatedPermissions: options?.updatedPermissions,
     }
     pending.resolve(result)
@@ -645,7 +646,7 @@ export class ClaudeAdapter implements AgentBackend {
     options: any,
   ): Promise<PermissionResult> {
     return new Promise<PermissionResult>((resolve, reject) => {
-      this.pendingPermissions.set(id, { resolve, reject })
+      this.pendingPermissions.set(id, { resolve, reject, input })
 
       // Push permission_request to the event channel so the TUI sees it
       // immediately, even while the SDK is blocked waiting for canUseTool

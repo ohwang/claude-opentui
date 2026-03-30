@@ -11,6 +11,7 @@
  */
 
 import { query as sdkQuery } from "@anthropic-ai/claude-agent-sdk"
+import { log } from "../../utils/logger"
 import type {
   AgentBackend,
   AgentEvent,
@@ -437,8 +438,66 @@ export class ClaudeAdapter implements AgentBackend {
         })
         break
 
+      case "user": {
+        // Tool result message — the SDK sends this when a tool completes.
+        // Extract tool output to emit tool_use_end for result summary display.
+        if (msg.tool_use_result) {
+          // Find the tool_use_id from the message content blocks
+          const content = msg.message?.content
+          let toolUseId: string | undefined
+          let output = ""
+          let isError = false
+
+          if (Array.isArray(content)) {
+            for (const block of content) {
+              if (block.type === "tool_result") {
+                toolUseId = block.tool_use_id
+                isError = block.is_error ?? false
+                // Extract text from content
+                if (typeof block.content === "string") {
+                  output = block.content
+                } else if (Array.isArray(block.content)) {
+                  output = block.content
+                    .filter((c: any) => c.type === "text")
+                    .map((c: any) => c.text)
+                    .join("\n")
+                }
+              }
+            }
+          }
+
+          // Fallback: try to extract from tool_use_result directly
+          if (!toolUseId && typeof msg.tool_use_result === "string") {
+            output = msg.tool_use_result
+          }
+
+          if (toolUseId) {
+            events.push({
+              type: "tool_use_end",
+              id: toolUseId,
+              output,
+              error: isError ? output : undefined,
+            })
+          } else {
+            log.warn("Tool result missing tool_use_id", {
+              keys: Object.keys(msg).join(","),
+              resultType: typeof msg.tool_use_result,
+              hasMessage: !!msg.message,
+              contentLength: Array.isArray(content) ? content.length : 0,
+            })
+          }
+        }
+        break
+      }
+
+      case "rate_limit_event":
+        // Rate limit info — not an error, just informational
+        log.debug("Rate limit event", { info: msg.rate_limit_info })
+        break
+
       default:
-        // Pass through unknown types for debugging
+        // Log unhandled message types as warnings so we can add handlers
+        log.warn("Unhandled SDK message type", { type: msg.type, subtype: msg.subtype, keys: Object.keys(msg).join(",") })
         events.push({
           type: "backend_specific",
           backend: "claude",

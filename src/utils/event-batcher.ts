@@ -19,12 +19,15 @@ export class EventBatcher {
   private timer: Timer | undefined
   private lastFlush = 0
   private handler: EventHandler
+  private destroyed = false
 
   constructor(handler: EventHandler) {
     this.handler = handler
   }
 
   push(event: AgentEvent): void {
+    if (this.destroyed) return
+
     this.queue.push(event)
 
     const now = Date.now()
@@ -52,8 +55,9 @@ export class EventBatcher {
   }
 
   destroy(): void {
+    this.flush()
+    this.destroyed = true
     clearTimeout(this.timer)
     this.timer = undefined
-    this.queue = []
   }
 }

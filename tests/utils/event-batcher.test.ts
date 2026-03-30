@@ -77,23 +77,35 @@ describe("EventBatcher", () => {
     batcher.destroy()
   })
 
-  it("destroy clears queue and timer", async () => {
+  it("destroy flushes queued events before teardown", async () => {
     const handler = mock<(events: AgentEvent[]) => void>(() => {})
     const batcher = new EventBatcher(handler)
 
-    // First event flushes
+    // First event flushes immediately
     batcher.push({ type: "text_delta", text: "a" })
 
-    // Queue event
+    // Queue event (within 16ms window, so it's pending)
     batcher.push({ type: "text_delta", text: "b" })
 
-    // Destroy before timer fires
+    // Destroy flushes remaining events before teardown
     batcher.destroy()
 
     await new Promise((resolve) => setTimeout(resolve, 25))
 
-    // Handler called once for the first event, but the queued event is lost
-    expect(handler).toHaveBeenCalledTimes(1)
+    // Handler called twice: once for the immediate flush, once for the destroy flush
+    expect(handler).toHaveBeenCalledTimes(2)
+  })
+
+  it("push after destroy is silently ignored", () => {
+    const handler = mock<(events: AgentEvent[]) => void>(() => {})
+    const batcher = new EventBatcher(handler)
+
+    batcher.destroy()
+
+    // Push after destroy should be ignored (no timer leak)
+    batcher.push({ type: "text_delta", text: "leaked" })
+
+    expect(handler).toHaveBeenCalledTimes(0)
   })
 
   it("handles multiple flush cycles", async () => {

@@ -13,7 +13,7 @@
 import { createSignal, createEffect, createMemo, onCleanup } from "solid-js"
 import path from "node:path"
 import { TextAttributes } from "@opentui/core"
-import { useKeyboard } from "@opentui/solid"
+import { useKeyboard, useTerminalDimensions } from "@opentui/solid"
 import { useSession } from "../context/session"
 import { useAgent } from "../context/agent"
 import type { PermissionMode } from "../../protocol/types"
@@ -262,6 +262,14 @@ export function StatusBar(props: { hint?: string | null }) {
 
   const isRunning = createMemo(() => state.sessionState === "RUNNING")
 
+  // -- Responsive width-based hiding --
+  const dims = useTerminalDimensions()
+  const termWidth = () => dims()?.width ?? 120
+
+  const showCtx = () => termWidth() >= 100
+  const showGit = () => termWidth() >= 80
+  const showCost = () => termWidth() >= 60
+
   const permModeColor = () => {
     switch (permMode()) {
       case "default": return "green"
@@ -399,24 +407,24 @@ export function StatusBar(props: { hint?: string | null }) {
         </>
       )}
 
-      {/* Cost */}
-      {costStr() && (
+      {/* Cost (hidden below 60 cols) */}
+      {showCost() && costStr() && (
         <box flexDirection="row">
           <text fg="gray">{"  "}</text>
           <text fg="green">{costStr()}</text>
         </box>
       )}
 
-      {/* Git branch + status */}
-      {gitStr() && (
+      {/* Git branch + status (hidden below 80 cols) */}
+      {showGit() && gitStr() && (
         <box flexDirection="row">
           <text fg="gray">{"  "}</text>
           <text fg="cyan">{gitStr()}</text>
         </box>
       )}
 
-      {/* Context window usage */}
-      {ctxStr() && (
+      {/* Context window usage (hidden below 100 cols) */}
+      {showCtx() && ctxStr() && (
         <box flexDirection="row">
           <text fg="gray">{"  "}</text>
           <text fg="gray">{ctxStr()}</text>

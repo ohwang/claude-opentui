@@ -366,11 +366,16 @@ export function ConversationView(props: { children?: JSX.Element }) {
     prevBlockCount = count
   })
 
-  // Also re-engage on streaming text changes
+  // Re-engage stickyScroll when streaming starts (not on every delta —
+  // stickyScroll handles auto-following once engaged, and per-delta
+  // scrollBy causes layout thrashing that contributes to text flicker)
+  let wasStreaming = false
   createEffect(() => {
-    if (state.streamingText || state.streamingThinking) {
+    const isStreaming = !!(state.streamingText || state.streamingThinking)
+    if (isStreaming && !wasStreaming) {
       scrollboxRef?.scrollBy(1, "content")
     }
+    wasStreaming = isStreaming
   })
 
   // View-level notification helper — transient hint, not a permanent message
@@ -460,18 +465,21 @@ export function ConversationView(props: { children?: JSX.Element }) {
           </Show>
         </box>
 
-        {/* Streaming text (transient) — styled as assistant with prefix */}
+        {/* Streaming text (transient) — styled as assistant with prefix.
+            Uses visible={false} instead of <Show> to avoid destroying/recreating
+            the <markdown> component at flush boundaries (tool_use_start,
+            text_complete, turn_complete). Destroying forces all internal
+            CodeRenderable sub-blocks to re-highlight from scratch, leaving
+            text invisible for 1+ frames while async tree-sitter completes. */}
         <box flexDirection="column">
-          <Show when={state.streamingText}>
-            <box flexDirection="row" marginTop={1}>
-              <box width={2} flexShrink={0}>
-                <text fg="white">{"\u23FA"}</text>
-              </box>
-              <box flexGrow={1}>
-                <markdown content={state.streamingText} syntaxStyle={syntaxStyle} streaming={true} />
-              </box>
+          <box flexDirection="row" marginTop={state.streamingText ? 1 : 0} visible={!!state.streamingText}>
+            <box width={2} flexShrink={0}>
+              <text fg="white">{"\u23FA"}</text>
             </box>
-          </Show>
+            <box flexGrow={1}>
+              <markdown content={state.streamingText} syntaxStyle={syntaxStyle} streaming={true} />
+            </box>
+          </box>
         </box>
 
         {/* Queued user messages (muted, after streaming) */}

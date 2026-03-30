@@ -6,11 +6,15 @@
  * Collapsed by default, toggles with Ctrl+T.
  */
 
-import { For, Show } from "solid-js"
+import { createSignal, onCleanup, For, Show } from "solid-js"
 import { TextAttributes } from "@opentui/core"
 import type { TaskInfo } from "../../protocol/types"
 
 export function TaskView(props: { tasks: [string, TaskInfo][] }) {
+  const [tick, setTick] = createSignal(0)
+  const timer = setInterval(() => setTick((t) => t + 1), 1000)
+  onCleanup(() => clearInterval(timer))
+
   const runningTasks = () => props.tasks.filter(([, t]) => t.status === "running")
   const completedTasks = () =>
     props.tasks.filter(([, t]) => t.status === "completed")
@@ -49,7 +53,7 @@ export function TaskView(props: { tasks: [string, TaskInfo][] }) {
                 <text fg="white">{task.description}</text>
                 <Show when={task.status === "running"}>
                   <text fg="gray">
-                    {" "}({Math.round((Date.now() - task.startTime) / 1000)}s)
+                    {" "}({(() => { tick(); return Math.round((Date.now() - task.startTime) / 1000) })()}s)
                   </text>
                 </Show>
               </box>

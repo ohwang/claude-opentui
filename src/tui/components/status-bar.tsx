@@ -132,6 +132,13 @@ export function StatusBar(props: { hint?: string | null }) {
 
   useKeyboard((event) => {
     if (event.shift && event.name === "tab") {
+      // Don't cycle permission mode during dialogs
+      if (
+        state.sessionState === "WAITING_FOR_PERM" ||
+        state.sessionState === "WAITING_FOR_ELIC"
+      ) {
+        return
+      }
       const current = permMode()
       const idx = PERM_MODE_CYCLE.indexOf(current)
       const nextIdx = (idx + 1) % PERM_MODE_CYCLE.length

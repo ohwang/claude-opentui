@@ -242,7 +242,7 @@ export type ToolStatus = "running" | "done" | "error" | "canceled"
 
 export type Block =
   | { type: "user"; text: string; queued?: boolean }
-  | { type: "assistant"; text: string }
+  | { type: "assistant"; text: string; timestamp?: number; model?: string }
   | { type: "thinking"; text: string }
   | { type: "tool"; id: string; tool: string; input: unknown; status: ToolStatus; output?: string; error?: string; startTime: number; duration?: number }
   | { type: "system"; text: string }

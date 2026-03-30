@@ -29,7 +29,7 @@ function flushBuffers(state: ConversationState): ConversationState {
     streamingThinking = ""
   }
   if (streamingText) {
-    flushed.push({ type: "assistant", text: streamingText })
+    flushed.push({ type: "assistant", text: streamingText, timestamp: Date.now(), model: state.currentModel ?? undefined })
     streamingText = ""
   }
 
@@ -77,6 +77,7 @@ export function reduce(
           models: event.models,
           account: event.account,
         },
+        currentModel: event.models?.[0]?.name ?? next.currentModel,
       }
 
     // ----- Turn lifecycle -----

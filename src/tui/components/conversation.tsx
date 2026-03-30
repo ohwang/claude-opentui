@@ -21,6 +21,16 @@ import type { Block } from "../../protocol/types"
 
 type ViewLevel = "collapsed" | "expanded" | "show_all"
 
+/** Format timestamp as "HH:MM AM/PM" for the expanded view metadata line */
+function formatTimestamp(ts: number): string {
+  const d = new Date(ts)
+  let h = d.getHours()
+  const ampm = h >= 12 ? "PM" : "AM"
+  h = h % 12 || 12
+  const m = d.getMinutes().toString().padStart(2, "0")
+  return `${h.toString().padStart(2, "0")}:${m} ${ampm}`
+}
+
 // ---------------------------------------------------------------------------
 // Breathing asterisk spinner — animated activity indicator
 // ---------------------------------------------------------------------------
@@ -259,12 +269,22 @@ function BlockView(props: { block: Block; viewLevel: ViewLevel }) {
 
       {/* Assistant text block */}
       <Show when={assistantBlock()}>{(ab) =>
-        <box flexDirection="row" marginTop={1}>
-          <box width={2} flexShrink={0}>
-            <text fg="white">{"\u23FA"}</text>
-          </box>
-          <box flexGrow={1}>
-            <markdown content={ab().text} syntaxStyle={syntaxStyle} />
+        <box flexDirection="column">
+          {/* Timestamp + model line (expanded view only) */}
+          <Show when={props.viewLevel !== "collapsed" && ab().timestamp}>
+            <box flexDirection="row" justifyContent="flex-end" marginTop={1}>
+              <text fg="gray" attributes={TextAttributes.DIM}>
+                {formatTimestamp(ab().timestamp!) + (ab().model ? " " + ab().model : "")}
+              </text>
+            </box>
+          </Show>
+          <box flexDirection="row" marginTop={props.viewLevel !== "collapsed" && ab().timestamp ? 0 : 1}>
+            <box width={2} flexShrink={0}>
+              <text fg="white">{"\u23FA"}</text>
+            </box>
+            <box flexGrow={1}>
+              <markdown content={ab().text} syntaxStyle={syntaxStyle} />
+            </box>
           </box>
         </box>
       }</Show>

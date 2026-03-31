@@ -162,7 +162,12 @@ export function SyncProvider(props: ParentProps) {
 
       for await (const event of generator) {
         if (aborted) break
-        batcher.push(event)
+        try {
+          batcher.push(event)
+        } catch (e) {
+          if (!aborted) log.warn("Failed to push event to batcher", { error: String(e) })
+          break
+        }
       }
 
       log.info("Event loop ended (generator exhausted)")

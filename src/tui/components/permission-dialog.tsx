@@ -14,7 +14,7 @@
  * - "Deny for session" tracks tool name in adapter for auto-deny on future calls
  */
 
-import { createSignal, Show, For } from "solid-js"
+import { createSignal, createEffect, Show, For } from "solid-js"
 import { TextAttributes } from "@opentui/core"
 import { useKeyboard, useTerminalDimensions } from "@opentui/solid"
 import { usePermissions } from "../context/permissions"
@@ -213,6 +213,17 @@ export function PermissionDialog() {
     clearTimeout(justActedTimer)
     justActedTimer = setTimeout(() => { justActed = false }, 200)
   }
+
+  // Reset debounce when a new permission request arrives so the new dialog
+  // is immediately responsive, even if it appears within 200ms of the last one.
+  let lastDebouncePermId = ""
+  createEffect(() => {
+    const currentId = state.pendingPermission?.id ?? ""
+    if (currentId && currentId !== lastDebouncePermId) {
+      lastDebouncePermId = currentId
+      justActed = false
+    }
+  })
 
   const dashedLine = () => {
     const width = (dims()?.width ?? 120) - 4 // account for padding

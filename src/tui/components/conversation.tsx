@@ -417,6 +417,7 @@ export function ConversationView(props: { children?: JSX.Element }) {
   const [viewLevelHint, setViewLevelHint] = createSignal<string | null>(null)
   let viewLevelHintTimer: ReturnType<typeof setTimeout> | undefined
   let scrollboxRef: ScrollBoxRenderable | undefined
+  const [userScrolledAway, setUserScrolledAway] = createSignal(false)
 
   // Derived: separate queued vs non-queued blocks, group tools for rendering
   const nonQueuedBlocks = () => state.blocks.filter(b => !(b.type === "user" && b.queued))
@@ -472,11 +473,16 @@ export function ConversationView(props: { children?: JSX.Element }) {
     const isStreaming = !!(state.streamingText || state.streamingThinking)
     if (isStreaming) {
       if (!scrollNudgeTimer) {
+        setUserScrolledAway(false)
         // Initial nudge
-        scrollboxRef?.scrollBy(1, "content")
-        // Periodic nudge every 200ms
-        scrollNudgeTimer = setInterval(() => {
+        if (!userScrolledAway()) {
           scrollboxRef?.scrollBy(1, "content")
+        }
+        // Periodic nudge every 200ms — only when user hasn't scrolled away
+        scrollNudgeTimer = setInterval(() => {
+          if (!userScrolledAway()) {
+            scrollboxRef?.scrollBy(1, "content")
+          }
         }, 200)
       }
     } else {
@@ -520,10 +526,12 @@ export function ConversationView(props: { children?: JSX.Element }) {
     }
     if (event.ctrl && event.name === "up") {
       scrollboxRef?.scrollBy(-3)
+      setUserScrolledAway(true)
       showScrollbarBriefly()
     }
     if (event.ctrl && event.name === "down") {
       scrollboxRef?.scrollBy(3)
+      setUserScrolledAway(false)
       showScrollbarBriefly()
     }
   })

@@ -27,6 +27,23 @@ import type { ImageContent } from "../../protocol/types"
 
 const commandRegistry = createCommandRegistry()
 
+/**
+ * Calculate the number of visual lines a text occupies given a column width.
+ * Used to set the textarea height — must match the textarea's actual wrapping.
+ *
+ * @param text - The raw text content
+ * @param availableWidth - The textarea's column width (terminal width minus prefix and padding)
+ * @returns Number of visual lines (minimum 1)
+ */
+export function computeVisualLineCount(text: string, availableWidth: number): number {
+  const width = Math.max(availableWidth, 1)
+  let totalLines = 0
+  for (const line of text.split("\n")) {
+    totalLines += Math.max(1, Math.ceil(line.length / width))
+  }
+  return totalLines
+}
+
 /** Truncate a file path to fit the terminal, showing the tail end */
 function truncatePath(path: string, maxLen: number = 70): string {
   if (path.length <= maxLen) return path
@@ -176,14 +193,9 @@ export function InputArea() {
   /** Count visual lines (accounting for word wrap) and update the signal */
   const updateLineCount = () => {
     const text = textareaRef?.plainText ?? ""
-    // Available width = terminal width - prompt "❯ " (2 chars) - scrollbox paddingRight (1)
-    const width = Math.max((dims()?.width ?? 120) - 3, 20)
-    let totalLines = 0
-    for (const line of text.split("\n")) {
-      // Each logical line occupies ceil(length / width) visual lines, minimum 1
-      totalLines += Math.max(1, Math.ceil(line.length / width))
-    }
-    setLineCount(totalLines)
+    // Available width = terminal width - prefix box (2 cols) - scrollbox paddingRight (1)
+    const width = (dims()?.width ?? 120) - 3
+    setLineCount(computeVisualLineCount(text, width))
   }
 
   // Autocomplete dropdown state
@@ -692,7 +704,9 @@ export function InputArea() {
     <box flexDirection="column">
       {/* Input row with > prompt prefix */}
       <box flexDirection="row">
-        <text fg={isDisabled() ? colors.text.muted : "white"} attributes={isDisabled() ? TextAttributes.DIM : 0}>{"❯ "}</text>
+        <box width={2} flexShrink={0}>
+          <text fg={isDisabled() ? colors.text.muted : "white"} attributes={isDisabled() ? TextAttributes.DIM : 0}>{"❯"}</text>
+        </box>
         <textarea
           ref={(el: TextareaRenderable) => { textareaRef = el; _sharedTextareaRef = el }}
           focused={!isDisabled()}

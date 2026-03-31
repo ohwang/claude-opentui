@@ -232,7 +232,7 @@ describe("ClaudeAdapter", () => {
       expect(events[0].type).toBe("turn_start")
     })
 
-    it("maps compacting status to compact event", () => {
+    it("ignores compacting status to prevent duplicate compact separators", () => {
       const streamState = new ToolStreamState()
       const events = mapSDKMessage({
         type: "system",
@@ -242,8 +242,8 @@ describe("ClaudeAdapter", () => {
         session_id: "test",
       }, streamState)
 
-      expect(events).toHaveLength(1)
-      expect(events[0].type).toBe("compact")
+      // "compacting" status is now ignored — only "compact_boundary" emits the compact event
+      expect(events).toHaveLength(0)
     })
 
     it("maps rate_limit to recoverable error", () => {

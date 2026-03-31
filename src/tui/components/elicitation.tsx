@@ -22,6 +22,12 @@ import { useSession } from "../context/session"
 import { colors } from "../theme/tokens"
 import type { ElicitationQuestion } from "../../protocol/types"
 
+/** Truncate long option labels to prevent terminal overflow */
+function truncateLabel(label: string, maxLen: number = 60): string {
+  if (label.length <= maxLen) return label
+  return label.slice(0, maxLen - 1) + "\u2026"
+}
+
 function QuestionView(props: {
   question: ElicitationQuestion
   onAnswer: (value: string) => void
@@ -138,7 +144,7 @@ function QuestionView(props: {
                 {index() === selected() ? " > " : "   "}
               </text>
               <text fg={index() === selected() ? colors.border.elicitation : "white"}>
-                {index() + 1}) {option.label}
+                {index() + 1}) {truncateLabel(option.label)}
               </text>
             </box>
           )}

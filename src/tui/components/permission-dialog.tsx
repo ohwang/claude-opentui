@@ -192,7 +192,8 @@ function option2Text(perm: PermissionRequestEvent): string {
     }
   }
   // Use the actual tool name — never derive from suggestions[].rules[].toolName
-  return `Always allow ${perm.tool}`
+  const toolName = perm.tool.length > 30 ? perm.tool.slice(0, 27) + "\u2026" : perm.tool
+  return `Always allow ${toolName}`
 }
 
 // ---------------------------------------------------------------------------

@@ -56,8 +56,18 @@ function QuestionView(props: {
     if (showFreeText()) {
       if (event.name === "escape") {
         setShowFreeText(false)
+        return
       }
-      return
+      if (event.name === "return") {
+        // Handle free text submit directly since useKeyboard fires before textarea's onSubmit
+        const text = freeTextRef?.plainText?.trim() ?? ""
+        if (text) {
+          props.onAnswer(text)
+          setShowFreeText(false)
+        }
+        return
+      }
+      return // ignore other keys in free text mode
     }
 
     if (event.name === "up" || event.name === "k") {

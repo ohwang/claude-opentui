@@ -112,16 +112,15 @@ async function openExternalEditor(
   const editor = process.env["VISUAL"] || process.env["EDITOR"] || "vi"
   const tmpFile = join(tmpdir(), `claude-opentui-${Date.now()}.md`)
 
-  // Write current input to temp file
-  const currentText = textareaRef?.plainText ?? ""
-  writeFileSync(tmpFile, currentText)
-
   try {
+    // Write current input to temp file (inside try so finally always cleans up)
+    const currentText = textareaRef?.plainText ?? ""
+    writeFileSync(tmpFile, currentText)
     // Suspend TUI rendering so the editor can take over the terminal
     renderer.suspend()
-    renderer.currentRenderBuffer.clear()
 
     try {
+      renderer.currentRenderBuffer.clear()
       const parts = editor.split(/\s+/)
       const proc = Bun.spawn([...parts, tmpFile], {
         stdin: "inherit",

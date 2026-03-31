@@ -3,6 +3,7 @@
  */
 
 import type { SlashCommand } from "../registry"
+import { MODEL_NAMES } from "../../tui/models"
 
 export const modelCommand: SlashCommand = {
   name: "model",
@@ -17,6 +18,17 @@ export const modelCommand: SlashCommand = {
       return
     }
     const modelName = args.trim()
+    // Check if model name is valid
+    if (!MODEL_NAMES[modelName]) {
+      const available = Object.entries(MODEL_NAMES)
+        .map(([id, name]) => `  ${id} (${name})`)
+        .join("\n")
+      ctx.pushEvent({
+        type: "system_message",
+        text: `Unknown model: ${modelName}\n\nAvailable models:\n${available}`,
+      })
+      return
+    }
     try {
       await ctx.setModel(modelName)
       ctx.pushEvent({

@@ -14,7 +14,7 @@
  * - "Deny for session" tracks tool name in adapter for auto-deny on future calls
  */
 
-import { createSignal, createEffect, Show, For } from "solid-js"
+import { createSignal, createEffect, createMemo, Show, For } from "solid-js"
 import { TextAttributes } from "@opentui/core"
 import { useKeyboard, useTerminalDimensions } from "@opentui/solid"
 import { usePermissions } from "../context/permissions"
@@ -32,6 +32,13 @@ const DIFF_REMOVED = colors.diff.removed
 
 // Max lines to show in content preview
 const MAX_PREVIEW_LINES = 20
+
+// Max characters to process from input content before splitting into lines.
+// Prevents multi-megabyte payloads from freezing the TUI during string splitting.
+const MAX_CONTENT_CHARS = 10_000
+
+// Max characters per preview line before truncation
+const MAX_LINE_LENGTH = 200
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -86,8 +93,8 @@ function actionLabel(tool: string, displayName?: string): string {
 function extractPath(tool: string, input: unknown): string {
   const inp = input as Record<string, unknown> | null
   if (!inp) return ""
-  if (inp.file_path) return relativePath(String(inp.file_path))
-  if (inp.command) return String(inp.command)
+  if (typeof inp.file_path === "string" && inp.file_path) return relativePath(inp.file_path)
+  if (typeof inp.command === "string" && inp.command) return inp.command
   if (inp.pattern) {
     const dir = inp.path ? relativePath(String(inp.path)) : ""
     return `${inp.pattern}${dir ? ` in ${dir}` : ""}`
@@ -103,10 +110,16 @@ interface PreviewLine {
   prefix?: "+" | "-" | " "
 }
 
-/** Extract content lines for preview (Write content, Edit diff, Bash command).
- *  Returns ALL lines (uncapped) — the caller is responsible for viewport-aware
- *  truncation so we can display "... N more lines" accurately.
- */
+/** Cap a string to MAX_CONTENT_CHARS to prevent expensive splitting */
+function capContent(s: string): string {
+  return s.length > MAX_CONTENT_CHARS ? s.slice(0, MAX_CONTENT_CHARS) : s
+}
+
+/** Truncate a single line to MAX_LINE_LENGTH */
+function capLine(rawLine: string): string {
+  return rawLine.length > MAX_LINE_LENGTH ? rawLine.slice(0, MAX_LINE_LENGTH - 3) + "..." : rawLine
+}
+
 function extractPreviewLines(tool: string, input: unknown): PreviewLine[] | null {
   const inp = input as Record<string, unknown> | null
   if (!inp) return null
@@ -115,7 +128,7 @@ function extractPreviewLines(tool: string, input: unknown): PreviewLine[] | null
     case "Write": {
       const content = inp.content
       if (typeof content === "string" && content.trim()) {
-        return content.split("\n").map(l => ({ text: l, prefix: "+" as const }))
+        return capContent(content).split("\n").map(l => ({ text: capLine(l), prefix: "+" as const }))
       }
       return null
     }
@@ -125,13 +138,13 @@ function extractPreviewLines(tool: string, input: unknown): PreviewLine[] | null
       const newStr = inp.new_string
       const lines: PreviewLine[] = []
       if (typeof oldStr === "string" && oldStr.trim()) {
-        for (const l of oldStr.split("\n")) {
-          lines.push({ text: l, prefix: "-" })
+        for (const l of capContent(oldStr).split("\n")) {
+          lines.push({ text: capLine(l), prefix: "-" })
         }
       }
       if (typeof newStr === "string" && newStr.trim()) {
-        for (const l of newStr.split("\n")) {
-          lines.push({ text: l, prefix: "+" })
+        for (const l of capContent(newStr).split("\n")) {
+          lines.push({ text: capLine(l), prefix: "+" })
         }
       }
       return lines.length > 0 ? lines : null
@@ -139,7 +152,7 @@ function extractPreviewLines(tool: string, input: unknown): PreviewLine[] | null
     case "Bash": {
       const cmd = inp.command
       if (typeof cmd === "string" && cmd.trim()) {
-        return cmd.split("\n").map(l => ({ text: l }))
+        return capContent(cmd).split("\n").map(l => ({ text: capLine(l) }))
       }
       return null
     }
@@ -381,7 +394,7 @@ export function PermissionDialog() {
     <Show when={state.pendingPermission}>
       {(perm) => {
         const label = () => actionLabel(perm().tool, perm().displayName)
-        const allPreviewLines = () => extractPreviewLines(perm().tool, perm().input)
+        const allPreviewLines = createMemo(() => extractPreviewLines(perm().tool, perm().input))
 
         // Viewport-aware preview truncation.
         // Reserve lines for chrome: action label (1) + path (1) + description (1)

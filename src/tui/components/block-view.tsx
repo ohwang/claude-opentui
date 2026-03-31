@@ -33,12 +33,16 @@ export function BlockView(props: { block: Block; viewLevel: ViewLevel; prevType?
       {/* User block */}
       <Show when={userBlock()}>{(ub) =>
         <box flexDirection="column" marginTop={1}>
-          <box flexDirection="row" flexGrow={1} paddingLeft={1} bg={colors.bg.surface}>
-            <text fg={colors.text.white} attributes={TextAttributes.BOLD}>{"❯ "}</text>
-            <text fg={colors.text.white}>{ub().text}</text>
+          <box flexDirection="row" flexGrow={1} bg={colors.bg.surface}>
+            <box width={2} flexShrink={0}>
+              <text fg={colors.text.white} attributes={TextAttributes.BOLD}>{"❯"}</text>
+            </box>
+            <box flexGrow={1}>
+              <text fg={colors.text.white}>{ub().text}</text>
+            </box>
           </box>
           <Show when={ub().images && ub().images!.length > 0}>
-            <box paddingLeft={3}>
+            <box paddingLeft={2}>
               <text fg={colors.accent.primary} attributes={TextAttributes.DIM}>
                 {`📎 ${ub().images!.length} image${ub().images!.length === 1 ? "" : "s"} attached`}
               </text>

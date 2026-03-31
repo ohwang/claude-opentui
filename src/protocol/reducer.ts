@@ -268,6 +268,10 @@ export function reduce(
     // ----- Permission flow -----
 
     case "permission_request": {
+      // Guard: only transition from RUNNING (permission requests arrive during tool execution)
+      if (state.sessionState !== "RUNNING") {
+        return next
+      }
       // Update the tool block's input with the full input from canUseTool
       const blocks = state.blocks.map(b =>
         b.type === "tool" && b.id === event.id
@@ -296,12 +300,17 @@ export function reduce(
 
     // ----- Elicitation flow -----
 
-    case "elicitation_request":
+    case "elicitation_request": {
+      // Guard: only transition from RUNNING (elicitations arrive during tool execution)
+      if (state.sessionState !== "RUNNING") {
+        return next
+      }
       return {
         ...next,
         sessionState: "WAITING_FOR_ELIC",
         pendingElicitation: event,
       }
+    }
 
     case "elicitation_response": {
       // Guard: only transition from WAITING_FOR_ELIC

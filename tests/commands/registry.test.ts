@@ -337,13 +337,25 @@ describe("/model command", () => {
     expect(sysMsg.text).toContain("claude-opus-4-6")
   })
 
-  it("reports error when setModel fails", async () => {
+  it("reports unknown model when name is not in MODEL_NAMES", async () => {
+    const registry = createCommandRegistry()
+    const ctx = makeCtx()
+
+    await registry.tryExecute("/model bad-model", ctx)
+
+    const msg = ctx.events.find((e) => e.type === "system_message")
+    expect(msg).toBeDefined()
+    expect(msg.text).toContain("Unknown model: bad-model")
+    expect(msg.text).toContain("Available models")
+  })
+
+  it("reports error when setModel throws for a valid model", async () => {
     const registry = createCommandRegistry()
     const ctx = makeCtx({
       setModel: async () => { throw new Error("Model not found") },
     })
 
-    await registry.tryExecute("/model bad-model", ctx)
+    await registry.tryExecute("/model claude-opus-4-6", ctx)
 
     const msg = ctx.events.find((e) => e.type === "system_message")
     expect(msg).toBeDefined()

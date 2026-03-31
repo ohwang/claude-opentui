@@ -3,6 +3,7 @@
  */
 
 import type { SlashCommand } from "../registry"
+import { friendlyModelName } from "../../tui/models"
 
 /** Format token counts for human-readable display */
 function formatTokens(n: number): string {
@@ -28,7 +29,7 @@ export const costCommand: SlashCommand = {
     const lines = [
       `Session Usage (${turnNumber} turn${turnNumber !== 1 ? "s" : ""})`,
       ``,
-      `  Model:    ${currentModel || "unknown"}`,
+      `  Model:    ${currentModel ? friendlyModelName(currentModel) : "unknown"}`,
       `  Cost:     $${cost.totalCostUsd.toFixed(4)}`,
       ``,
       `  Tokens:   ${formatTokens(totalTokens)} total`,

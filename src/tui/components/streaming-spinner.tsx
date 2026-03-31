@@ -1,8 +1,8 @@
 /**
- * StreamingSpinner — morphing asterisk spinner with playful verbs.
+ * StreamingSpinner — morphing asterisk spinner with rotating verbs.
  *
  * Matches native Claude Code's streaming indicator style:
- *   ✱ Shimmying... (5m 49s · ↓ 8.5k tokens)
+ *   ✱ Thinking... (5m 49s · ↓ 8.5k tokens)
  *
  * Shown in the conversation area while the agent is working
  * (RUNNING state, before text starts streaming). The label adapts
@@ -10,7 +10,7 @@
  * "Running [toolName]..." when a tool is executing.
  *
  * During the "Thinking..." phase, the verb cycles every 3 seconds
- * through whimsical synonyms to give visual feedback that the
+ * through tasteful synonyms to give visual feedback that the
  * model is actively working.
  */
 
@@ -25,37 +25,8 @@ const SPINNER_FRAMES = ['✱', '✳', '✴', '✵']
 const SPINNER_INTERVAL_MS = 150
 
 const THINKING_VERBS = [
-  "Thinking", "Reasoning", "Analyzing", "Pondering", "Considering",
-  "Evaluating", "Processing", "Computing", "Contemplating", "Deliberating",
-  "Reflecting", "Examining", "Investigating", "Exploring", "Researching",
-  "Synthesizing", "Strategizing", "Formulating", "Brainstorming", "Ideating",
-  "Cogitating", "Ruminating", "Musing", "Mulling", "Meditating",
-  "Deducing", "Inferring", "Hypothesizing", "Theorizing", "Speculating",
-  "Scheming", "Planning", "Mapping", "Charting", "Navigating",
-  "Decoding", "Parsing", "Interpreting", "Translating", "Compiling",
-  "Optimizing", "Refactoring", "Debugging", "Profiling", "Benchmarking",
-  "Architecting", "Designing", "Crafting", "Engineering", "Building",
-  "Searching", "Scanning", "Indexing", "Querying", "Filtering",
-  "Sorting", "Ranking", "Scoring", "Weighing", "Balancing",
-  "Connecting", "Linking", "Bridging", "Merging", "Unifying",
-  "Distilling", "Condensing", "Summarizing", "Abstracting", "Simplifying",
-  "Elaborating", "Expanding", "Detailing", "Unpacking", "Dissecting",
-  "Visualizing", "Imagining", "Dreaming", "Envisioning", "Projecting",
-  "Calibrating", "Tuning", "Adjusting", "Aligning", "Harmonizing",
-  "Bootstrapping", "Initializing", "Loading", "Buffering", "Streaming",
-  "Crunching", "Grinding", "Churning", "Whirring", "Humming",
-  "Percolating", "Brewing", "Simmering", "Marinating", "Fermenting",
-  "Noodling", "Doodling", "Tinkering", "Fiddling", "Puttering",
-  "Wrangling", "Juggling", "Untangling", "Unraveling", "Deciphering",
-  "Channeling", "Focusing", "Concentrating", "Zooming", "Honing",
-  "Assembling", "Piecing", "Stitching", "Weaving", "Knitting",
-  "Sculpting", "Molding", "Shaping", "Carving", "Polishing",
-  "Conjuring", "Summoning", "Invoking", "Manifesting", "Materializing",
-  "Orchestrating", "Conducting", "Composing", "Arranging", "Choreographing",
-  "Cultivating", "Nurturing", "Tending", "Gardening", "Pruning",
-  "Mining", "Excavating", "Digging", "Drilling", "Sifting",
-  "Sparking", "Igniting", "Kindling", "Fueling", "Energizing",
-  "Riffing", "Jamming", "Freestyling", "Improvising", "Rocking",
+  "Thinking", "Reasoning", "Analyzing", "Considering", "Processing",
+  "Evaluating", "Reflecting", "Synthesizing", "Formulating", "Exploring",
 ]
 
 export function StreamingSpinner(props: { label: string; elapsedSeconds?: number; outputTokens?: number }) {

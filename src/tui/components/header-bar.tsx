@@ -1,11 +1,11 @@
 /**
- * Header Bar — Claude Code-style multi-line logo block
+ * Header Bar — Pixel-art logo + app info
  *
- * Displays:
- * - ASCII logo in salmon/pink (ANSI 174) + app name
- * - Version info
- * - Model name + context window
- * - Working directory (shortened with ~)
+ * Displays a pixel-art terminal-face character on the left with
+ * app name, version, model info, and working directory on the right.
+ *
+ * Logo: A cute terminal/monitor with eyes -- an "open terminal" mascot.
+ * Uses Unicode half-block characters (▀ ▄ █ ▌ ▐) in salmon/pink (#d78787).
  */
 
 import { homedir } from "node:os"
@@ -13,6 +13,29 @@ import { TextAttributes } from "@opentui/core"
 import { useSession } from "../context/session"
 import { useAgent } from "../context/agent"
 import { friendlyModelName, MODEL_CONTEXT_WINDOWS, DEFAULT_CONTEXT_WINDOW } from "../models"
+
+/**
+ * Pixel-art logo: a small terminal monitor with eyes and antenna.
+ *
+ * Visual (each line is one row of the logo):
+ *
+ *     ▄█▄
+ *   ▄█████▄
+ *   █ ▀ ▀ █
+ *   ▀▄███▄▀
+ *     ▀▀▀
+ *
+ * 5 lines tall, 9 chars wide. A terminal screen with two dot-eyes,
+ * an antenna on top, and a small base. Distinct from Claude Code's
+ * creature face -- this is a friendly open-source terminal mascot.
+ */
+const LOGO_LINES = [
+  "   ▄█▄   ",  // antenna
+  " ▄█████▄ ",  // top of screen
+  " █ ▀ ▀ █ ",  // screen with eyes
+  " ▀▄███▄▀ ",  // bottom of screen
+  "   ▀▀▀   ",  // base/stand
+]
 
 export function HeaderBar() {
   const { state } = useSession()
@@ -42,25 +65,34 @@ export function HeaderBar() {
     return parts.join(" ")
   }
 
+  // Text info lines aligned to logo rows (centered vertically)
+  // Logo has 5 rows; text occupies rows 1-3 (0-indexed), leaving
+  // the antenna (row 0) and base (row 4) as logo-only rows.
   return (
     <box flexDirection="column" flexShrink={0} paddingBottom={1}>
-      {/* Logo line 1 */}
+      {/* Row 0: antenna only */}
       <box flexDirection="row">
-        <text fg="#d78787">{" ╭━━━╮"}</text>
+        <text fg="#d78787">{LOGO_LINES[0]}</text>
       </box>
-      {/* Logo line 2 + app name + version */}
+      {/* Row 1: top of screen + app name + version */}
       <box flexDirection="row">
-        <text fg="#d78787">{" ┃   ┃  claude-opentui"}</text>
-        <text fg="gray" attributes={TextAttributes.DIM}>{"  v0.0.1"}</text>
+        <text fg="#d78787">{LOGO_LINES[1]}</text>
+        <text fg="#d78787" attributes={TextAttributes.BOLD}>{"claude-opentui"}</text>
+        <text fg="#808080" attributes={TextAttributes.DIM}>{"  v0.0.1"}</text>
       </box>
-      {/* Logo line 3 + model info */}
+      {/* Row 2: eyes + model info */}
       <box flexDirection="row">
-        <text fg="#d78787">{" ╰━━━╯  "}</text>
-        <text fg="gray" attributes={TextAttributes.DIM}>{modelInfo() || "Connecting..."}</text>
+        <text fg="#d78787">{LOGO_LINES[2]}</text>
+        <text fg="#808080" attributes={TextAttributes.DIM}>{modelInfo() || "Connecting..."}</text>
       </box>
-      {/* Working directory */}
-      <box>
-        <text fg="gray" attributes={TextAttributes.DIM}>{"        " + projectPath}</text>
+      {/* Row 3: bottom of screen + working directory */}
+      <box flexDirection="row">
+        <text fg="#d78787">{LOGO_LINES[3]}</text>
+        <text fg="#808080" attributes={TextAttributes.DIM}>{projectPath}</text>
+      </box>
+      {/* Row 4: base only */}
+      <box flexDirection="row">
+        <text fg="#d78787">{LOGO_LINES[4]}</text>
       </box>
     </box>
   )

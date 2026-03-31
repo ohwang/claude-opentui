@@ -4,6 +4,7 @@ import {
   createInitialState,
   type AgentEvent,
   type ConversationState,
+  type ImageContent,
 } from "../../src/protocol/types"
 
 // Helper: apply a sequence of events to initial state
@@ -1440,6 +1441,72 @@ describe("ConversationState reducer", () => {
       ])
       // session_state is informational, doesn't override our state machine
       expect(state.sessionState).toBe("IDLE")
+    })
+  })
+
+  // -----------------------------------------------------------------------
+  // Image support
+  // -----------------------------------------------------------------------
+
+  describe("image support", () => {
+    const sampleImage: ImageContent = {
+      data: "iVBORw0KGgoAAAANSUhEUg==",
+      mediaType: "image/png",
+    }
+
+    it("user_message propagates images to block", () => {
+      let state = reduce(createInitialState(), { type: "session_init", tools: [], models: [] })
+      state = reduce(state, { type: "user_message", text: "look at this [Image #1]", images: [sampleImage] })
+      const userBlock = state.blocks.find(b => b.type === "user")
+      expect(userBlock).toBeDefined()
+      expect(userBlock!.type).toBe("user")
+      if (userBlock!.type === "user") {
+        expect(userBlock!.images).toEqual([sampleImage])
+      }
+    })
+
+    it("user_message without images has undefined images field", () => {
+      let state = reduce(createInitialState(), { type: "session_init", tools: [], models: [] })
+      state = reduce(state, { type: "user_message", text: "hello" })
+      const userBlock = state.blocks.find(b => b.type === "user")
+      expect(userBlock!.type === "user" && userBlock!.images).toBeUndefined()
+    })
+
+    it("queued user_message preserves images", () => {
+      let state = reduce(createInitialState(), { type: "session_init", tools: [], models: [] })
+      state = reduce(state, { type: "turn_start" })
+      // During RUNNING, messages are queued
+      state = reduce(state, { type: "user_message", text: "see this [Image #1]", images: [sampleImage] })
+      const queuedBlock = state.blocks.find(b => b.type === "user" && b.queued)
+      expect(queuedBlock).toBeDefined()
+      if (queuedBlock!.type === "user") {
+        expect(queuedBlock!.images).toEqual([sampleImage])
+        expect(queuedBlock!.queued).toBe(true)
+      }
+    })
+
+    it("ERROR recovery user_message preserves images", () => {
+      let state = reduce(createInitialState(), { type: "session_init", tools: [], models: [] })
+      state = reduce(state, { type: "error", code: "TEST", message: "test error", severity: "fatal" })
+      expect(state.sessionState).toBe("ERROR")
+      state = reduce(state, { type: "user_message", text: "retry [Image #1]", images: [sampleImage] })
+      expect(state.sessionState).toBe("IDLE")
+      const userBlock = state.blocks.find(b => b.type === "user")
+      if (userBlock!.type === "user") {
+        expect(userBlock!.images).toEqual([sampleImage])
+      }
+    })
+
+    it("multiple images in single message", () => {
+      const img2: ImageContent = { data: "AAAA", mediaType: "image/jpeg" }
+      let state = reduce(createInitialState(), { type: "session_init", tools: [], models: [] })
+      state = reduce(state, { type: "user_message", text: "[Image #1] [Image #2]", images: [sampleImage, img2] })
+      const userBlock = state.blocks.find(b => b.type === "user")
+      if (userBlock!.type === "user") {
+        expect(userBlock!.images).toHaveLength(2)
+        expect(userBlock!.images![0].mediaType).toBe("image/png")
+        expect(userBlock!.images![1].mediaType).toBe("image/jpeg")
+      }
     })
   })
 })

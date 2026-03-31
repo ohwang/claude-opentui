@@ -40,16 +40,41 @@ const SPINNER_FRAMES = ['✱', '✳', '✴', '✵']
 const SPINNER_INTERVAL_MS = 150
 
 const THINKING_VERBS = [
-  "Thinking",
-  "Pondering",
-  "Reasoning",
-  "Shimmying",
-  "Cogitating",
-  "Musing",
-  "Contemplating",
-  "Noodling",
-  "Mulling",
-  "Ruminating",
+  // -- From native Claude Code (56 verbs) --
+  "Accomplishing", "Actioning", "Actualizing", "Baking", "Brewing",
+  "Calculating", "Cerebrating", "Churning", "Clauding", "Coalescing",
+  "Cogitating", "Computing", "Conjuring", "Considering", "Cooking",
+  "Crafting", "Creating", "Crunching", "Deliberating", "Determining",
+  "Doing", "Effecting", "Finagling", "Forging", "Forming",
+  "Generating", "Hatching", "Herding", "Honking", "Hustling",
+  "Ideating", "Inferring", "Manifesting", "Marinating", "Moseying",
+  "Mulling", "Mustering", "Musing", "Noodling", "Percolating",
+  "Pondering", "Processing", "Puttering", "Reticulating", "Ruminating",
+  "Schlepping", "Shucking", "Simmering", "Smooshing", "Spinning",
+  "Stewing", "Synthesizing", "Thinking", "Transmuting", "Vibing",
+  "Working",
+  // -- Whimsical extras (100 verbs) --
+  "Analyzing", "Assembling", "Booping", "Brainstorming", "Bubbling",
+  "Calibrating", "Channeling", "Combobulating", "Compiling", "Contemplating",
+  "Composing", "Conceiving", "Concocting", "Contriving", "Daydreaming",
+  "Deciphering", "Decoding", "Deducing", "Defenestrating", "Devising",
+  "Digesting", "Discombobulating", "Distilling", "Dreaming", "Elaborating",
+  "Elucidating", "Envisioning", "Evaluating", "Extrapolating", "Fermenting",
+  "Figuring", "Flibbertigibbeting", "Formulating", "Fussing", "Gestating",
+  "Grooving", "Grokking", "Hypothesizing", "Imagining", "Improvising",
+  "Incubating", "Interpolating", "Intuiting", "Inventing", "Iterating",
+  "Jigsawing", "Juggling", "Kibbitzing", "Kneading", "Machinating",
+  "Meditating", "Metabolizing", "Minding", "Navigating", "Noodging",
+  "Orchestrating", "Perambulating", "Philosophizing", "Pickling",
+  "Plotting", "Plumbing", "Prognosticating", "Puzzling", "Ratiocinating",
+  "Reasoning", "Recombobulating", "Reckoning", "Reflecting", "Scheming",
+  "Scoping", "Sculpting", "Shimmying", "Sifting", "Simulating",
+  "Sleuthing", "Spit-balling", "Steeping", "Strategizing", "Tinkering",
+  "Toiling", "Triangulating", "Unraveling", "Untangling", "Vectoring",
+  "Waffling", "Weighing", "Whittling", "Wibbling", "Wrangling",
+  "Yearning", "Yodeling", "Zigzagging", "Zooming",
+  "Braising", "Cajoling", "Doodling", "Excavating", "Fathoming",
+  "Galvanizing", "Harmonizing",
 ]
 
 /**
@@ -69,16 +94,24 @@ const THINKING_VERBS = [
  */
 function StreamingSpinner(props: { label: string; elapsedSeconds?: number; outputTokens?: number }) {
   const [frameIndex, setFrameIndex] = createSignal(0)
-  const [verbIndex, setVerbIndex] = createSignal(0)
+  const [verbIndex, setVerbIndex] = createSignal(Math.floor(Math.random() * THINKING_VERBS.length))
 
   const timer = setInterval(() => {
     setFrameIndex((i) => (i + 1) % SPINNER_FRAMES.length)
   }, SPINNER_INTERVAL_MS)
 
   // Cycle thinking verbs every 3 seconds (only when label is "Thinking...")
+  // Random selection avoids the predictable sequential feel; re-roll to
+  // prevent showing the same verb twice in a row.
   const verbTimer = setInterval(() => {
     if (props.label === "Thinking...") {
-      setVerbIndex((i) => (i + 1) % THINKING_VERBS.length)
+      setVerbIndex((prev) => {
+        let next = Math.floor(Math.random() * THINKING_VERBS.length)
+        while (next === prev) {
+          next = Math.floor(Math.random() * THINKING_VERBS.length)
+        }
+        return next
+      })
     }
   }, 3000)
 

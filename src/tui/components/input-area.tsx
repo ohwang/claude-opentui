@@ -349,6 +349,30 @@ export function InputArea() {
       return
     }
 
+    // Ctrl+U = delete to start of line (kill line backward)
+    if (e.ctrl && e.name === "u") {
+      e.preventDefault()
+      textareaRef?.deleteToLineStart()
+      queueMicrotask(() => updateLineCount())
+      return
+    }
+
+    // Ctrl+K = delete to end of line (kill line forward)
+    if (e.ctrl && e.name === "k") {
+      e.preventDefault()
+      textareaRef?.deleteToLineEnd()
+      queueMicrotask(() => updateLineCount())
+      return
+    }
+
+    // Ctrl+W = delete word backwards
+    if (e.ctrl && e.name === "w") {
+      e.preventDefault()
+      textareaRef?.deleteWordBackward()
+      queueMicrotask(() => updateLineCount())
+      return
+    }
+
     // Ctrl+G = open external editor for multi-line prompt composition
     if (e.ctrl && e.name === "g") {
       e.preventDefault()

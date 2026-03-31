@@ -1,17 +1,9 @@
 /**
- * Theme — shared style constants for the TUI
+ * Theme -- re-exports from the centralized design system
  *
- * Provides a singleton SyntaxStyle instance used by all markdown
- * and code components. Created once at import time.
+ * Preserves backward compatibility for existing imports while
+ * delegating to the new token/syntax modules.
  */
 
-import { SyntaxStyle } from "@opentui/core"
-
-/**
- * Shared SyntaxStyle for markdown and code rendering.
- *
- * SyntaxStyle.create() returns a default style with standard
- * syntax-highlighting colors. One instance is shared across
- * all <markdown> and <code> elements.
- */
-export const syntaxStyle = SyntaxStyle.create()
+export { syntaxStyle } from "./theme/syntax"
+export { colors } from "./theme/tokens"

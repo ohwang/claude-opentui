@@ -325,7 +325,17 @@ export class ClaudeAdapter implements AgentBackend {
         }
       }
       this.eventChannel?.close()
-    })()
+    })().catch((err) => {
+      if (!this.closed && this.eventChannel) {
+        this.eventChannel.push({
+          type: "error" as const,
+          code: "adapter_error" as const,
+          message: `SDK loop crashed: ${err instanceof Error ? err.message : String(err)}`,
+          severity: "fatal" as const,
+        })
+        this.eventChannel.close()
+      }
+    })
 
     // Yield from channel — receives both SDK events AND canUseTool callback events
     yield* this.eventChannel[Symbol.asyncIterator]()

@@ -32,24 +32,30 @@ function formatTimestamp(ts: number): string {
 }
 
 // ---------------------------------------------------------------------------
-// Breathing asterisk spinner — animated activity indicator
+// Morphing asterisk spinner — matches native Claude Code style
 // ---------------------------------------------------------------------------
 
-const SPINNER_FRAMES = ['·', '⁺', '✦', '✶', '✻', '✽', '✻', '✶', '✦', '⁺']
-const SPINNER_INTERVAL_MS = 120
+const SPINNER_FRAMES = ['✱', '✳', '✴', '✵']
+const SPINNER_INTERVAL_MS = 150
 
 const THINKING_VERBS = [
   "Thinking",
+  "Pondering",
   "Reasoning",
-  "Analyzing",
-  "Considering",
-  "Processing",
-  "Evaluating",
-  "Reflecting",
+  "Shimmying",
+  "Cogitating",
+  "Musing",
+  "Contemplating",
+  "Noodling",
+  "Mulling",
+  "Ruminating",
 ]
 
 /**
- * StreamingSpinner — breathing asterisk spinner with contextual verb.
+ * StreamingSpinner — morphing asterisk spinner with playful verbs.
+ *
+ * Matches native Claude Code's streaming indicator style:
+ *   ✱ Shimmying... (5m 49s · ↓ 8.5k tokens)
  *
  * Shown in the conversation area while the agent is working
  * (RUNNING state, before text starts streaming). The label adapts
@@ -57,10 +63,10 @@ const THINKING_VERBS = [
  * "Running [toolName]..." when a tool is executing.
  *
  * During the "Thinking..." phase, the verb cycles every 3 seconds
- * through synonyms (Reasoning, Analyzing, etc.) to give visual
- * feedback that the model is actively working.
+ * through whimsical synonyms to give visual feedback that the
+ * model is actively working.
  */
-function StreamingSpinner(props: { label: string }) {
+function StreamingSpinner(props: { label: string; elapsedSeconds?: number; outputTokens?: number }) {
   const [frameIndex, setFrameIndex] = createSignal(0)
   const [verbIndex, setVerbIndex] = createSignal(0)
 
@@ -87,11 +93,32 @@ function StreamingSpinner(props: { label: string }) {
     return props.label
   }
 
+  const timeStr = () => {
+    const secs = props.elapsedSeconds ?? 0
+    if (secs === 0) return ""
+    if (secs < 60) return `${secs}s`
+    const mins = Math.floor(secs / 60)
+    const remSecs = secs % 60
+    return `${mins}m ${remSecs}s`
+  }
+
+  const tokenStr = () => {
+    const tokens = props.outputTokens ?? 0
+    if (tokens === 0) return ""
+    if (tokens >= 1000) return `\u2193 ${(tokens / 1000).toFixed(1)}k tokens`
+    return `\u2193 ${tokens} tokens`
+  }
+
+  const metaStr = () => {
+    const parts = [timeStr(), tokenStr()].filter(Boolean)
+    return parts.length > 0 ? ` (${parts.join(" \u00B7 ")})` : ""
+  }
+
   return (
     <box flexDirection="row">
-      <text fg="#a8a8a8">
-        {SPINNER_FRAMES[frameIndex()]} {displayLabel()}
-      </text>
+      <text fg="#d78787">{SPINNER_FRAMES[frameIndex()]} </text>
+      <text fg="#d78787">{displayLabel()}</text>
+      <text fg="#a8a8a8">{metaStr()}</text>
     </box>
   )
 }
@@ -396,6 +423,35 @@ export function ConversationView(props: { children?: JSX.Element }) {
   const queuedBlocks = () => state.blocks.filter(b => b.type === "user" && b.queued) as Array<Extract<Block, { type: "user" }>>
   const renderItems = () => groupBlocksForRendering(nonQueuedBlocks(), viewLevel())
 
+  // -- Turn elapsed time for the spinner --
+  const [turnStartTime, setTurnStartTime] = createSignal<number | null>(null)
+  const [turnElapsed, setTurnElapsed] = createSignal(0)
+  let prevSessionState: string = session.sessionState
+
+  const turnTickHandle = setInterval(() => {
+    const currentState = session.sessionState
+    // Detect transition into RUNNING
+    if (currentState === "RUNNING" && prevSessionState !== "RUNNING") {
+      setTurnStartTime(Date.now())
+      setTurnElapsed(0)
+    }
+    // Detect transition out of RUNNING
+    if (currentState !== "RUNNING" && prevSessionState === "RUNNING") {
+      setTurnStartTime(null)
+      setTurnElapsed(0)
+    }
+    prevSessionState = currentState
+    // Update elapsed while running
+    if (currentState === "RUNNING") {
+      const start = turnStartTime()
+      if (start !== null) {
+        setTurnElapsed(Math.floor((Date.now() - start) / 1000))
+      }
+    }
+  }, 1000)
+
+  onCleanup(() => clearInterval(turnTickHandle))
+
   // Spinner label from running tools in blocks
   const spinnerLabel = () => {
     const blocks = state.blocks
@@ -567,7 +623,7 @@ export function ConversationView(props: { children?: JSX.Element }) {
             !state.streamingText &&
             !state.streamingThinking
           }>
-            <StreamingSpinner label={spinnerLabel()} />
+            <StreamingSpinner label={spinnerLabel()} elapsedSeconds={turnElapsed()} outputTokens={session.cost.outputTokens} />
           </Show>
         </box>
 

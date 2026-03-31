@@ -90,7 +90,7 @@ function actionLabel(tool: string, displayName?: string): string {
 }
 
 /** Extract path string from tool input */
-function extractPath(tool: string, input: unknown): string {
+export function extractPath(tool: string, input: unknown): string {
   const inp = input as Record<string, unknown> | null
   if (!inp) return ""
   if (typeof inp.file_path === "string" && inp.file_path) return relativePath(inp.file_path)
@@ -104,23 +104,23 @@ function extractPath(tool: string, input: unknown): string {
 }
 
 /** A preview line with optional diff prefix for coloring */
-interface PreviewLine {
+export interface PreviewLine {
   text: string
   /** "+" for added, "-" for removed, " " for context/neutral */
   prefix?: "+" | "-" | " "
 }
 
 /** Cap a string to MAX_CONTENT_CHARS to prevent expensive splitting */
-function capContent(s: string): string {
+export function capContent(s: string): string {
   return s.length > MAX_CONTENT_CHARS ? s.slice(0, MAX_CONTENT_CHARS) : s
 }
 
 /** Truncate a single line to MAX_LINE_LENGTH */
-function capLine(rawLine: string): string {
+export function capLine(rawLine: string): string {
   return rawLine.length > MAX_LINE_LENGTH ? rawLine.slice(0, MAX_LINE_LENGTH - 3) + "..." : rawLine
 }
 
-function extractPreviewLines(tool: string, input: unknown): PreviewLine[] | null {
+export function extractPreviewLines(tool: string, input: unknown): PreviewLine[] | null {
   const inp = input as Record<string, unknown> | null
   if (!inp) return null
 

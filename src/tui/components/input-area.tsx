@@ -407,7 +407,7 @@ export function InputArea() {
           focused={!isDisabled()}
           height={textareaHeight()}
           placeholder={placeholder()}
-          cursorStyle={{ style: "line", blinking: false }}
+          cursorStyle={{ style: "block", blinking: false }}
           keyBindings={isDisabled() ? [] : [
             { name: "return", action: "submit" },
             { name: "return", shift: true, action: "newline" },

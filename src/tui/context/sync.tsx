@@ -92,7 +92,13 @@ export function SyncProvider(props: ParentProps) {
   }
 
   // Create the batcher with applyEvents as the flush handler
-  const batcher = new EventBatcher(applyEvents)
+  const batcher = new EventBatcher(
+    applyEvents,
+    16,
+    (error) => {
+      log.error("Event processing error in batcher", { error: error.message })
+    },
+  )
 
   const pushEvent = (event: AgentEvent) => {
     batcher.push(event)

@@ -11,6 +11,7 @@
  */
 
 import type { AgentEvent } from "../protocol/types"
+import { log } from "./logger"
 
 export type EventHandler = (events: AgentEvent[]) => void
 
@@ -20,9 +21,15 @@ export class EventBatcher {
   private lastFlush = 0
   private handler: EventHandler
   private destroyed = false
+  private onError?: (error: Error) => void
 
-  constructor(handler: EventHandler) {
+  constructor(
+    handler: EventHandler,
+    private interval: number = 16,
+    onError?: (error: Error) => void,
+  ) {
     this.handler = handler
+    this.onError = onError
   }
 
   push(event: AgentEvent): void {
@@ -33,12 +40,12 @@ export class EventBatcher {
     const now = Date.now()
     const elapsed = now - this.lastFlush
 
-    if (elapsed >= 16) {
+    if (elapsed >= this.interval) {
       // Been 16ms+ since last flush, flush immediately
       this.flush()
     } else if (!this.timer) {
       // Schedule flush for remaining time in the 16ms window
-      this.timer = setTimeout(() => this.flush(), 16 - elapsed)
+      this.timer = setTimeout(() => this.flush(), this.interval - elapsed)
     }
   }
 
@@ -54,8 +61,11 @@ export class EventBatcher {
     try {
       this.handler(events)
     } catch (err) {
-      // Log the error but don't crash the event loop
-      console.error("[EventBatcher] handler threw:", err)
+      const error = err instanceof Error ? err : new Error(String(err))
+      // Log to session file (visible in debug logs) instead of console.error
+      // which is invisible in a full-screen TUI
+      log.error("EventBatcher handler error", { error: error.message })
+      this.onError?.(error)
     }
   }
 

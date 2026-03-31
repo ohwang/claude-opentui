@@ -109,7 +109,13 @@ export function createCommandRegistry(): CommandRegistry {
     execute: (_args, ctx) => {
       const commands = registry.all()
       const text = commands
-        .map((cmd) => `  /${cmd.name} — ${cmd.description}`)
+        .map((cmd) => {
+          const aliasText =
+            cmd.aliases && cmd.aliases.length > 0
+              ? ` (aliases: ${cmd.aliases.join(", ")})`
+              : ""
+          return `  /${cmd.name}${aliasText} — ${cmd.description}`
+        })
         .join("\n")
 
       ctx.pushEvent({

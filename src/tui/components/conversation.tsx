@@ -278,7 +278,7 @@ export function ConversationView(props: { children?: JSX.Element }) {
             !state.streamingText &&
             !state.streamingThinking
           }>
-            <StreamingSpinner label={spinnerLabel()} elapsedSeconds={turnElapsed()} outputTokens={session.cost.outputTokens} />
+            <StreamingSpinner label={spinnerLabel()} elapsedSeconds={turnElapsed()} outputTokens={state.streamingOutputTokens || session.cost.outputTokens} />
           </Show>
         </box>
 

@@ -103,6 +103,7 @@ export function reduce(
         turnNumber: state.turnNumber + 1,
         streamingText: "",
         streamingThinking: "",
+        streamingOutputTokens: 0,
       }
     }
 
@@ -153,6 +154,7 @@ export function reduce(
         pendingPermission: null,
         pendingElicitation: null,
         cost,
+        streamingOutputTokens: 0,
         activeTasks: prunedTasks,
         lastTurnInputTokens: event.usage && (event.usage.inputTokens > 0 || (event.usage.cacheReadTokens ?? 0) > 0)
           ? (event.usage.inputTokens + (event.usage.cacheReadTokens ?? 0) + (event.usage.cacheWriteTokens ?? 0))
@@ -394,10 +396,13 @@ export function reduce(
     // ----- Cost tracking -----
 
     case "cost_update":
-      // Cost updates are handled authoritatively by turn_complete usage.
-      // Streaming cost_update events from message_delta are ignored to
-      // prevent double-counting.
-      return next
+      // Authoritative cost is handled by turn_complete usage to prevent
+      // double-counting. But we track streaming output tokens separately
+      // for real-time display in the spinner.
+      return {
+        ...next,
+        streamingOutputTokens: state.streamingOutputTokens + (event.outputTokens ?? 0),
+      }
 
     // ----- Tasks / subagents -----
 

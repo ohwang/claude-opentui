@@ -312,6 +312,9 @@ export interface ConversationState {
 
   /** Input tokens from the last completed turn — approximates context window fill */
   lastTurnInputTokens: number
+
+  /** Output tokens accumulated during streaming (reset on turn boundaries, separate from authoritative cost) */
+  streamingOutputTokens: number
 }
 
 // ---------------------------------------------------------------------------
@@ -515,5 +518,6 @@ export function createInitialState(): ConversationState {
     lastError: null,
     turnNumber: 0,
     lastTurnInputTokens: 0,
+    streamingOutputTokens: 0,
   }
 }

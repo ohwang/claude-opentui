@@ -153,7 +153,7 @@ export function reduce(
         pendingElicitation: null,
         cost,
         activeTasks: prunedTasks,
-        lastTurnInputTokens: event.usage
+        lastTurnInputTokens: event.usage && (event.usage.inputTokens > 0 || (event.usage.cacheReadTokens ?? 0) > 0)
           ? (event.usage.inputTokens + (event.usage.cacheReadTokens ?? 0) + (event.usage.cacheWriteTokens ?? 0))
           : state.lastTurnInputTokens,
       }

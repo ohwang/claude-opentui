@@ -1,6 +1,6 @@
 import { describe, expect, it, mock, beforeEach } from "bun:test"
 import { ClaudeAdapter } from "../../src/backends/claude/adapter"
-import { mapSDKMessage, mapStreamEvent, ToolStreamState } from "../../src/backends/claude/event-mapper"
+import { mapSDKMessage, mapStreamEvent, mapAssistantMessage, ToolStreamState } from "../../src/backends/claude/event-mapper"
 import { parseElicitationInput, handlePermission, type PermissionBridgeState, type PendingPermission } from "../../src/backends/claude/permission-bridge"
 import { AsyncQueue } from "../../src/utils/async-queue"
 
@@ -259,7 +259,7 @@ describe("ClaudeAdapter", () => {
       expect(events[0].severity).toBe("recoverable")
     })
 
-    it("maps rate_limit_event to recoverable error", () => {
+    it("maps rate_limit_event to backend_specific (informational, not error)", () => {
       const streamState = new ToolStreamState()
       const events = mapSDKMessage({
         type: "rate_limit_event",
@@ -269,10 +269,8 @@ describe("ClaudeAdapter", () => {
       }, streamState)
 
       expect(events).toHaveLength(1)
-      expect(events[0].type).toBe("error")
-      expect(events[0].code).toBe("rate_limit")
-      expect(events[0].message).toContain("Rate limited")
-      expect(events[0].severity).toBe("recoverable")
+      expect(events[0].type).toBe("backend_specific")
+      expect(events[0].backend).toBe("claude")
     })
 
     it("maps unknown message type to backend_specific", () => {
@@ -410,6 +408,95 @@ describe("ClaudeAdapter", () => {
       expect(events[0].id).toBe("tool_arr_1")
       expect(events[0].error).toBe("Error on line 1\nError on line 2")
       expect(events[0].output).toBe("Error on line 1\nError on line 2")
+    })
+  })
+
+  // -------------------------------------------------------------------------
+  // mapAssistantMessage (V2 adapter path)
+  // -------------------------------------------------------------------------
+
+  describe("mapAssistantMessage", () => {
+    it("extracts text from assistant message content blocks", () => {
+      const events = mapAssistantMessage({
+        type: "assistant",
+        message: {
+          content: [
+            { type: "text", text: "Four." },
+          ],
+        },
+      })
+
+      expect(events.length).toBeGreaterThanOrEqual(2)
+      expect(events[0].type).toBe("turn_start")
+      expect(events[1]).toEqual({ type: "text_delta", text: "Four." })
+    })
+
+    it("extracts thinking blocks", () => {
+      const events = mapAssistantMessage({
+        type: "assistant",
+        message: {
+          content: [
+            { type: "thinking", thinking: "Let me think about this..." },
+            { type: "text", text: "The answer is 4." },
+          ],
+        },
+      })
+
+      const thinkingEvents = events.filter(e => e.type === "thinking_delta")
+      const textEvents = events.filter(e => e.type === "text_delta")
+      expect(thinkingEvents).toHaveLength(1)
+      expect(thinkingEvents[0].text).toBe("Let me think about this...")
+      expect(textEvents).toHaveLength(1)
+      expect(textEvents[0].text).toBe("The answer is 4.")
+    })
+
+    it("extracts tool_use blocks", () => {
+      const events = mapAssistantMessage({
+        type: "assistant",
+        message: {
+          content: [
+            { type: "tool_use", id: "tool_1", name: "Read", input: { file: "test.txt" } },
+          ],
+        },
+      })
+
+      const toolStart = events.find(e => e.type === "tool_use_start")
+      const toolProgress = events.find(e => e.type === "tool_use_progress")
+      expect(toolStart).toBeTruthy()
+      expect(toolStart!.tool).toBe("Read")
+      expect(toolStart!.id).toBe("tool_1")
+      expect(toolProgress).toBeTruthy()
+      expect(toolProgress!.input).toEqual({ file: "test.txt" })
+    })
+
+    it("returns empty for missing content", () => {
+      expect(mapAssistantMessage({ type: "assistant" })).toEqual([])
+      expect(mapAssistantMessage({ type: "assistant", message: {} })).toEqual([])
+    })
+  })
+
+  describe("mapAssistant option", () => {
+    it("V1 (default): assistant messages are ignored", () => {
+      const streamState = new ToolStreamState()
+      const events = mapSDKMessage({
+        type: "assistant",
+        message: { content: [{ type: "text", text: "Hello" }] },
+      }, streamState)
+
+      expect(events).toHaveLength(0)
+    })
+
+    it("V2 (mapAssistant: true): assistant messages are mapped", () => {
+      const streamState = new ToolStreamState()
+      const events = mapSDKMessage({
+        type: "assistant",
+        message: { content: [{ type: "text", text: "Hello" }] },
+      }, streamState, { mapAssistant: true })
+
+      expect(events.length).toBeGreaterThanOrEqual(2)
+      const textEvent = events.find(e => e.type === "text_delta")
+      expect(textEvent).toBeTruthy()
+      expect(textEvent!.text).toBe("Hello")
     })
   })
 

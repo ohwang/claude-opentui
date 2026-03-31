@@ -45,7 +45,12 @@ export class ToolStreamState {
 // SDK message -> AgentEvent[]
 // ---------------------------------------------------------------------------
 
-export function mapSDKMessage(msg: any, streamState: ToolStreamState): AgentEvent[] {
+export interface MapperOptions {
+  /** Map assistant messages to text/tool events. V2 needs this (no stream_events). V1 does not (would double-emit). */
+  mapAssistant?: boolean
+}
+
+export function mapSDKMessage(msg: any, streamState: ToolStreamState, options?: MapperOptions): AgentEvent[] {
   const events: AgentEvent[] = []
 
   switch (msg.type) {
@@ -97,9 +102,13 @@ export function mapSDKMessage(msg: any, streamState: ToolStreamState): AgentEven
       break
 
     case "assistant":
-      // Full assistant message (contains complete content blocks)
-      // We use stream_event for real-time updates, so this is a no-op
-      // unless we want to emit text_complete for the full message
+      // Full assistant message (contains complete content blocks).
+      // V1 uses stream_event for real-time deltas — assistant messages are redundant.
+      // V2's stream() yields only assistant messages (no stream_events).
+      // Only map when mapAssistant is true (V2) to avoid double-emit in V1.
+      if (options?.mapAssistant) {
+        events.push(...mapAssistantMessage(msg))
+      }
       break
 
     case "result":
@@ -257,12 +266,13 @@ export function mapSDKMessage(msg: any, streamState: ToolStreamState): AgentEven
     }
 
     case "rate_limit_event":
-      // Surface rate limit as a recoverable error
+      // Informational event showing current usage quota — not an error.
+      // Pass through as backend_specific so the TUI can optionally display it.
+      log.debug("Rate limit info", { data: msg.rate_limit_info ?? msg })
       events.push({
-        type: "error",
-        code: "rate_limit",
-        message: `Rate limited — retrying automatically`,
-        severity: "recoverable",
+        type: "backend_specific",
+        backend: "claude",
+        data: msg,
       })
       break
 
@@ -274,6 +284,61 @@ export function mapSDKMessage(msg: any, streamState: ToolStreamState): AgentEven
         backend: "claude",
         data: msg,
       })
+  }
+
+  return events
+}
+
+// ---------------------------------------------------------------------------
+// Assistant message -> AgentEvent[] (used by V2 adapter)
+// ---------------------------------------------------------------------------
+
+/**
+ * Extract events from a complete assistant message.
+ * V2's stream() yields these instead of stream_event deltas.
+ * V1 also yields them but after stream_events — the reducer
+ * handles any duplication via text_complete overwriting streamingText.
+ */
+export function mapAssistantMessage(msg: any): AgentEvent[] {
+  const events: AgentEvent[] = []
+  const content = msg.message?.content
+  if (!Array.isArray(content)) return events
+
+  // Emit turn_start for the assistant response
+  events.push({ type: "turn_start" })
+
+  for (const block of content) {
+    switch (block.type) {
+      case "text":
+        if (block.text) {
+          events.push({ type: "text_delta", text: block.text })
+        }
+        break
+
+      case "thinking":
+        if (block.thinking) {
+          events.push({ type: "thinking_delta", text: block.thinking })
+        }
+        break
+
+      case "tool_use":
+        events.push({
+          type: "tool_use_start",
+          id: block.id,
+          tool: block.name,
+          input: block.input ?? {},
+        })
+        // Emit progress with the full input immediately
+        if (block.input) {
+          events.push({
+            type: "tool_use_progress",
+            id: block.id,
+            output: "",
+            input: block.input,
+          })
+        }
+        break
+    }
   }
 
   return events

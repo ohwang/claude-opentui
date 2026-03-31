@@ -78,9 +78,9 @@ function QuestionView(props: {
     }
 
     if (event.name === "up" || event.name === "k") {
-      setSelected((prev) => Math.max(0, prev - 1))
+      setSelected((prev) => (prev - 1 + options().length) % options().length)
     } else if (event.name === "down" || event.name === "j") {
-      setSelected((prev) => Math.min(options().length - 1, prev + 1))
+      setSelected((prev) => (prev + 1) % options().length)
     } else if (event.name === "return") {
       selectOption(selected())
     } else if (event.name >= "1" && event.name <= "9") {

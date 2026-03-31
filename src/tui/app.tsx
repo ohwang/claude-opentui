@@ -39,6 +39,12 @@ export function toggleDiagnostics(): void {
   _toggleDiagnostics?.()
 }
 
+// Module-level copy hint so the render callback (outside component tree) can show status hints
+let _showCopyHint: ((chars: number) => void) | undefined
+export function showCopyConfirmation(chars: number): void {
+  _showCopyHint?.(chars)
+}
+
 /** Render a full-width dash separator line (Claude Code style) */
 function DashLine() {
   const dims = useTerminalDimensions()
@@ -108,6 +114,10 @@ function Layout(props: { onExit?: () => void }) {
 
   // Expose diagnostics toggle for slash commands (/diagnostics)
   _toggleDiagnostics = () => setShowDiagnostics((v) => !v)
+
+  _showCopyHint = (chars: number) => {
+    showTransientHint(`Copied ${chars} chars to clipboard`)
+  }
 
   // Clear interrupt timeout when state transitions away from INTERRUPTING
   createEffect(on(
@@ -338,6 +348,7 @@ export function startApp(options: AppOptions): void {
       onCopySelection: (text: string) => {
         copyToClipboard(text).then(() => {
           log.info("Copied selection to clipboard", { chars: text.length })
+          showCopyConfirmation(text.length)
         }).catch((err: unknown) => {
           log.warn("Failed to copy selection to clipboard", {
             error: err instanceof Error ? err.message : String(err),

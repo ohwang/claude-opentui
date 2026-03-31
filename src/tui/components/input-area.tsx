@@ -22,6 +22,7 @@ import { searchFiles } from "./file-autocomplete"
 import { triggerCleanExit, toggleDiagnostics } from "../app"
 import { colors } from "../theme/tokens"
 import { log } from "../../utils/logger"
+import { readClipboard } from "../../utils/clipboard"
 
 const commandRegistry = createCommandRegistry()
 
@@ -191,14 +192,24 @@ export function InputArea() {
   // the stdin parser from emitting those synthetic keystrokes.
   //
   // We set `isPasting` while the paste is being processed and clear it
-  // on the next microtask.  handleKeyDown checks this flag and
+  // after a short timer.  handleKeyDown checks this flag and
   // suppresses "return" → submit so that newlines in pasted text stay
   // as newlines instead of triggering message submission.
+  const PASTE_GUARD_MS = 300
   let isPasting = false
+  let isPastingTimer: ReturnType<typeof setTimeout> | undefined
+  let lastCtrlVTime = 0
 
   usePaste((event) => {
     // Always suppress OpenTUI's default textarea paste handling
     event.preventDefault()
+
+    // If we just handled Ctrl+V, the bracket-paste event is a duplicate
+    const now = Date.now()
+    if (now - lastCtrlVTime < 500) {
+      log.debug("Suppressed bracket-paste after Ctrl+V", { ms: now - lastCtrlVTime })
+      return
+    }
 
     const raw = decodePasteBytes(event.bytes)
     if (!raw) return
@@ -208,7 +219,6 @@ export function InputArea() {
     // without normalization multi-line pastes collapse onto one line.
     const text = raw.replace(/\r\n?/g, "\n")
 
-    const now = Date.now()
     // Deduplicate identical pastes arriving within the window
     if (text === lastPasteText && now - lastPasteTime < PASTE_DEDUP_MS) {
       log.debug("Suppressed duplicate paste event", { length: text.length })
@@ -222,9 +232,8 @@ export function InputArea() {
       isPasting = true
       textareaRef.insertText(text)
       updateLineCount()
-      // Clear on next microtask — all synchronous key events generated
-      // from the paste bytes will have fired by then.
-      queueMicrotask(() => { isPasting = false })
+      clearTimeout(isPastingTimer)
+      isPastingTimer = setTimeout(() => { isPasting = false }, PASTE_GUARD_MS)
     }
   })
 
@@ -367,6 +376,26 @@ export function InputArea() {
     // key events.  Suppress them so pasted newlines don't trigger submit.
     if (isPasting && e.name === "return") {
       e.preventDefault()
+      return
+    }
+
+    // Ctrl+V = paste from system clipboard
+    if (e.ctrl && e.name === "v") {
+      e.preventDefault()
+      lastCtrlVTime = Date.now()
+      readClipboard().then((raw) => {
+        if (!raw) return
+        const text = raw.replace(/\r\n?/g, "\n")
+        if (textareaRef) {
+          isPasting = true
+          textareaRef.insertText(text)
+          updateLineCount()
+          clearTimeout(isPastingTimer)
+          isPastingTimer = setTimeout(() => { isPasting = false }, PASTE_GUARD_MS)
+        }
+      }).catch((err) => {
+        log.warn("Ctrl+V clipboard read failed", { error: String(err) })
+      })
       return
     }
 

@@ -22,7 +22,8 @@ import { searchFiles } from "./file-autocomplete"
 import { triggerCleanExit, toggleDiagnostics } from "../app"
 import { colors } from "../theme/tokens"
 import { log } from "../../utils/logger"
-import { readClipboard } from "../../utils/clipboard"
+import { readClipboard, readClipboardImage } from "../../utils/clipboard"
+import type { ImageContent } from "../../protocol/types"
 
 const commandRegistry = createCommandRegistry()
 
@@ -43,6 +44,10 @@ const inputHistory: string[] = []
 let historyIndex = -1
 let savedInput = ""
 
+// Image attachments for current message (cleared on submit)
+let imageAttachments: ImageContent[] = []
+let imageCounter = 0
+
 /**
  * Clear the input area text. Called by the global Ctrl+C handler in Layout
  * when the session is IDLE.
@@ -51,9 +56,10 @@ let savedInput = ""
 export function clearInput(): boolean {
   if (!_sharedTextareaRef) return false
   const text = _sharedTextareaRef.plainText?.trim()
-  if (!text) return false
+  if (!text && imageAttachments.length === 0) return false
   _sharedTextareaRef.clear()
   _resetLineCount?.()
+  imageAttachments = []
   return true
 }
 
@@ -218,7 +224,26 @@ export function InputArea() {
     }
 
     const raw = decodePasteBytes(event.bytes)
-    if (!raw) return
+    if (!raw) {
+      // Empty paste could mean clipboard has image, not text
+      // (macOS terminal behavior — sends empty bracket paste for image clipboard)
+      readClipboardImage().then((img) => {
+        if (img) {
+          imageCounter++
+          imageAttachments.push(img)
+          if (textareaRef) {
+            isPasting = true
+            textareaRef.insertText(`[Image #${imageCounter}]`)
+            updateLineCount()
+            clearTimeout(isPastingTimer)
+            isPastingTimer = setTimeout(() => { isPasting = false }, PASTE_GUARD_MS)
+          }
+        }
+      }).catch((err) => {
+        log.warn("Empty paste image check failed", { error: String(err) })
+      })
+      return
+    }
 
     // Normalize line endings: terminal pastes often use \r\n or bare \r
     // instead of \n.  The textarea only recognizes \n as a newline, so
@@ -348,10 +373,12 @@ export function InputArea() {
     })
 
     if (!handled) {
+      // Capture and clear image attachments before sending
+      const images = imageAttachments.length > 0 ? [...imageAttachments] : undefined
       // Show the user message in the conversation immediately
-      sync.pushEvent({ type: "user_message", text })
+      sync.pushEvent({ type: "user_message", text, images })
       // Send to backend (queued if a turn is running)
-      agent.backend.sendMessage({ text })
+      agent.backend.sendMessage({ text, images })
 
       // Push to history (avoid duplicating last entry) — only for real messages, not slash commands
       if (inputHistory[inputHistory.length - 1] !== text) {
@@ -363,6 +390,7 @@ export function InputArea() {
 
     textareaRef.clear()
     setLineCount(1)
+    imageAttachments = []
   }
 
   const setTextareaContent = (text: string) => {
@@ -385,23 +413,40 @@ export function InputArea() {
       return
     }
 
-    // Ctrl+V = paste from system clipboard
+    // Ctrl+V = paste from system clipboard (try image first, fall back to text)
     if (e.ctrl && e.name === "v") {
       e.preventDefault()
       lastCtrlVTime = Date.now()
-      readClipboard().then((raw) => {
-        if (!raw) return
-        const text = raw.replace(/\r\n?/g, "\n")
-        if (textareaRef) {
-          isPasting = true
-          textareaRef.insertText(text)
-          updateLineCount()
-          clearTimeout(isPastingTimer)
-          isPastingTimer = setTimeout(() => { isPasting = false }, PASTE_GUARD_MS)
+
+      readClipboardImage().then((img) => {
+        if (img) {
+          // Image found — add as attachment and insert pill
+          imageCounter++
+          imageAttachments.push(img)
+          if (textareaRef) {
+            isPasting = true
+            textareaRef.insertText(`[Image #${imageCounter}]`)
+            updateLineCount()
+            clearTimeout(isPastingTimer)
+            isPastingTimer = setTimeout(() => { isPasting = false }, PASTE_GUARD_MS)
+          }
+          return
         }
+        // No image — fall back to text clipboard
+        return readClipboard().then((raw) => {
+          if (!raw) return
+          const text = raw.replace(/\r\n?/g, "\n")
+          if (textareaRef) {
+            isPasting = true
+            textareaRef.insertText(text)
+            updateLineCount()
+            clearTimeout(isPastingTimer)
+            isPastingTimer = setTimeout(() => { isPasting = false }, PASTE_GUARD_MS)
+          }
+        })
       }).catch((err) => {
         log.warn("Ctrl+V clipboard read failed", { error: String(err) })
-        sync.pushEvent({ type: "system_message", text: "Clipboard read failed — try pasting with your terminal's built-in paste (right-click or terminal menu)" })
+        sync.pushEvent({ type: "system_message", text: "Clipboard read failed — try pasting with your terminal's built-in paste" })
       })
       return
     }
@@ -430,9 +475,10 @@ export function InputArea() {
         tabIndex = -1
         tabMatches = []
       } else {
-        // Clear the textarea
+        // Clear the textarea and any image attachments
         textareaRef?.clear()
         setLineCount(1)
+        imageAttachments = []
         historyIndex = -1
         savedInput = ""
       }

@@ -265,7 +265,7 @@ export function ConversationView(props: { children?: JSX.Element }) {
         </box>
 
         {/* Transient view-level hint — replaces itself, auto-clears after 3s */}
-        <box flexDirection="column">
+        <box flexDirection="column" paddingLeft={2}>
           <Show when={viewLevelHint()}>
             <text fg={colors.text.muted} attributes={TextAttributes.DIM}>{viewLevelHint()}</text>
           </Show>

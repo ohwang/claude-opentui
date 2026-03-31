@@ -170,7 +170,7 @@ function Layout(props: { onExit?: () => void }) {
       if (ctrlDCount >= 2) {
         cleanExit("ctrl+d double-press")
       } else {
-        showTransientHint("Press Ctrl-D again to exit", 4500)
+        showTransientHint("Press Ctrl-D again to exit", 4000)
       }
       return
     }
@@ -219,7 +219,7 @@ function Layout(props: { onExit?: () => void }) {
             cleanExit("ctrl+c double-press")
           } else {
             // Show "Press Ctrl-C again to exit" hint in status bar
-            showTransientHint("Press Ctrl-C again to exit", 4500)
+            showTransientHint("Press Ctrl-C again to exit", 4000)
           }
         } else {
           ctrlCEmptyCount = 0

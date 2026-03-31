@@ -7,7 +7,7 @@
  * Supports fuzzy matching for command palette UX.
  */
 
-import type { AgentBackend, CostTotals, SessionConfig } from "../protocol/types"
+import type { AgentBackend, CostTotals, SessionConfig, SessionMetadata } from "../protocol/types"
 
 export interface CommandContext {
   backend: AgentBackend
@@ -15,7 +15,7 @@ export interface CommandContext {
   clearConversation: () => void
   setModel: (model: string) => Promise<void>
   exit?: () => void
-  getSessionState?: () => { cost: CostTotals; turnNumber: number; currentModel: string }
+  getSessionState?: () => { cost: CostTotals; turnNumber: number; currentModel: string; session: SessionMetadata | null }
 }
 
 export interface SlashCommand {
@@ -191,10 +191,9 @@ export function createCommandRegistry(): CommandRegistry {
     },
   })
 
-  // /cost or /usage — detailed cost and token breakdown
+  // /cost — detailed cost and token breakdown
   registry.register({
     name: "cost",
-    aliases: ["usage"],
     description: "Show session cost and token breakdown",
     execute: (_args, ctx) => {
       const state = ctx.getSessionState?.()
@@ -223,6 +222,45 @@ export function createCommandRegistry(): CommandRegistry {
         lines.push(``)
         lines.push(`  Avg/turn: $${(cost.totalCostUsd / turnNumber).toFixed(4)} · ${formatTokens(Math.round(totalTokens / turnNumber))} tokens`)
       }
+
+      ctx.pushEvent({ type: "system_message", text: lines.join("\n") })
+    },
+  })
+
+  // /usage — plan-level usage info
+  registry.register({
+    name: "usage",
+    description: "Show plan usage and account info",
+    execute: (_args, ctx) => {
+      const state = ctx.getSessionState?.()
+      if (!state) {
+        ctx.pushEvent({ type: "system_message", text: "Usage data not available." })
+        return
+      }
+
+      const { session, cost, turnNumber } = state
+      const account = session?.account
+
+      if (!account?.plan) {
+        const lines = [
+          "Plan usage info not available. Use /cost for session costs.",
+        ]
+        ctx.pushEvent({ type: "system_message", text: lines.join("\n") })
+        return
+      }
+
+      const lines = [
+        `Plan Usage`,
+        ``,
+        `  Plan:     ${account.plan}`,
+      ]
+
+      if (account.email) {
+        lines.push(`  Account:  ${account.email}`)
+      }
+
+      lines.push(``)
+      lines.push(`  Session cost: $${cost.totalCostUsd.toFixed(4)} (${turnNumber} turn${turnNumber !== 1 ? "s" : ""})`)
 
       ctx.pushEvent({ type: "system_message", text: lines.join("\n") })
     },

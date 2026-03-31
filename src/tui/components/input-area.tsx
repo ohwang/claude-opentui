@@ -279,6 +279,7 @@ export function InputArea() {
         cost: session.cost,
         turnNumber: session.turnNumber,
         currentModel: session.currentModel,
+        session: session.session,
       }),
     })
 

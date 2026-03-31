@@ -102,12 +102,21 @@ export function handlePermission(
     })
   }
 
+  const channel = state.getEventChannel()
+  if (!channel) {
+    log.warn("Permission request dropped: event channel not ready", { tool: toolName })
+    return Promise.resolve({
+      behavior: "deny" as const,
+      message: "Event channel not initialized",
+    })
+  }
+
   return new Promise<PermissionResult>((resolve, reject) => {
     state.pendingPermissions.set(id, { resolve, reject, toolName, input })
 
     // Push permission_request to the event channel so the TUI sees it
     // immediately, even while the SDK is blocked waiting for canUseTool
-    state.getEventChannel()?.push({
+    channel.push({
       type: "permission_request",
       id,
       tool: toolName,
@@ -131,6 +140,15 @@ export function handleElicitation(
   input: Record<string, unknown>,
   state: PermissionBridgeState,
 ): Promise<PermissionResult> {
+  const channel = state.getEventChannel()
+  if (!channel) {
+    log.warn("Elicitation request dropped: event channel not ready", { tool: "AskUserQuestion" })
+    return Promise.resolve({
+      behavior: "deny" as const,
+      message: "Event channel not initialized",
+    })
+  }
+
   return new Promise<PermissionResult>((resolve, reject) => {
     state.pendingElicitations.set(id, { resolve, reject })
     // Store original input so respondToElicitation can build updatedInput
@@ -141,7 +159,7 @@ export function handleElicitation(
 
     // Push elicitation_request to the event channel so the TUI sees it
     // immediately, even while the SDK is blocked waiting for the callback
-    state.getEventChannel()?.push({
+    channel.push({
       type: "elicitation_request",
       id,
       questions,

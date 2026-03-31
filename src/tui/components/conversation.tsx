@@ -503,6 +503,15 @@ export function ConversationView(props: { children?: JSX.Element }) {
     }
   })
 
+  // Auto-scroll to bottom when permission/elicitation dialog appears
+  // so the user can see and interact with it immediately
+  createEffect(() => {
+    const state = session.sessionState
+    if (state === "WAITING_FOR_PERM" || state === "WAITING_FOR_ELIC") {
+      scrollboxRef?.scrollBy(999999)
+    }
+  })
+
   // View-level notification helper — transient hint, not a permanent message
   const showViewLevelHint = (level: ViewLevel) => {
     const text = level === "collapsed"

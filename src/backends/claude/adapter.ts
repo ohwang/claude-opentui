@@ -70,7 +70,7 @@ export class ClaudeAdapter implements AgentBackend {
       pendingElicitations: this.pendingElicitations,
       pendingElicitationInputs: this.pendingElicitationInputs,
       sessionDeniedTools: this.sessionDeniedTools,
-      eventChannel: this.eventChannel,
+      getEventChannel: () => this.eventChannel,
     }
   }
 

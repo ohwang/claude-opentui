@@ -51,7 +51,11 @@ export interface PermissionBridgeState {
   pendingElicitations: Map<string, PendingElicitation>
   pendingElicitationInputs: Map<string, Record<string, unknown>>
   sessionDeniedTools: Set<string>
-  eventChannel: EventChannel<AgentEvent> | null
+  /** Getter function — must resolve at call time, not capture time.
+   *  The event channel is created lazily in iterateQuery(), after
+   *  buildOptions() snapshots the bridge state, so a plain field
+   *  would freeze at `null`.  */
+  getEventChannel: () => EventChannel<AgentEvent> | null
 }
 
 // ---------------------------------------------------------------------------
@@ -103,7 +107,7 @@ export function handlePermission(
 
     // Push permission_request to the event channel so the TUI sees it
     // immediately, even while the SDK is blocked waiting for canUseTool
-    state.eventChannel?.push({
+    state.getEventChannel()?.push({
       type: "permission_request",
       id,
       tool: toolName,
@@ -137,7 +141,7 @@ export function handleElicitation(
 
     // Push elicitation_request to the event channel so the TUI sees it
     // immediately, even while the SDK is blocked waiting for the callback
-    state.eventChannel?.push({
+    state.getEventChannel()?.push({
       type: "elicitation_request",
       id,
       questions,

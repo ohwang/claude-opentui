@@ -59,9 +59,9 @@ export function HeaderBar() {
 
     const friendly = friendlyModelName(raw)
 
-    // When the model was changed via Ctrl+P, session.models[0] is stale —
-    // use the hardcoded context window for the new model instead.
-    const ctxWindow = MODEL_CONTEXT_WINDOWS[raw] ?? model?.contextWindow ?? DEFAULT_CONTEXT_WINDOW
+    // Prefer the SDK's dynamic context window (includes extended thinking),
+    // fall back to the hardcoded map for pre-session-init or Ctrl+P model changes.
+    const ctxWindow = model?.contextWindow ?? MODEL_CONTEXT_WINDOWS[raw] ?? DEFAULT_CONTEXT_WINDOW
     const ctxLabel = ctxWindow >= 1_000_000
       ? `${ctxWindow / 1_000_000}M context`
       : `${ctxWindow / 1_000}K context`

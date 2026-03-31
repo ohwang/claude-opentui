@@ -259,6 +259,22 @@ describe("ClaudeAdapter", () => {
       expect(events[0].severity).toBe("recoverable")
     })
 
+    it("maps rate_limit_event to recoverable error", () => {
+      const streamState = new ToolStreamState()
+      const events = mapSDKMessage({
+        type: "rate_limit_event",
+        rate_limit_info: { retry_after: 5 },
+        uuid: "test",
+        session_id: "test",
+      }, streamState)
+
+      expect(events).toHaveLength(1)
+      expect(events[0].type).toBe("error")
+      expect(events[0].code).toBe("rate_limit")
+      expect(events[0].message).toContain("Rate limited")
+      expect(events[0].severity).toBe("recoverable")
+    })
+
     it("maps unknown message type to backend_specific", () => {
       const streamState = new ToolStreamState()
       const events = mapSDKMessage({

@@ -234,8 +234,13 @@ export function mapSDKMessage(msg: any, streamState: ToolStreamState): AgentEven
     }
 
     case "rate_limit_event":
-      // Rate limit info — not an error, just informational
-      log.debug("Rate limit event", { info: msg.rate_limit_info })
+      // Surface rate limit as a recoverable error
+      events.push({
+        type: "error",
+        code: "rate_limit",
+        message: `Rate limited — retrying automatically`,
+        severity: "recoverable",
+      })
       break
 
     default:

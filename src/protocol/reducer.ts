@@ -268,11 +268,24 @@ export function reduce(
         ),
       }
 
-    case "tool_use_end":
+    case "tool_use_end": {
+      let targetId = event.id
+
+      // Sentinel: adapter couldn't determine tool_use_id — match the last running tool
+      if (targetId === "__last_running__") {
+        for (let i = state.blocks.length - 1; i >= 0; i--) {
+          const b = state.blocks[i]
+          if (b.type === "tool" && b.status === "running") {
+            targetId = b.id
+            break
+          }
+        }
+      }
+
       return {
         ...next,
         blocks: state.blocks.map(b =>
-          b.type === "tool" && b.id === event.id
+          b.type === "tool" && b.id === targetId
             ? {
                 ...b,
                 status: (event.error ? "error" : "done") as ToolStatus,
@@ -283,6 +296,7 @@ export function reduce(
             : b
         ),
       }
+    }
 
     // ----- Permission flow -----
 

@@ -535,9 +535,31 @@ export class ClaudeAdapter implements AgentBackend {
             }
           }
 
-          // Fallback: try to extract from tool_use_result directly
-          if (!toolUseId && typeof msg.tool_use_result === "string") {
-            output = msg.tool_use_result
+          // Fallback 1: tool_use_id on the message itself (some SDK versions)
+          if (!toolUseId && msg.tool_use_id) {
+            toolUseId = msg.tool_use_id
+          }
+
+          // Fallback 2: extract output from tool_use_result directly
+          if (!toolUseId || !output) {
+            if (typeof msg.tool_use_result === "string") {
+              output = output || msg.tool_use_result
+            } else if (typeof msg.tool_use_result === "object" && msg.tool_use_result !== null) {
+              // SDK may wrap result in an object with content/error fields
+              const r = msg.tool_use_result as Record<string, unknown>
+              if (r.tool_use_id && !toolUseId) toolUseId = String(r.tool_use_id)
+              if (r.is_error) isError = true
+              if (r.content && !output) output = String(r.content)
+              if (r.error) {
+                isError = true
+                output = output || String(r.error)
+              }
+            }
+          }
+
+          // Fallback 3: check msg-level is_error flag
+          if (msg.is_error === true) {
+            isError = true
           }
 
           if (toolUseId) {
@@ -548,11 +570,20 @@ export class ClaudeAdapter implements AgentBackend {
               error: isError ? output : undefined,
             })
           } else {
-            log.warn("Tool result missing tool_use_id", {
+            // Last resort: find the most recently started tool that's still
+            // running and close it. Without this, the tool block spins forever
+            // because we can't match the result to its tool_use_start.
+            log.warn("Tool result missing tool_use_id — closing last running tool", {
               keys: Object.keys(msg).join(","),
               resultType: typeof msg.tool_use_result,
               hasMessage: !!msg.message,
               contentLength: Array.isArray(content) ? content.length : 0,
+            })
+            events.push({
+              type: "tool_use_end",
+              id: "__last_running__",
+              output,
+              error: isError ? output : undefined,
             })
           }
         }

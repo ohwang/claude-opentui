@@ -492,6 +492,84 @@ describe("ConversationState reducer", () => {
         expect(toolBlock.error).toBe("File not found")
       }
     })
+
+    it("__last_running__ sentinel closes the most recent running tool", () => {
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "turn_start" },
+        {
+          type: "tool_use_start",
+          id: "tool_a",
+          tool: "Read",
+          input: { path: "/a" },
+        },
+        {
+          type: "tool_use_end",
+          id: "tool_a",
+          output: "done",
+        },
+        {
+          type: "tool_use_start",
+          id: "tool_b",
+          tool: "Bash",
+          input: { command: "ls" },
+        },
+        {
+          type: "tool_use_end",
+          id: "__last_running__",
+          output: "",
+          error: "Command failed",
+        },
+      ])
+      const toolA = state.blocks.find(
+        b => b.type === "tool" && b.id === "tool_a"
+      )
+      const toolB = state.blocks.find(
+        b => b.type === "tool" && b.id === "tool_b"
+      )
+      expect(toolA).toBeDefined()
+      expect(toolB).toBeDefined()
+      if (toolA && toolA.type === "tool") {
+        expect(toolA.status).toBe("done") // already completed, should not change
+      }
+      if (toolB && toolB.type === "tool") {
+        expect(toolB.status).toBe("error") // sentinel should match this one
+        expect(toolB.error).toBe("Command failed")
+      }
+    })
+
+    it("__last_running__ sentinel is a no-op when no running tools exist", () => {
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "turn_start" },
+        {
+          type: "tool_use_start",
+          id: "tool_c",
+          tool: "Read",
+          input: { path: "/c" },
+        },
+        {
+          type: "tool_use_end",
+          id: "tool_c",
+          output: "file contents",
+        },
+        {
+          type: "tool_use_end",
+          id: "__last_running__",
+          output: "",
+          error: "Orphan error",
+        },
+      ])
+      // tool_c should remain "done", not be overwritten
+      const toolC = state.blocks.find(
+        b => b.type === "tool" && b.id === "tool_c"
+      )
+      expect(toolC).toBeDefined()
+      if (toolC && toolC.type === "tool") {
+        expect(toolC.status).toBe("done")
+        expect(toolC.error).toBeUndefined()
+      }
+    })
   })
 
   // -----------------------------------------------------------------------

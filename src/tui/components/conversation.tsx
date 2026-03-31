@@ -128,8 +128,48 @@ function StreamingSpinner(props: { label: string; elapsedSeconds?: number; outpu
 // ToolBlockView — renders a single tool block
 // ---------------------------------------------------------------------------
 
+/** Threshold in seconds before showing elapsed time on running tools */
+const TOOL_ELAPSED_SHOW_THRESHOLD = 5
+/** Threshold in seconds before showing a warning on long-running tools */
+const TOOL_LONG_RUNNING_THRESHOLD = 30
+/** Threshold in seconds before showing a critical warning */
+const TOOL_CRITICAL_THRESHOLD = 300 // 5 minutes
+
 function ToolBlockView(props: { block: Extract<Block, { type: "tool" }>; viewLevel: ViewLevel }) {
   const b = () => props.block
+
+  // Elapsed time signal for running tools — updates every second
+  const [elapsed, setElapsed] = createSignal(0)
+  let elapsedTimer: ReturnType<typeof setInterval> | undefined
+
+  createEffect(() => {
+    if (b().status === "running") {
+      // Start ticking
+      setElapsed(Math.floor((Date.now() - b().startTime) / 1000))
+      elapsedTimer = setInterval(() => {
+        setElapsed(Math.floor((Date.now() - b().startTime) / 1000))
+      }, 1000)
+    } else {
+      // Tool finished — clear timer
+      if (elapsedTimer) {
+        clearInterval(elapsedTimer)
+        elapsedTimer = undefined
+      }
+    }
+  })
+  onCleanup(() => {
+    if (elapsedTimer) clearInterval(elapsedTimer)
+  })
+
+  /** Format elapsed seconds as compact string */
+  const elapsedStr = () => {
+    const secs = elapsed()
+    if (secs < TOOL_ELAPSED_SHOW_THRESHOLD) return ""
+    if (secs < 60) return `${secs}s`
+    const mins = Math.floor(secs / 60)
+    const remSecs = secs % 60
+    return `${mins}m ${remSecs}s`
+  }
 
   /** Primary arg for the tool invocation display: ToolName(arg) */
   const primaryArg = createMemo(() => {
@@ -194,7 +234,29 @@ function ToolBlockView(props: { block: Extract<Block, { type: "tool" }>; viewLev
         <Show when={primaryArg()}>
           <text fg="gray">{"(" + primaryArg() + ")"}</text>
         </Show>
+        {/* Elapsed time for running tools */}
+        <Show when={b().status === "running" && elapsedStr()}>
+          <text fg={elapsed() >= TOOL_CRITICAL_THRESHOLD ? "#ff5f5f" : elapsed() >= TOOL_LONG_RUNNING_THRESHOLD ? "#d7af5f" : "#808080"}>
+            {" " + elapsedStr()}
+          </text>
+        </Show>
+        {/* Duration for completed tools (expanded/show_all views) */}
+        <Show when={b().status !== "running" && props.viewLevel !== "collapsed" && b().duration !== undefined && b().duration! >= 1000}>
+          <text fg="#808080" attributes={TextAttributes.DIM}>
+            {" " + (b().duration! < 60000 ? `${Math.round(b().duration! / 1000)}s` : `${Math.floor(b().duration! / 60000)}m ${Math.round((b().duration! % 60000) / 1000)}s`)}
+          </text>
+        </Show>
       </box>
+      {/* Long-running warning */}
+      <Show when={b().status === "running" && elapsed() >= TOOL_LONG_RUNNING_THRESHOLD}>
+        <box paddingLeft={2}>
+          <text fg={elapsed() >= TOOL_CRITICAL_THRESHOLD ? "#ff5f5f" : "#d7af5f"} attributes={TextAttributes.DIM}>
+            {elapsed() >= TOOL_CRITICAL_THRESHOLD
+              ? "\u23BF  Tool may be stuck. Press Ctrl+C to interrupt."
+              : "\u23BF  Still running..."}
+          </text>
+        </box>
+      </Show>
       {/* Result line: ⎿  summary */}
       <Show when={props.viewLevel !== "collapsed" && resultSummary()}>
         <box paddingLeft={2}>
@@ -255,7 +317,7 @@ function ToolSummaryView(props: { tools: ToolBlock[] }) {
         running.push(tool.tool)
       } else {
         completed[tool.tool] = (completed[tool.tool] || 0) + 1
-        if (tool.error) errorCount++
+        if (tool.status === "error" || tool.error) errorCount++
       }
     }
 
@@ -276,9 +338,11 @@ function ToolSummaryView(props: { tools: ToolBlock[] }) {
     return text
   }
 
+  const hasErrors = () => props.tools.some(t => t.status === "error" || t.error)
+
   return (
     <box paddingLeft={2} marginTop={1}>
-      <text fg="#a8a8a8" attributes={TextAttributes.DIM}>
+      <text fg={hasErrors() ? "#ff5f5f" : "#a8a8a8"} attributes={TextAttributes.DIM}>
         {summary() + " (ctrl+o to expand)"}
       </text>
     </box>

@@ -266,5 +266,128 @@ describe("ClaudeAdapter", () => {
       expect(events[0].type).toBe("backend_specific")
       expect(events[0].backend).toBe("claude")
     })
+
+    it("maps user tool_result with is_error to tool_use_end with error", () => {
+      const adapter = new ClaudeAdapter()
+      const events = (adapter as any).mapSDKMessage({
+        type: "user",
+        tool_use_result: true,
+        message: {
+          role: "user",
+          content: [
+            {
+              type: "tool_result",
+              tool_use_id: "tool_err_1",
+              is_error: true,
+              content: "File not found: /nonexistent.txt",
+            },
+          ],
+        },
+      })
+
+      expect(events).toHaveLength(1)
+      expect(events[0].type).toBe("tool_use_end")
+      expect(events[0].id).toBe("tool_err_1")
+      expect(events[0].error).toBe("File not found: /nonexistent.txt")
+    })
+
+    it("maps user tool_result with tool_use_id on msg directly", () => {
+      const adapter = new ClaudeAdapter()
+      const events = (adapter as any).mapSDKMessage({
+        type: "user",
+        tool_use_result: "some output",
+        tool_use_id: "tool_fb_1",
+        message: { role: "user", content: [] },
+      })
+
+      expect(events).toHaveLength(1)
+      expect(events[0].type).toBe("tool_use_end")
+      expect(events[0].id).toBe("tool_fb_1")
+      expect(events[0].output).toBe("some output")
+    })
+
+    it("maps user tool_result with object tool_use_result containing error", () => {
+      const adapter = new ClaudeAdapter()
+      const events = (adapter as any).mapSDKMessage({
+        type: "user",
+        tool_use_result: {
+          tool_use_id: "tool_obj_1",
+          is_error: true,
+          error: "Permission denied",
+          content: "Permission denied",
+        },
+        message: { role: "user", content: [] },
+      })
+
+      expect(events).toHaveLength(1)
+      expect(events[0].type).toBe("tool_use_end")
+      expect(events[0].id).toBe("tool_obj_1")
+      expect(events[0].error).toBe("Permission denied")
+    })
+
+    it("maps user tool_result with msg-level is_error flag", () => {
+      const adapter = new ClaudeAdapter()
+      const events = (adapter as any).mapSDKMessage({
+        type: "user",
+        tool_use_result: "Timeout exceeded",
+        is_error: true,
+        message: {
+          role: "user",
+          content: [
+            {
+              type: "tool_result",
+              tool_use_id: "tool_flag_1",
+              content: "Timeout exceeded",
+            },
+          ],
+        },
+      })
+
+      expect(events).toHaveLength(1)
+      expect(events[0].type).toBe("tool_use_end")
+      expect(events[0].id).toBe("tool_flag_1")
+      expect(events[0].error).toBe("Timeout exceeded")
+    })
+
+    it("emits tool_use_end with sentinel when tool_use_id cannot be determined", () => {
+      const adapter = new ClaudeAdapter()
+      const events = (adapter as any).mapSDKMessage({
+        type: "user",
+        tool_use_result: 42, // non-string, non-object
+        message: { role: "user", content: [] },
+      })
+
+      expect(events).toHaveLength(1)
+      expect(events[0].type).toBe("tool_use_end")
+      expect(events[0].id).toBe("__last_running__")
+    })
+
+    it("maps user tool_result with array content blocks containing text", () => {
+      const adapter = new ClaudeAdapter()
+      const events = (adapter as any).mapSDKMessage({
+        type: "user",
+        tool_use_result: true,
+        message: {
+          role: "user",
+          content: [
+            {
+              type: "tool_result",
+              tool_use_id: "tool_arr_1",
+              is_error: true,
+              content: [
+                { type: "text", text: "Error on line 1" },
+                { type: "text", text: "Error on line 2" },
+              ],
+            },
+          ],
+        },
+      })
+
+      expect(events).toHaveLength(1)
+      expect(events[0].type).toBe("tool_use_end")
+      expect(events[0].id).toBe("tool_arr_1")
+      expect(events[0].error).toBe("Error on line 1\nError on line 2")
+      expect(events[0].output).toBe("Error on line 1\nError on line 2")
+    })
   })
 })

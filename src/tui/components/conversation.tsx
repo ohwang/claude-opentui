@@ -306,12 +306,16 @@ function ToolBlockView(props: { block: Extract<Block, { type: "tool" }>; viewLev
           </text>
         </box>
       </Show>
-      {/* Error line */}
+      {/* Error display — prominent bordered box so failures are hard to miss */}
       <Show when={b().error}>
-        <box paddingLeft={2}>
-          <text fg="red">
-            {"\u23BF  " + (b().error!.split("\n")[0]!.length > 100 ? b().error!.split("\n")[0]!.slice(0, 97) + "..." : b().error!.split("\n")[0]!)}
-          </text>
+        <box paddingLeft={2} paddingTop={1}>
+          <box flexDirection="row" borderStyle="single" borderColor="red" paddingLeft={1} paddingRight={1}>
+            <text fg="#ff5f5f" attributes={TextAttributes.BOLD}>
+              {"\u2717 " + (b().error!.split("\n")[0]!.length > 100
+                ? b().error!.split("\n")[0]!.slice(0, 97) + "..."
+                : b().error!.split("\n")[0]!)}
+            </text>
+          </box>
         </box>
       </Show>
     </box>
@@ -340,43 +344,51 @@ function toolSummaryText(toolName: string, count: number): string {
 
 /** Collapsed tool summary view — "Running Bash..., Read 2 files (ctrl+o to expand)" */
 function ToolSummaryView(props: { tools: ToolBlock[] }) {
-  const summary = () => {
+  const summaryData = createMemo(() => {
     const completed: Record<string, number> = {}
     const running: string[] = []
-    let errorCount = 0
+    const errorTools: Array<{ tool: string; error: string }> = []
 
     for (const tool of props.tools) {
       if (tool.status === "running") {
         running.push(tool.tool)
+      } else if (tool.status === "error" || tool.error) {
+        const errMsg = tool.error ?? "unknown error"
+        const firstLine = errMsg.split("\n")[0] ?? errMsg
+        const truncated = firstLine.length > 50 ? firstLine.slice(0, 47) + "..." : firstLine
+        errorTools.push({ tool: tool.tool, error: truncated })
       } else {
-        completed[tool.tool] = (completed[tool.tool] || 0) + 1
-        if (tool.status === "error" || tool.error) errorCount++
+        completed[tool.tool] = (completed[tool.tool] ?? 0) + 1
       }
     }
 
-    const parts: string[] = []
-    // Running tools first
+    const normalParts: string[] = []
     for (const name of running) {
-      parts.push(`Running ${name}...`)
+      normalParts.push(`Running ${name}...`)
     }
-    // Then completed tools
     for (const [name, count] of Object.entries(completed)) {
-      parts.push(toolSummaryText(name, count))
+      normalParts.push(toolSummaryText(name, count))
     }
 
-    let text = parts.join(", ")
-    if (errorCount > 0) {
-      text += ` (${errorCount} error${errorCount > 1 ? "s" : ""})`
+    return {
+      normalText: normalParts.join(", "),
+      errorText: errorTools.map(({ tool, error }) => `${tool} failed (${error})`).join(", "),
+      hasErrors: errorTools.length > 0,
     }
-    return text
-  }
-
-  const hasErrors = () => props.tools.some(t => t.status === "error" || t.error)
+  })
 
   return (
-    <box paddingLeft={2} marginTop={1}>
-      <text fg={hasErrors() ? "#ff5f5f" : "#a8a8a8"} attributes={TextAttributes.DIM}>
-        {summary() + " (ctrl+o to expand)"}
+    <box paddingLeft={2} marginTop={1} flexDirection="row">
+      <Show when={summaryData().normalText}>
+        <text fg="#a8a8a8" attributes={TextAttributes.DIM}>
+          {summaryData().normalText + (summaryData().hasErrors ? ", " : "")}
+        </text>
+      </Show>
+      <Show when={summaryData().hasErrors}>
+        <text fg="#ff5f5f">{summaryData().errorText}</text>
+      </Show>
+      <text fg="#a8a8a8" attributes={TextAttributes.DIM}>
+        {" (ctrl+o to expand)"}
       </text>
     </box>
   )

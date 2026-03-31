@@ -26,8 +26,8 @@ export function HeaderBar() {
     const raw = model?.name ?? agent.config.model ?? ""
     const friendly = friendlyModelName(raw)
 
-    // Get context window from model metadata
-    const ctxWindow = MODEL_CONTEXT_WINDOWS[raw] ?? DEFAULT_CONTEXT_WINDOW
+    // Prefer dynamic context window from SDK, fall back to hardcoded
+    const ctxWindow = model?.contextWindow ?? MODEL_CONTEXT_WINDOWS[raw] ?? DEFAULT_CONTEXT_WINDOW
     const ctxLabel = ctxWindow >= 1_000_000
       ? `${ctxWindow / 1_000_000}M context`
       : `${ctxWindow / 1_000}K context`

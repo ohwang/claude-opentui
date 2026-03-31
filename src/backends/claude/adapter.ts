@@ -340,9 +340,17 @@ export class ClaudeAdapter implements AgentBackend {
     switch (msg.type) {
       case "system":
         if (msg.subtype === "init") {
+          // Extract context window from bracket suffix if present (e.g. "claude-opus-4-6 [1M context]")
+          let contextWindow: number | undefined
+          const bracketMatch = msg.model?.match(/\[(\d+)([KkMm])\s*(?:context|tokens?)?\]/)
+          if (bracketMatch) {
+            const num = parseInt(bracketMatch[1])
+            const unit = bracketMatch[2].toUpperCase()
+            contextWindow = unit === "M" ? num * 1_000_000 : num * 1_000
+          }
           const cleanModel = msg.model?.replace(/\s*\[.*\]$/, "")
           const models: ModelInfo[] = cleanModel
-            ? [{ id: cleanModel, name: cleanModel, provider: "anthropic" }]
+            ? [{ id: cleanModel, name: cleanModel, provider: "anthropic", contextWindow }]
             : []
           events.push({
             type: "session_init",

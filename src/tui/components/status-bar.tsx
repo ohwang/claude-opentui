@@ -299,10 +299,12 @@ export function StatusBar(props: { hint?: string | null }) {
   }
 
   const modelName = () => {
-    const raw = state.currentModel || state.session?.models?.[0]?.name || ""
+    const model = state.session?.models?.[0]
+    const raw = state.currentModel || model?.name || ""
     if (!raw) return ""
     const friendly = friendlyModelName(raw)
-    const ctxWindow = MODEL_CONTEXT_WINDOWS[raw] ?? DEFAULT_CONTEXT_WINDOW
+    // Prefer dynamic context window from SDK, fall back to hardcoded
+    const ctxWindow = model?.contextWindow ?? MODEL_CONTEXT_WINDOWS[raw] ?? DEFAULT_CONTEXT_WINDOW
     const ctxAbbrev = ctxWindow >= 1_000_000
       ? `${ctxWindow / 1_000_000}M`
       : `${ctxWindow / 1_000}K`
@@ -329,8 +331,10 @@ export function StatusBar(props: { hint?: string | null }) {
     // (system prompt + conversation history + current turn input)
     const fill = state.lastTurnInputTokens
     if (fill === 0) return ""
-    const raw = state.currentModel || state.session?.models?.[0]?.name || ""
-    const ctxWindow = MODEL_CONTEXT_WINDOWS[raw] ?? DEFAULT_CONTEXT_WINDOW
+    const model = state.session?.models?.[0]
+    const raw = state.currentModel || model?.name || ""
+    // Prefer dynamic context window from SDK, fall back to hardcoded
+    const ctxWindow = model?.contextWindow ?? MODEL_CONTEXT_WINDOWS[raw] ?? DEFAULT_CONTEXT_WINDOW
     const pct = Math.round((fill / ctxWindow) * 100)
     return `ctx:${pct}%`
   })

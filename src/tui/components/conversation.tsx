@@ -288,26 +288,6 @@ export function ConversationView(props: { children?: JSX.Element }) {
             <TaskView tasks={state.activeTasks} />
           </Show>
         </box>
-
-        {/* Error display */}
-        <box flexDirection="column">
-          <Show when={session.sessionState === "ERROR" && session.lastError}>
-            <box
-              flexDirection="column"
-              paddingTop={1}
-              paddingBottom={1}
-              paddingLeft={2}
-              paddingRight={2}
-              borderStyle="single"
-              borderColor={colors.border.error}
-            >
-              <text fg={colors.status.error} attributes={TextAttributes.BOLD}>
-                Error: {session.lastError!.code}
-              </text>
-              <text fg={colors.status.error}>{session.lastError!.message}</text>
-            </box>
-          </Show>
-        </box>
       </box>
 
       {/* Input area, status bar, dialogs — rendered inside scrollbox so they flow with content */}

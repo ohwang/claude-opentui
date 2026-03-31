@@ -117,6 +117,13 @@ export class MockAdapter implements AgentBackend {
     }
   }
 
+  cancelElicitation(id: string): void {
+    if (this.pendingElicitation?.id === id) {
+      this.pendingElicitation.resolve({ behavior: "deny", message: "User declined to answer" })
+      this.pendingElicitation = null
+    }
+  }
+
   async setModel(_model: string): Promise<void> {}
   async setPermissionMode(_mode: PermissionMode): Promise<void> {}
 

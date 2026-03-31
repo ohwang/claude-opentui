@@ -110,6 +110,7 @@ export class ClaudeAdapter implements AgentBackend {
   private messageQueue = new AsyncQueue<UserMessage>()
   private pendingPermissions = new Map<string, PendingPermission>()
   private pendingElicitations = new Map<string, PendingElicitation>()
+  private pendingElicitationInputs = new Map<string, Record<string, unknown>>()
   private childPid: number | null = null
   private eventChannel: EventChannel<AgentEvent> | null = null
   private closed = false
@@ -187,6 +188,7 @@ export class ClaudeAdapter implements AgentBackend {
         })
       }
       this.pendingElicitations.clear()
+      this.pendingElicitationInputs.clear()
 
       this.activeQuery.interrupt()
     }
@@ -239,16 +241,36 @@ export class ClaudeAdapter implements AgentBackend {
     const pending = this.pendingElicitations.get(id)
     if (!pending) return
 
-    // For AskUserQuestion, we pass the answer back via the allow behavior
-    // The SDK expects the answer in updatedInput
+    // Build updatedInput: copy original AskUserQuestion input and add answers map.
+    // This matches how the SDK expects the response — the original input (with its
+    // questions array) is preserved, and an "answers" map keyed by question text is added.
+    const originalInput = this.pendingElicitationInputs.get(id) ?? {}
+    const updatedInput: Record<string, unknown> = { ...originalInput, answers }
+
     pending.resolve({
       behavior: "allow",
-      updatedInput: answers,
+      updatedInput,
     })
     this.pendingElicitations.delete(id)
+    this.pendingElicitationInputs.delete(id)
 
     // Emit event to transition state machine WAITING_FOR_ELIC → RUNNING
     this.eventChannel?.push({ type: "elicitation_response", id, answers })
+  }
+
+  cancelElicitation(id: string): void {
+    const pending = this.pendingElicitations.get(id)
+    if (!pending) return
+
+    pending.resolve({
+      behavior: "deny",
+      message: "User declined to answer",
+    })
+    this.pendingElicitations.delete(id)
+    this.pendingElicitationInputs.delete(id)
+
+    // Emit event to transition state machine WAITING_FOR_ELIC → RUNNING
+    this.eventChannel?.push({ type: "elicitation_response", id, answers: {} })
   }
 
   async setModel(model: string): Promise<void> {
@@ -315,6 +337,7 @@ export class ClaudeAdapter implements AgentBackend {
       pending.reject(new Error("Adapter closed"))
     }
     this.pendingElicitations.clear()
+    this.pendingElicitationInputs.clear()
   }
 
   // -----------------------------------------------------------------------
@@ -726,6 +749,8 @@ export class ClaudeAdapter implements AgentBackend {
   ): Promise<PermissionResult> {
     return new Promise<PermissionResult>((resolve, reject) => {
       this.pendingElicitations.set(id, { resolve, reject })
+      // Store original input so respondToElicitation can build updatedInput
+      this.pendingElicitationInputs.set(id, input)
 
       // Parse AskUserQuestion input into ElicitationQuestion[]
       const questions = this.parseElicitationInput(input)
@@ -741,21 +766,36 @@ export class ClaudeAdapter implements AgentBackend {
   }
 
   private parseElicitationInput(input: Record<string, unknown>): any[] {
-    // AskUserQuestion input shape varies, but generally has:
-    // { question: string, options: string[] } or similar
-    const question = (input.question as string) ?? "Choose an option"
-    const options = (input.options as string[]) ?? []
+    // AskUserQuestionInput has: { questions: [{ question, header, options: [{ label, description, preview? }], multiSelect }] }
+    const questionsRaw = input.questions
+    if (!Array.isArray(questionsRaw) || questionsRaw.length === 0) {
+      // Fallback: try legacy single-question shape { question, options }
+      const question = (input.question as string) ?? "Choose an option"
+      const options = (input.options as any[]) ?? []
+      return [
+        {
+          question,
+          options: options.map((opt: any) => ({
+            label: typeof opt === "string" ? opt : (opt.label ?? String(opt)),
+            description: typeof opt === "object" ? opt.description : undefined,
+            preview: typeof opt === "object" ? opt.preview : undefined,
+          })),
+          allowFreeText: true,
+        },
+      ]
+    }
 
-    return [
-      {
-        question,
-        options: options.map((opt: string, i: number) => ({
-          label: opt,
-          value: String(i),
-        })),
-        allowFreeText: true,
-      },
-    ]
+    return questionsRaw.map((q: any) => ({
+      question: q.question ?? "Choose an option",
+      header: q.header,
+      options: (q.options ?? []).map((opt: any) => ({
+        label: opt.label ?? String(opt),
+        description: opt.description,
+        preview: opt.preview,
+      })),
+      multiSelect: q.multiSelect ?? false,
+      allowFreeText: true,
+    }))
   }
 
   // -----------------------------------------------------------------------

@@ -5,6 +5,11 @@
  * Arrow keys to navigate, number keys to select, Enter to confirm.
  * Always includes "Other" option for free text.
  *
+ * Answers are keyed by question text to match the SDK's expected format:
+ *   { "Which library?": "React", "Which version?": "18" }
+ *
+ * Escape cancels the entire elicitation via cancelElicitation (deny).
+ *
  * NOT a modal overlay. Renders inline in the conversation flow.
  */
 
@@ -14,32 +19,45 @@ import { useKeyboard } from "@opentui/solid"
 import { usePermissions } from "../context/permissions"
 import { useAgent } from "../context/agent"
 import { useSession } from "../context/session"
-import type { ElicitationQuestion, ElicitationOption } from "../../protocol/types"
+import type { ElicitationQuestion } from "../../protocol/types"
 
 function QuestionView(props: {
   question: ElicitationQuestion
-  questionIndex: number
   onAnswer: (value: string) => void
+  onCancel: () => void
 }) {
   const [selected, setSelected] = createSignal(0)
   const [showFreeText, setShowFreeText] = createSignal(false)
   let freeTextRef: TextareaRenderable | undefined
 
   const options = () => {
-    const opts = [...props.question.options]
+    const opts = props.question.options.map((o) => ({
+      label: o.label,
+      isOther: false,
+    }))
     if (props.question.allowFreeText !== false) {
-      opts.push({ label: "Other (type your answer)", value: "__other__" })
+      opts.push({ label: "Other (type your answer)", isOther: true })
     }
     return opts
   }
 
+  const selectOption = (idx: number) => {
+    const opt = options()[idx]
+    if (!opt) return
+    if (opt.isOther) {
+      setShowFreeText(true)
+    } else {
+      // Answer value is the option label, matching SDK expectation
+      props.onAnswer(opt.label)
+    }
+  }
+
   useKeyboard((event) => {
     if (showFreeText()) {
-      // Escape in free-text mode goes back to option list
       if (event.name === "escape") {
         setShowFreeText(false)
       }
-      return // Let textarea handle all other input
+      return
     }
 
     if (event.name === "up" || event.name === "k") {
@@ -47,24 +65,14 @@ function QuestionView(props: {
     } else if (event.name === "down" || event.name === "j") {
       setSelected((prev) => Math.min(options().length - 1, prev + 1))
     } else if (event.name === "return") {
-      const opt = options()[selected()]
-      if (opt.value === "__other__") {
-        setShowFreeText(true)
-      } else {
-        props.onAnswer(opt.value)
-      }
+      selectOption(selected())
     } else if (event.name >= "1" && event.name <= "9") {
       const idx = parseInt(event.name) - 1
       if (idx < options().length) {
-        const opt = options()[idx]
-        if (opt.value === "__other__") {
-          setShowFreeText(true)
-        } else {
-          props.onAnswer(opt.value)
-        }
+        selectOption(idx)
       }
     } else if (event.name === "escape") {
-      props.onAnswer("") // Cancel
+      props.onCancel()
     }
   })
 
@@ -76,6 +84,11 @@ function QuestionView(props: {
       paddingLeft={1}
       paddingRight={1}
     >
+      <Show when={props.question.header}>
+        <text fg="#808080" attributes={TextAttributes.DIM}>
+          {props.question.header}
+        </text>
+      </Show>
       <text fg="cyan" attributes={TextAttributes.BOLD}>
         {props.question.question}
       </text>
@@ -93,13 +106,13 @@ function QuestionView(props: {
             </box>
           )}
         </For>
-        <text fg="gray">
+        <text fg="#808080">
           {"  "}Arrow keys to navigate, Enter to select, Esc to cancel
         </text>
       </Show>
 
       <Show when={showFreeText()}>
-        <text fg="gray">Type your answer and press Enter (Esc to go back):</text>
+        <text fg="#808080">Type your answer and press Enter (Esc to go back):</text>
         <textarea
           ref={(el: TextareaRenderable) => { freeTextRef = el }}
           focused
@@ -111,7 +124,9 @@ function QuestionView(props: {
           ]}
           onSubmit={() => {
             const text = freeTextRef?.plainText?.trim() ?? ""
-            props.onAnswer(text)
+            if (text) {
+              props.onAnswer(text)
+            }
           }}
         />
       </Show>
@@ -124,13 +139,29 @@ export function ElicitationDialog() {
   const { state: session } = useSession()
   const agent = useAgent()
 
-  const handleAnswer = (questionIndex: number, value: string) => {
+  // Accumulate answers across multiple questions, keyed by question text
+  const [answers, setAnswers] = createSignal<Record<string, string>>({})
+
+  const handleAnswer = (questionText: string, value: string) => {
     if (!state.pendingElicitation) return
 
+    const questions = state.pendingElicitation.questions
+    const updated = { ...answers(), [questionText]: value }
+    setAnswers(updated)
+
+    // If all questions are answered, send the complete response
+    if (Object.keys(updated).length >= questions.length) {
+      const id = state.pendingElicitation.id
+      agent.backend.respondToElicitation(id, updated)
+      setAnswers({})
+    }
+  }
+
+  const handleCancel = () => {
+    if (!state.pendingElicitation) return
     const id = state.pendingElicitation.id
-    agent.backend.respondToElicitation(id, {
-      [String(questionIndex)]: value,
-    })
+    agent.backend.cancelElicitation(id)
+    setAnswers({})
   }
 
   return (
@@ -138,11 +169,11 @@ export function ElicitationDialog() {
       {(elicitation) => (
         <box flexDirection="column" gap={1}>
           <For each={elicitation().questions}>
-            {(question, index) => (
+            {(question) => (
               <QuestionView
                 question={question}
-                questionIndex={index()}
-                onAnswer={(value) => handleAnswer(index(), value)}
+                onAnswer={(value) => handleAnswer(question.question, value)}
+                onCancel={handleCancel}
               />
             )}
           </For>

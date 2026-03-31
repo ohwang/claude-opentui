@@ -77,6 +77,10 @@ export class ClaudeV2Adapter implements AgentBackend {
     // Not implemented
   }
 
+  cancelElicitation(_id: string): void {
+    // Not implemented
+  }
+
   async setModel(_model: string): Promise<void> {
     // Not implemented
   }

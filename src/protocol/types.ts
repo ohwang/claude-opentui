@@ -211,8 +211,11 @@ export interface AgentBackend {
   /** Deny a pending tool use request. */
   denyToolUse(id: string, reason?: string, options?: { denyForSession?: boolean }): void
 
-  /** Respond to an elicitation request. */
+  /** Respond to an elicitation request with answers keyed by question text. */
   respondToElicitation(id: string, answers: Record<string, string>): void
+
+  /** Cancel/decline a pending elicitation request. */
+  cancelElicitation(id: string): void
 
   /** Change the model at runtime. Only valid in IDLE state. */
   setModel(model: string): Promise<void>
@@ -419,6 +422,8 @@ export interface CostTotals {
 
 export interface ElicitationQuestion {
   question: string
+  /** Short label displayed as a chip/tag (max 12 chars) */
+  header?: string
   options: ElicitationOption[]
   allowFreeText?: boolean
   multiSelect?: boolean
@@ -426,7 +431,7 @@ export interface ElicitationQuestion {
 
 export interface ElicitationOption {
   label: string
-  value: string
+  description?: string
   preview?: string
 }
 

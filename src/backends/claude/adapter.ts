@@ -348,6 +348,7 @@ export class ClaudeAdapter implements AgentBackend {
   private buildOptions(config: SessionConfig): any {
     return {
       model: config.model,
+      systemPrompt: config.systemPrompt,
       permissionMode: config.permissionMode,
       maxTurns: config.maxTurns,
       maxBudgetUsd: config.maxBudgetUsd,

@@ -47,20 +47,21 @@ export function HeaderBar() {
   const projectPath = resolve(agent.config.cwd ?? process.cwd()).replace(homedir(), "~")
 
   const modelInfo = () => {
-    // Prefer session metadata model name, fall back to configured model.
-    // session_init only arrives after the first user message (SDK starts lazily),
-    // so use agent.config.model as the initial display to avoid showing
-    // "Connecting..." when a model is already configured.
+    // Prefer currentModel (set by Ctrl+P model cycling), then session metadata,
+    // then configured model. session_init only arrives after the first user
+    // message (SDK starts lazily), so use agent.config.model as the initial
+    // display to avoid showing "Connecting..." when a model is already configured.
     const model = state.session?.models?.[0]
-    const raw = model?.name ?? agent.config.model ?? ""
+    const raw = state.currentModel || model?.name ?? agent.config.model ?? ""
 
     // No model from session or config — genuinely unknown
     if (!raw) return "Connecting..."
 
     const friendly = friendlyModelName(raw)
 
-    // Prefer dynamic context window from SDK, fall back to hardcoded
-    const ctxWindow = model?.contextWindow ?? MODEL_CONTEXT_WINDOWS[raw] ?? DEFAULT_CONTEXT_WINDOW
+    // When the model was changed via Ctrl+P, session.models[0] is stale —
+    // use the hardcoded context window for the new model instead.
+    const ctxWindow = MODEL_CONTEXT_WINDOWS[raw] ?? model?.contextWindow ?? DEFAULT_CONTEXT_WINDOW
     const ctxLabel = ctxWindow >= 1_000_000
       ? `${ctxWindow / 1_000_000}M context`
       : `${ctxWindow / 1_000}K context`

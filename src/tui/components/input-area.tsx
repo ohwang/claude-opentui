@@ -7,8 +7,8 @@
  */
 
 import { createSignal, Show, For } from "solid-js"
-import { TextAttributes, type TextareaRenderable, type KeyEvent, type CliRenderer } from "@opentui/core"
-import { useRenderer } from "@opentui/solid"
+import { TextAttributes, type TextareaRenderable, type KeyEvent, type CliRenderer, decodePasteBytes } from "@opentui/core"
+import { useRenderer, usePaste } from "@opentui/solid"
 import { tmpdir } from "os"
 import { join } from "path"
 import { writeFileSync, readFileSync, unlinkSync } from "fs"
@@ -153,6 +153,40 @@ export function InputArea() {
   let tabIndex = -1
   let tabMatches: string[] = []
   let lastTabText = ""
+
+  // ── Paste deduplication ────────────────────────────────────────────
+  // OpenTUI's bracket-paste handling can fire multiple times for a single
+  // tmux paste (observed as 4× duplication). We intercept paste events at
+  // the global level (usePaste fires before renderable handlers), call
+  // preventDefault() to suppress the built-in handling, then do a single
+  // insertText ourselves. A short dedup window guards against any
+  // remaining rapid-fire duplicates.
+  let lastPasteText = ""
+  let lastPasteTime = 0
+  const PASTE_DEDUP_MS = 150
+
+  usePaste((event) => {
+    // Always suppress OpenTUI's default textarea paste handling
+    event.preventDefault()
+
+    const text = decodePasteBytes(event.bytes)
+    if (!text) return
+
+    const now = Date.now()
+    // Deduplicate identical pastes arriving within the window
+    if (text === lastPasteText && now - lastPasteTime < PASTE_DEDUP_MS) {
+      log.debug("Suppressed duplicate paste event", { length: text.length })
+      return
+    }
+
+    lastPasteText = text
+    lastPasteTime = now
+
+    if (textareaRef) {
+      textareaRef.insertText(text)
+      updateLineCount()
+    }
+  })
 
   // No placeholder text — Claude Code style shows just "> " prompt with cursor
   const placeholder = () => ""

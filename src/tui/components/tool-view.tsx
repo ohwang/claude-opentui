@@ -232,16 +232,42 @@ function toolSummaryText(toolName: string, count: number): string {
   }
 }
 
-/** Collapsed tool summary view — "Running Bash..., Read 2 files (ctrl+o to expand)" */
+/** Format elapsed seconds as a human-readable string */
+function formatElapsed(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`
+  return `${Math.floor(seconds / 60)}m ${seconds % 60}s`
+}
+
+/** Collapsed tool summary view — "Running Bash... (5s), Read 2 files (ctrl+o to expand)" */
 export function ToolSummaryView(props: { tools: ToolBlock[] }) {
+  // Tick signal for running tool elapsed time — updates every second
+  const [tick, setTick] = createSignal(Date.now())
+  const hasRunning = createMemo(() => props.tools.some(t => t.status === "running"))
+  let tickTimer: ReturnType<typeof setInterval> | undefined
+
+  createEffect(() => {
+    if (hasRunning()) {
+      if (!tickTimer) {
+        tickTimer = setInterval(() => setTick(Date.now()), 1000)
+      }
+    } else {
+      if (tickTimer) {
+        clearInterval(tickTimer)
+        tickTimer = undefined
+      }
+    }
+  })
+  onCleanup(() => { if (tickTimer) clearInterval(tickTimer) })
+
   const summaryData = createMemo(() => {
+    const now = tick() // subscribe to tick for reactivity
     const completed: Record<string, number> = {}
-    const running: string[] = []
+    const running: Array<{ tool: string; elapsed: number }> = []
     const errorTools: Array<{ tool: string; error: string }> = []
 
     for (const tool of props.tools) {
       if (tool.status === "running") {
-        running.push(tool.tool)
+        running.push({ tool: tool.tool, elapsed: Math.floor((now - tool.startTime) / 1000) })
       } else if (tool.status === "error" || tool.error) {
         const errMsg = tool.error ?? "unknown error"
         const firstLine = errMsg.split("\n")[0] ?? errMsg
@@ -253,8 +279,8 @@ export function ToolSummaryView(props: { tools: ToolBlock[] }) {
     }
 
     const normalParts: string[] = []
-    for (const name of running) {
-      normalParts.push(`Running ${name}...`)
+    for (const { tool, elapsed } of running) {
+      normalParts.push(`Running ${tool}... (${formatElapsed(elapsed)})`)
     }
     for (const [name, count] of Object.entries(completed)) {
       normalParts.push(toolSummaryText(name, count))

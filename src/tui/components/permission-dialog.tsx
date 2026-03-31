@@ -21,7 +21,7 @@ import { usePermissions } from "../context/permissions"
 import { useAgent } from "../context/agent"
 import { useSession } from "../context/session"
 import { useSync } from "../context/sync"
-import type { PermissionRequestEvent } from "../../protocol/types"
+import type { PermissionRequestEvent, PermissionUpdate } from "../../protocol/types"
 
 // ANSI 153 = #afd7ff (periwinkle — Claude Code accent)
 const ACCENT = "#afd7ff"
@@ -160,35 +160,24 @@ function questionText(perm: PermissionRequestEvent): string {
   }
 }
 
-/** Build option 2 text from SDK suggestions or derive from context */
+/** Build option 2 text from SDK suggestions or derive from context.
+ *
+ * Always uses `perm.tool` as the authoritative tool name — suggestions may
+ * reference a different tool (e.g. a parent category), which caused Bug #1
+ * where the label showed "Always allow Read" for a Bash tool.
+ */
 function option2Text(perm: PermissionRequestEvent): string {
-  // Try to derive from suggestions
+  // Check if suggestions include an addDirectories entry
   if (perm.suggestions && perm.suggestions.length > 0) {
-    const s = perm.suggestions[0]
-    if (s.type === "addRules" || s.type === "replaceRules") {
-      const toolName = s.rules[0]?.toolName
-      if (toolName) {
-        return `Always allow ${toolName}`
-      }
-    }
-    if (s.type === "addDirectories") {
-      if (s.directories.length > 0) {
+    for (const s of perm.suggestions) {
+      if (s.type === "addDirectories" && s.directories.length > 0 && s.directories[0]) {
         const dir = parentDir(s.directories[0])
-        return `Always allow edits in ${dir}/`
+        return `Always allow in ${dir}/`
       }
     }
   }
-  // Derive from tool and path context
-  const inp = perm.input as Record<string, unknown> | null
-  const filePath = inp?.file_path ? String(inp.file_path) : ""
-  if (filePath) {
-    const parts = filePath.split("/")
-    const dir = parts.length > 1 ? parts[parts.length - 2] : ""
-    if (dir && dir !== ".") {
-      return `Always allow edits in ${dir}/`
-    }
-  }
-  return `Always allow this tool`
+  // Use the actual tool name — never derive from suggestions[].rules[].toolName
+  return `Always allow ${perm.tool}`
 }
 
 // ---------------------------------------------------------------------------
@@ -301,16 +290,37 @@ export function PermissionDialog() {
   }
 
   function approveAlways(id: string, perm: typeof state.pendingPermission & {}) {
-    // Use SDK-provided suggestions if available, otherwise generate fallback
-    // (matches claude-go behavior: always send updatedPermissions for "always allow")
-    const permissions = (perm.suggestions && perm.suggestions.length > 0)
-      ? perm.suggestions
-      : [{
-          type: "addRules" as const,
-          rules: [{ toolName: perm.tool }],
-          behavior: "allow" as const,
-          destination: "session" as const,
-        }]
+    // Build updatedPermissions for "always allow":
+    // 1. Include SDK suggestions if available (echoed back per SDK docs).
+    //    These may be command-specific (e.g., Bash "ls:*") and are persisted
+    //    to localSettings by the CLI.
+    // 2. Always include a tool-wide rule (no ruleContent) at session scope.
+    //    This ensures the CLI's JTY → wTY check auto-allows ALL subsequent
+    //    calls to the same tool for the rest of the session, not just the
+    //    specific command pattern in the suggestions.
+    const permissions: PermissionUpdate[] = []
+
+    // Echo SDK suggestions (command-specific, persisted to localSettings)
+    if (perm.suggestions && perm.suggestions.length > 0) {
+      permissions.push(...perm.suggestions)
+    }
+
+    // Always add a tool-wide session rule so wTY matches on next call.
+    // Without this, the suggestions' ruleContent-based matching only
+    // covers the specific command/file pattern, not the tool in general.
+    const hasToolWideRule = permissions.some(
+      (p) =>
+        (p.type === "addRules" || p.type === "replaceRules") &&
+        p.rules.some((r) => r.toolName === perm.tool && !r.ruleContent),
+    )
+    if (!hasToolWideRule) {
+      permissions.push({
+        type: "addRules" as const,
+        rules: [{ toolName: perm.tool }],
+        behavior: "allow" as const,
+        destination: "session" as const,
+      })
+    }
 
     agent.backend.approveToolUse(id, {
       alwaysAllow: true,

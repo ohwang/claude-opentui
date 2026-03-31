@@ -13,6 +13,7 @@ export interface CommandContext {
   backend: AgentBackend
   pushEvent: (event: any) => void
   clearConversation: () => void
+  resetCost: () => void
   setModel: (model: string) => Promise<void>
   exit?: () => void
   toggleDiagnostics?: () => void
@@ -132,6 +133,20 @@ export function createCommandRegistry(): CommandRegistry {
     description: "Clear the conversation display",
     execute: (_args, ctx) => {
       ctx.clearConversation()
+    },
+  })
+
+  // /new — start a fresh conversation (clear + reset cost)
+  registry.register({
+    name: "new",
+    description: "Start a fresh conversation",
+    execute: (_args, ctx) => {
+      ctx.clearConversation()
+      ctx.resetCost()
+      ctx.pushEvent({
+        type: "system_message",
+        text: "New conversation started",
+      })
     },
   })
 

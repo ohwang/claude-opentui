@@ -38,6 +38,8 @@ export interface SyncContextValue {
   startEventLoop: () => void
   /** Reset conversation state (messages, streaming, tools) while preserving session/cost */
   clearConversation: () => void
+  /** Reset session cost counters to zero */
+  resetCost: () => void
 }
 
 const SyncContext = createContext<SyncContextValue>()
@@ -122,6 +124,24 @@ export function SyncProvider(props: ParentProps) {
     })
   }
 
+  // Reset session cost counters to zero
+  const resetCost = () => {
+    const zeroCost = {
+      inputTokens: 0,
+      outputTokens: 0,
+      cacheReadTokens: 0,
+      cacheWriteTokens: 0,
+      totalCostUsd: 0,
+    }
+    conversationState = {
+      ...conversationState,
+      cost: zeroCost,
+    }
+    batch(() => {
+      session.setState({ cost: { ...zeroCost } })
+    })
+  }
+
   // Start the backend and iterate its event generator
   const startEventLoop = async () => {
     if (aborted) return
@@ -182,7 +202,7 @@ export function SyncProvider(props: ParentProps) {
   })
 
   return (
-    <SyncContext.Provider value={{ pushEvent, startEventLoop, clearConversation }}>
+    <SyncContext.Provider value={{ pushEvent, startEventLoop, clearConversation, resetCost }}>
       {props.children}
     </SyncContext.Provider>
   )

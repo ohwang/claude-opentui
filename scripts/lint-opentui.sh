@@ -93,6 +93,20 @@ if grep -rn --include="*.tsx" -E 'Show when=\{.*\(\) &&[^}]+\}>\{\(' src/tui/ 2>
   errors=1
 fi
 
+# Check for hardcoded named colors (should use design tokens from theme/tokens.ts).
+# Matches fg="gray", fg="white", fg="red", fg="green", fg="yellow", fg="blue" etc.
+# Excludes borderColor (valid named color prop) and comments.
+if grep -rn --include="*.tsx" --include="*.ts" -E 'fg="(gray|white|red|green|yellow|blue)"' src/tui/ 2>/dev/null \
+   | grep -v '//' \
+   | grep -v '\.test\.' \
+   | grep -q .; then
+  grep -rn --include="*.tsx" --include="*.ts" -E 'fg="(gray|white|red|green|yellow|blue)"' src/tui/ 2>/dev/null \
+    | grep -v '//' \
+    | grep -v '\.test\.'
+  echo "ERROR: Use design tokens (colors.text.white, colors.text.muted, etc.) instead of hardcoded named colors"
+  errors=1
+fi
+
 if [ $errors -eq 0 ]; then
   echo "OpenTUI prop checks passed"
 fi

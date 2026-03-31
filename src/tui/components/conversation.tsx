@@ -144,16 +144,19 @@ export function ConversationView(props: { children?: JSX.Element }) {
   // Ctrl+Up/Down scrolls the conversation
   useKeyboard((event) => {
     if (event.ctrl && event.name === "o") {
+      event.preventDefault()
       const next: ViewLevel = viewLevel() === "collapsed" ? "expanded" : "collapsed"
       setViewLevel(next)
       showViewLevelHint(next)
     }
     if (event.ctrl && event.name === "e") {
+      event.preventDefault()
       const next: ViewLevel = viewLevel() === "show_all" ? "collapsed" : "show_all"
       setViewLevel(next)
       showViewLevelHint(next)
     }
     if (event.ctrl && event.name === "t") {
+      event.preventDefault()
       const next = !showThinking()
       setShowThinking(next)
       const text = next ? "Thinking: visible" : "Thinking: hidden"
@@ -162,12 +165,14 @@ export function ConversationView(props: { children?: JSX.Element }) {
       viewLevelHintTimer = setTimeout(() => setViewLevelHint(null), 2000)
     }
     if (event.ctrl && event.name === "up") {
+      event.preventDefault()
       scrollboxRef?.scrollBy(-3)
       setUserScrolledAway(true)
       showScrollbarBriefly()
       refocusInput()
     }
     if (event.ctrl && event.name === "down") {
+      event.preventDefault()
       scrollboxRef?.scrollBy(3)
       setUserScrolledAway(false)
       showScrollbarBriefly()

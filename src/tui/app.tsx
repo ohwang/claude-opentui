@@ -60,11 +60,11 @@ function DashLine() {
 function ErrorFallback(props: { error: Error; reset: () => void }) {
   return (
     <box flexDirection="column" padding={2}>
-      <text fg="red" attributes={TextAttributes.BOLD}>
+      <text fg={colors.status.error} attributes={TextAttributes.BOLD}>
         Fatal Error
       </text>
-      <text fg="red">{props.error.message}</text>
-      <text fg="gray">Press Ctrl+D to exit.</text>
+      <text fg={colors.status.error}>{props.error.message}</text>
+      <text fg={colors.text.muted}>Press Ctrl+D to exit.</text>
     </box>
   )
 }

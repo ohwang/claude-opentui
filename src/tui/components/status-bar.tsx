@@ -293,6 +293,8 @@ export function StatusBar(props: { hint?: string | null }) {
         return "yellow"
       case "ERROR":
         return "red"
+      case "SHUTTING_DOWN":
+        return "gray"
       default:
         return "gray"
     }

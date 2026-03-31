@@ -71,6 +71,7 @@ function Layout(props: { onExit?: () => void }) {
 
   const cleanExit = (reason: string) => {
     log.info("Clean exit", { reason })
+    sync.pushEvent({ type: "shutdown" })
     agent.backend.close()
     props.onExit?.()
     renderer.destroy()

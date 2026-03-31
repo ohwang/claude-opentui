@@ -196,6 +196,25 @@ export function reduce(
       }
       return next
 
+    // ----- Shutdown -----
+
+    case "shutdown": {
+      const flushed = flushBuffers({ ...next })
+      // Cancel any running tools
+      const blocks = flushed.blocks.map(b =>
+        b.type === "tool" && b.status === "running"
+          ? { ...b, status: "canceled" as ToolStatus, duration: Date.now() - b.startTime }
+          : b
+      )
+      return {
+        ...flushed,
+        blocks,
+        sessionState: "SHUTTING_DOWN",
+        pendingPermission: null,
+        pendingElicitation: null,
+      }
+    }
+
     // ----- Text streaming -----
 
     case "text_delta":

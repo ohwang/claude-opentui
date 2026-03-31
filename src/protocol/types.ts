@@ -80,6 +80,9 @@ export type UserMessageEvent = { type: "user_message"; text: string }
 /** Interrupt (synthetic, emitted by TUI when user presses Ctrl+C) */
 export type InterruptEvent = { type: "interrupt" }
 
+/** Shutdown (synthetic, emitted by TUI when user triggers clean exit) */
+export type ShutdownEvent = { type: "shutdown" }
+
 /** Turn lifecycle */
 export type TurnStartEvent = { type: "turn_start" }
 export type TurnCompleteEvent = { type: "turn_complete"; usage?: TokenUsage }
@@ -165,6 +168,7 @@ export type AgentEvent =
   | ElicitationResponseEvent
   | UserMessageEvent
   | InterruptEvent
+  | ShutdownEvent
   | TurnStartEvent
   | TurnCompleteEvent
   | SessionInitEvent

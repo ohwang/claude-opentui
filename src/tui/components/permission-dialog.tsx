@@ -200,6 +200,18 @@ export function PermissionDialog() {
   // Reset selection when a new permission request arrives
   let lastPermId: string | null = null
 
+  // Guard against buffered keystrokes leaking into the NEXT permission dialog.
+  // After approving/denying, ignore all keystrokes for 200ms to prevent rapid
+  // "a" + "d" typing from accidentally denying the next permission request.
+  let justActed = false
+  let justActedTimer: ReturnType<typeof setTimeout> | undefined
+
+  function markActed() {
+    justActed = true
+    clearTimeout(justActedTimer)
+    justActedTimer = setTimeout(() => { justActed = false }, 200)
+  }
+
   const dashedLine = () => {
     const width = (dims()?.width ?? 120) - 4 // account for padding
     return "\u254C".repeat(Math.max(width, 40))
@@ -208,6 +220,10 @@ export function PermissionDialog() {
   useKeyboard((event) => {
     if (session.sessionState !== "WAITING_FOR_PERM") return
     if (!state.pendingPermission) return
+
+    // Ignore buffered keystrokes that arrive shortly after an action.
+    // This prevents a rapid "a" then "d" from denying the NEXT permission.
+    if (justActed) return
 
     const id = state.pendingPermission.id
     const perm = state.pendingPermission
@@ -286,10 +302,12 @@ export function PermissionDialog() {
   })
 
   function approveOnce(id: string) {
+    markActed()
     agent.backend.approveToolUse(id)
   }
 
   function approveAlways(id: string, perm: typeof state.pendingPermission & {}) {
+    markActed()
     // Build updatedPermissions for "always allow":
     // 1. Include SDK suggestions if available (echoed back per SDK docs).
     //    These may be command-specific (e.g., Bash "ls:*") and are persisted
@@ -329,6 +347,7 @@ export function PermissionDialog() {
   }
 
   function deny(id: string, toolName: string) {
+    markActed()
     agent.backend.denyToolUse(id, "User denied")
     sync.pushEvent({
       type: "system_message",
@@ -337,6 +356,7 @@ export function PermissionDialog() {
   }
 
   function denyForSession(id: string, toolName: string) {
+    markActed()
     agent.backend.denyToolUse(id, "Denied for session", { denyForSession: true })
     sync.pushEvent({
       type: "system_message",

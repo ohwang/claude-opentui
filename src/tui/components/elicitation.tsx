@@ -141,6 +141,7 @@ export function ElicitationDialog() {
 
   // Accumulate answers across multiple questions, keyed by question text
   const [answers, setAnswers] = createSignal<Record<string, string>>({})
+  const [currentIdx, setCurrentIdx] = createSignal(0)
 
   const handleAnswer = (questionText: string, value: string) => {
     if (!state.pendingElicitation) return
@@ -154,6 +155,10 @@ export function ElicitationDialog() {
       const id = state.pendingElicitation.id
       agent.backend.respondToElicitation(id, updated)
       setAnswers({})
+      setCurrentIdx(0)
+    } else {
+      // Advance to next question
+      setCurrentIdx((prev) => prev + 1)
     }
   }
 
@@ -162,23 +167,35 @@ export function ElicitationDialog() {
     const id = state.pendingElicitation.id
     agent.backend.cancelElicitation(id)
     setAnswers({})
+    setCurrentIdx(0)
   }
 
   return (
     <Show when={session.sessionState === "WAITING_FOR_ELIC" && state.pendingElicitation}>
-      {(elicitation) => (
-        <box flexDirection="column" gap={1}>
-          <For each={elicitation().questions}>
-            {(question) => (
-              <QuestionView
-                question={question}
-                onAnswer={(value) => handleAnswer(question.question, value)}
-                onCancel={handleCancel}
-              />
-            )}
-          </For>
-        </box>
-      )}
+      {(elicitation) => {
+        const questions = elicitation().questions
+        const question = () => questions[currentIdx()]
+
+        return (
+          <box flexDirection="column">
+            {/* Progress indicator for multi-question elicitations */}
+            <Show when={questions.length > 1}>
+              <text fg="#808080" attributes={TextAttributes.DIM}>
+                {"  Question " + (currentIdx() + 1) + "/" + questions.length}
+              </text>
+            </Show>
+            <Show when={question()}>
+              {(q) => (
+                <QuestionView
+                  question={q()}
+                  onAnswer={(value) => handleAnswer(q().question, value)}
+                  onCancel={handleCancel}
+                />
+              )}
+            </Show>
+          </box>
+        )
+      }}
     </Show>
   )
 }

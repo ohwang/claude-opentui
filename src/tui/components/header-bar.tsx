@@ -52,7 +52,7 @@ export function HeaderBar() {
     // message (SDK starts lazily), so use agent.config.model as the initial
     // display to avoid showing "Connecting..." when a model is already configured.
     const model = state.session?.models?.[0]
-    const raw = state.currentModel || model?.name ?? agent.config.model ?? ""
+    const raw = state.currentModel || (model?.name ?? agent.config.model ?? "")
 
     // No model from session or config — genuinely unknown
     if (!raw) return "Connecting..."

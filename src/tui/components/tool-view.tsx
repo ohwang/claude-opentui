@@ -144,7 +144,9 @@ export function ToolBlockView(props: { block: Extract<Block, { type: "tool" }>; 
     <box flexDirection="column">
       {/* Invocation line: ⏺ ToolName(arg) */}
       <box flexDirection="row">
-        <text fg={prefixColor()}>{"\u23FA "}</text>
+        <box width={2} flexShrink={0}>
+          <text fg={prefixColor()}>{"\u23FA"}</text>
+        </box>
         <text fg="white">{b().tool}</text>
         <Show when={primaryArg()}>
           <text fg="gray">{"(" + primaryArg() + ")"}</text>

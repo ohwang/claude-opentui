@@ -90,7 +90,7 @@ export function BlockView(props: { block: Block; viewLevel: ViewLevel; prevType?
 
       {/* Compact block */}
       <Show when={compactBlock()}>
-        <box paddingTop={1} paddingBottom={1}>
+        <box paddingTop={1} paddingBottom={1} paddingLeft={2}>
           <text fg={colors.text.muted} attributes={TextAttributes.DIM}>
             {"\u2500\u2500 Context compacted \u2500\u2500"}
           </text>

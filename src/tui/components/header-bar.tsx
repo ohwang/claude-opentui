@@ -17,21 +17,20 @@ import { friendlyModelName, MODEL_CONTEXT_WINDOWS, DEFAULT_CONTEXT_WINDOW } from
 import { colors } from "../theme/tokens"
 
 /**
- * Pixel-art logo: side-view of a cute cat walking.
+ * Logo: cute cat face.
  *
- * Visual (each line is one row of the logo):
+ * Visual:
  *
- *   ▄▀▀▀▄    ▄▀▀
- *   █◕ ω▀▀▀▀█▄▀
- *    ╹ ╹  ╹ ╹
+ *   /\_/\
+ *  ( ◕ω◕ )
+ *   > ~ <
  *
- * 3 lines tall. A walking cat in profile with a big round head,
- * cute ◕ eye, ω cat mouth, and a tail curling up. Tiny stick legs.
+ * 3 lines tall. Classic kawaii cat face — instantly recognizable.
  */
 const LOGO_LINES = [
-  " ▄▀▀▀▄    ▄▀▀  ",  // round head + tail curling up
-  " █◕ ω▀▀▀▀█▄▀   ",  // face (eye + cat mouth) + body + tail
-  "  ╹ ╹  ╹ ╹     ",  // tiny legs
+  "  /\\_/\\   ",  // ears
+  " ( ◕ω◕ )  ",  // face
+  "  > ~ <   ",  // paws
 ]
 
 const LOGO_COLOR = colors.accent.logo

@@ -3,13 +3,15 @@
  *
  * Renders within the conversation flow when WAITING_FOR_PERM.
  * Features:
- * - Top ─ border, content preview between ╌ dashed borders
  * - Action label header (displayName or tool name)
- * - File/command content preview with line numbers
- * - 3-option radio selector with ↑/↓ arrow key navigation
+ * - File/command content preview between dashed borders
+ * - Color-coded diff preview for Edit operations (red/green)
+ * - 4-option radio selector: Allow (y), Always allow (a), Deny (n), Deny for session (d)
+ * - Wrap-around arrow key + Tab navigation (matching claude-go)
  * - ❯ selection indicator with periwinkle accent
- * - Context-specific question and option text from SDK metadata
- * - Esc to cancel footer hint
+ * - Context-specific question and option text from SDK metadata/suggestions
+ * - Esc to cancel, Enter to confirm, y/a/n/d single-key shortcuts
+ * - "Deny for session" tracks tool name in adapter for auto-deny on future calls
  */
 
 import { createSignal, Show, For } from "solid-js"
@@ -25,6 +27,9 @@ import type { PermissionRequestEvent } from "../../protocol/types"
 const ACCENT = "#afd7ff"
 // ANSI 246 = #a8a8a8 (muted gray)
 const MUTED = "#a8a8a8"
+// Diff colors (matching claude-go's DiffAdded/DiffRemoved)
+const DIFF_ADDED = "#87d787" // green
+const DIFF_REMOVED = "#d78787" // red
 
 // Max lines to show in content preview
 const MAX_PREVIEW_LINES = 20
@@ -92,8 +97,15 @@ function extractPath(tool: string, input: unknown): string {
   return ""
 }
 
+/** A preview line with optional diff prefix for coloring */
+interface PreviewLine {
+  text: string
+  /** "+" for added, "-" for removed, " " for context/neutral */
+  prefix?: "+" | "-" | " "
+}
+
 /** Extract content lines for preview (Write content, Edit diff, Bash command) */
-function extractPreviewLines(tool: string, input: unknown): string[] | null {
+function extractPreviewLines(tool: string, input: unknown): PreviewLine[] | null {
   const inp = input as Record<string, unknown> | null
   if (!inp) return null
 
@@ -101,22 +113,31 @@ function extractPreviewLines(tool: string, input: unknown): string[] | null {
     case "Write": {
       const content = inp.content
       if (typeof content === "string" && content.trim()) {
-        return content.split("\n").slice(0, MAX_PREVIEW_LINES)
+        return content.split("\n").slice(0, MAX_PREVIEW_LINES).map(l => ({ text: l, prefix: "+" as const }))
       }
       return null
     }
     case "Edit": {
-      // Show the new_string as preview (what will be written)
+      // Show old_string (removed) and new_string (added) as diff
+      const oldStr = inp.old_string
       const newStr = inp.new_string
-      if (typeof newStr === "string" && newStr.trim()) {
-        return newStr.split("\n").slice(0, MAX_PREVIEW_LINES)
+      const lines: PreviewLine[] = []
+      if (typeof oldStr === "string" && oldStr.trim()) {
+        for (const l of oldStr.split("\n").slice(0, MAX_PREVIEW_LINES / 2)) {
+          lines.push({ text: l, prefix: "-" })
+        }
       }
-      return null
+      if (typeof newStr === "string" && newStr.trim()) {
+        for (const l of newStr.split("\n").slice(0, MAX_PREVIEW_LINES / 2)) {
+          lines.push({ text: l, prefix: "+" })
+        }
+      }
+      return lines.length > 0 ? lines : null
     }
     case "Bash": {
       const cmd = inp.command
       if (typeof cmd === "string" && cmd.trim()) {
-        return cmd.split("\n").slice(0, MAX_PREVIEW_LINES)
+        return cmd.split("\n").slice(0, MAX_PREVIEW_LINES).map(l => ({ text: l }))
       }
       return null
     }
@@ -144,12 +165,17 @@ function option2Text(perm: PermissionRequestEvent): string {
   // Try to derive from suggestions
   if (perm.suggestions && perm.suggestions.length > 0) {
     const s = perm.suggestions[0]
-    if ((s.type === "addRules" || s.type === "replaceRules") && s.rules?.[0]?.toolName) {
-      return `Yes, and don\u2019t ask again for ${s.rules[0].toolName}`
+    if (s.type === "addRules" || s.type === "replaceRules") {
+      const toolName = s.rules[0]?.toolName
+      if (toolName) {
+        return `Always allow ${toolName}`
+      }
     }
-    if (s.type === "addDirectories" && s.directories?.length > 0) {
-      const dir = parentDir(s.directories[0])
-      return `Yes, allow all edits in ${dir}/ during this session`
+    if (s.type === "addDirectories") {
+      if (s.directories.length > 0) {
+        const dir = parentDir(s.directories[0])
+        return `Always allow edits in ${dir}/`
+      }
     }
   }
   // Derive from tool and path context
@@ -159,15 +185,18 @@ function option2Text(perm: PermissionRequestEvent): string {
     const parts = filePath.split("/")
     const dir = parts.length > 1 ? parts[parts.length - 2] : ""
     if (dir && dir !== ".") {
-      return `Yes, allow all edits in ${dir}/ during this session`
+      return `Always allow edits in ${dir}/`
     }
   }
-  return `Yes, and don\u2019t ask again for this tool`
+  return `Always allow this tool`
 }
 
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
+
+// Number of options in the permission dialog
+const NUM_OPTIONS = 4
 
 export function PermissionDialog() {
   const { state } = usePermissions()
@@ -176,7 +205,7 @@ export function PermissionDialog() {
   const sync = useSync()
   const dims = useTerminalDimensions()
 
-  // Radio selector state: 0 = Yes, 1 = Yes don't ask again, 2 = No
+  // Radio selector state: 0 = Allow, 1 = Always allow, 2 = Deny, 3 = Deny for session
   const [selectedOption, setSelectedOption] = createSignal(0)
 
   // Reset selection when a new permission request arrives
@@ -200,17 +229,23 @@ export function PermissionDialog() {
       setSelectedOption(0)
     }
 
-    // Arrow key navigation
+    // Arrow key navigation (wraps around, matching claude-go)
     if (event.name === "up") {
-      setSelectedOption(Math.max(0, selectedOption() - 1))
+      setSelectedOption((selectedOption() - 1 + NUM_OPTIONS) % NUM_OPTIONS)
       return
     }
     if (event.name === "down") {
-      setSelectedOption(Math.min(2, selectedOption() + 1))
+      setSelectedOption((selectedOption() + 1) % NUM_OPTIONS)
       return
     }
 
-    // Number keys for direct selection
+    // Tab / Shift+Tab navigation (matching claude-go)
+    if (event.name === "tab") {
+      setSelectedOption((selectedOption() + 1) % NUM_OPTIONS)
+      return
+    }
+
+    // Number keys for direct selection + immediate action
     if (event.name === "1") {
       setSelectedOption(0)
       approveOnce(id)
@@ -226,17 +261,23 @@ export function PermissionDialog() {
       deny(id, perm.tool)
       return
     }
+    if (event.name === "4") {
+      setSelectedOption(3)
+      denyForSession(id, perm.tool)
+      return
+    }
 
     // Enter confirms selected option
     if (event.name === "return") {
       const sel = selectedOption()
       if (sel === 0) approveOnce(id)
       else if (sel === 1) approveAlways(id, perm)
-      else deny(id, perm.tool)
+      else if (sel === 2) deny(id, perm.tool)
+      else denyForSession(id, perm.tool)
       return
     }
 
-    // Legacy single-key shortcuts
+    // Single-key shortcuts (matching claude-go: y/a/n/d)
     if (event.name === "y") {
       approveOnce(id)
       return
@@ -247,6 +288,10 @@ export function PermissionDialog() {
     }
     if (event.name === "n" || event.name === "escape") {
       deny(id, perm.tool)
+      return
+    }
+    if (event.name === "d") {
+      denyForSession(id, perm.tool)
       return
     }
   })
@@ -278,6 +323,14 @@ export function PermissionDialog() {
     sync.pushEvent({
       type: "system_message",
       text: `Tool "${toolName}" denied by user`,
+    })
+  }
+
+  function denyForSession(id: string, toolName: string) {
+    agent.backend.denyToolUse(id, "Denied for session", { denyForSession: true })
+    sync.pushEvent({
+      type: "system_message",
+      text: `Tool "${toolName}" denied for session`,
     })
   }
 
@@ -318,7 +371,7 @@ export function PermissionDialog() {
               </box>
             </Show>
 
-            {/* Content preview between ╌ dashed borders */}
+            {/* Content preview between dashed borders */}
             <Show when={previewLines()}>
               {(lines) => (
                 <box flexDirection="column">
@@ -326,11 +379,19 @@ export function PermissionDialog() {
                     <text fg={ACCENT}>{dashedLine()}</text>
                   </box>
                   <For each={lines()}>
-                    {(line, idx) => (
-                      <box height={1} paddingLeft={2}>
-                        <text fg="white">{`${String(idx() + 1).padStart(3, " ")} ${line || " "}`}</text>
-                      </box>
-                    )}
+                    {(line, idx) => {
+                      const lineColor = () => {
+                        if (line.prefix === "+") return DIFF_ADDED
+                        if (line.prefix === "-") return DIFF_REMOVED
+                        return "white"
+                      }
+                      const prefixChar = () => line.prefix ?? " "
+                      return (
+                        <box height={1} paddingLeft={2}>
+                          <text fg={lineColor()}>{`${prefixChar()} ${line.text || " "}`}</text>
+                        </box>
+                      )
+                    }}
                   </For>
                   <box height={1}>
                     <text fg={ACCENT}>{dashedLine()}</text>
@@ -346,49 +407,60 @@ export function PermissionDialog() {
               </text>
             </box>
 
-            {/* Option 1: Yes */}
+            {/* Option 1: Allow (y) */}
             <box height={1} paddingLeft={1}>
               <Show when={selectedOption() === 0}
                 fallback={
-                  <text fg="white">{"  1. Yes"}</text>
+                  <text fg="white">{"  y. Allow"}</text>
                 }
               >
                 <text fg={ACCENT}>
-                  {"\u276F 1. Yes"}
+                  {"\u276F y. Allow"}
                 </text>
               </Show>
             </box>
 
-            {/* Option 2: Yes, and don't ask again */}
+            {/* Option 2: Always allow (a) */}
             <box height={1} paddingLeft={1}>
               <Show when={selectedOption() === 1}
                 fallback={
                   <text fg="white" attributes={TextAttributes.BOLD}>
-                    {"  2. " + opt2()}
+                    {"  a. " + opt2()}
                   </text>
                 }
               >
                 <text fg={ACCENT} attributes={TextAttributes.BOLD}>
-                  {"\u276F 2. " + opt2()}
+                  {"\u276F a. " + opt2()}
                 </text>
               </Show>
             </box>
 
-            {/* Option 3: No */}
+            {/* Option 3: Deny (n) */}
             <box height={1} paddingLeft={1}>
               <Show when={selectedOption() === 2}
                 fallback={
-                  <text fg={MUTED}>{"  3. No"}</text>
+                  <text fg={MUTED}>{"  n. Deny"}</text>
                 }
               >
-                <text fg={ACCENT}>{"\u276F 3. No"}</text>
+                <text fg={ACCENT}>{"\u276F n. Deny"}</text>
+              </Show>
+            </box>
+
+            {/* Option 4: Deny for session (d) */}
+            <box height={1} paddingLeft={1}>
+              <Show when={selectedOption() === 3}
+                fallback={
+                  <text fg={MUTED}>{"  d. Deny for session"}</text>
+                }
+              >
+                <text fg={ACCENT}>{"\u276F d. Deny for session"}</text>
               </Show>
             </box>
 
             {/* Footer hints */}
             <box height={1} paddingLeft={1} marginTop={1}>
               <text fg={MUTED}>
-                {"Esc to cancel"}
+                {"\u2191\u2193 navigate \u00B7 y/a/n/d shortcut \u00B7 Enter to confirm"}
               </text>
             </box>
           </box>

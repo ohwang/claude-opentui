@@ -47,9 +47,16 @@ export function HeaderBar() {
   const projectPath = resolve(agent.config.cwd ?? process.cwd()).replace(homedir(), "~")
 
   const modelInfo = () => {
-    // Prefer session metadata model name, fall back to config
+    // Prefer session metadata model name, fall back to configured model.
+    // session_init only arrives after the first user message (SDK starts lazily),
+    // so use agent.config.model as the initial display to avoid showing
+    // "Connecting..." when a model is already configured.
     const model = state.session?.models?.[0]
     const raw = model?.name ?? agent.config.model ?? ""
+
+    // No model from session or config — genuinely unknown
+    if (!raw) return "Connecting..."
+
     const friendly = friendlyModelName(raw)
 
     // Prefer dynamic context window from SDK, fall back to hardcoded
@@ -59,8 +66,7 @@ export function HeaderBar() {
       : `${ctxWindow / 1_000}K context`
 
     // Build the model info line
-    const parts = [friendly]
-    if (raw) parts.push(`(${ctxLabel})`)  // Only show if model is known
+    const parts = [friendly, `(${ctxLabel})`]
 
     const plan = state.session?.account?.plan
     if (plan) parts.push(`- ${plan}`)
@@ -86,7 +92,7 @@ export function HeaderBar() {
       {/* Row 2: eyes + model info */}
       <box flexDirection="row">
         <text fg="#d78787">{LOGO_LINES[2]}</text>
-        <text fg="#808080" attributes={TextAttributes.DIM}>{modelInfo() || "Connecting..."}</text>
+        <text fg="#808080" attributes={TextAttributes.DIM}>{modelInfo()}</text>
       </box>
       {/* Row 3: bottom of screen + working directory */}
       <box flexDirection="row">

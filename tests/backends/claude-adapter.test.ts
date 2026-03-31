@@ -852,6 +852,57 @@ describe("ClaudeAdapter", () => {
   })
 
   // -------------------------------------------------------------------------
+  // Streaming event edge cases
+  // -------------------------------------------------------------------------
+
+  describe("streaming event edge cases", () => {
+    it("maps message_delta with usage to cost_update event", () => {
+      // message_delta with usage should produce a cost_update event
+      // This is what drives real-time token counting in the spinner
+      const streamState = new ToolStreamState()
+      const events = mapStreamEvent(
+        { type: "message_delta", usage: { output_tokens: 42 } },
+        null,
+        streamState,
+      )
+      expect(events).toHaveLength(1)
+      expect(events[0].type).toBe("cost_update")
+      expect((events[0] as any).outputTokens).toBe(42)
+    })
+
+    it("message_delta without usage emits no events", () => {
+      const streamState = new ToolStreamState()
+      const events = mapStreamEvent(
+        { type: "message_delta" },
+        null,
+        streamState,
+      )
+      expect(events).toHaveLength(0)
+    })
+
+    it("content_block_start for text block emits no events", () => {
+      // Text block starts are markers only — the actual text comes via content_block_delta
+      const streamState = new ToolStreamState()
+      const events = mapStreamEvent(
+        { type: "content_block_start", index: 0, content_block: { type: "text" } },
+        null,
+        streamState,
+      )
+      expect(events).toHaveLength(0)
+    })
+
+    it("content_block_start for thinking block emits no events", () => {
+      const streamState = new ToolStreamState()
+      const events = mapStreamEvent(
+        { type: "content_block_start", index: 0, content_block: { type: "thinking" } },
+        null,
+        streamState,
+      )
+      expect(events).toHaveLength(0)
+    })
+  })
+
+  // -------------------------------------------------------------------------
   // Session denied tools
   // -------------------------------------------------------------------------
 

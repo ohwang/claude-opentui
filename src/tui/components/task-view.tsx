@@ -48,18 +48,18 @@ export function TaskView(props: { tasks: [string, TaskInfo][] }) {
             return (
               <box flexDirection="column">
                 <box flexDirection="row" paddingLeft={1}>
-                  <text fg="gray">{prefix()} </text>
+                  <text fg={colors.text.muted}>{prefix()} </text>
                   <text fg={color()}>{icon()} </text>
-                  <text fg="white">{task.description}</text>
+                  <text fg={colors.text.white}>{task.description}</text>
                   <Show when={task.status === "running"}>
-                    <text fg="gray">
+                    <text fg={colors.text.muted}>
                       {" "}({(() => { tick(); return Math.max(0, Math.round((Date.now() - task.startTime) / 1000)) })()}s)
                     </text>
                   </Show>
                 </box>
                 <Show when={task.status === "completed" && task.output}>
                   <box paddingLeft={5}>
-                    <text fg="gray" attributes={TextAttributes.DIM}>
+                    <text fg={colors.text.muted} attributes={TextAttributes.DIM}>
                       {task.output.length > 80
                         ? task.output.slice(0, 77) + "..."
                         : task.output}

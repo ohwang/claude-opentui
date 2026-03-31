@@ -243,7 +243,7 @@ export function ConversationView(props: { children?: JSX.Element }) {
         <box flexDirection="column">
           <box flexDirection="row" marginTop={state.streamingText ? 1 : 0} visible={!!state.streamingText}>
             <box width={2} flexShrink={0}>
-              <text fg="white">{"\u23FA"}</text>
+              <text fg={colors.text.white}>{"\u23FA"}</text>
             </box>
             <box flexGrow={1}>
               <markdown content={state.streamingText} syntaxStyle={syntaxStyle} streaming={true} fg={colors.text.primary} />
@@ -299,12 +299,12 @@ export function ConversationView(props: { children?: JSX.Element }) {
               paddingLeft={2}
               paddingRight={2}
               borderStyle="single"
-              borderColor="red"
+              borderColor={colors.border.error}
             >
-              <text fg="red" attributes={TextAttributes.BOLD}>
+              <text fg={colors.status.error} attributes={TextAttributes.BOLD}>
                 Error: {session.lastError!.code}
               </text>
-              <text fg="red">{session.lastError!.message}</text>
+              <text fg={colors.status.error}>{session.lastError!.message}</text>
             </box>
           </Show>
         </box>

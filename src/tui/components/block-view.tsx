@@ -34,8 +34,8 @@ export function BlockView(props: { block: Block; viewLevel: ViewLevel; prevType?
       <Show when={userBlock()}>{(ub) =>
         <box flexDirection="column" marginTop={1}>
           <box flexDirection="row" flexGrow={1} paddingLeft={1} bg={colors.bg.surface}>
-            <text fg="white" attributes={TextAttributes.BOLD}>{"❯ "}</text>
-            <text fg="white">{ub().text}</text>
+            <text fg={colors.text.white} attributes={TextAttributes.BOLD}>{"❯ "}</text>
+            <text fg={colors.text.white}>{ub().text}</text>
           </box>
           <Show when={ub().images && ub().images!.length > 0}>
             <box paddingLeft={3}>
@@ -52,7 +52,7 @@ export function BlockView(props: { block: Block; viewLevel: ViewLevel; prevType?
         <box flexDirection="column">
           <box flexDirection="row" marginTop={1}>
             <box width={2} flexShrink={0}>
-              <text fg="white">{"\u23FA"}</text>
+              <text fg={colors.text.white}>{"\u23FA"}</text>
             </box>
             <box flexGrow={1}>
               <markdown content={ab().text} syntaxStyle={syntaxStyle} fg={colors.text.primary} />
@@ -78,7 +78,7 @@ export function BlockView(props: { block: Block; viewLevel: ViewLevel; prevType?
       {/* System block */}
       <Show when={systemBlock()}>{(sb) =>
         <box paddingLeft={2} marginTop={1}>
-          <text fg="gray" attributes={TextAttributes.DIM}>
+          <text fg={colors.text.muted} attributes={TextAttributes.DIM}>
             {sb().text}
           </text>
         </box>
@@ -87,7 +87,7 @@ export function BlockView(props: { block: Block; viewLevel: ViewLevel; prevType?
       {/* Compact block */}
       <Show when={compactBlock()}>
         <box paddingTop={1} paddingBottom={1}>
-          <text fg="gray" attributes={TextAttributes.DIM}>
+          <text fg={colors.text.muted} attributes={TextAttributes.DIM}>
             {"\u2500\u2500 Context compacted \u2500\u2500"}
           </text>
         </box>
@@ -95,9 +95,9 @@ export function BlockView(props: { block: Block; viewLevel: ViewLevel; prevType?
 
       {/* Error block */}
       <Show when={errorBlock()}>{(eb) =>
-        <box flexDirection="column" paddingTop={1} paddingBottom={1} paddingLeft={2} paddingRight={2} borderStyle="single" borderColor="red">
-          <text fg="red" attributes={TextAttributes.BOLD}>Error: {eb().code}</text>
-          <text fg="red">{eb().message}</text>
+        <box flexDirection="column" paddingTop={1} paddingBottom={1} paddingLeft={2} paddingRight={2} borderStyle="single" borderColor={colors.border.error}>
+          <text fg={colors.status.error} attributes={TextAttributes.BOLD}>Error: {eb().code}</text>
+          <text fg={colors.status.error}>{eb().message}</text>
         </box>
       }</Show>
     </box>

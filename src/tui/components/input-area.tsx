@@ -7,7 +7,7 @@
  * '@' anywhere triggers fuzzy file search autocomplete.
  */
 
-import { createSignal, Show, For } from "solid-js"
+import { createSignal, Show, For, onCleanup } from "solid-js"
 import { TextAttributes, type TextareaRenderable, type KeyEvent, type CliRenderer, decodePasteBytes } from "@opentui/core"
 import { useRenderer, usePaste } from "@opentui/solid"
 import { tmpdir } from "os"
@@ -159,6 +159,10 @@ export function InputArea() {
   const renderer = useRenderer()
   let textareaRef: TextareaRenderable | undefined
 
+  // Debounce timer for expensive file autocomplete searches
+  let fileSearchTimer: ReturnType<typeof setTimeout> | undefined
+  onCleanup(() => clearTimeout(fileSearchTimer))
+
   // Dynamic textarea height: grows with content lines (min 1, max 6)
   const [lineCount, setLineCount] = createSignal(1)
   const textareaHeight = () => Math.min(Math.max(lineCount(), 1), 6)
@@ -291,18 +295,24 @@ export function InputArea() {
     if (atMatch) {
       const query = atMatch[1]
       const cwd = agent.config.cwd ?? process.cwd()
-      const files = searchFiles(query, cwd, MAX_VISIBLE_ITEMS)
-      if (files.length > 0) {
-        setAutocompleteItems(files.map((f) => ({
-          name: f,
-          description: f.endsWith("/") ? "directory" : "file",
-        })))
-        setSelectedIndex(0)
-        setAutocompleteMode("file")
-        setShowAutocomplete(true)
-        return
-      }
-      // No file matches — fall through to dismiss
+      // Debounce file search — it's expensive (fuzzy match over directory tree).
+      // Slash command search below is cheap, so only file search is debounced.
+      clearTimeout(fileSearchTimer)
+      fileSearchTimer = setTimeout(() => {
+        const files = searchFiles(query, cwd, MAX_VISIBLE_ITEMS)
+        if (files.length > 0) {
+          setAutocompleteItems(files.map((f) => ({
+            name: f,
+            description: f.endsWith("/") ? "directory" : "file",
+          })))
+          setSelectedIndex(0)
+          setAutocompleteMode("file")
+          setShowAutocomplete(true)
+        } else {
+          dismissAutocomplete()
+        }
+      }, 100)
+      return
     }
 
     // Check for /slash command trigger at position 0

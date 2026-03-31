@@ -22,6 +22,8 @@ const EXCLUDE_DIRS = new Set([
 ])
 const MAX_DEPTH = 3
 const MAX_FILES = 1000
+/** Cap on files to fuzzy-match per search (prevents UI freeze in large repos) */
+const MAX_FUZZY_CANDIDATES = 500
 
 let cachedFiles: string[] = []
 let cachedCwd = ""
@@ -88,7 +90,10 @@ export function searchFiles(query: string, cwd: string, limit = 12): string[] {
   const files = getFiles(cwd)
   if (!query) return files.slice(0, limit)
 
-  return files
+  // Cap the number of candidates to prevent expensive O(n) fuzzy matching
+  const candidates = files.length > MAX_FUZZY_CANDIDATES ? files.slice(0, MAX_FUZZY_CANDIDATES) : files
+
+  return candidates
     .filter((f) => fuzzyMatch(query, f))
     .sort((a, b) => {
       const q = query.toLowerCase()

@@ -15,6 +15,7 @@ import { parseFlags, printHelp } from "./cli/flags"
 import { ClaudeAdapter } from "./backends/claude/adapter"
 import { ClaudeV2Adapter } from "./backends/claude/adapter-v2"
 import { CodexAdapter } from "./backends/codex/adapter"
+import { GeminiAdapter } from "./backends/gemini/adapter"
 import { MockAdapter } from "./backends/mock/adapter"
 import { startApp } from "./tui/app"
 import { log } from "./utils/logger"
@@ -73,6 +74,9 @@ async function main() {
       break
     case "codex":
       backend = new CodexAdapter()
+      break
+    case "gemini":
+      backend = new GeminiAdapter()
       break
     case "mock":
       backend = new MockAdapter()

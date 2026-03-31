@@ -352,9 +352,12 @@ export interface SessionConfig {
 export interface SessionInfo {
   id: string
   title: string
-  createdAt: number
+  createdAt?: number
   updatedAt: number
-  messageCount: number
+  messageCount?: number
+  gitBranch?: string
+  cwd?: string
+  fileSize?: number
 }
 
 export interface ForkOptions {

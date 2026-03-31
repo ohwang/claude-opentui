@@ -314,7 +314,14 @@ export function mapStreamEvent(
               input: parsedInput,
             })
           } catch {
-            // JSON parse failed — leave input as-is
+            log.warn("Failed to parse tool input JSON", { toolId, json: jsonStr.slice(0, 200) })
+            // Still emit progress with the raw JSON string so the user can see inputs
+            events.push({
+              type: "tool_use_progress",
+              id: toolId,
+              output: "",
+              input: jsonStr,  // Raw string instead of parsed object
+            })
           }
         }
         streamState.currentToolIds.delete(event.index)

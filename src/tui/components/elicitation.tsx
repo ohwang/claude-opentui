@@ -155,7 +155,7 @@ function QuestionView(props: {
       </Show>
 
       <Show when={showFreeText() || freeTextOnly()}>
-        <text fg={colors.text.muted}>Type your answer and press Enter (Esc to cancel):</text>
+        <text fg={colors.text.muted}>Type your answer · Enter to submit · Shift+Enter for newline · Esc to go back</text>
         <textarea
           ref={(el: TextareaRenderable) => { freeTextRef = el }}
           focused

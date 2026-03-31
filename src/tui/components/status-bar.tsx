@@ -397,6 +397,10 @@ export function StatusBar(props: { hint?: string | null }) {
           <text fg="white" attributes={TextAttributes.BOLD}>
             {modelName()}
           </text>
+
+          {/* State icon */}
+          <text fg="gray">{"  "}</text>
+          <text fg={stateColor()}>{stateIcon()}</text>
         </>
       )}
 

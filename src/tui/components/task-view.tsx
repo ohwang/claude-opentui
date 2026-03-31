@@ -35,7 +35,7 @@ export function TaskView(props: { tasks: [string, TaskInfo][] }) {
   return (
     <Show when={hasAny()}>
       <box flexDirection="column" paddingTop={1}>
-        <text fg="magenta" attributes={TextAttributes.BOLD}>
+        <text fg={colors.accent.secondary} attributes={TextAttributes.BOLD}>
           {header()}
         </text>
         <For each={props.tasks.slice(0, MAX_VISIBLE_TASKS)}>

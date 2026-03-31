@@ -193,7 +193,7 @@ export function ToolBlockView(props: { block: Extract<Block, { type: "tool" }>; 
       {/* Error display — prominent bordered box so failures are hard to miss */}
       <Show when={b().error && !isUserDecline(b().error!)}>
         <box paddingLeft={2} paddingTop={1}>
-          <box flexDirection="row" borderStyle="single" borderColor="red" paddingLeft={1} paddingRight={1}>
+          <box flexDirection="row" borderStyle="single" borderColor={colors.border.error} paddingLeft={1} paddingRight={1}>
             <text fg={colors.status.error} attributes={TextAttributes.BOLD}>
               {"\u2717 " + (b().error!.split("\n")[0]!.length > 100
                 ? b().error!.split("\n")[0]!.slice(0, 97) + "..."

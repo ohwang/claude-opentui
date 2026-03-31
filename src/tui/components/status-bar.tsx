@@ -402,7 +402,7 @@ export function StatusBar(props: { hint?: string | null }) {
         <text fg="gray">{props.hint}</text>
       ) : (
         <>
-          <text fg="yellow" attributes={TextAttributes.BOLD}>
+          <text fg={colors.status.warning} attributes={TextAttributes.BOLD}>
             {projectName}
           </text>
 
@@ -422,7 +422,7 @@ export function StatusBar(props: { hint?: string | null }) {
       {showCost() && costStr() && (
         <box flexDirection="row">
           <text fg="gray">{"  "}</text>
-          <text fg="green">{costStr()}</text>
+          <text fg={colors.status.success}>{costStr()}</text>
         </box>
       )}
 
@@ -430,7 +430,7 @@ export function StatusBar(props: { hint?: string | null }) {
       {showGit() && gitStr() && (
         <box flexDirection="row">
           <text fg="gray">{"  "}</text>
-          <text fg="cyan">{gitStr()}</text>
+          <text fg={colors.status.info}>{gitStr()}</text>
         </box>
       )}
 
@@ -448,7 +448,7 @@ export function StatusBar(props: { hint?: string | null }) {
       {/* Tok/s (only during streaming) */}
       {tokPerSecStr() && (
         <box flexDirection="row">
-          <text fg="cyan">{tokPerSecStr()}</text>
+          <text fg={colors.status.info}>{tokPerSecStr()}</text>
           <text fg="gray">{" "}</text>
         </box>
       )}
@@ -456,7 +456,7 @@ export function StatusBar(props: { hint?: string | null }) {
       {/* Timer (only during streaming) */}
       {timerStr() && (
         <box flexDirection="row">
-          <text fg="yellow">{timerStr()}</text>
+          <text fg={colors.status.warning}>{timerStr()}</text>
           <text fg="gray">{"  "}</text>
         </box>
       )}

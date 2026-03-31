@@ -29,6 +29,7 @@ export const colors = {
     logo: "#d7875f",         // Header bar logo warm orange
     periwinkle: "#afd7ff",   // Permission dialog accent
     cyan: "#87ceeb",         // Elicitation accent
+    secondary: "#d787d7",    // Magenta -- subagent/task headers
   },
 
   // -- Status -------------------------------------------------------------

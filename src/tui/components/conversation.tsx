@@ -293,7 +293,9 @@ export function ConversationView(props: { children?: JSX.Element }) {
       </box>
 
       {/* Input area, status bar, dialogs — rendered inside scrollbox so they flow with content */}
-      {props.children}
+      <box paddingBottom={1}>
+        {props.children}
+      </box>
     </scrollbox>
   )
 }

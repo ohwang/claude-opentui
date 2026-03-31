@@ -169,8 +169,13 @@ export function InputArea() {
     // Always suppress OpenTUI's default textarea paste handling
     event.preventDefault()
 
-    const text = decodePasteBytes(event.bytes)
-    if (!text) return
+    const raw = decodePasteBytes(event.bytes)
+    if (!raw) return
+
+    // Normalize line endings: terminal pastes often use \r\n or bare \r
+    // instead of \n.  The textarea only recognizes \n as a newline, so
+    // without normalization multi-line pastes collapse onto one line.
+    const text = raw.replace(/\r\n?/g, "\n")
 
     const now = Date.now()
     // Deduplicate identical pastes arriving within the window

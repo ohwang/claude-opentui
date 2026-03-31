@@ -23,7 +23,7 @@ import { InputArea, clearInput, hasInputText, refocusInput } from "./components/
 import { StatusBar } from "./components/status-bar"
 import { PermissionDialog } from "./components/permission-dialog"
 import { ElicitationDialog } from "./components/elicitation"
-import { DiagnosticsPanel } from "./components/diagnostics"
+import { DiagnosticsPanel, scrollDiagnostics } from "./components/diagnostics"
 import { ContextualTips } from "./components/tips"
 import { MODEL_NAMES, friendlyModelName } from "./models"
 
@@ -178,6 +178,11 @@ function Layout(props: { onExit?: () => void }) {
         setShowDiagnostics(false)
         return
       }
+      // Vim-style scrolling: j/k for line, d/u for half-page
+      if (event.name === "j") { event.preventDefault(); scrollDiagnostics(1); return }
+      if (event.name === "k") { event.preventDefault(); scrollDiagnostics(-1); return }
+      if (event.name === "d") { event.preventDefault(); scrollDiagnostics(10); return }
+      if (event.name === "u") { event.preventDefault(); scrollDiagnostics(-10); return }
       // Block all other keys from reaching the textarea
       event.preventDefault()
       return

@@ -9,7 +9,7 @@
  */
 
 import { createSignal, createMemo, Show, For, onCleanup } from "solid-js"
-import { TextAttributes } from "@opentui/core"
+import { TextAttributes, type ScrollBoxRenderable } from "@opentui/core"
 import { useTerminalDimensions } from "@opentui/solid"
 import { useSession } from "../context/session"
 import { useAgent } from "../context/agent"
@@ -18,6 +18,19 @@ import { colors } from "../theme/tokens"
 import { log } from "../../utils/logger"
 import { friendlyModelName, MODEL_CONTEXT_WINDOWS, DEFAULT_CONTEXT_WINDOW } from "../models"
 import type { Block } from "../../protocol/types"
+
+// ---------------------------------------------------------------------------
+// Module-level scroll callback — called from app.tsx keyboard handler
+// ---------------------------------------------------------------------------
+let _scrollDiagnostics: ((amount: number) => void) | undefined
+
+/**
+ * Scroll the diagnostics panel by the given amount.
+ * Positive = down, negative = up.
+ */
+export function scrollDiagnostics(amount: number): void {
+  _scrollDiagnostics?.(amount)
+}
 
 // ---------------------------------------------------------------------------
 // Data collection
@@ -261,7 +274,7 @@ export function DiagnosticsPanel(props: { visible: boolean; onClose: () => void 
             {"Diagnostics"}
           </text>
           <text fg={colors.text.muted} attributes={TextAttributes.DIM}>
-            {"  (Ctrl+Shift+D or Esc to close)"}
+            {"  (j/k scroll, d/u page, Esc to close)"}
           </text>
         </box>
 
@@ -271,7 +284,7 @@ export function DiagnosticsPanel(props: { visible: boolean; onClose: () => void 
         </box>
 
         {/* Content in a scrollbox so it doesn't overflow */}
-        <scrollbox flexGrow={1} stickyScroll={false} bg={colors.bg.overlay}>
+        <scrollbox ref={(el: ScrollBoxRenderable) => { _scrollDiagnostics = (n: number) => el.scrollBy(n) }} flexGrow={1} stickyScroll={false} bg={colors.bg.overlay}>
           {/* Sections */}
           <For each={sections()}>
             {(section) => (

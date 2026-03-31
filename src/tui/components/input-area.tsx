@@ -55,6 +55,15 @@ export function refocusInput(): void {
   _sharedTextareaRef?.focus()
 }
 
+/**
+ * Check whether the input textarea currently has non-whitespace text.
+ * Used by the Ctrl+D handler to only trigger exit when the editor is empty.
+ */
+export function hasInputText(): boolean {
+  if (!_sharedTextareaRef) return false
+  return Boolean(_sharedTextareaRef.plainText?.trim())
+}
+
 /** Module-level ref so clearInput() can access the textarea */
 let _sharedTextareaRef: TextareaRenderable | undefined
 /** Module-level callback to reset line count when clearInput() is called externally */

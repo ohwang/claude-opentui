@@ -17,7 +17,7 @@ import { PermissionsProvider } from "./context/permissions"
 import { SyncProvider, useSync } from "./context/sync"
 import { useTerminalDimensions } from "@opentui/solid"
 import { ConversationView } from "./components/conversation"
-import { InputArea, clearInput, refocusInput } from "./components/input-area"
+import { InputArea, clearInput, hasInputText, refocusInput } from "./components/input-area"
 import { StatusBar } from "./components/status-bar"
 import { PermissionDialog } from "./components/permission-dialog"
 import { ElicitationDialog } from "./components/elicitation"
@@ -91,13 +91,19 @@ function Layout(props: { onExit?: () => void }) {
 
   // Global keyboard shortcuts
   useKeyboard((event) => {
-    // Ctrl+D: single = no effect, 3+ rapid = exit
+    // Ctrl+D: exit when editor is empty (matches native Claude Code)
+    // First press = hint, second press within 2s = exit
     if (event.ctrl && event.name === "d") {
+      if (hasInputText()) return  // Ignore when editor has text
       ctrlDCount++
       clearTimeout(ctrlDTimer)
-      ctrlDTimer = setTimeout(() => { ctrlDCount = 0 }, 1000)
-      if (ctrlDCount >= 3) {
-        cleanExit("ctrl+d triple-press")
+      ctrlDTimer = setTimeout(() => { ctrlDCount = 0 }, 2000)
+      if (ctrlDCount >= 2) {
+        cleanExit("ctrl+d double-press")
+      } else {
+        setStatusHint("Press Ctrl-D again to exit")
+        clearTimeout(statusHintTimer)
+        statusHintTimer = setTimeout(() => setStatusHint(null), 2000)
       }
       return
     }
@@ -118,7 +124,7 @@ function Layout(props: { onExit?: () => void }) {
       ) {
         if (session.sessionState === "INTERRUPTING") {
           // Already interrupting \u2014 show hint about force exit
-          setStatusHint("Interrupt pending... Press Ctrl+D\u00D73 to force exit")
+          setStatusHint("Interrupt pending... Press Ctrl+D\u00D72 to force exit")
           clearTimeout(statusHintTimer)
           statusHintTimer = setTimeout(() => setStatusHint(null), 3000)
         } else {

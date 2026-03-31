@@ -286,9 +286,15 @@ export function InputArea() {
     // Ctrl+G = open external editor for multi-line prompt composition
     if (e.ctrl && e.name === "g") {
       e.preventDefault()
-      openExternalEditor(textareaRef, renderer).then(() => {
-        updateLineCount()
-      })
+      openExternalEditor(textareaRef, renderer)
+        .then(() => {
+          updateLineCount()
+        })
+        .catch((err) => {
+          log.warn("openExternalEditor promise rejected", {
+            error: String(err),
+          })
+        })
       return
     }
 

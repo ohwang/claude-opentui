@@ -218,17 +218,40 @@ export function ToolBlockView(props: { block: Extract<Block, { type: "tool" }>; 
 // Tool summary — collapsed view aggregation (matches Claude Code)
 // ---------------------------------------------------------------------------
 
-/** Human-readable tool summary text */
-function toolSummaryText(toolName: string, count: number): string {
-  const s = count === 1 ? "" : "s"
-  switch (toolName) {
-    case "Read": return `Read ${count} file${s}`
-    case "Edit": return `Edited ${count} file${s}`
-    case "Write": return `Wrote ${count} file${s}`
-    case "Bash": return `Ran ${count} command${s}`
-    case "Glob": case "Grep": return `Searched ${count} pattern${s}`
-    case "Agent": return `Spawned ${count} agent${s}`
-    default: return `${toolName} (${count})`
+/** Extract the primary argument from a tool block's input */
+function extractPrimaryArg(tool: string, input: unknown): string {
+  const inp = input as Record<string, unknown> | null
+  if (!inp) return ""
+  if (inp.file_path && typeof inp.file_path === "string") return inp.file_path
+  if (inp.command && typeof inp.command === "string") {
+    const cmd = inp.command
+    return cmd.length > 60 ? cmd.slice(0, 57) + "..." : cmd
+  }
+  if (inp.pattern && typeof inp.pattern === "string") return inp.pattern
+  return ""
+}
+
+/** Brief inline result for collapsed summary lines */
+function collapsedResultHint(tool: ToolBlock): string {
+  if (tool.status === "running") return ""
+  if (tool.error) {
+    if (isUserDecline(tool.error)) return "declined"
+    return "failed"
+  }
+  const out = tool.output ?? ""
+  if (!out) return ""
+  switch (tool.tool) {
+    case "Read": {
+      const lines = out.split("\n").length
+      return `${lines} line${lines === 1 ? "" : "s"}`
+    }
+    case "Glob":
+    case "Grep": {
+      const lines = out.trim().split("\n").filter(l => l.trim()).length
+      return `${lines} result${lines === 1 ? "" : "s"}`
+    }
+    default:
+      return ""
   }
 }
 
@@ -238,7 +261,7 @@ function formatElapsed(seconds: number): string {
   return `${Math.floor(seconds / 60)}m ${seconds % 60}s`
 }
 
-/** Collapsed tool summary view — "Running Bash... (5s), Read 2 files (ctrl+o to expand)" */
+/** Collapsed tool summary view — shows each tool with its primary arg */
 export function ToolSummaryView(props: { tools: ToolBlock[] }) {
   // Tick signal for running tool elapsed time — updates every second
   const [tick, setTick] = createSignal(Date.now())
@@ -259,53 +282,35 @@ export function ToolSummaryView(props: { tools: ToolBlock[] }) {
   })
   onCleanup(() => { if (tickTimer) clearInterval(tickTimer) })
 
-  const summaryData = createMemo(() => {
+  /** Build per-tool summary lines: "ToolName arg — hint" or "Running ToolName... (5s)" */
+  const toolLines = createMemo(() => {
     const now = tick() // subscribe to tick for reactivity
-    const completed: Record<string, number> = {}
-    const running: Array<{ tool: string; elapsed: number }> = []
-    const errorTools: Array<{ tool: string; error: string }> = []
+    return props.tools.map(tool => {
+      const arg = extractPrimaryArg(tool.tool, tool.input)
+      const argSuffix = arg ? ` ${arg}` : ""
 
-    for (const tool of props.tools) {
       if (tool.status === "running") {
-        running.push({ tool: tool.tool, elapsed: Math.floor((now - tool.startTime) / 1000) })
-      } else if (tool.status === "error" || tool.error) {
-        const errMsg = tool.error ?? "unknown error"
-        const firstLine = errMsg.split("\n")[0] ?? errMsg
-        const truncated = firstLine.length > 50 ? firstLine.slice(0, 47) + "..." : firstLine
-        errorTools.push({ tool: tool.tool, error: truncated })
-      } else {
-        completed[tool.tool] = (completed[tool.tool] ?? 0) + 1
+        const elapsed = Math.floor((now - tool.startTime) / 1000)
+        return { text: `${tool.tool}${argSuffix}... (${formatElapsed(elapsed)})`, isError: false }
       }
-    }
 
-    const normalParts: string[] = []
-    for (const { tool, elapsed } of running) {
-      normalParts.push(`Running ${tool}... (${formatElapsed(elapsed)})`)
-    }
-    for (const [name, count] of Object.entries(completed)) {
-      normalParts.push(toolSummaryText(name, count))
-    }
-
-    return {
-      normalText: normalParts.join(", "),
-      errorText: errorTools.map(({ tool, error }) => `${tool} failed (${error})`).join(", "),
-      hasErrors: errorTools.length > 0,
-    }
+      const hint = collapsedResultHint(tool)
+      const isError = tool.status === "error" || (!!tool.error && !isUserDecline(tool.error))
+      const hintSuffix = hint ? ` — ${hint}` : ""
+      return { text: `${tool.tool}${argSuffix}${hintSuffix}`, isError }
+    })
   })
 
   return (
-    <box paddingLeft={2} marginTop={1} flexDirection="row">
-      <Show when={summaryData().normalText}>
-        <text fg={colors.text.secondary} attributes={TextAttributes.DIM}>
-          {summaryData().normalText + (summaryData().hasErrors ? ", " : "")}
+    <box paddingLeft={2} flexDirection="column">
+      {toolLines().map(line => (
+        <text
+          fg={line.isError ? colors.status.error : colors.text.secondary}
+          attributes={TextAttributes.DIM}
+        >
+          {line.text}
         </text>
-      </Show>
-      <Show when={summaryData().hasErrors}>
-        <text fg={colors.status.error}>{summaryData().errorText}</text>
-      </Show>
-      <text fg={colors.text.secondary} attributes={TextAttributes.DIM}>
-        {" (ctrl+o to expand)"}
-      </text>
+      ))}
     </box>
   )
 }

@@ -165,6 +165,19 @@ export function InputArea() {
   let lastPasteTime = 0
   const PASTE_DEDUP_MS = 150
 
+  // ── Paste → Enter suppression ──────────────────────────────────────
+  // When multi-line text is pasted, the terminal's stdin parser may
+  // interpret each \n byte as a separate "return" key event *after* the
+  // bracket-paste sequence is handled.  preventDefault() on the
+  // PasteEvent stops OpenTUI's built-in insert, but it cannot prevent
+  // the stdin parser from emitting those synthetic keystrokes.
+  //
+  // We set `isPasting` while the paste is being processed and clear it
+  // on the next microtask.  handleKeyDown checks this flag and
+  // suppresses "return" → submit so that newlines in pasted text stay
+  // as newlines instead of triggering message submission.
+  let isPasting = false
+
   usePaste((event) => {
     // Always suppress OpenTUI's default textarea paste handling
     event.preventDefault()
@@ -188,8 +201,12 @@ export function InputArea() {
     lastPasteTime = now
 
     if (textareaRef) {
+      isPasting = true
       textareaRef.insertText(text)
       updateLineCount()
+      // Clear on next microtask — all synchronous key events generated
+      // from the paste bytes will have fired by then.
+      queueMicrotask(() => { isPasting = false })
     }
   })
 
@@ -291,6 +308,13 @@ export function InputArea() {
 
   const handleKeyDown = (e: KeyEvent) => {
     if (isDisabled()) return // Don't handle any keys when disabled
+
+    // During a paste, the stdin parser may emit \n bytes as "return"
+    // key events.  Suppress them so pasted newlines don't trigger submit.
+    if (isPasting && e.name === "return") {
+      e.preventDefault()
+      return
+    }
 
     // Escape = dismiss autocomplete, then completion hint, then clear input
     if (e.name === "escape") {

@@ -23,7 +23,7 @@ import { log } from "../../utils/logger"
 const commandRegistry = createCommandRegistry()
 
 /** Maximum number of items visible in the autocomplete dropdown */
-const MAX_VISIBLE_ITEMS = 6
+const MAX_VISIBLE_ITEMS = 12
 
 // Input history for Up/Down arrow recall
 const inputHistory: string[] = []
@@ -562,6 +562,11 @@ export function InputArea() {
               </box>
             )}
           </For>
+          <Show when={autocompleteItems().length > MAX_VISIBLE_ITEMS}>
+            <text fg="#808080" attributes={TextAttributes.DIM}>
+              {`  ${autocompleteItems().length - MAX_VISIBLE_ITEMS} more...`}
+            </text>
+          </Show>
         </box>
       </Show>
     </box>

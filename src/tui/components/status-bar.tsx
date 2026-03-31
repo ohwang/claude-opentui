@@ -144,14 +144,28 @@ export function StatusBar(props: { hint?: string | null }) {
         return
       }
       const prevMode = permMode()
-      const idx = PERM_MODE_CYCLE.indexOf(prevMode)
-      const nextIdx = (idx + 1) % PERM_MODE_CYCLE.length
-      const nextMode = PERM_MODE_CYCLE[nextIdx] ?? "default"
-      setPermMode(nextMode)
-      agent.backend.setPermissionMode(nextMode).catch((err) => {
-        log.warn("Failed to set permission mode", { error: String(err) })
+      const startIdx = PERM_MODE_CYCLE.indexOf(prevMode)
+
+      // Try each subsequent mode; skip modes the backend rejects
+      const tryMode = async (attempt: number): Promise<void> => {
+        if (attempt >= PERM_MODE_CYCLE.length) {
+          // Wrapped all the way around — revert to original
+          setPermMode(prevMode)
+          return
+        }
+        const nextIdx = (startIdx + attempt + 1) % PERM_MODE_CYCLE.length
+        const nextMode = PERM_MODE_CYCLE[nextIdx] ?? "default"
+        setPermMode(nextMode)
+        try {
+          await agent.backend.setPermissionMode(nextMode)
+        } catch (err) {
+          log.warn("Failed to set permission mode, skipping", { mode: nextMode, error: String(err) })
+          await tryMode(attempt + 1)
+        }
+      }
+      tryMode(0).catch((err) => {
+        log.error("Permission mode cycling failed", { error: String(err) })
         setPermMode(prevMode)
-        sync.pushEvent({ type: "system_message", text: `Failed to set permission mode: ${err instanceof Error ? err.message : String(err)}` })
       })
     }
   })

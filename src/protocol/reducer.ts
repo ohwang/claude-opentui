@@ -15,6 +15,14 @@ import type {
   ToolStatus,
 } from "./types"
 
+/** Strip SDK image placeholders that native Claude Code doesn't display */
+function stripImagePlaceholders(text: string): string {
+  return text
+    .replace(/\[Image(?:\s*#?\s*\d+)?\]/gi, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
 /**
  * Commit streaming buffers to blocks. Called on tool_use_start, text_complete,
  * turn_complete, and interrupt to ensure chronological ordering.
@@ -30,7 +38,7 @@ function flushBuffers(state: ConversationState): ConversationState {
     streamingThinking = ""
   }
   if (streamingText) {
-    flushed.push({ type: "assistant", text: streamingText, timestamp: Date.now(), model: state.currentModel ?? undefined })
+    flushed.push({ type: "assistant", text: stripImagePlaceholders(streamingText), timestamp: Date.now(), model: state.currentModel ?? undefined })
     streamingText = ""
   }
 
@@ -231,7 +239,7 @@ export function reduce(
 
     case "text_complete": {
       // Flush buffers with the finalized text — commits as an assistant block
-      const withFinalText = { ...next, streamingText: event.text }
+      const withFinalText = { ...next, streamingText: stripImagePlaceholders(event.text) }
       return flushBuffers(withFinalText)
     }
 

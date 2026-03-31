@@ -462,7 +462,7 @@ function BlockView(props: { block: Block; viewLevel: ViewLevel; prevType?: strin
     <box flexDirection="column">
       {/* User block */}
       <Show when={userBlock()}>{(ub) =>
-        <box flexDirection="row" marginTop={1} bg="#3a3a3a">
+        <box flexDirection="row" flexGrow={1} marginTop={1} paddingLeft={1} bg="#3a3a3a">
           <text fg="white" attributes={TextAttributes.BOLD}>{"❯ "}</text>
           <text fg="white">{ub().text}</text>
         </box>

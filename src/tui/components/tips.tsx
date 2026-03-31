@@ -20,12 +20,6 @@ const TIPS: Record<string, string[]> = {
   RUNNING: [
     "Ctrl+C to interrupt \u00b7 Ctrl+O to expand tool output",
   ],
-  WAITING_FOR_PERM: [
-    "y=allow \u00b7 a=always \u00b7 n=deny \u00b7 d=deny session \u00b7 Esc=deny",
-  ],
-  WAITING_FOR_ELIC: [
-    "Arrow keys to navigate \u00b7 Enter to select \u00b7 Esc to cancel",
-  ],
 }
 
 export function ContextualTips() {

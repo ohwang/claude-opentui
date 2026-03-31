@@ -322,7 +322,7 @@ function groupBlocksForRendering(blocks: Block[], viewLevel: ViewLevel): RenderI
 // BlockView — dispatches rendering by block type
 // ---------------------------------------------------------------------------
 
-function BlockView(props: { block: Block; viewLevel: ViewLevel }) {
+function BlockView(props: { block: Block; viewLevel: ViewLevel; prevType?: string }) {
   const b = () => props.block
 
   // Typed narrowing helpers — each returns the narrowed variant or null.
@@ -370,12 +370,16 @@ function BlockView(props: { block: Block; viewLevel: ViewLevel }) {
 
       {/* Thinking block — hidden in collapsed view (matches Claude Code) */}
       <Show when={props.viewLevel !== "collapsed" && thinkingBlock()}>{(tb) =>
-        <ThinkingBlock text={tb().text} collapsed={props.viewLevel === "expanded"} />
+        <box marginTop={1}>
+          <ThinkingBlock text={tb().text} collapsed={props.viewLevel === "expanded"} />
+        </box>
       }</Show>
 
-      {/* Tool block */}
+      {/* Tool block — tight grouping for consecutive tools */}
       <Show when={toolBlock()}>{(tb) =>
-        <ToolBlockView block={tb()} viewLevel={props.viewLevel} />
+        <box marginTop={props.prevType !== "tool" ? 1 : 0}>
+          <ToolBlockView block={tb()} viewLevel={props.viewLevel} />
+        </box>
       }</Show>
 
       {/* System block */}
@@ -559,7 +563,7 @@ export function ConversationView(props: { children?: JSX.Element }) {
 
   return (
     <scrollbox ref={scrollboxRef} stickyScroll flexGrow={1}>
-      <box flexDirection="column" padding={1}>
+      <box flexDirection="column" paddingTop={1} paddingRight={1} paddingBottom={1}>
         {/* Header bar — scrolls with content */}
         <HeaderBar />
 
@@ -575,18 +579,26 @@ export function ConversationView(props: { children?: JSX.Element }) {
         {/* Committed blocks (non-queued) — tool blocks grouped in collapsed view */}
         <box flexDirection="column">
           <For each={renderItems()}>
-            {(item) =>
-              item.kind === "tool-summary"
+            {(item, index) => {
+              const items = renderItems()
+              const prev = index() > 0 ? items[index() - 1] : undefined
+              const prevType = prev
+                ? prev.kind === "tool-summary" ? "tool-summary" : prev.block.type
+                : undefined
+
+              return item.kind === "tool-summary"
                 ? <ToolSummaryView tools={item.tools} />
-                : <BlockView block={item.block} viewLevel={viewLevel()} />
-            }
+                : <BlockView block={item.block} viewLevel={viewLevel()} prevType={prevType} />
+            }}
           </For>
         </box>
 
         {/* Streaming thinking (transient) — hidden in collapsed view, spinner shows instead */}
         <box flexDirection="column">
           <Show when={state.streamingThinking && viewLevel() !== "collapsed"}>
-            <ThinkingBlock text={state.streamingThinking} collapsed={viewLevel() === "expanded"} />
+            <box marginTop={1}>
+              <ThinkingBlock text={state.streamingThinking} collapsed={viewLevel() === "expanded"} />
+            </box>
           </Show>
         </box>
 

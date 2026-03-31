@@ -74,7 +74,7 @@ export function BlockView(props: { block: Block; viewLevel: ViewLevel; prevType?
 
       {/* Tool block — tight grouping for consecutive tools */}
       <Show when={toolBlock()}>{(tb) =>
-        <box marginTop={props.prevType !== "tool" ? 1 : 0}>
+        <box marginTop={props.prevType !== "tool" ? 1 : (props.viewLevel !== "collapsed" ? 1 : 0)}>
           <ToolBlockView block={tb()} viewLevel={props.viewLevel} />
         </box>
       }</Show>

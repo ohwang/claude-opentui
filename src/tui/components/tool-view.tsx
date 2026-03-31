@@ -101,6 +101,13 @@ export function ToolBlockView(props: { block: Extract<Block, { type: "tool" }>; 
     return ""
   })
 
+  // Status-aware prefix color: green for success, red for error, accent for running
+  const prefixColor = () => {
+    if (b().status === "running") return colors.accent.primary
+    if (b().error && !isUserDecline(b().error!)) return colors.status.error
+    return colors.status.success
+  }
+
   /** Brief result summary for the ⎿ line */
   const resultSummary = createMemo(() => {
     if (b().status === "running") return ""
@@ -137,7 +144,7 @@ export function ToolBlockView(props: { block: Extract<Block, { type: "tool" }>; 
     <box flexDirection="column">
       {/* Invocation line: ⏺ ToolName(arg) */}
       <box flexDirection="row">
-        <text fg={colors.accent.primary}>{"\u23FA "}</text>
+        <text fg={prefixColor()}>{"\u23FA "}</text>
         <text fg="white">{b().tool}</text>
         <Show when={primaryArg()}>
           <text fg="gray">{"(" + primaryArg() + ")"}</text>

@@ -22,6 +22,7 @@ import { StatusBar } from "./components/status-bar"
 import { PermissionDialog } from "./components/permission-dialog"
 import { ElicitationDialog } from "./components/elicitation"
 import { DiagnosticsPanel } from "./components/diagnostics"
+import { MODEL_NAMES, friendlyModelName } from "./models"
 
 // Module-level exit function so slash commands can trigger clean shutdown
 let _cleanExit: (() => void) | undefined
@@ -67,6 +68,21 @@ function Layout(props: { onExit?: () => void }) {
   let statusHintTimer: ReturnType<typeof setTimeout> | undefined
   let interruptTimeout: ReturnType<typeof setTimeout> | undefined
 
+  // Model cycling state (Ctrl+P / Shift+Ctrl+P)
+  const modelIds = Object.keys(MODEL_NAMES)
+  const [modelIndex, setModelIndex] = createSignal(0)
+
+  // Initialize model index from the current session model once available
+  createEffect(on(
+    () => session.currentModel,
+    (current) => {
+      if (current) {
+        const idx = modelIds.indexOf(current)
+        if (idx >= 0) setModelIndex(idx)
+      }
+    }
+  ))
+
   const renderer = useRenderer()
 
   const cleanExit = (reason: string) => {
@@ -92,6 +108,38 @@ function Layout(props: { onExit?: () => void }) {
     }
   ))
 
+  /** Show a transient status hint that auto-clears after the given duration */
+  const showTransientHint = (text: string, durationMs = 2000) => {
+    setStatusHint(text)
+    clearTimeout(statusHintTimer)
+    statusHintTimer = setTimeout(() => setStatusHint(null), durationMs)
+  }
+
+  /** Cycle model by delta (+1 forward, -1 backward), call setModel, show hint */
+  const cycleModel = (delta: number) => {
+    // Only allow model cycling when idle (not mid-turn)
+    if (session.sessionState !== "IDLE" && session.sessionState !== "INITIALIZING") {
+      showTransientHint("Cannot switch model while running")
+      return
+    }
+    if (modelIds.length === 0) return
+
+    const nextIdx = ((modelIndex() + delta) % modelIds.length + modelIds.length) % modelIds.length
+    setModelIndex(nextIdx)
+    const modelId = modelIds[nextIdx]!
+    const displayName = friendlyModelName(modelId)
+
+    // Fire-and-forget model switch on the backend
+    agent.backend.setModel(modelId).catch((err: unknown) => {
+      log.warn("Failed to set model", { model: modelId, error: String(err) })
+      showTransientHint(`Failed to switch model: ${err instanceof Error ? err.message : String(err)}`)
+    })
+
+    // Emit model_changed event so the session store / status bar update
+    sync.pushEvent({ type: "model_changed", model: modelId })
+    showTransientHint(`Switched to ${displayName}`)
+  }
+
   // Global keyboard shortcuts
   useKeyboard((event) => {
     // Ctrl+Shift+D: toggle diagnostics panel
@@ -106,6 +154,12 @@ function Layout(props: { onExit?: () => void }) {
       return
     }
 
+    // Ctrl+P / Shift+Ctrl+P: cycle models forward / backward
+    if (event.ctrl && event.name === "p") {
+      cycleModel(event.shift ? -1 : 1)
+      return
+    }
+
     // Ctrl+D: exit when editor is empty (matches native Claude Code)
     // First press = hint, second press within 2s = exit
     if (event.ctrl && event.name === "d") {
@@ -116,9 +170,7 @@ function Layout(props: { onExit?: () => void }) {
       if (ctrlDCount >= 2) {
         cleanExit("ctrl+d double-press")
       } else {
-        setStatusHint("Press Ctrl-D again to exit")
-        clearTimeout(statusHintTimer)
-        statusHintTimer = setTimeout(() => setStatusHint(null), 2000)
+        showTransientHint("Press Ctrl-D again to exit")
       }
       return
     }
@@ -139,9 +191,7 @@ function Layout(props: { onExit?: () => void }) {
       ) {
         if (session.sessionState === "INTERRUPTING") {
           // Already interrupting \u2014 show hint about force exit
-          setStatusHint("Interrupt pending... Press Ctrl+D\u00D72 to force exit")
-          clearTimeout(statusHintTimer)
-          statusHintTimer = setTimeout(() => setStatusHint(null), 3000)
+          showTransientHint("Interrupt pending... Press Ctrl+D\u00D72 to force exit", 3000)
         } else {
           sync.pushEvent({ type: "interrupt" })
           sync.pushEvent({ type: "system_message", text: "⎿  Interrupted \u00B7 What should Claude do instead?" })
@@ -169,9 +219,7 @@ function Layout(props: { onExit?: () => void }) {
             cleanExit("ctrl+c double-press")
           } else {
             // Show "Press Ctrl-C again to exit" hint in status bar
-            setStatusHint("Press Ctrl-C again to exit")
-            clearTimeout(statusHintTimer)
-            statusHintTimer = setTimeout(() => setStatusHint(null), 2000)
+            showTransientHint("Press Ctrl-C again to exit")
           }
         } else {
           ctrlCEmptyCount = 0

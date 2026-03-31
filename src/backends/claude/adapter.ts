@@ -34,15 +34,24 @@ type SDKQuery = ReturnType<typeof sdkQuery>
 interface PendingPermission {
   resolve: (result: PermissionResult) => void
   reject: (error: Error) => void
+  toolName: string
   input: Record<string, unknown>
 }
 
-interface PermissionResult {
-  behavior: "allow" | "deny"
+type PermissionDecisionClassification = "user_temporary" | "user_permanent" | "user_reject"
+
+type PermissionResult = {
+  behavior: "allow"
   updatedInput?: Record<string, unknown>
   updatedPermissions?: unknown[]
-  message?: string
+  toolUseID?: string
+  decisionClassification?: PermissionDecisionClassification
+} | {
+  behavior: "deny"
+  message: string
   interrupt?: boolean
+  toolUseID?: string
+  decisionClassification?: PermissionDecisionClassification
 }
 
 interface PendingElicitation {
@@ -108,6 +117,9 @@ export class ClaudeAdapter implements AgentBackend {
   // Tool input JSON accumulation from streaming deltas
   private toolInputJsons = new Map<string, string>()
   private currentToolIds = new Map<number, string>()
+
+  // Tools denied for the duration of this session (via "deny for session" option)
+  private sessionDeniedTools = new Set<string>()
 
   capabilities(): BackendCapabilities {
     return {
@@ -191,6 +203,8 @@ export class ClaudeAdapter implements AgentBackend {
       behavior: "allow",
       updatedInput: (options?.updatedInput as Record<string, unknown>) ?? pending.input,
       updatedPermissions: options?.updatedPermissions,
+      toolUseID: id,
+      decisionClassification: options?.alwaysAllow ? "user_permanent" : "user_temporary",
     }
     pending.resolve(result)
     this.pendingPermissions.delete(id)
@@ -199,13 +213,21 @@ export class ClaudeAdapter implements AgentBackend {
     this.eventChannel?.push({ type: "permission_response", id, behavior: "allow" })
   }
 
-  denyToolUse(id: string, reason?: string): void {
+  denyToolUse(id: string, reason?: string, options?: { denyForSession?: boolean }): void {
     const pending = this.pendingPermissions.get(id)
     if (!pending) return
+
+    // Track session-level denials so future canUseTool calls are auto-denied
+    if (options?.denyForSession) {
+      this.sessionDeniedTools.add(pending.toolName)
+      log.info("Tool denied for session", { tool: pending.toolName })
+    }
 
     pending.resolve({
       behavior: "deny",
       message: reason ?? "User denied",
+      toolUseID: id,
+      decisionClassification: "user_reject",
     })
     this.pendingPermissions.delete(id)
 
@@ -667,8 +689,19 @@ export class ClaudeAdapter implements AgentBackend {
     input: Record<string, unknown>,
     options: any,
   ): Promise<PermissionResult> {
+    // Check session-level denials before prompting
+    if (this.sessionDeniedTools.has(toolName)) {
+      log.debug("Permission auto-denied by session deny list", { tool: toolName })
+      return Promise.resolve({
+        behavior: "deny" as const,
+        message: "Denied for session",
+        toolUseID: id,
+        decisionClassification: "user_reject" as const,
+      })
+    }
+
     return new Promise<PermissionResult>((resolve, reject) => {
-      this.pendingPermissions.set(id, { resolve, reject, input })
+      this.pendingPermissions.set(id, { resolve, reject, toolName, input })
 
       // Push permission_request to the event channel so the TUI sees it
       // immediately, even while the SDK is blocked waiting for canUseTool

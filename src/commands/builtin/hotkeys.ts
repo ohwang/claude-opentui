@@ -19,7 +19,7 @@ export const hotkeysCommand: SlashCommand = {
           ["Ctrl+P",         "Cycle to next model"],
           ["Shift+Ctrl+P",   "Cycle to previous model"],
           ["Ctrl+Shift+D",   "Toggle diagnostics panel (or use /diagnostics)"],
-          ["Shift+Tab",      "Cycle permission mode (default → acceptEdits → yolo → plan)"],
+          ["Shift+Tab",      "Cycle permission mode (default → accept edits → YOLO → plan)"],
         ],
       },
       {

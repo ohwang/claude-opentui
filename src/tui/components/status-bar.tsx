@@ -307,7 +307,7 @@ export function StatusBar(props: { hint?: string | null }) {
 
   const modelName = () => {
     const model = state.session?.models?.[0]
-    const raw = state.currentModel || model?.name || ""
+    const raw = state.currentModel || (model?.name ?? agent.config.model ?? "")
     if (!raw) return ""
     const friendly = friendlyModelName(raw)
     // Prefer dynamic context window from SDK, fall back to hardcoded
@@ -339,7 +339,7 @@ export function StatusBar(props: { hint?: string | null }) {
     const fill = state.lastTurnInputTokens
     if (fill === 0) return ""
     const model = state.session?.models?.[0]
-    const raw = state.currentModel || model?.name || ""
+    const raw = state.currentModel || (model?.name ?? agent.config.model ?? "")
     // Prefer dynamic context window from SDK, fall back to hardcoded
     const ctxWindow = model?.contextWindow ?? MODEL_CONTEXT_WINDOWS[raw] ?? DEFAULT_CONTEXT_WINDOW
     const pct = Math.round((fill / ctxWindow) * 100)

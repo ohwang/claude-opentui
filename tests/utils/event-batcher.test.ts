@@ -132,4 +132,50 @@ describe("EventBatcher", () => {
 
     batcher.destroy()
   })
+
+  describe("error handling", () => {
+    it("calls onError when handler throws", async () => {
+      let caughtError: Error | null = null
+      const batcher = new EventBatcher(
+        () => { throw new Error("handler boom") },
+        16,
+        (err) => { caughtError = err },
+      )
+      batcher.push({ type: "text_delta", text: "event" })
+      await new Promise((r) => setTimeout(r, 50))
+      expect(caughtError).not.toBeNull()
+      expect(caughtError!.message).toBe("handler boom")
+      batcher.destroy()
+    })
+
+    it("continues accepting events after handler error", async () => {
+      let callCount = 0
+      const batcher = new EventBatcher(
+        (events) => {
+          callCount++
+          if (callCount === 1) throw new Error("first call fails")
+        },
+        16,
+        () => {}, // swallow error
+      )
+      batcher.push({ type: "text_delta", text: "event1" })
+      await new Promise((r) => setTimeout(r, 50))
+      batcher.push({ type: "text_delta", text: "event2" })
+      await new Promise((r) => setTimeout(r, 50))
+      expect(callCount).toBeGreaterThanOrEqual(2)
+      batcher.destroy()
+    })
+
+    it("does not crash when handler throws without onError", async () => {
+      const batcher = new EventBatcher(
+        () => { throw new Error("no callback") },
+        16,
+        // no onError
+      )
+      batcher.push({ type: "text_delta", text: "event" })
+      await new Promise((r) => setTimeout(r, 50))
+      // Should not have crashed
+      batcher.destroy()
+    })
+  })
 })

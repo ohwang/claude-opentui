@@ -51,7 +51,12 @@ export class EventBatcher {
     this.timer = undefined
     this.lastFlush = Date.now()
 
-    this.handler(events)
+    try {
+      this.handler(events)
+    } catch (err) {
+      // Log the error but don't crash the event loop
+      console.error("[EventBatcher] handler threw:", err)
+    }
   }
 
   destroy(): void {

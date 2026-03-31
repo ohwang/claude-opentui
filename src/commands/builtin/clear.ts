@@ -6,7 +6,7 @@ import type { SlashCommand } from "../registry"
 
 export const clearCommand: SlashCommand = {
   name: "clear",
-  description: "Clear the conversation display",
+  description: "Clear conversation display (costs preserved)",
   execute: (_args, ctx) => {
     ctx.clearConversation()
   },

@@ -14,7 +14,7 @@
  * - "Deny for session" tracks tool name in adapter for auto-deny on future calls
  */
 
-import { createSignal, createEffect, createMemo, Show, For } from "solid-js"
+import { createSignal, createEffect, createMemo, Show, For, onCleanup } from "solid-js"
 import { TextAttributes } from "@opentui/core"
 import { useKeyboard, useTerminalDimensions } from "@opentui/solid"
 import { usePermissions } from "../context/permissions"
@@ -221,6 +221,9 @@ export function PermissionDialog() {
   // "a" + "d" typing from accidentally denying the next permission request.
   let justActed = false
   let justActedTimer: ReturnType<typeof setTimeout> | undefined
+
+  // Clear debounce timer on unmount to prevent leak
+  onCleanup(() => clearTimeout(justActedTimer))
 
   function markActed() {
     justActed = true

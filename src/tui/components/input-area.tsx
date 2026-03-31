@@ -167,6 +167,9 @@ export function InputArea() {
   const [lineCount, setLineCount] = createSignal(1)
   const textareaHeight = () => Math.min(Math.max(lineCount(), 1), 6)
 
+  // Clear paste-guard timer on unmount to prevent leak
+  onCleanup(() => clearTimeout(isPastingTimer))
+
   // Register module-level reset so clearInput() can reset height
   _resetLineCount = () => setLineCount(1)
 

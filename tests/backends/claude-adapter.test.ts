@@ -556,8 +556,10 @@ describe("ClaudeAdapter", () => {
         streamState,
       )
 
-      // No tool_use_progress emitted because JSON.parse failed
-      expect(stopEvents).toHaveLength(0)
+      // tool_use_progress emitted with raw JSON string (not parsed) so input is preserved
+      expect(stopEvents).toHaveLength(1)
+      expect(stopEvents[0].type).toBe("tool_use_progress")
+      expect(typeof stopEvents[0].input).toBe("string")
     })
 
     it("tracks multiple concurrent tools at different event.index values independently", () => {

@@ -69,7 +69,7 @@ export class ClaudeV2Adapter implements AgentBackend {
     // Not implemented
   }
 
-  denyToolUse(_id: string): void {
+  denyToolUse(_id: string, _reason?: string, _options?: { denyForSession?: boolean }): void {
     // Not implemented
   }
 

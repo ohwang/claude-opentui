@@ -209,7 +209,7 @@ export interface AgentBackend {
   ): void
 
   /** Deny a pending tool use request. */
-  denyToolUse(id: string, reason?: string): void
+  denyToolUse(id: string, reason?: string, options?: { denyForSession?: boolean }): void
 
   /** Respond to an elicitation request. */
   respondToElicitation(id: string, answers: Record<string, string>): void

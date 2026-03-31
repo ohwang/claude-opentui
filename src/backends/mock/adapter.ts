@@ -103,7 +103,7 @@ export class MockAdapter implements AgentBackend {
     }
   }
 
-  denyToolUse(id: string, reason?: string): void {
+  denyToolUse(id: string, reason?: string, _options?: { denyForSession?: boolean }): void {
     if (this.pendingPermission?.id === id) {
       this.pendingPermission.resolve({ behavior: "deny", message: reason })
       this.pendingPermission = null

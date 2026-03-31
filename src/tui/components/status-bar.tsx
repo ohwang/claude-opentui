@@ -16,6 +16,8 @@ import { TextAttributes } from "@opentui/core"
 import { useKeyboard, useTerminalDimensions } from "@opentui/solid"
 import { useSession } from "../context/session"
 import { useAgent } from "../context/agent"
+import { useSync } from "../context/sync"
+import { log } from "../../utils/logger"
 import { colors } from "../theme/tokens"
 import type { PermissionMode } from "../../protocol/types"
 import { friendlyModelName, MODEL_CONTEXT_WINDOWS, DEFAULT_CONTEXT_WINDOW } from "../models"
@@ -125,6 +127,7 @@ function permissionModeLabel(mode: PermissionMode | undefined): string {
 export function StatusBar(props: { hint?: string | null }) {
   const { state } = useSession()
   const agent = useAgent()
+  const sync = useSync()
 
   // -- Permission mode (local signal so it's reactive) --
   const [permMode, setPermMode] = createSignal<PermissionMode>(
@@ -140,14 +143,15 @@ export function StatusBar(props: { hint?: string | null }) {
       ) {
         return
       }
-      const current = permMode()
-      const idx = PERM_MODE_CYCLE.indexOf(current)
+      const prevMode = permMode()
+      const idx = PERM_MODE_CYCLE.indexOf(prevMode)
       const nextIdx = (idx + 1) % PERM_MODE_CYCLE.length
       const nextMode = PERM_MODE_CYCLE[nextIdx] ?? "default"
       setPermMode(nextMode)
-      agent.backend.setPermissionMode(nextMode).catch(() => {
-        // Silently ignore — the local UI already updated, and the backend
-        // will pick up the mode on the next tool invocation if available.
+      agent.backend.setPermissionMode(nextMode).catch((err) => {
+        log.warn("Failed to set permission mode", { error: String(err) })
+        setPermMode(prevMode)
+        sync.pushEvent({ type: "system_message", text: `Failed to set permission mode: ${err instanceof Error ? err.message : String(err)}` })
       })
     }
   })

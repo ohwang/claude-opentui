@@ -102,11 +102,22 @@ export function DiagnosticsPanel(props: { visible: boolean; onClose: () => void 
   const { state: messages } = useMessages()
   const dims = useTerminalDimensions()
 
-  // Track uptime from when session entered IDLE
+  // Track app uptime from component mount (≈ app start)
   const startTime = Date.now()
+
+  // Tick signal — forces the uptime (and memory stats) to refresh every second
+  const [tick, setTick] = createSignal(0)
+  const tickInterval = setInterval(() => setTick(t => t + 1), 1_000)
+  onCleanup(() => clearInterval(tickInterval))
+
+  // Clean up module-level scroll ref when component unmounts
+  onCleanup(() => { _scrollDiagnostics = undefined })
 
   // Collect all diagnostic sections as a reactive memo
   const sections = createMemo((): DiagSection[] => {
+    // Subscribe to tick so uptime and memory stats refresh every second
+    tick()
+
     const result: DiagSection[] = []
 
     // -- SYSTEM --

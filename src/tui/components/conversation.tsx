@@ -471,7 +471,7 @@ function BlockView(props: { block: Block; viewLevel: ViewLevel; prevType?: strin
               <text fg="white">{"\u23FA"}</text>
             </box>
             <box flexGrow={1}>
-              <markdown content={ab().text} syntaxStyle={syntaxStyle} />
+              <markdown content={ab().text} syntaxStyle={syntaxStyle} fg="#e4e4e4" />
             </box>
           </box>
         </box>
@@ -741,7 +741,7 @@ export function ConversationView(props: { children?: JSX.Element }) {
               <text fg="white">{"\u23FA"}</text>
             </box>
             <box flexGrow={1}>
-              <markdown content={state.streamingText} syntaxStyle={syntaxStyle} streaming={true} />
+              <markdown content={state.streamingText} syntaxStyle={syntaxStyle} streaming={true} fg="#e4e4e4" />
             </box>
           </box>
         </box>

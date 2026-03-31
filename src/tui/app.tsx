@@ -30,6 +30,12 @@ export function triggerCleanExit(): void {
   _cleanExit?.()
 }
 
+// Module-level diagnostics toggle so slash commands can open the panel
+let _toggleDiagnostics: (() => void) | undefined
+export function toggleDiagnostics(): void {
+  _toggleDiagnostics?.()
+}
+
 /** Render a full-width dash separator line (Claude Code style) */
 function DashLine() {
   const dims = useTerminalDimensions()
@@ -96,6 +102,9 @@ function Layout(props: { onExit?: () => void }) {
 
   // Expose clean exit for slash commands (/exit, /quit, /q)
   _cleanExit = () => cleanExit("slash-command")
+
+  // Expose diagnostics toggle for slash commands (/diagnostics)
+  _toggleDiagnostics = () => setShowDiagnostics((v) => !v)
 
   // Clear interrupt timeout when state transitions away from INTERRUPTING
   createEffect(on(
@@ -246,7 +255,7 @@ function Layout(props: { onExit?: () => void }) {
   return (
     <box flexDirection="column" width="100%" height="100%">
       <ConversationView>
-        {/* Diagnostics panel (toggled via Ctrl+Shift+D) */}
+        {/* Diagnostics panel (toggled via Ctrl+Shift+D or /diagnostics) */}
         <DiagnosticsPanel
           visible={showDiagnostics()}
           onClose={() => setShowDiagnostics(false)}

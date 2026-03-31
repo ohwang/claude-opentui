@@ -16,7 +16,7 @@ import { useAgent } from "../context/agent"
 import { useSession } from "../context/session"
 import { useSync } from "../context/sync"
 import { createCommandRegistry, type SlashCommand } from "../../commands/registry"
-import { triggerCleanExit } from "../app"
+import { triggerCleanExit, toggleDiagnostics } from "../app"
 import { log } from "../../utils/logger"
 
 const commandRegistry = createCommandRegistry()
@@ -275,6 +275,7 @@ export function InputArea() {
       clearConversation: sync.clearConversation,
       setModel: (model: string) => agent.backend.setModel(model),
       exit: triggerCleanExit,
+      toggleDiagnostics,
       getSessionState: () => ({
         cost: session.cost,
         turnNumber: session.turnNumber,

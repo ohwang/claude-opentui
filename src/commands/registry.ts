@@ -15,6 +15,7 @@ export interface CommandContext {
   clearConversation: () => void
   setModel: (model: string) => Promise<void>
   exit?: () => void
+  toggleDiagnostics?: () => void
   getSessionState?: () => { cost: CostTotals; turnNumber: number; currentModel: string; session: SessionMetadata | null }
 }
 
@@ -281,7 +282,7 @@ export function createCommandRegistry(): CommandRegistry {
             ["Ctrl+C",         "Interrupt task / clear input / exit (double-press when idle)"],
             ["Ctrl+P",         "Cycle to next model"],
             ["Shift+Ctrl+P",   "Cycle to previous model"],
-            ["Ctrl+Shift+D",   "Toggle diagnostics panel"],
+            ["Ctrl+Shift+D",   "Toggle diagnostics panel (or use /diagnostics)"],
             ["Shift+Tab",      "Cycle permission mode (default → acceptEdits → yolo → plan)"],
           ],
         },
@@ -336,6 +337,23 @@ export function createCommandRegistry(): CommandRegistry {
       }
 
       ctx.pushEvent({ type: "system_message", text: lines.join("\n") })
+    },
+  })
+
+  // /diagnostics
+  registry.register({
+    name: "diagnostics",
+    description: "Toggle the diagnostics panel",
+    aliases: ["diag", "debug"],
+    execute: (_args, ctx) => {
+      if (ctx.toggleDiagnostics) {
+        ctx.toggleDiagnostics()
+      } else {
+        ctx.pushEvent({
+          type: "system_message",
+          text: "Diagnostics panel not available.",
+        })
+      }
     },
   })
 

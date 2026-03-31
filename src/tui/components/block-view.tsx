@@ -13,17 +13,6 @@ import { syntaxStyle } from "../theme"
 import { colors } from "../theme/tokens"
 import type { Block } from "../../protocol/types"
 import type { ViewLevel } from "./tool-view"
-import { friendlyModelName } from "../models"
-
-/** Format timestamp as "HH:MM AM/PM" for the expanded view metadata line */
-export function formatTimestamp(ts: number): string {
-  const d = new Date(ts)
-  let h = d.getHours()
-  const ampm = h >= 12 ? "PM" : "AM"
-  h = h % 12 || 12
-  const m = d.getMinutes().toString().padStart(2, "0")
-  return `${h.toString().padStart(2, "0")}:${m} ${ampm}`
-}
 
 export function BlockView(props: { block: Block; viewLevel: ViewLevel; prevType?: string; showThinking?: boolean }) {
   const b = () => props.block
@@ -52,15 +41,7 @@ export function BlockView(props: { block: Block; viewLevel: ViewLevel; prevType?
       {/* Assistant text block */}
       <Show when={assistantBlock()}>{(ab) =>
         <box flexDirection="column">
-          {/* Timestamp + model line (expanded view only) */}
-          <Show when={props.viewLevel !== "collapsed" && ab().timestamp}>
-            <box flexDirection="row" justifyContent="flex-end" marginTop={1}>
-              <text fg="gray" attributes={TextAttributes.DIM}>
-                {formatTimestamp(ab().timestamp!) + (ab().model ? " " + friendlyModelName(ab().model) : "")}
-              </text>
-            </box>
-          </Show>
-          <box flexDirection="row" marginTop={props.viewLevel !== "collapsed" && ab().timestamp ? 0 : 1}>
+          <box flexDirection="row" marginTop={1}>
             <box width={2} flexShrink={0}>
               <text fg="white">{"\u23FA"}</text>
             </box>

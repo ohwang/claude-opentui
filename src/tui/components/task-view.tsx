@@ -40,7 +40,7 @@ export function TaskView(props: { tasks: [string, TaskInfo][] }) {
         </text>
         <For each={props.tasks.slice(0, MAX_VISIBLE_TASKS)}>
           {([id, task], index) => {
-            const isLast = () => index() === props.tasks.length - 1
+            const isLast = () => index() === Math.min(props.tasks.length, MAX_VISIBLE_TASKS) - 1
             const prefix = () => (isLast() ? "└─" : "├─")
             const icon = () => (task.status === "running" ? "⟳" : "✓")
             const color = () => (task.status === "running" ? "yellow" : "green")
@@ -53,7 +53,7 @@ export function TaskView(props: { tasks: [string, TaskInfo][] }) {
                   <text fg="white">{task.description}</text>
                   <Show when={task.status === "running"}>
                     <text fg="gray">
-                      {" "}({(() => { tick(); return Math.round((Date.now() - task.startTime) / 1000) })()}s)
+                      {" "}({(() => { tick(); return Math.max(0, Math.round((Date.now() - task.startTime) / 1000)) })()}s)
                     </text>
                   </Show>
                 </box>

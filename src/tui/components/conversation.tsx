@@ -166,11 +166,7 @@ function isUserDecline(error: string): boolean {
   return error.includes("User declined to answer") || error.includes("Interrupted by user")
 }
 
-/** Threshold in seconds before showing elapsed time on running tools */
-const TOOL_ELAPSED_SHOW_THRESHOLD = 5
-/** Threshold in seconds before showing a warning on long-running tools */
-const TOOL_LONG_RUNNING_THRESHOLD = 30
-/** Threshold in seconds before showing a critical warning */
+/** Threshold in seconds before showing a critical "may be stuck" warning */
 const TOOL_CRITICAL_THRESHOLD = 300 // 5 minutes
 
 function ToolBlockView(props: { block: Extract<Block, { type: "tool" }>; viewLevel: ViewLevel }) {
@@ -198,16 +194,6 @@ function ToolBlockView(props: { block: Extract<Block, { type: "tool" }>; viewLev
   onCleanup(() => {
     if (elapsedTimer) clearInterval(elapsedTimer)
   })
-
-  /** Format elapsed seconds as compact string */
-  const elapsedStr = () => {
-    const secs = elapsed()
-    if (secs < TOOL_ELAPSED_SHOW_THRESHOLD) return ""
-    if (secs < 60) return `${secs}s`
-    const mins = Math.floor(secs / 60)
-    const remSecs = secs % 60
-    return `${mins}m ${remSecs}s`
-  }
 
   /** Primary arg for the tool invocation display: ToolName(arg) */
   const primaryArg = createMemo(() => {
@@ -272,12 +258,6 @@ function ToolBlockView(props: { block: Extract<Block, { type: "tool" }>; viewLev
         <Show when={primaryArg()}>
           <text fg="gray">{"(" + primaryArg() + ")"}</text>
         </Show>
-        {/* Elapsed time for running tools */}
-        <Show when={b().status === "running" && elapsedStr()}>
-          <text fg={elapsed() >= TOOL_CRITICAL_THRESHOLD ? "#ff5f5f" : elapsed() >= TOOL_LONG_RUNNING_THRESHOLD ? "#d7af5f" : "#808080"}>
-            {" " + elapsedStr()}
-          </text>
-        </Show>
         {/* Duration for completed tools (expanded/show_all views) */}
         <Show when={b().status !== "running" && props.viewLevel !== "collapsed" && b().duration !== undefined && b().duration! >= 1000}>
           <text fg="#808080" attributes={TextAttributes.DIM}>
@@ -285,13 +265,11 @@ function ToolBlockView(props: { block: Extract<Block, { type: "tool" }>; viewLev
           </text>
         </Show>
       </box>
-      {/* Long-running warning */}
-      <Show when={b().status === "running" && elapsed() >= TOOL_LONG_RUNNING_THRESHOLD}>
+      {/* Critical warning — only shown after 5 minutes (streaming spinner handles normal elapsed display) */}
+      <Show when={b().status === "running" && elapsed() >= TOOL_CRITICAL_THRESHOLD}>
         <box paddingLeft={2}>
-          <text fg={elapsed() >= TOOL_CRITICAL_THRESHOLD ? "#ff5f5f" : "#d7af5f"} attributes={TextAttributes.DIM}>
-            {elapsed() >= TOOL_CRITICAL_THRESHOLD
-              ? "\u23BF  Tool may be stuck. Press Ctrl+C to interrupt."
-              : "\u23BF  Still running..."}
+          <text fg="#ff5f5f" attributes={TextAttributes.DIM}>
+            {"\u23BF  Tool may be stuck. Press Ctrl+C to interrupt."}
           </text>
         </box>
       </Show>

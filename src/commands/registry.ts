@@ -139,6 +139,7 @@ export function createCommandRegistry(): CommandRegistry {
   // /new — start a fresh conversation (clear + reset cost)
   registry.register({
     name: "new",
+    aliases: ["n"],
     description: "Start a fresh conversation",
     execute: (_args, ctx) => {
       ctx.clearConversation()

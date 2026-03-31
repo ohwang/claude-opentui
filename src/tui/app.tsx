@@ -16,6 +16,7 @@ import { MessagesProvider } from "./context/messages"
 import { SessionProvider, useSession } from "./context/session"
 import { PermissionsProvider } from "./context/permissions"
 import { SyncProvider, useSync } from "./context/sync"
+import { colors } from "./theme/tokens"
 import { useTerminalDimensions } from "@opentui/solid"
 import { ConversationView } from "./components/conversation"
 import { InputArea, clearInput, hasInputText, refocusInput } from "./components/input-area"
@@ -44,7 +45,7 @@ function DashLine() {
   const dashes = () => "─".repeat(Math.max(width(), 40))
   return (
     <box height={1} flexShrink={0}>
-      <text fg="#808080">{dashes()}</text>
+      <text fg={colors.text.muted}>{dashes()}</text>
     </box>
   )
 }
@@ -323,7 +324,7 @@ export function startApp(options: AppOptions): void {
           })
         })
       },
-      selectionColor: "#4a4a6a",
+      selectionColor: colors.bg.selection,
     },
   })
 }

@@ -14,6 +14,7 @@ import { useTerminalDimensions } from "@opentui/solid"
 import { useSession } from "../context/session"
 import { useAgent } from "../context/agent"
 import { useMessages } from "../context/messages"
+import { colors } from "../theme/tokens"
 import { log } from "../../utils/logger"
 import { friendlyModelName, MODEL_CONTEXT_WINDOWS, DEFAULT_CONTEXT_WINDOW } from "../models"
 import type { Block } from "../../protocol/types"
@@ -250,9 +251,9 @@ export function DiagnosticsPanel(props: { visible: boolean; onClose: () => void 
         width={dims()?.width ? dims()!.width - 8 : 70}
         height={dims()?.height ? dims()!.height - 6 : 30}
         zIndex={100}
-        bg="#1a1a2e"
+        bg={colors.bg.overlay}
         borderStyle="single"
-        borderColor="#4a4a6a"
+        borderColor={colors.border.default}
         flexDirection="column"
         paddingLeft={2}
         paddingRight={2}
@@ -264,7 +265,7 @@ export function DiagnosticsPanel(props: { visible: boolean; onClose: () => void 
           <text fg="white" attributes={TextAttributes.BOLD}>
             {"Diagnostics"}
           </text>
-          <text fg="#808080" attributes={TextAttributes.DIM}>
+          <text fg={colors.text.muted} attributes={TextAttributes.DIM}>
             {"  (Ctrl+Shift+D or Esc to close)"}
           </text>
         </box>
@@ -277,7 +278,7 @@ export function DiagnosticsPanel(props: { visible: boolean; onClose: () => void 
               <box flexDirection="column">
                 {/* Section title */}
                 <box marginTop={1}>
-                  <text fg="#d78787" attributes={TextAttributes.BOLD}>
+                  <text fg={colors.accent.primary} attributes={TextAttributes.BOLD}>
                     {"  " + section.title}
                   </text>
                 </box>
@@ -286,7 +287,7 @@ export function DiagnosticsPanel(props: { visible: boolean; onClose: () => void 
                 <For each={section.entries}>
                   {(entry) => (
                     <box flexDirection="row" paddingLeft={4}>
-                      <text fg="#808080">{padRight(entry.key, 22)}</text>
+                      <text fg={colors.text.muted}>{padRight(entry.key, 22)}</text>
                       <text fg={entry.color ?? "white"}>{" " + entry.value}</text>
                     </box>
                   )}
@@ -310,12 +311,12 @@ function padRight(s: string, width: number): string {
 
 function stateColor(state: string): string {
   switch (state) {
-    case "IDLE": return "green"
-    case "RUNNING": return "cyan"
+    case "IDLE": return colors.state.idle
+    case "RUNNING": return colors.state.running
     case "WAITING_FOR_PERM":
     case "WAITING_FOR_ELIC":
-    case "INTERRUPTING": return "yellow"
-    case "ERROR": return "red"
-    default: return "#808080"
+    case "INTERRUPTING": return colors.state.waiting
+    case "ERROR": return colors.state.error
+    default: return colors.text.muted
   }
 }

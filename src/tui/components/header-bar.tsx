@@ -14,6 +14,7 @@ import { TextAttributes } from "@opentui/core"
 import { useSession } from "../context/session"
 import { useAgent } from "../context/agent"
 import { friendlyModelName, MODEL_CONTEXT_WINDOWS, DEFAULT_CONTEXT_WINDOW } from "../models"
+import { colors } from "../theme/tokens"
 
 /**
  * Pixel-art logo: a small terminal monitor with eyes and antenna.
@@ -82,27 +83,27 @@ export function HeaderBar() {
     <box flexDirection="column" flexShrink={0} paddingBottom={1}>
       {/* Row 0: antenna only */}
       <box flexDirection="row">
-        <text fg="#d78787">{LOGO_LINES[0]}</text>
+        <text fg={colors.accent.primary}>{LOGO_LINES[0]}</text>
       </box>
       {/* Row 1: top of screen + app name + version */}
       <box flexDirection="row">
-        <text fg="#d78787">{LOGO_LINES[1]}</text>
-        <text fg="#d78787" attributes={TextAttributes.BOLD}>{"claude-opentui"}</text>
-        <text fg="#808080" attributes={TextAttributes.DIM}>{"  v0.0.1"}</text>
+        <text fg={colors.accent.primary}>{LOGO_LINES[1]}</text>
+        <text fg={colors.accent.primary} attributes={TextAttributes.BOLD}>{"claude-opentui"}</text>
+        <text fg={colors.text.muted} attributes={TextAttributes.DIM}>{"  v0.0.1"}</text>
       </box>
       {/* Row 2: eyes + model info */}
       <box flexDirection="row">
-        <text fg="#d78787">{LOGO_LINES[2]}</text>
-        <text fg="#808080" attributes={TextAttributes.DIM}>{modelInfo()}</text>
+        <text fg={colors.accent.primary}>{LOGO_LINES[2]}</text>
+        <text fg={colors.text.muted} attributes={TextAttributes.DIM}>{modelInfo()}</text>
       </box>
       {/* Row 3: bottom of screen + working directory */}
       <box flexDirection="row">
-        <text fg="#d78787">{LOGO_LINES[3]}</text>
-        <text fg="#808080" attributes={TextAttributes.DIM}>{projectPath}</text>
+        <text fg={colors.accent.primary}>{LOGO_LINES[3]}</text>
+        <text fg={colors.text.muted} attributes={TextAttributes.DIM}>{projectPath}</text>
       </box>
       {/* Row 4: base only */}
       <box flexDirection="row">
-        <text fg="#d78787">{LOGO_LINES[4]}</text>
+        <text fg={colors.accent.primary}>{LOGO_LINES[4]}</text>
       </box>
     </box>
   )

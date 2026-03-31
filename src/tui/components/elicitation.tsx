@@ -19,6 +19,7 @@ import { useKeyboard } from "@opentui/solid"
 import { usePermissions } from "../context/permissions"
 import { useAgent } from "../context/agent"
 import { useSession } from "../context/session"
+import { colors } from "../theme/tokens"
 import type { ElicitationQuestion } from "../../protocol/types"
 
 function QuestionView(props: {
@@ -90,16 +91,16 @@ function QuestionView(props: {
     <box
       flexDirection="column"
       borderStyle="single"
-      borderColor="cyan"
+      borderColor={colors.border.elicitation}
       paddingLeft={1}
       paddingRight={1}
     >
       <Show when={props.question.header}>
-        <text fg="#808080" attributes={TextAttributes.DIM}>
+        <text fg={colors.text.muted} attributes={TextAttributes.DIM}>
           {props.question.header}
         </text>
       </Show>
-      <text fg="cyan" attributes={TextAttributes.BOLD}>
+      <text fg={colors.border.elicitation} attributes={TextAttributes.BOLD}>
         {props.question.question}
       </text>
 
@@ -107,22 +108,22 @@ function QuestionView(props: {
         <For each={options()}>
           {(option, index) => (
             <box flexDirection="row">
-              <text fg={index() === selected() ? "cyan" : "white"}>
+              <text fg={index() === selected() ? colors.border.elicitation : "white"}>
                 {index() === selected() ? " > " : "   "}
               </text>
-              <text fg={index() === selected() ? "cyan" : "white"}>
+              <text fg={index() === selected() ? colors.border.elicitation : "white"}>
                 {index() + 1}) {option.label}
               </text>
             </box>
           )}
         </For>
-        <text fg="#808080">
+        <text fg={colors.text.muted}>
           {"  "}Arrow keys to navigate, Enter to select, Esc to cancel
         </text>
       </Show>
 
       <Show when={showFreeText()}>
-        <text fg="#808080">Type your answer and press Enter (Esc to go back):</text>
+        <text fg={colors.text.muted}>Type your answer and press Enter (Esc to go back):</text>
         <textarea
           ref={(el: TextareaRenderable) => { freeTextRef = el }}
           focused
@@ -190,7 +191,7 @@ export function ElicitationDialog() {
           <box flexDirection="column">
             {/* Progress indicator for multi-question elicitations */}
             <Show when={questions.length > 1}>
-              <text fg="#808080" attributes={TextAttributes.DIM}>
+              <text fg={colors.text.muted} attributes={TextAttributes.DIM}>
                 {"  Question " + (currentIdx() + 1) + "/" + questions.length}
               </text>
             </Show>

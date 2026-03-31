@@ -7,6 +7,7 @@
 
 import { Show } from "solid-js"
 import { TextAttributes } from "@opentui/core"
+import { colors } from "../theme/tokens"
 
 export function ThinkingBlock(props: { text: string; collapsed?: boolean }) {
   const expanded = () => !props.collapsed
@@ -25,20 +26,20 @@ export function ThinkingBlock(props: { text: string; collapsed?: boolean }) {
         when={expanded()}
         fallback={
           <box flexDirection="row">
-            <text fg="gray" attributes={TextAttributes.DIM | TextAttributes.BOLD}>
+            <text fg={colors.text.muted} attributes={TextAttributes.DIM | TextAttributes.BOLD}>
               {"\u25B8 Thinking"}
             </text>
-            <text fg="gray" attributes={TextAttributes.DIM}>
+            <text fg={colors.text.muted} attributes={TextAttributes.DIM}>
               {"  " + preview()}
             </text>
           </box>
         }
       >
-        <text fg="gray" attributes={TextAttributes.DIM | TextAttributes.BOLD}>
+        <text fg={colors.text.muted} attributes={TextAttributes.DIM | TextAttributes.BOLD}>
           {"\u25BE Thinking"}
         </text>
         <box paddingLeft={2}>
-          <text fg="gray" attributes={TextAttributes.DIM}>
+          <text fg={colors.text.muted} attributes={TextAttributes.DIM}>
             {text()}
           </text>
         </box>

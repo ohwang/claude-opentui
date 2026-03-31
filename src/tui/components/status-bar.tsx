@@ -16,6 +16,7 @@ import { TextAttributes } from "@opentui/core"
 import { useKeyboard, useTerminalDimensions } from "@opentui/solid"
 import { useSession } from "../context/session"
 import { useAgent } from "../context/agent"
+import { colors } from "../theme/tokens"
 import type { PermissionMode } from "../../protocol/types"
 import { friendlyModelName, MODEL_CONTEXT_WINDOWS, DEFAULT_CONTEXT_WINDOW } from "../models"
 
@@ -248,12 +249,12 @@ export function StatusBar(props: { hint?: string | null }) {
 
   const permModeColor = () => {
     switch (permMode()) {
-      case "default": return "green"
-      case "acceptEdits": return "yellow"
-      case "bypassPermissions": return "red"
-      case "plan": return "cyan"
-      case "dontAsk": return "#d787af"
-      default: return "green"
+      case "default": return colors.state.idle
+      case "acceptEdits": return colors.state.waiting
+      case "bypassPermissions": return colors.state.error
+      case "plan": return colors.state.running
+      case "dontAsk": return colors.permission.modeLabel
+      default: return colors.state.idle
     }
   }
 
@@ -283,20 +284,20 @@ export function StatusBar(props: { hint?: string | null }) {
   const stateColor = () => {
     switch (state.sessionState) {
       case "IDLE":
-        return "green"
+        return colors.state.idle
       case "RUNNING":
-        return "cyan"
+        return colors.state.running
       case "WAITING_FOR_PERM":
       case "WAITING_FOR_ELIC":
-        return "yellow"
+        return colors.state.waiting
       case "INTERRUPTING":
-        return "yellow"
+        return colors.state.waiting
       case "ERROR":
-        return "red"
+        return colors.state.error
       case "SHUTTING_DOWN":
-        return "gray"
+        return colors.state.shuttingDown
       default:
-        return "gray"
+        return colors.state.shuttingDown
     }
   }
 
@@ -440,7 +441,7 @@ export function StatusBar(props: { hint?: string | null }) {
 
       {/* Permission mode indicator (right-aligned) */}
       <text fg={permModeColor()}>{"\u25CF "}</text>
-      <text fg="#d787af">{permissionModeLabel(permMode())}</text>
+      <text fg={colors.permission.modeLabel}>{permissionModeLabel(permMode())}</text>
       <text fg="gray" attributes={TextAttributes.DIM}>{" · shift+tab"}</text>
     </box>
   )

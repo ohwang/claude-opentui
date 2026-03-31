@@ -18,6 +18,7 @@ import { useSync } from "../context/sync"
 import { useMessages } from "../context/messages"
 import { createCommandRegistry, type SlashCommand } from "../../commands/registry"
 import { triggerCleanExit, toggleDiagnostics } from "../app"
+import { colors } from "../theme/tokens"
 import { log } from "../../utils/logger"
 
 const commandRegistry = createCommandRegistry()
@@ -563,7 +564,7 @@ export function InputArea() {
             )}
           </For>
           <Show when={autocompleteItems().length > MAX_VISIBLE_ITEMS}>
-            <text fg="#808080" attributes={TextAttributes.DIM}>
+            <text fg={colors.text.muted} attributes={TextAttributes.DIM}>
               {`  ${autocompleteItems().length - MAX_VISIBLE_ITEMS} more...`}
             </text>
           </Show>

@@ -15,6 +15,7 @@
  */
 
 import { createSignal, onCleanup } from "solid-js"
+import { colors } from "../theme/tokens"
 
 // ---------------------------------------------------------------------------
 // Morphing asterisk spinner — matches native Claude Code style
@@ -119,9 +120,9 @@ export function StreamingSpinner(props: { label: string; elapsedSeconds?: number
 
   return (
     <box flexDirection="row">
-      <text fg="#d78787">{SPINNER_FRAMES[frameIndex()]} </text>
-      <text fg="#d78787">{displayLabel()}</text>
-      <text fg="#a8a8a8">{metaStr()}</text>
+      <text fg={colors.accent.primary}>{SPINNER_FRAMES[frameIndex()]} </text>
+      <text fg={colors.accent.primary}>{displayLabel()}</text>
+      <text fg={colors.text.secondary}>{metaStr()}</text>
     </box>
   )
 }

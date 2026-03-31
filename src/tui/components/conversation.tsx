@@ -15,6 +15,7 @@ import { useSession } from "../context/session"
 import { ThinkingBlock } from "./thinking-block"
 import { TaskView } from "./task-view"
 import { syntaxStyle } from "../theme"
+import { colors } from "../theme/tokens"
 import { HeaderBar } from "./header-bar"
 import type { Block } from "../../protocol/types"
 import { refocusInput } from "./input-area"
@@ -245,7 +246,7 @@ export function ConversationView(props: { children?: JSX.Element }) {
               <text fg="white">{"\u23FA"}</text>
             </box>
             <box flexGrow={1}>
-              <markdown content={state.streamingText} syntaxStyle={syntaxStyle} streaming={true} fg="#e4e4e4" />
+              <markdown content={state.streamingText} syntaxStyle={syntaxStyle} streaming={true} fg={colors.text.primary} />
             </box>
           </box>
         </box>
@@ -255,7 +256,7 @@ export function ConversationView(props: { children?: JSX.Element }) {
           <For each={queuedBlocks()}>
             {(block) => (
               <box flexDirection="row" paddingLeft={2} marginTop={1}>
-                <text fg="#808080" attributes={TextAttributes.DIM}>
+                <text fg={colors.text.muted} attributes={TextAttributes.DIM}>
                   {"> " + block.text + " (queued)"}
                 </text>
               </box>
@@ -266,7 +267,7 @@ export function ConversationView(props: { children?: JSX.Element }) {
         {/* Transient view-level hint — replaces itself, auto-clears after 3s */}
         <box flexDirection="column">
           <Show when={viewLevelHint()}>
-            <text fg="#808080" attributes={TextAttributes.DIM}>{viewLevelHint()}</text>
+            <text fg={colors.text.muted} attributes={TextAttributes.DIM}>{viewLevelHint()}</text>
           </Show>
         </box>
 

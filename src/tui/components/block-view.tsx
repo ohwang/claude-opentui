@@ -10,6 +10,7 @@ import { TextAttributes } from "@opentui/core"
 import { ThinkingBlock } from "./thinking-block"
 import { ToolBlockView } from "./tool-view"
 import { syntaxStyle } from "../theme"
+import { colors } from "../theme/tokens"
 import type { Block } from "../../protocol/types"
 import type { ViewLevel } from "./tool-view"
 import { friendlyModelName } from "../models"
@@ -42,7 +43,7 @@ export function BlockView(props: { block: Block; viewLevel: ViewLevel; prevType?
     <box flexDirection="column">
       {/* User block */}
       <Show when={userBlock()}>{(ub) =>
-        <box flexDirection="row" flexGrow={1} marginTop={1} paddingLeft={1} bg="#3a3a3a">
+        <box flexDirection="row" flexGrow={1} marginTop={1} paddingLeft={1} bg={colors.bg.surface}>
           <text fg="white" attributes={TextAttributes.BOLD}>{"❯ "}</text>
           <text fg="white">{ub().text}</text>
         </box>
@@ -64,7 +65,7 @@ export function BlockView(props: { block: Block; viewLevel: ViewLevel; prevType?
               <text fg="white">{"\u23FA"}</text>
             </box>
             <box flexGrow={1}>
-              <markdown content={ab().text} syntaxStyle={syntaxStyle} fg="#e4e4e4" />
+              <markdown content={ab().text} syntaxStyle={syntaxStyle} fg={colors.text.primary} />
             </box>
           </box>
         </box>

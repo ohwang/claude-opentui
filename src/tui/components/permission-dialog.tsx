@@ -21,15 +21,14 @@ import { usePermissions } from "../context/permissions"
 import { useAgent } from "../context/agent"
 import { useSession } from "../context/session"
 import { useSync } from "../context/sync"
+import { colors } from "../theme/tokens"
 import type { PermissionRequestEvent, PermissionUpdate } from "../../protocol/types"
 
-// ANSI 153 = #afd7ff (periwinkle — Claude Code accent)
-const ACCENT = "#afd7ff"
-// ANSI 246 = #a8a8a8 (muted gray)
-const MUTED = "#a8a8a8"
-// Diff colors (matching claude-go's DiffAdded/DiffRemoved)
-const DIFF_ADDED = "#87d787" // green
-const DIFF_REMOVED = "#d78787" // red
+// Semantic aliases from design system tokens
+const ACCENT = colors.border.accent
+const MUTED = colors.text.secondary
+const DIFF_ADDED = colors.diff.added
+const DIFF_REMOVED = colors.diff.removed
 
 // Max lines to show in content preview
 const MAX_PREVIEW_LINES = 20

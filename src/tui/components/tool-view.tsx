@@ -8,6 +8,7 @@
 import { createSignal, createEffect, createMemo, onCleanup, Show } from "solid-js"
 import { TextAttributes } from "@opentui/core"
 import type { Block } from "../../protocol/types"
+import { colors } from "../theme/tokens"
 
 export type ViewLevel = "collapsed" | "expanded" | "show_all"
 
@@ -109,14 +110,14 @@ export function ToolBlockView(props: { block: Extract<Block, { type: "tool" }>; 
     <box flexDirection="column">
       {/* Invocation line: ⏺ ToolName(arg) */}
       <box flexDirection="row">
-        <text fg="#d78787">{"\u23FA "}</text>
+        <text fg={colors.accent.primary}>{"\u23FA "}</text>
         <text fg="white">{b().tool}</text>
         <Show when={primaryArg()}>
           <text fg="gray">{"(" + primaryArg() + ")"}</text>
         </Show>
         {/* Duration for completed tools (expanded/show_all views) */}
         <Show when={b().status !== "running" && props.viewLevel !== "collapsed" && b().duration !== undefined && b().duration! >= 1000}>
-          <text fg="#808080" attributes={TextAttributes.DIM}>
+          <text fg={colors.text.muted} attributes={TextAttributes.DIM}>
             {" " + (b().duration! < 60000 ? `${Math.round(b().duration! / 1000)}s` : `${Math.floor(b().duration! / 60000)}m ${Math.round((b().duration! % 60000) / 1000)}s`)}
           </text>
         </Show>
@@ -124,7 +125,7 @@ export function ToolBlockView(props: { block: Extract<Block, { type: "tool" }>; 
       {/* Critical warning — only shown after 5 minutes (streaming spinner handles normal elapsed display) */}
       <Show when={b().status === "running" && elapsed() >= TOOL_CRITICAL_THRESHOLD}>
         <box paddingLeft={2}>
-          <text fg="#ff5f5f" attributes={TextAttributes.DIM}>
+          <text fg={colors.status.error} attributes={TextAttributes.DIM}>
             {"\u23BF  Tool may be stuck. Press Ctrl+C to interrupt."}
           </text>
         </box>
@@ -149,7 +150,7 @@ export function ToolBlockView(props: { block: Extract<Block, { type: "tool" }>; 
       <Show when={b().error && !isUserDecline(b().error!)}>
         <box paddingLeft={2} paddingTop={1}>
           <box flexDirection="row" borderStyle="single" borderColor="red" paddingLeft={1} paddingRight={1}>
-            <text fg="#ff5f5f" attributes={TextAttributes.BOLD}>
+            <text fg={colors.status.error} attributes={TextAttributes.BOLD}>
               {"\u2717 " + (b().error!.split("\n")[0]!.length > 100
                 ? b().error!.split("\n")[0]!.slice(0, 97) + "..."
                 : b().error!.split("\n")[0]!)}
@@ -160,7 +161,7 @@ export function ToolBlockView(props: { block: Extract<Block, { type: "tool" }>; 
       {/* User-initiated decline — subtle dim text instead of red error box */}
       <Show when={b().error && isUserDecline(b().error!)}>
         <box paddingLeft={2}>
-          <text fg="#808080" attributes={TextAttributes.DIM}>
+          <text fg={colors.text.muted} attributes={TextAttributes.DIM}>
             {"\u21B3 " + b().error!.split("\n")[0]}
           </text>
         </box>
@@ -225,14 +226,14 @@ export function ToolSummaryView(props: { tools: ToolBlock[] }) {
   return (
     <box paddingLeft={2} marginTop={1} flexDirection="row">
       <Show when={summaryData().normalText}>
-        <text fg="#a8a8a8" attributes={TextAttributes.DIM}>
+        <text fg={colors.text.secondary} attributes={TextAttributes.DIM}>
           {summaryData().normalText + (summaryData().hasErrors ? ", " : "")}
         </text>
       </Show>
       <Show when={summaryData().hasErrors}>
-        <text fg="#ff5f5f">{summaryData().errorText}</text>
+        <text fg={colors.status.error}>{summaryData().errorText}</text>
       </Show>
-      <text fg="#a8a8a8" attributes={TextAttributes.DIM}>
+      <text fg={colors.text.secondary} attributes={TextAttributes.DIM}>
         {" (ctrl+o to expand)"}
       </text>
     </box>

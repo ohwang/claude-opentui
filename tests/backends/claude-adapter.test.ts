@@ -390,4 +390,510 @@ describe("ClaudeAdapter", () => {
       expect(events[0].output).toBe("Error on line 1\nError on line 2")
     })
   })
+
+  // -------------------------------------------------------------------------
+  // Context window bracket parsing in session_init
+  // -------------------------------------------------------------------------
+
+  describe("context window bracket parsing", () => {
+    it("parses [1M context] → contextWindow: 1_000_000 and cleans model name", () => {
+      const adapter = new ClaudeAdapter()
+      const events = (adapter as any).mapSDKMessage({
+        type: "system",
+        subtype: "init",
+        model: "claude-opus-4-6 [1M context]",
+        tools: [],
+      })
+
+      expect(events).toHaveLength(1)
+      expect(events[0].type).toBe("session_init")
+      expect(events[0].models).toHaveLength(1)
+      expect(events[0].models[0].id).toBe("claude-opus-4-6")
+      expect(events[0].models[0].name).toBe("claude-opus-4-6")
+      expect(events[0].models[0].contextWindow).toBe(1_000_000)
+    })
+
+    it("parses [200K tokens] → contextWindow: 200_000", () => {
+      const adapter = new ClaudeAdapter()
+      const events = (adapter as any).mapSDKMessage({
+        type: "system",
+        subtype: "init",
+        model: "claude-sonnet-4-6 [200K tokens]",
+        tools: [],
+      })
+
+      expect(events).toHaveLength(1)
+      expect(events[0].models[0].id).toBe("claude-sonnet-4-6")
+      expect(events[0].models[0].contextWindow).toBe(200_000)
+    })
+
+    it("model string without brackets → no contextWindow, name unchanged", () => {
+      const adapter = new ClaudeAdapter()
+      const events = (adapter as any).mapSDKMessage({
+        type: "system",
+        subtype: "init",
+        model: "claude-sonnet-4-6",
+        tools: [],
+      })
+
+      expect(events).toHaveLength(1)
+      expect(events[0].models[0].id).toBe("claude-sonnet-4-6")
+      expect(events[0].models[0].name).toBe("claude-sonnet-4-6")
+      expect(events[0].models[0].contextWindow).toBeUndefined()
+    })
+
+    it("parses [8K context] → contextWindow: 8_000", () => {
+      const adapter = new ClaudeAdapter()
+      const events = (adapter as any).mapSDKMessage({
+        type: "system",
+        subtype: "init",
+        model: "gpt-4o-mini [8K context]",
+        tools: [],
+      })
+
+      expect(events).toHaveLength(1)
+      expect(events[0].models[0].id).toBe("gpt-4o-mini")
+      expect(events[0].models[0].contextWindow).toBe(8_000)
+    })
+  })
+
+  // -------------------------------------------------------------------------
+  // Tool input JSON accumulation (mapStreamEvent)
+  // -------------------------------------------------------------------------
+
+  describe("tool input JSON accumulation", () => {
+    it("accumulates input_json_delta fragments and emits parsed input on content_block_stop", () => {
+      const adapter = new ClaudeAdapter()
+
+      // content_block_start: register the tool
+      const startEvents = (adapter as any).mapStreamEvent(
+        {
+          type: "content_block_start",
+          index: 0,
+          content_block: { type: "tool_use", id: "tool_json_1", name: "Read" },
+        },
+        null,
+      )
+      expect(startEvents).toHaveLength(1)
+      expect(startEvents[0].type).toBe("tool_use_start")
+
+      // Three input_json_delta fragments
+      ;(adapter as any).mapStreamEvent(
+        { type: "content_block_delta", index: 0, delta: { type: "input_json_delta", partial_json: '{"file' } },
+        null,
+      )
+      ;(adapter as any).mapStreamEvent(
+        { type: "content_block_delta", index: 0, delta: { type: "input_json_delta", partial_json: '":"src/' } },
+        null,
+      )
+      ;(adapter as any).mapStreamEvent(
+        { type: "content_block_delta", index: 0, delta: { type: "input_json_delta", partial_json: 'index.ts"}' } },
+        null,
+      )
+
+      // content_block_stop: should emit tool_use_progress with parsed JSON
+      const stopEvents = (adapter as any).mapStreamEvent(
+        { type: "content_block_stop", index: 0 },
+        null,
+      )
+
+      expect(stopEvents).toHaveLength(1)
+      expect(stopEvents[0].type).toBe("tool_use_progress")
+      expect(stopEvents[0].id).toBe("tool_json_1")
+      expect(stopEvents[0].input).toEqual({ file: "src/index.ts" })
+    })
+
+    it("does not crash on invalid JSON — no tool_use_progress emitted with parsed input", () => {
+      const adapter = new ClaudeAdapter()
+
+      ;(adapter as any).mapStreamEvent(
+        {
+          type: "content_block_start",
+          index: 0,
+          content_block: { type: "tool_use", id: "tool_bad_json", name: "Write" },
+        },
+        null,
+      )
+
+      ;(adapter as any).mapStreamEvent(
+        { type: "content_block_delta", index: 0, delta: { type: "input_json_delta", partial_json: '{"incomplete: true' } },
+        null,
+      )
+
+      // content_block_stop with unparseable JSON — should not crash
+      const stopEvents = (adapter as any).mapStreamEvent(
+        { type: "content_block_stop", index: 0 },
+        null,
+      )
+
+      // No tool_use_progress emitted because JSON.parse failed
+      expect(stopEvents).toHaveLength(0)
+    })
+
+    it("tracks multiple concurrent tools at different event.index values independently", () => {
+      const adapter = new ClaudeAdapter()
+
+      // Start two tools at different indices
+      ;(adapter as any).mapStreamEvent(
+        {
+          type: "content_block_start",
+          index: 0,
+          content_block: { type: "tool_use", id: "tool_a", name: "Read" },
+        },
+        null,
+      )
+      ;(adapter as any).mapStreamEvent(
+        {
+          type: "content_block_start",
+          index: 1,
+          content_block: { type: "tool_use", id: "tool_b", name: "Write" },
+        },
+        null,
+      )
+
+      // Interleave deltas
+      ;(adapter as any).mapStreamEvent(
+        { type: "content_block_delta", index: 0, delta: { type: "input_json_delta", partial_json: '{"a":' } },
+        null,
+      )
+      ;(adapter as any).mapStreamEvent(
+        { type: "content_block_delta", index: 1, delta: { type: "input_json_delta", partial_json: '{"b":' } },
+        null,
+      )
+      ;(adapter as any).mapStreamEvent(
+        { type: "content_block_delta", index: 0, delta: { type: "input_json_delta", partial_json: "1}" } },
+        null,
+      )
+      ;(adapter as any).mapStreamEvent(
+        { type: "content_block_delta", index: 1, delta: { type: "input_json_delta", partial_json: "2}" } },
+        null,
+      )
+
+      // Stop tool_a
+      const stopA = (adapter as any).mapStreamEvent(
+        { type: "content_block_stop", index: 0 },
+        null,
+      )
+      expect(stopA).toHaveLength(1)
+      expect(stopA[0].input).toEqual({ a: 1 })
+      expect(stopA[0].id).toBe("tool_a")
+
+      // Stop tool_b
+      const stopB = (adapter as any).mapStreamEvent(
+        { type: "content_block_stop", index: 1 },
+        null,
+      )
+      expect(stopB).toHaveLength(1)
+      expect(stopB[0].input).toEqual({ b: 2 })
+      expect(stopB[0].id).toBe("tool_b")
+    })
+  })
+
+  // -------------------------------------------------------------------------
+  // Task lifecycle mapping (mapSDKMessage)
+  // -------------------------------------------------------------------------
+
+  describe("task lifecycle mapping", () => {
+    it("maps task_started to task_start event", () => {
+      const adapter = new ClaudeAdapter()
+      const events = (adapter as any).mapSDKMessage({
+        type: "task_started",
+        task_id: "task_1",
+        description: "Running tests",
+      })
+
+      expect(events).toHaveLength(1)
+      expect(events[0].type).toBe("task_start")
+      expect(events[0].taskId).toBe("task_1")
+      expect(events[0].description).toBe("Running tests")
+    })
+
+    it("maps task_started falls back to uuid when task_id missing", () => {
+      const adapter = new ClaudeAdapter()
+      const events = (adapter as any).mapSDKMessage({
+        type: "task_started",
+        uuid: "uuid_1",
+      })
+
+      expect(events).toHaveLength(1)
+      expect(events[0].type).toBe("task_start")
+      expect(events[0].taskId).toBe("uuid_1")
+      expect(events[0].description).toBe("Background task")
+    })
+
+    it("maps task_progress to task_progress event", () => {
+      const adapter = new ClaudeAdapter()
+      const events = (adapter as any).mapSDKMessage({
+        type: "task_progress",
+        task_id: "task_2",
+        content: "50% complete",
+      })
+
+      expect(events).toHaveLength(1)
+      expect(events[0].type).toBe("task_progress")
+      expect(events[0].taskId).toBe("task_2")
+      expect(events[0].output).toBe("50% complete")
+    })
+
+    it("maps task_notification to task_complete event", () => {
+      const adapter = new ClaudeAdapter()
+      const events = (adapter as any).mapSDKMessage({
+        type: "task_notification",
+        task_id: "task_3",
+        content: "All tests passed",
+      })
+
+      expect(events).toHaveLength(1)
+      expect(events[0].type).toBe("task_complete")
+      expect(events[0].taskId).toBe("task_3")
+      expect(events[0].output).toBe("All tests passed")
+    })
+
+    it("maps task_notification falls back to result when content missing", () => {
+      const adapter = new ClaudeAdapter()
+      const events = (adapter as any).mapSDKMessage({
+        type: "task_notification",
+        task_id: "task_4",
+        result: "Done",
+      })
+
+      expect(events).toHaveLength(1)
+      expect(events[0].type).toBe("task_complete")
+      expect(events[0].output).toBe("Done")
+    })
+  })
+
+  // -------------------------------------------------------------------------
+  // Elicitation parsing (parseElicitationInput)
+  // -------------------------------------------------------------------------
+
+  describe("parseElicitationInput", () => {
+    it("parses modern format with questions array containing object options", () => {
+      const adapter = new ClaudeAdapter()
+      const result = (adapter as any).parseElicitationInput({
+        questions: [
+          {
+            question: "Pick one",
+            options: [
+              { label: "A", description: "Option A" },
+              { label: "B", description: "Option B" },
+            ],
+          },
+        ],
+      })
+
+      expect(result).toHaveLength(1)
+      expect(result[0].question).toBe("Pick one")
+      expect(result[0].options).toHaveLength(2)
+      expect(result[0].options[0].label).toBe("A")
+      expect(result[0].options[0].description).toBe("Option A")
+      expect(result[0].options[1].label).toBe("B")
+      expect(result[0].allowFreeText).toBe(true)
+    })
+
+    it("falls back to legacy single-question shape when questions array is missing", () => {
+      const adapter = new ClaudeAdapter()
+      const result = (adapter as any).parseElicitationInput({
+        question: "Choose",
+        options: ["X", "Y", "Z"],
+      })
+
+      expect(result).toHaveLength(1)
+      expect(result[0].question).toBe("Choose")
+      expect(result[0].options).toHaveLength(3)
+      expect(result[0].options[0].label).toBe("X")
+      expect(result[0].options[0].description).toBeUndefined()
+      expect(result[0].options[1].label).toBe("Y")
+      expect(result[0].options[2].label).toBe("Z")
+    })
+
+    it("falls back to legacy shape when questions array is empty", () => {
+      const adapter = new ClaudeAdapter()
+      const result = (adapter as any).parseElicitationInput({
+        questions: [],
+        question: "Fallback question",
+        options: ["A"],
+      })
+
+      expect(result).toHaveLength(1)
+      expect(result[0].question).toBe("Fallback question")
+      expect(result[0].options[0].label).toBe("A")
+    })
+
+    it("handles options that are objects vs strings in legacy format", () => {
+      const adapter = new ClaudeAdapter()
+      const result = (adapter as any).parseElicitationInput({
+        question: "Mixed",
+        options: [
+          "plain-string",
+          { label: "Obj", description: "Object option", preview: "preview text" },
+        ],
+      })
+
+      expect(result).toHaveLength(1)
+      expect(result[0].options[0].label).toBe("plain-string")
+      expect(result[0].options[0].description).toBeUndefined()
+      expect(result[0].options[0].preview).toBeUndefined()
+      expect(result[0].options[1].label).toBe("Obj")
+      expect(result[0].options[1].description).toBe("Object option")
+      expect(result[0].options[1].preview).toBe("preview text")
+    })
+
+    it("defaults question text and options when legacy input is minimal", () => {
+      const adapter = new ClaudeAdapter()
+      const result = (adapter as any).parseElicitationInput({})
+
+      expect(result).toHaveLength(1)
+      expect(result[0].question).toBe("Choose an option")
+      expect(result[0].options).toHaveLength(0)
+    })
+
+    it("preserves multiSelect and header from modern format", () => {
+      const adapter = new ClaudeAdapter()
+      const result = (adapter as any).parseElicitationInput({
+        questions: [
+          {
+            question: "Select many",
+            header: "Multi-select header",
+            options: [{ label: "One" }],
+            multiSelect: true,
+          },
+        ],
+      })
+
+      expect(result).toHaveLength(1)
+      expect(result[0].multiSelect).toBe(true)
+      expect(result[0].header).toBe("Multi-select header")
+    })
+  })
+
+  // -------------------------------------------------------------------------
+  // AsyncQueue internal (adapter's message queue)
+  // -------------------------------------------------------------------------
+
+  describe("AsyncQueue", () => {
+    // Access the private AsyncQueue class by creating an adapter and extracting its queue
+    function createQueue() {
+      const adapter = new ClaudeAdapter()
+      // The messageQueue is an AsyncQueue<UserMessage>
+      return (adapter as any).messageQueue
+    }
+
+    it("push then pull resolves immediately", async () => {
+      const queue = createQueue()
+      queue.push({ text: "first" })
+      const item = await queue.pull()
+      expect(item.text).toBe("first")
+    })
+
+    it("pull then push blocks then resolves", async () => {
+      const queue = createQueue()
+      let resolved = false
+
+      const pullPromise = queue.pull().then((item: any) => {
+        resolved = true
+        return item
+      })
+
+      // Pull should be blocked
+      // Use a microtask flush to confirm it hasn't resolved yet
+      await Promise.resolve()
+      expect(resolved).toBe(false)
+
+      // Push should unblock the pull
+      queue.push({ text: "delayed" })
+      const item = await pullPromise
+      expect(resolved).toBe(true)
+      expect(item.text).toBe("delayed")
+    })
+
+    it("close rejects waiting pulls", async () => {
+      const queue = createQueue()
+      const pullPromise = queue.pull()
+
+      queue.close()
+
+      await expect(pullPromise).rejects.toThrow("Queue closed")
+    })
+
+    it("push after close is silent (no crash)", () => {
+      const queue = createQueue()
+      queue.close()
+
+      // Should not throw
+      expect(() => queue.push({ text: "ignored" })).not.toThrow()
+    })
+
+    it("size tracks queued items", () => {
+      const queue = createQueue()
+      expect(queue.size).toBe(0)
+
+      queue.push({ text: "a" })
+      queue.push({ text: "b" })
+      expect(queue.size).toBe(2)
+
+      // pull consumes from queue synchronously when items exist
+      queue.pull() // returns a promise that resolves immediately
+      expect(queue.size).toBe(1)
+    })
+  })
+
+  // -------------------------------------------------------------------------
+  // Session denied tools
+  // -------------------------------------------------------------------------
+
+  describe("session denied tools", () => {
+    it("after denyToolUse with denyForSession, handlePermission auto-denies", async () => {
+      const adapter = new ClaudeAdapter()
+
+      // Set up an event channel so the permission bridge can push events
+      const { EventChannel } = require("../../src/utils/event-channel")
+      ;(adapter as any).eventChannel = new EventChannel()
+
+      // Simulate a pending permission for the tool we'll deny
+      const firstPermPromise = (adapter as any).handlePermission(
+        "perm_1",
+        "Bash",
+        { command: "rm -rf /" },
+        {},
+      )
+
+      // Deny it with denyForSession
+      adapter.denyToolUse("perm_1", "Too dangerous", { denyForSession: true })
+
+      const firstResult = await firstPermPromise
+      expect(firstResult.behavior).toBe("deny")
+
+      // Now a second permission request for the same tool should be auto-denied
+      const secondResult = await (adapter as any).handlePermission(
+        "perm_2",
+        "Bash",
+        { command: "ls" },
+        {},
+      )
+
+      expect(secondResult.behavior).toBe("deny")
+      expect(secondResult.message).toBe("Denied for session")
+
+      // A different tool should still prompt (not auto-denied)
+      const thirdPermPromise = (adapter as any).handlePermission(
+        "perm_3",
+        "Read",
+        { file: "test.txt" },
+        {},
+      )
+
+      // The promise should be pending (not auto-resolved)
+      let thirdResolved = false
+      thirdPermPromise.then(() => { thirdResolved = true })
+      await Promise.resolve()
+      expect(thirdResolved).toBe(false)
+
+      // Clean up: resolve pending permission before close
+      adapter.approveToolUse("perm_3")
+      await thirdPermPromise
+
+      adapter.close()
+    })
+  })
 })

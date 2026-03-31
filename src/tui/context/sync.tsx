@@ -53,6 +53,8 @@ export function SyncProvider(props: ParentProps) {
   // Reducer state (mutable, not reactive — stores are the reactive layer)
   let conversationState = createInitialState()
   let aborted = false
+  let initTimeoutId: ReturnType<typeof setTimeout> | null = null
+  let firstMessageSent = false
 
   // Apply a batch of events through the reducer, then update all stores
   const applyEvents = (events: AgentEvent[]) => {
@@ -101,6 +103,26 @@ export function SyncProvider(props: ParentProps) {
   )
 
   const pushEvent = (event: AgentEvent) => {
+    // Start init timeout on first user message, not on mount.
+    // With the query() API, session_init doesn't arrive until the first message is sent,
+    // so starting the timeout earlier would cause false positives.
+    if (!firstMessageSent && event.type === "user_message") {
+      firstMessageSent = true
+      if (session.state.sessionState === "INITIALIZING") {
+        log.info("First user message sent — starting 30s init timeout")
+        initTimeoutId = setTimeout(() => {
+          if (session.state.sessionState === "INITIALIZING") {
+            log.error("Session initialization timed out after 30s")
+            pushEvent({
+              type: "error",
+              code: "init_timeout",
+              message: "Session initialization timed out. Check that your API key is valid and the backend is reachable.",
+              severity: "fatal",
+            })
+          }
+        }, 30_000)
+      }
+    }
     batcher.push(event)
   }
 
@@ -191,27 +213,17 @@ export function SyncProvider(props: ParentProps) {
   onMount(() => {
     startEventLoop()
 
-    // Session initialization timeout — recover if session_init never arrives
-    const initTimeout = setTimeout(() => {
-      if (session.state.sessionState === "INITIALIZING") {
-        log.error("Session initialization timed out after 30s")
-        pushEvent({
-          type: "error",
-          code: "init_timeout",
-          message: "Session initialization timed out. Check that your API key is valid and the backend is reachable.",
-          severity: "fatal",
-        })
-      }
-    }, 30_000)
-
-    // Clear the timeout once we leave INITIALIZING
+    // Clear the init timeout once we leave INITIALIZING
     createEffect(() => {
-      if (session.state.sessionState !== "INITIALIZING") {
-        clearTimeout(initTimeout)
+      if (session.state.sessionState !== "INITIALIZING" && initTimeoutId !== null) {
+        clearTimeout(initTimeoutId)
+        initTimeoutId = null
       }
     })
 
-    onCleanup(() => clearTimeout(initTimeout))
+    onCleanup(() => {
+      if (initTimeoutId !== null) clearTimeout(initTimeoutId)
+    })
 
     // Send initial prompt after backend is ready (session_init received)
     if (agent.config.initialPrompt) {

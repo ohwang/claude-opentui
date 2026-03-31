@@ -799,6 +799,24 @@ describe("ClaudeAdapter", () => {
       expect(result[0].multiSelect).toBe(true)
       expect(result[0].header).toBe("Multi-select header")
     })
+
+    it("forces allowFreeText when options empty and allowFreeText false", () => {
+      const result = parseElicitationInput({
+        questions: [{ question: "Pick one", options: [], allowFreeText: false }]
+      })
+      expect(result[0].allowFreeText).toBe(true)
+    })
+
+    it("generates fallback question when questions array is empty", () => {
+      const result = parseElicitationInput({ questions: [] })
+      expect(result.length).toBeGreaterThan(0)
+      expect(result[0].allowFreeText).toBe(true)
+    })
+
+    it("fallback question uses input.question text when available", () => {
+      const result = parseElicitationInput({ questions: [], question: "Custom fallback?" })
+      expect(result[0].question).toBe("Custom fallback?")
+    })
   })
 
   // -------------------------------------------------------------------------

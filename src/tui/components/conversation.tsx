@@ -219,7 +219,7 @@ export function ConversationView(props: { children?: JSX.Element }) {
                 : undefined
 
               return item.kind === "tool-summary"
-                ? <ToolSummaryView tools={item.tools} />
+                ? <box marginTop={prevType !== "tool-summary" ? 1 : 0}><ToolSummaryView tools={item.tools} /></box>
                 : <BlockView block={item.block} viewLevel={viewLevel()} prevType={prevType} showThinking={showThinking()} />
             }}
           </For>
@@ -278,7 +278,9 @@ export function ConversationView(props: { children?: JSX.Element }) {
             !state.streamingText &&
             !state.streamingThinking
           }>
-            <StreamingSpinner label={spinnerLabel()} elapsedSeconds={turnElapsed()} outputTokens={state.streamingOutputTokens || session.cost.outputTokens} />
+            <box marginTop={1}>
+              <StreamingSpinner label={spinnerLabel()} elapsedSeconds={turnElapsed()} outputTokens={state.streamingOutputTokens || session.cost.outputTokens} />
+            </box>
           </Show>
         </box>
 

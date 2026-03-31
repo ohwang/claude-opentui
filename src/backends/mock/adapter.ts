@@ -194,6 +194,11 @@ export class MockAdapter implements AgentBackend {
       yield* this.simulateTasks()
     }
 
+    // Simulate elicitation (ask user question)
+    if (text.includes("ask") || text.includes("question")) {
+      yield* this.simulateElicitation()
+    }
+
     // Stream the response text
     const response = this.getResponse(text)
     const words = response.split(" ")
@@ -290,12 +295,48 @@ export class MockAdapter implements AgentBackend {
     yield { type: "task_complete", taskId: task2, output: "All 97 tests passing" }
   }
 
+  private async *simulateElicitation(): AsyncGenerator<AgentEvent> {
+    const elicId = `elic_${Date.now()}`
+
+    yield {
+      type: "elicitation_request",
+      id: elicId,
+      questions: [
+        {
+          question: "Which framework would you like to use?",
+          options: [
+            { label: "React" },
+            { label: "SolidJS" },
+            { label: "Vue" },
+            { label: "Svelte" },
+          ],
+          allowFreeText: true,
+        },
+      ],
+    }
+
+    // Wait for user response
+    const result = await new Promise<{ behavior: "allow" | "deny" }>((resolve) => {
+      this.pendingElicitation = {
+        id: elicId,
+        resolve: (r) => resolve(r),
+      }
+    })
+
+    // Emit elicitation_response to transition state machine back to RUNNING
+    yield { type: "elicitation_response", id: elicId, answers: {} }
+
+    if (result.behavior === "deny") {
+      yield { type: "text_delta", text: "\n\nOk, I'll skip that question.\n\n" }
+    }
+  }
+
   private getResponse(input: string): string {
     if (input.includes("hello") || input.includes("hi")) {
       return "Hello! I'm the mock backend for claude-opentui. I simulate Claude's responses for TUI development. Try asking me to read a file or run a bash command to see tool use and permission flows."
     }
     if (input.includes("help")) {
-      return "I can simulate:\n- **Streaming text** (every message)\n- **Thinking blocks** (include 'think' in your message)\n- **Tool use** (include 'read' or 'file')\n- **Permission prompts** (include 'permission' or 'bash')\n- **Subagents** (include 'agent' or 'task')\n- **Interrupts** (press Ctrl+C while I'm streaming)"
+      return "I can simulate:\n- **Streaming text** (every message)\n- **Thinking blocks** (include 'think' in your message)\n- **Tool use** (include 'read' or 'file')\n- **Permission prompts** (include 'permission' or 'bash')\n- **Elicitations** (include 'ask' or 'question')\n- **Subagents** (include 'agent' or 'task')\n- **Interrupts** (press Ctrl+C while I'm streaming)"
     }
     if (input.includes("error")) {
       return "This would be an error scenario in the real backend."

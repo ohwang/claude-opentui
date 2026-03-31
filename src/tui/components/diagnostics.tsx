@@ -281,7 +281,7 @@ export function DiagnosticsPanel(props: { visible: boolean; onClose: () => void 
       >
         {/* Title bar */}
         <box flexDirection="row" flexShrink={0}>
-          <text fg="white" attributes={TextAttributes.BOLD}>
+          <text fg={colors.text.white} attributes={TextAttributes.BOLD}>
             {"Diagnostics"}
           </text>
           <text fg={colors.text.muted} attributes={TextAttributes.DIM}>

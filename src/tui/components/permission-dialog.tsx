@@ -255,6 +255,10 @@ export function PermissionDialog() {
     // This prevents a rapid "a" then "d" from denying the NEXT permission.
     if (justActed) return
 
+    // Consume ALL key events while permission dialog is active to prevent
+    // scrollbox from handling arrow keys as scroll commands.
+    event.preventDefault()
+
     const id = state.pendingPermission.id
     const perm = state.pendingPermission
 

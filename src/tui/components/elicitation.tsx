@@ -77,6 +77,7 @@ function QuestionView(props: {
 
     if (showFreeText()) {
       if (event.name === "escape") {
+        event.preventDefault()
         // In free-text-only mode, escape cancels the whole elicitation
         if (freeTextOnly()) {
           props.onCancel()
@@ -87,6 +88,7 @@ function QuestionView(props: {
         return
       }
       if (event.name === "return") {
+        event.preventDefault()
         if (submitting()) return
         // Handle free text submit directly since useKeyboard fires before textarea's onSubmit
         const text = freeTextRef?.plainText?.trim() ?? ""
@@ -97,8 +99,12 @@ function QuestionView(props: {
         }
         return
       }
-      return // ignore other keys in free text mode
+      return // Let other keys through to textarea in free-text mode
     }
+
+    // In option-selection mode, consume ALL key events to prevent
+    // scrollbox from handling arrow keys / j / k as scroll commands.
+    event.preventDefault()
 
     const len = options().length
     if (len === 0) return // guard against empty options list

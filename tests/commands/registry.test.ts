@@ -309,6 +309,101 @@ describe("/hotkeys command", () => {
   })
 })
 
+describe("/compact command", () => {
+  it("sends compact message to backend and shows feedback", async () => {
+    const registry = createCommandRegistry()
+    let sentMessage: any = null
+    const ctx = makeCtx({
+      backend: {
+        sendMessage: (msg: any) => { sentMessage = msg },
+      } as any,
+    })
+    const handled = await registry.tryExecute("/compact", ctx)
+    expect(handled).toBe(true)
+    expect(sentMessage).toBeTruthy()
+    expect(sentMessage.text).toBe("/compact")
+    expect(ctx.events.some(e => e.text?.includes("Compacting"))).toBe(true)
+  })
+
+  it("passes custom instructions to backend", async () => {
+    const registry = createCommandRegistry()
+    let sentMessage: any = null
+    const ctx = makeCtx({
+      backend: {
+        sendMessage: (msg: any) => { sentMessage = msg },
+      } as any,
+    })
+    await registry.tryExecute("/compact focus on API changes", ctx)
+    expect(sentMessage.text).toBe("/compact focus on API changes")
+  })
+})
+
+describe("/new command", () => {
+  it("clears conversation and resets cost", async () => {
+    const registry = createCommandRegistry()
+    let cleared = false
+    let costReset = false
+    const ctx = makeCtx({
+      clearConversation: () => { cleared = true },
+      resetCost: () => { costReset = true },
+    })
+    const handled = await registry.tryExecute("/new", ctx)
+    expect(handled).toBe(true)
+    expect(cleared).toBe(true)
+    expect(costReset).toBe(true)
+    expect(ctx.events.some(e => e.type === "system_message")).toBe(true)
+  })
+})
+
+describe("/diagnostics command", () => {
+  it("toggles diagnostics panel", async () => {
+    const registry = createCommandRegistry()
+    let toggled = false
+    const ctx = makeCtx({
+      toggleDiagnostics: () => { toggled = true },
+    })
+    const handled = await registry.tryExecute("/diagnostics", ctx)
+    expect(handled).toBe(true)
+    expect(toggled).toBe(true)
+  })
+
+  it("shows fallback message when toggleDiagnostics is not available", async () => {
+    const registry = createCommandRegistry()
+    const ctx = makeCtx({
+      toggleDiagnostics: undefined,
+    })
+    await registry.tryExecute("/diagnostics", ctx)
+    expect(ctx.events.some(e => e.text?.includes("not available"))).toBe(true)
+  })
+})
+
+describe("/usage command", () => {
+  it("shows usage information", async () => {
+    const registry = createCommandRegistry()
+    const ctx = makeCtx({
+      getSessionState: () => ({
+        cost: { inputTokens: 100, outputTokens: 50, cacheReadTokens: 0, cacheWriteTokens: 0, totalCostUsd: 0.01 },
+        turnNumber: 3,
+        currentModel: "claude-sonnet-4-6",
+        session: { account: { email: "test@example.com", plan: "pro" }, tools: [], models: [] },
+      }),
+    })
+    const handled = await registry.tryExecute("/usage", ctx)
+    expect(handled).toBe(true)
+    const msg = ctx.events.find(e => e.type === "system_message")
+    expect(msg).toBeDefined()
+    expect(msg.text).toContain("pro")
+  })
+
+  it("shows fallback when no account info", async () => {
+    const registry = createCommandRegistry()
+    const ctx = makeCtx()
+    const handled = await registry.tryExecute("/usage", ctx)
+    expect(handled).toBe(true)
+    expect(ctx.events.some(e => e.type === "system_message")).toBe(true)
+  })
+})
+
 describe("/model command", () => {
   it("shows usage when called without args", async () => {
     const registry = createCommandRegistry()

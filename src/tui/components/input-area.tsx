@@ -1,9 +1,10 @@
 /**
- * Input Area — Textarea with message submission + slash commands
+ * Input Area — Textarea with message submission + slash commands + file autocomplete
  *
  * Enter to send, Shift+Enter for newline.
  * Input stays enabled during RUNNING (messages queued).
  * '/' at position 0 triggers slash command autocomplete dropdown.
+ * '@' anywhere triggers fuzzy file search autocomplete.
  */
 
 import { createSignal, Show, For } from "solid-js"
@@ -17,11 +18,15 @@ import { useSession } from "../context/session"
 import { useSync } from "../context/sync"
 import { useMessages } from "../context/messages"
 import { createCommandRegistry, type SlashCommand } from "../../commands/registry"
+import { searchFiles } from "./file-autocomplete"
 import { triggerCleanExit, toggleDiagnostics } from "../app"
 import { colors } from "../theme/tokens"
 import { log } from "../../utils/logger"
 
 const commandRegistry = createCommandRegistry()
+
+/** Discriminated union for autocomplete modes */
+type AutocompleteMode = "slash" | "file" | null
 
 /** Maximum number of items visible in the autocomplete dropdown */
 const MAX_VISIBLE_ITEMS = 12
@@ -148,8 +153,9 @@ export function InputArea() {
 
   // Autocomplete dropdown state
   const [showAutocomplete, setShowAutocomplete] = createSignal(false)
-  const [autocompleteItems, setAutocompleteItems] = createSignal<SlashCommand[]>([])
+  const [autocompleteItems, setAutocompleteItems] = createSignal<{ name: string; description: string }[]>([])
   const [selectedIndex, setSelectedIndex] = createSignal(0)
+  const [autocompleteMode, setAutocompleteMode] = createSignal<AutocompleteMode>(null)
 
   // Legacy tab completion hint (kept for non-dropdown fallback)
   const [completionHint, setCompletionHint] = createSignal("")
@@ -226,39 +232,67 @@ export function InputArea() {
     setShowAutocomplete(false)
     setAutocompleteItems([])
     setSelectedIndex(0)
+    setAutocompleteMode(null)
   }
 
   /** Update autocomplete based on current input text */
   const updateAutocomplete = (text: string) => {
-    // Only trigger when "/" is at position 0 with no space yet after the command
-    if (!text.startsWith("/")) {
-      dismissAutocomplete()
-      return
+    // Check for @file trigger: "@" followed by non-whitespace at any position
+    const atMatch = text.match(/@(\S*)$/)
+    if (atMatch) {
+      const query = atMatch[1]
+      const cwd = agent.config.cwd ?? process.cwd()
+      const files = searchFiles(query, cwd, MAX_VISIBLE_ITEMS)
+      if (files.length > 0) {
+        setAutocompleteItems(files.map((f) => ({
+          name: f,
+          description: f.endsWith("/") ? "directory" : "file",
+        })))
+        setSelectedIndex(0)
+        setAutocompleteMode("file")
+        setShowAutocomplete(true)
+        return
+      }
+      // No file matches — fall through to dismiss
     }
 
-    // If there's a space after the command name, dismiss (command is "complete")
-    const afterSlash = text.slice(1)
-    if (afterSlash.includes(" ")) {
-      dismissAutocomplete()
-      return
+    // Check for /slash command trigger at position 0
+    if (text.startsWith("/")) {
+      // If there's a space after the command name, dismiss (command is "complete")
+      const afterSlash = text.slice(1)
+      if (!afterSlash.includes(" ")) {
+        const query = afterSlash
+        const matches = commandRegistry.search(query)
+        if (matches.length > 0) {
+          setAutocompleteItems(matches)
+          setSelectedIndex(0)
+          setAutocompleteMode("slash")
+          setShowAutocomplete(true)
+          return
+        }
+      }
     }
 
-    const query = afterSlash
-    const matches = commandRegistry.search(query)
-
-    if (matches.length === 0) {
-      dismissAutocomplete()
-      return
-    }
-
-    setAutocompleteItems(matches)
-    setSelectedIndex(0)
-    setShowAutocomplete(true)
+    dismissAutocomplete()
   }
 
   /** Select a command from the autocomplete dropdown */
-  const selectCommand = (command: SlashCommand) => {
+  const selectCommand = (command: { name: string }) => {
     setTextareaContent(`/${command.name} `)
+    dismissAutocomplete()
+  }
+
+  /** Select a file from the autocomplete dropdown — replaces @query with the path */
+  const selectFile = (filePath: string) => {
+    const text = textareaRef?.plainText ?? ""
+    const atMatch = text.match(/@(\S*)$/)
+    if (atMatch) {
+      const beforeAt = text.slice(0, atMatch.index!)
+      setTextareaContent(beforeAt + filePath + " ")
+    } else {
+      // Fallback: just append
+      setTextareaContent(text + filePath + " ")
+    }
     dismissAutocomplete()
   }
 
@@ -327,10 +361,20 @@ export function InputArea() {
     if (e.name === "escape") {
       e.preventDefault()
       if (showAutocomplete()) {
+        const wasFile = autocompleteMode() === "file"
         dismissAutocomplete()
-        // Also clear the "/" text per Claude Code behavior
-        textareaRef?.clear()
-        setLineCount(1)
+        if (wasFile) {
+          // For file autocomplete, remove just the @query portion
+          const text = textareaRef?.plainText ?? ""
+          const atMatch = text.match(/@(\S*)$/)
+          if (atMatch) {
+            setTextareaContent(text.slice(0, atMatch.index!))
+          }
+        } else {
+          // For slash commands, clear the "/" text per Claude Code behavior
+          textareaRef?.clear()
+          setLineCount(1)
+        }
       } else if (tabMatches.length > 0) {
         // Dismiss active tab completion
         setCompletionHint("")
@@ -412,25 +456,33 @@ export function InputArea() {
         return
       }
 
-      // Enter = execute selected command
+      // Enter = execute selected command / insert selected file
       if (e.name === "return" && !e.shift && !e.meta) {
         e.preventDefault()
         const selected = items[selectedIndex()]
         if (selected) {
-          // Fill command into input and submit
-          setTextareaContent(`/${selected.name}`)
-          dismissAutocomplete()
-          submit()
+          if (autocompleteMode() === "file") {
+            selectFile(selected.name)
+          } else {
+            // Slash command: fill and submit
+            setTextareaContent(`/${selected.name}`)
+            dismissAutocomplete()
+            submit()
+          }
         }
         return
       }
 
-      // Tab = fill selected command into input (without executing)
+      // Tab = fill selected item into input (without executing)
       if (e.name === "tab") {
         e.preventDefault()
         const selected = items[selectedIndex()]
         if (selected) {
-          selectCommand(selected)
+          if (autocompleteMode() === "file") {
+            selectFile(selected.name)
+          } else {
+            selectCommand(selected)
+          }
         }
         return
       }
@@ -549,16 +601,16 @@ export function InputArea() {
       <Show when={showAutocomplete() && autocompleteItems().length > 0}>
         <box flexDirection="column" paddingLeft={2}>
           <For each={autocompleteItems().slice(0, MAX_VISIBLE_ITEMS)}>
-            {(cmd, index) => (
+            {(item, index) => (
               <box flexDirection="row">
                 <text
                   attributes={index() === selectedIndex() ? TextAttributes.BOLD : 0}
                   fg={index() === selectedIndex() ? "cyan" : "white"}
                 >
-                  /{cmd.name}
+                  {autocompleteMode() === "file" ? item.name : `/${item.name}`}
                 </text>
                 <text fg="gray" attributes={index() !== selectedIndex() ? TextAttributes.DIM : 0}>
-                  {"  \u2013  "}{cmd.description}
+                  {"  \u2013  "}{item.description}
                 </text>
               </box>
             )}

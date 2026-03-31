@@ -280,7 +280,11 @@ export function PermissionDialog() {
 
     // Tab / Shift+Tab navigation (matching claude-go)
     if (event.name === "tab") {
-      setSelectedOption((selectedOption() + 1) % NUM_OPTIONS)
+      if (event.shift) {
+        setSelectedOption((selectedOption() - 1 + NUM_OPTIONS) % NUM_OPTIONS)
+      } else {
+        setSelectedOption((selectedOption() + 1) % NUM_OPTIONS)
+      }
       return
     }
 

@@ -161,6 +161,11 @@ function StreamingSpinner(props: { label: string; elapsedSeconds?: number; outpu
 // ToolBlockView — renders a single tool block
 // ---------------------------------------------------------------------------
 
+/** User-initiated cancellation messages that shouldn't render as errors */
+function isUserDecline(error: string): boolean {
+  return error.includes("User declined to answer") || error.includes("Interrupted by user")
+}
+
 /** Threshold in seconds before showing elapsed time on running tools */
 const TOOL_ELAPSED_SHOW_THRESHOLD = 5
 /** Threshold in seconds before showing a warning on long-running tools */
@@ -307,7 +312,7 @@ function ToolBlockView(props: { block: Extract<Block, { type: "tool" }>; viewLev
         </box>
       </Show>
       {/* Error display — prominent bordered box so failures are hard to miss */}
-      <Show when={b().error}>
+      <Show when={b().error && !isUserDecline(b().error!)}>
         <box paddingLeft={2} paddingTop={1}>
           <box flexDirection="row" borderStyle="single" borderColor="red" paddingLeft={1} paddingRight={1}>
             <text fg="#ff5f5f" attributes={TextAttributes.BOLD}>
@@ -316,6 +321,14 @@ function ToolBlockView(props: { block: Extract<Block, { type: "tool" }>; viewLev
                 : b().error!.split("\n")[0]!)}
             </text>
           </box>
+        </box>
+      </Show>
+      {/* User-initiated decline — subtle dim text instead of red error box */}
+      <Show when={b().error && isUserDecline(b().error!)}>
+        <box paddingLeft={2}>
+          <text fg="#808080" attributes={TextAttributes.DIM}>
+            {"\u21B3 " + b().error!.split("\n")[0]}
+          </text>
         </box>
       </Show>
     </box>

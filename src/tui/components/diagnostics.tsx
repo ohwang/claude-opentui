@@ -267,11 +267,11 @@ export function DiagnosticsPanel(props: { visible: boolean; onClose: () => void 
 
         {/* Separator line */}
         <box height={1} flexShrink={0}>
-          <text fg="#4a4a6a">{"─".repeat(dims()?.width ? dims()!.width - 4 : 70)}</text>
+          <text fg={colors.border.default}>{"─".repeat(dims()?.width ? dims()!.width - 4 : 70)}</text>
         </box>
 
         {/* Content in a scrollbox so it doesn't overflow */}
-        <scrollbox flexGrow={1} stickyScroll={false} bg="#16161e">
+        <scrollbox flexGrow={1} stickyScroll={false} bg={colors.bg.overlay}>
           {/* Sections */}
           <For each={sections()}>
             {(section) => (

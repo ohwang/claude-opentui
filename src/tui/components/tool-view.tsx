@@ -183,8 +183,8 @@ export function ToolBlockView(props: { block: Extract<Block, { type: "tool" }>; 
               filetype={filetypeFromPath((b().input as Record<string, unknown> | null)?.file_path as string | undefined)}
               addedSignColor={colors.diff.added}
               removedSignColor={colors.diff.removed}
-              addedBg="#1a2e1a"
-              removedBg="#2e1a1a"
+              addedBg={colors.diff.addedBg}
+              removedBg={colors.diff.removedBg}
               fg={colors.text.primary}
             />
           </Show>

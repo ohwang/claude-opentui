@@ -26,6 +26,7 @@ export const colors = {
   // -- Accent -------------------------------------------------------------
   accent: {
     primary: "#d78787",      // Logo, branding, salmon/pink
+    logo: "#d7875f",         // Header bar logo warm orange
     periwinkle: "#afd7ff",   // Permission dialog accent
     cyan: "#87ceeb",         // Elicitation accent
   },
@@ -69,6 +70,8 @@ export const colors = {
   diff: {
     added: "#87d787",
     removed: "#d78787",
+    addedBg: "#1a2e1a",     // Green tint background for added lines
+    removedBg: "#2e1a1a",   // Red tint background for removed lines
   },
 } as const
 

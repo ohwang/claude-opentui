@@ -43,6 +43,18 @@ export function clearInput(): boolean {
   return true
 }
 
+/**
+ * Re-focus the textarea. Called after scroll or any event that may have
+ * shifted OpenTUI focus away from the input area.
+ *
+ * In native Claude Code the textarea always captures keyboard input —
+ * the user can scroll up to read history, then just start typing.
+ * This function ensures the same behavior by reclaiming focus.
+ */
+export function refocusInput(): void {
+  _sharedTextareaRef?.focus()
+}
+
 /** Module-level ref so clearInput() can access the textarea */
 let _sharedTextareaRef: TextareaRenderable | undefined
 /** Module-level callback to reset line count when clearInput() is called externally */

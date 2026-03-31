@@ -17,7 +17,7 @@ import { PermissionsProvider } from "./context/permissions"
 import { SyncProvider, useSync } from "./context/sync"
 import { useTerminalDimensions } from "@opentui/solid"
 import { ConversationView } from "./components/conversation"
-import { InputArea, clearInput } from "./components/input-area"
+import { InputArea, clearInput, refocusInput } from "./components/input-area"
 import { StatusBar } from "./components/status-bar"
 import { PermissionDialog } from "./components/permission-dialog"
 import { ElicitationDialog } from "./components/elicitation"
@@ -157,6 +157,20 @@ function Layout(props: { onExit?: () => void }) {
           setStatusHint(null)
         }
       }
+    }
+
+    // Always keep the textarea focused when the session allows typing.
+    // In native Claude Code, the user can scroll up to read history and
+    // then just start typing without clicking. OpenTUI's single-focus
+    // model can shift focus to the scrollbox (e.g. on mouse click or
+    // scroll interaction). Re-focusing on every keypress ensures the
+    // textarea immediately reclaims input regardless of what stole focus.
+    const typingDisabled =
+      session.sessionState === "WAITING_FOR_PERM" ||
+      session.sessionState === "WAITING_FOR_ELIC" ||
+      session.sessionState === "SHUTTING_DOWN"
+    if (!typingDisabled) {
+      refocusInput()
     }
   })
 

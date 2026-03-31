@@ -18,6 +18,7 @@ import { syntaxStyle } from "../theme"
 import { HeaderBar } from "./header-bar"
 import type { Block } from "../../protocol/types"
 import { friendlyModelName } from "../models"
+import { refocusInput } from "./input-area"
 
 type ViewLevel = "collapsed" | "expanded" | "show_all"
 
@@ -528,11 +529,13 @@ export function ConversationView(props: { children?: JSX.Element }) {
       scrollboxRef?.scrollBy(-3)
       setUserScrolledAway(true)
       showScrollbarBriefly()
+      refocusInput()
     }
     if (event.ctrl && event.name === "down") {
       scrollboxRef?.scrollBy(3)
       setUserScrolledAway(false)
       showScrollbarBriefly()
+      refocusInput()
     }
   })
 

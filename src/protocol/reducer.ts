@@ -174,7 +174,7 @@ export function reduce(
       ) {
         return {
           ...next,
-          blocks: [...state.blocks, { type: "user", text: event.text, queued: true }],
+          blocks: [...state.blocks, { type: "user", text: event.text, queued: true, images: event.images }],
         }
       }
       // ERROR state: auto-recover by clearing error and showing message
@@ -183,13 +183,13 @@ export function reduce(
           ...next,
           sessionState: "IDLE",
           lastError: null,
-          blocks: [...state.blocks, { type: "user", text: event.text }],
+          blocks: [...state.blocks, { type: "user", text: event.text, images: event.images }],
         }
       }
       // IDLE: show immediately
       return {
         ...next,
-        blocks: [...state.blocks, { type: "user", text: event.text }],
+        blocks: [...state.blocks, { type: "user", text: event.text, images: event.images }],
       }
     }
 

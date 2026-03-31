@@ -1383,6 +1383,42 @@ describe("ConversationState reducer", () => {
   // Edge cases
   // -----------------------------------------------------------------------
 
+  describe("error recovery", () => {
+    it("user_message in ERROR state auto-recovers to IDLE", () => {
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "turn_start" },
+        { type: "error", code: "stream_error", message: "Stream died", severity: "fatal" },
+        { type: "user_message", text: "Try again" },
+      ])
+      expect(state.sessionState).toBe("IDLE")
+      expect(state.lastError).toBeNull()
+      expect(state.blocks.some(b => b.type === "user" && b.text === "Try again")).toBe(true)
+    })
+
+    it("turn_complete with zero usage preserves last known token count", () => {
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "turn_start" },
+        { type: "turn_complete", usage: { inputTokens: 5000, outputTokens: 1000 } },
+        { type: "turn_start" },
+        { type: "turn_complete", usage: { inputTokens: 0, outputTokens: 0 } },
+      ])
+      // Should preserve the 5000 from first turn, not reset to 0
+      expect(state.lastTurnInputTokens).toBe(5000)
+    })
+
+    it("turn_complete in ERROR state recovers to IDLE", () => {
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "turn_start" },
+        { type: "error", code: "test", message: "err", severity: "fatal" },
+        { type: "turn_complete", usage: { inputTokens: 100, outputTokens: 50 } },
+      ])
+      expect(state.sessionState).toBe("IDLE")
+    })
+  })
+
   describe("edge cases", () => {
     it("events before session_init stay in INITIALIZING", () => {
       const state = applyEvents([{ type: "text_delta", text: "premature" }])

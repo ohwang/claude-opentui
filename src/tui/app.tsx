@@ -7,7 +7,7 @@
 
 import { render, useKeyboard, useRenderer } from "@opentui/solid"
 import { TextAttributes } from "@opentui/core"
-import { createSignal, createEffect, on, ErrorBoundary, Show } from "solid-js"
+import { createSignal, createEffect, on, onCleanup, ErrorBoundary, Show } from "solid-js"
 import type { AgentBackend, SessionConfig } from "../protocol/types"
 import { log } from "../utils/logger"
 import { copyToClipboard } from "../utils/clipboard"
@@ -284,6 +284,13 @@ function Layout(props: { onExit?: () => void }) {
     if (!typingDisabled) {
       refocusInput()
     }
+  })
+
+  onCleanup(() => {
+    clearTimeout(ctrlDTimer)
+    clearTimeout(ctrlCTimer)
+    clearTimeout(statusHintTimer)
+    clearTimeout(interruptTimeout)
   })
 
   return (

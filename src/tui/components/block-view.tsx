@@ -94,12 +94,21 @@ export function BlockView(props: { block: Block; viewLevel: ViewLevel; prevType?
       </Show>
 
       {/* Error block */}
-      <Show when={errorBlock()}>{(eb) =>
-        <box flexDirection="column" paddingTop={1} paddingBottom={1} paddingLeft={2} paddingRight={2} borderStyle="single" borderColor={colors.border.error}>
-          <text fg={colors.status.error} attributes={TextAttributes.BOLD}>Error: {eb().code}</text>
-          <text fg={colors.status.error}>{eb().message}</text>
-        </box>
-      }</Show>
+      <Show when={errorBlock()}>{(eb) => {
+        // Defensive: strip any remaining stack traces and cap length
+        const displayMessage = () => {
+          const msg = eb().message
+          const lines = msg.split("\n").filter((l: string) => !l.match(/^\s+at\s/))
+          const clean = lines.join("\n").trim()
+          return clean.length > 300 ? clean.slice(0, 297) + "..." : clean
+        }
+        return (
+          <box flexDirection="column" paddingTop={1} paddingBottom={1} paddingLeft={2} paddingRight={2} borderStyle="single" borderColor={colors.border.error}>
+            <text fg={colors.status.error} attributes={TextAttributes.BOLD}>Error: {eb().code}</text>
+            <text fg={colors.status.error}>{displayMessage()}</text>
+          </box>
+        )
+      }}</Show>
     </box>
   )
 }

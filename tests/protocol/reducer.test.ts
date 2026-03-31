@@ -769,6 +769,31 @@ describe("ConversationState reducer", () => {
       ])
       expect(state.sessionState).toBe("ERROR")
     })
+
+    it("suppresses fatal errors during INTERRUPTING state", () => {
+      // Start from INTERRUPTING state
+      const initialState = createInitialState()
+      const interruptingState = {
+        ...initialState,
+        sessionState: "INTERRUPTING" as const,
+      }
+
+      const errorEvent: AgentEvent = {
+        type: "error",
+        code: "error_during_execution",
+        message: "EACCES: permission denied, posix_spawn ripgrep",
+        severity: "fatal",
+      }
+
+      const result = reduce(interruptingState, errorEvent)
+
+      // Should NOT transition to ERROR state
+      expect(result.sessionState).toBe("INTERRUPTING")
+      // Should NOT add an error block
+      expect(result.blocks.filter(b => b.type === "error")).toHaveLength(0)
+      // Should still record the error for diagnostics
+      expect(result.lastError).toBeDefined()
+    })
   })
 
   // -----------------------------------------------------------------------

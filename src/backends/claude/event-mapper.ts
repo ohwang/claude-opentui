@@ -10,6 +10,29 @@ import { log } from "../../utils/logger"
 import type { AgentEvent, ModelInfo } from "../../protocol/types"
 
 // ---------------------------------------------------------------------------
+// Error message cleanup
+// ---------------------------------------------------------------------------
+
+/** Strip stack traces and dedup repeated error messages for clean display */
+function cleanErrorMessage(errors: string[] | undefined): string | undefined {
+  if (!errors || errors.length === 0) return undefined
+
+  const cleaned = errors.map(e => {
+    // Strip stack trace lines (lines starting with whitespace + "at ")
+    const lines = e.split("\n")
+    const meaningful = lines.filter(l => !l.match(/^\s+at\s/))
+    return meaningful.join("\n").trim()
+  })
+
+  // Dedup identical messages (SDK often repeats the same error 3x)
+  const unique = [...new Set(cleaned)].filter(Boolean)
+
+  // Join unique errors, cap at 200 chars
+  const joined = unique.join("; ")
+  return joined.length > 200 ? joined.slice(0, 197) + "..." : joined
+}
+
+// ---------------------------------------------------------------------------
 // Tool input JSON accumulation state
 // ---------------------------------------------------------------------------
 
@@ -95,7 +118,7 @@ export function mapSDKMessage(msg: any, streamState: ToolStreamState): AgentEven
         events.push({
           type: "error",
           code: msg.subtype ?? "error_during_execution",
-          message: msg.errors?.join(", ") ?? "Unknown error",
+          message: cleanErrorMessage(msg.errors) ?? "Unknown error",
           severity: "fatal",
         })
         events.push({

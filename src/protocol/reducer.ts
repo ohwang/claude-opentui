@@ -14,6 +14,7 @@ import type {
   ConversationState,
   ToolStatus,
 } from "./types"
+import { log } from "../utils/logger"
 
 /** Strip SDK image placeholders that native Claude Code doesn't display */
 function stripImagePlaceholders(text: string): string {
@@ -381,6 +382,14 @@ export function reduce(
 
     case "error": {
       const severity = event.severity ?? "fatal"
+
+      // During interrupt, errors are expected artifacts (SDK in-flight operations failing).
+      // Don't show them to the user — the "Interrupted" system message already displayed.
+      if (state.sessionState === "INTERRUPTING") {
+        log.info("Suppressing error during interrupt", { code: event.code, message: event.message?.slice(0, 100) })
+        return { ...next, lastError: event }
+      }
+
       if (severity === "fatal") {
         return {
           ...next,

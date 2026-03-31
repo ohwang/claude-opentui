@@ -395,6 +395,7 @@ export function InputArea() {
         }
       }).catch((err) => {
         log.warn("Ctrl+V clipboard read failed", { error: String(err) })
+        sync.pushEvent({ type: "system_message", text: "Clipboard read failed — try pasting with your terminal's built-in paste (right-click or terminal menu)" })
       })
       return
     }

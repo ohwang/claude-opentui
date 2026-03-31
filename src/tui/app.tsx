@@ -256,12 +256,6 @@ function Layout(props: { onExit?: () => void }) {
   return (
     <box flexDirection="column" width="100%" height="100%">
       <ConversationView>
-        {/* Diagnostics panel (toggled via Ctrl+Shift+D or /diagnostics) */}
-        <DiagnosticsPanel
-          visible={showDiagnostics()}
-          onClose={() => setShowDiagnostics(false)}
-        />
-
         {/* Permission dialog (shown inline when WAITING_FOR_PERM) */}
         <PermissionDialog />
 
@@ -276,6 +270,12 @@ function Layout(props: { onExit?: () => void }) {
         {/* Status bar */}
         <StatusBar hint={statusHint()} />
       </ConversationView>
+
+      {/* Diagnostics overlay — renders on top of everything */}
+      <DiagnosticsPanel
+        visible={showDiagnostics()}
+        onClose={() => setShowDiagnostics(false)}
+      />
     </box>
   )
 }

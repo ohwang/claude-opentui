@@ -244,53 +244,57 @@ export function DiagnosticsPanel(props: { visible: boolean; onClose: () => void 
   return (
     <Show when={props.visible}>
       <box
+        position="absolute"
+        top={2}
+        left={4}
+        width={dims()?.width ? dims()!.width - 8 : 70}
+        height={dims()?.height ? dims()!.height - 6 : 30}
+        zIndex={100}
+        bg="#1a1a2e"
+        borderStyle="single"
+        borderColor="#4a4a6a"
         flexDirection="column"
-        paddingLeft={3}
-        paddingRight={3}
+        paddingLeft={2}
+        paddingRight={2}
         paddingTop={1}
         paddingBottom={1}
       >
-        {/* Title */}
+        {/* Title bar */}
         <box flexDirection="row">
           <text fg="white" attributes={TextAttributes.BOLD}>
-            {"  Diagnostics"}
+            {"Diagnostics"}
           </text>
           <text fg="#808080" attributes={TextAttributes.DIM}>
             {"  (Ctrl+Shift+D or Esc to close)"}
           </text>
         </box>
 
-        {/* Separator */}
-        <text fg="#808080">{" " + "\u2500".repeat(60)}</text>
+        {/* Content in a scrollbox so it doesn't overflow */}
+        <scrollbox flexGrow={1} stickyScroll={false}>
+          {/* Sections */}
+          <For each={sections()}>
+            {(section) => (
+              <box flexDirection="column">
+                {/* Section title */}
+                <box marginTop={1}>
+                  <text fg="#d78787" attributes={TextAttributes.BOLD}>
+                    {"  " + section.title}
+                  </text>
+                </box>
 
-        {/* Sections */}
-        <For each={sections()}>
-          {(section) => (
-            <box flexDirection="column">
-              {/* Section title */}
-              <box marginTop={1}>
-                <text fg="#d78787" attributes={TextAttributes.BOLD}>
-                  {"  " + section.title}
-                </text>
+                {/* Key-value entries */}
+                <For each={section.entries}>
+                  {(entry) => (
+                    <box flexDirection="row" paddingLeft={4}>
+                      <text fg="#808080">{padRight(entry.key, 22)}</text>
+                      <text fg={entry.color ?? "white"}>{" " + entry.value}</text>
+                    </box>
+                  )}
+                </For>
               </box>
-
-              {/* Key-value entries */}
-              <For each={section.entries}>
-                {(entry) => (
-                  <box flexDirection="row" paddingLeft={4}>
-                    <text fg="#808080">{padRight(entry.key, 22)}</text>
-                    <text fg={entry.color ?? "white"}>{" " + entry.value}</text>
-                  </box>
-                )}
-              </For>
-            </box>
-          )}
-        </For>
-
-        {/* Bottom separator */}
-        <box marginTop={1}>
-          <text fg="#808080">{" " + "\u2500".repeat(60)}</text>
-        </box>
+            )}
+          </For>
+        </scrollbox>
       </box>
     </Show>
   )

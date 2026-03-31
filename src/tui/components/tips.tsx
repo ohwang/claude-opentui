@@ -33,6 +33,15 @@ export function ContextualTips() {
     if (s === "WAITING_FOR_PERM" || s === "WAITING_FOR_ELIC") return ""
     const stateTips = TIPS[s] ?? TIPS.IDLE ?? []
     if (stateTips.length === 0) return ""
+
+    // For IDLE: show basic tip only on first turn, then cycle remaining
+    if (s === "IDLE" && stateTips.length > 1) {
+      if (state.turnNumber === 0) return stateTips[0] ?? ""
+      // After first turn, cycle through tips 1+ (skip the basic instruction)
+      const advancedTips = stateTips.slice(1)
+      return advancedTips[(state.turnNumber - 1) % advancedTips.length] ?? ""
+    }
+
     return stateTips[state.turnNumber % stateTips.length] ?? stateTips[0]
   }
 

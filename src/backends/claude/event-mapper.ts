@@ -49,11 +49,11 @@ export function mapSDKMessage(msg: any, streamState: ToolStreamState): AgentEven
           account: msg.account,
         })
       } else if (msg.subtype === "status") {
+        // "compacting" status is transient — skip it to avoid duplicate
+        // compact separators. The definitive compact_boundary event below
+        // is the one that should produce the separator.
         if (msg.status === "compacting") {
-          events.push({
-            type: "compact",
-            summary: "Conversation context is being compacted...",
-          })
+          log.debug("Ignoring transient compacting status event")
         }
       } else if (msg.subtype === "compact_boundary") {
         const meta = msg.compact_metadata ?? {}

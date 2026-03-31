@@ -1142,6 +1142,244 @@ describe("ConversationState reducer", () => {
   })
 
   // -----------------------------------------------------------------------
+  // Shutdown
+  // -----------------------------------------------------------------------
+
+  describe("shutdown", () => {
+    it("transitions to SHUTTING_DOWN from RUNNING", () => {
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "turn_start" },
+        { type: "shutdown" },
+      ])
+      expect(state.sessionState).toBe("SHUTTING_DOWN")
+    })
+
+    it("transitions to SHUTTING_DOWN from IDLE", () => {
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "shutdown" },
+      ])
+      expect(state.sessionState).toBe("SHUTTING_DOWN")
+    })
+
+    it("transitions to SHUTTING_DOWN from WAITING_FOR_PERM", () => {
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "turn_start" },
+        {
+          type: "permission_request",
+          id: "perm1",
+          tool: "Bash",
+          input: { command: "rm -rf /" },
+        },
+        { type: "shutdown" },
+      ])
+      expect(state.sessionState).toBe("SHUTTING_DOWN")
+    })
+
+    it("flushes streaming text buffer as assistant block", () => {
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "turn_start" },
+        { type: "text_delta", text: "partial " },
+        { type: "text_delta", text: "response" },
+        { type: "shutdown" },
+      ])
+      expect(state.streamingText).toBe("")
+      expect(state.blocks).toHaveLength(1)
+      expect(state.blocks[0]).toMatchObject({ type: "assistant", text: "partial response" })
+    })
+
+    it("flushes streaming thinking buffer as thinking block", () => {
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "turn_start" },
+        { type: "thinking_delta", text: "deep " },
+        { type: "thinking_delta", text: "thought" },
+        { type: "shutdown" },
+      ])
+      expect(state.streamingThinking).toBe("")
+      expect(state.blocks).toHaveLength(1)
+      expect(state.blocks[0]).toMatchObject({ type: "thinking", text: "deep thought" })
+    })
+
+    it("cancels running tool blocks with status and duration", () => {
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "turn_start" },
+        {
+          type: "tool_use_start",
+          id: "t1",
+          tool: "Bash",
+          input: { command: "sleep 100" },
+        },
+        { type: "shutdown" },
+      ])
+      const toolBlock = state.blocks.find(b => b.type === "tool" && b.id === "t1")
+      expect(toolBlock).toBeDefined()
+      if (toolBlock && toolBlock.type === "tool") {
+        expect(toolBlock.status).toBe("canceled")
+        expect(toolBlock.duration).toBeDefined()
+        expect(typeof toolBlock.duration).toBe("number")
+      }
+    })
+
+    it("clears pendingPermission and pendingElicitation", () => {
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "turn_start" },
+        {
+          type: "permission_request",
+          id: "perm1",
+          tool: "Bash",
+          input: { command: "rm -rf /" },
+        },
+        { type: "shutdown" },
+      ])
+      expect(state.pendingPermission).toBeNull()
+      expect(state.pendingElicitation).toBeNull()
+    })
+
+    it("cancels multiple running tool blocks", () => {
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "turn_start" },
+        {
+          type: "tool_use_start",
+          id: "t1",
+          tool: "Read",
+          input: { path: "/a" },
+        },
+        {
+          type: "tool_use_start",
+          id: "t2",
+          tool: "Bash",
+          input: { command: "ls" },
+        },
+        {
+          type: "tool_use_start",
+          id: "t3",
+          tool: "Write",
+          input: { path: "/b", content: "x" },
+        },
+        { type: "shutdown" },
+      ])
+      const toolBlocks = state.blocks.filter(b => b.type === "tool")
+      expect(toolBlocks).toHaveLength(3)
+      for (const block of toolBlocks) {
+        if (block.type === "tool") {
+          expect(block.status).toBe("canceled")
+          expect(block.duration).toBeDefined()
+        }
+      }
+    })
+
+    it("does not cancel already-completed tool blocks", () => {
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "turn_start" },
+        {
+          type: "tool_use_start",
+          id: "t1",
+          tool: "Read",
+          input: { path: "/a" },
+        },
+        { type: "tool_use_end", id: "t1", output: "contents" },
+        {
+          type: "tool_use_start",
+          id: "t2",
+          tool: "Bash",
+          input: { command: "ls" },
+        },
+        { type: "shutdown" },
+      ])
+      const t1 = state.blocks.find(b => b.type === "tool" && b.id === "t1")
+      const t2 = state.blocks.find(b => b.type === "tool" && b.id === "t2")
+      expect(t1).toBeDefined()
+      expect(t2).toBeDefined()
+      if (t1 && t1.type === "tool") {
+        expect(t1.status).toBe("done") // already completed, not canceled
+      }
+      if (t2 && t2.type === "tool") {
+        expect(t2.status).toBe("canceled") // was running, gets canceled
+      }
+    })
+  })
+
+  // -----------------------------------------------------------------------
+  // Model changed
+  // -----------------------------------------------------------------------
+
+  describe("model_changed", () => {
+    it("updates currentModel", () => {
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "model_changed", model: "Claude Opus 4.6" },
+      ])
+      expect(state.currentModel).toBe("Claude Opus 4.6")
+    })
+
+    it("does not change sessionState", () => {
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "turn_start" },
+        { type: "model_changed", model: "Claude Sonnet 4.6" },
+      ])
+      expect(state.sessionState).toBe("RUNNING")
+    })
+
+    it("overwrites previous model", () => {
+      const state = applyEvents([
+        {
+          type: "session_init",
+          tools: [],
+          models: [{ id: "claude-sonnet-4-6", name: "Claude Sonnet 4.6" }],
+        },
+        { type: "model_changed", model: "Claude Opus 4.6" },
+        { type: "model_changed", model: "Claude Haiku 3.5" },
+      ])
+      expect(state.currentModel).toBe("Claude Haiku 3.5")
+    })
+  })
+
+  // -----------------------------------------------------------------------
+  // Compact (additional coverage)
+  // -----------------------------------------------------------------------
+
+  describe("compact (extended)", () => {
+    it("adds compact block with summary text", () => {
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "compact", summary: "Previous discussion about file handling" },
+      ])
+      expect(state.blocks).toHaveLength(1)
+      expect(state.blocks[0]).toMatchObject({
+        type: "compact",
+        summary: "Previous discussion about file handling",
+      })
+    })
+
+    it("preserves existing blocks", () => {
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "user_message", text: "Hello" },
+        { type: "turn_start" },
+        { type: "text_complete", text: "Hi there" },
+        { type: "turn_complete" },
+        { type: "compact", summary: "User greeted assistant" },
+      ])
+      expect(state.blocks).toHaveLength(3)
+      expect(state.blocks[0]).toMatchObject({ type: "user", text: "Hello" })
+      expect(state.blocks[1]).toMatchObject({ type: "assistant", text: "Hi there" })
+      expect(state.blocks[2]).toMatchObject({
+        type: "compact",
+        summary: "User greeted assistant",
+      })
+    })
+  })
+
+  // -----------------------------------------------------------------------
   // Edge cases
   // -----------------------------------------------------------------------
 

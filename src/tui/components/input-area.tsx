@@ -9,7 +9,7 @@
 
 import { createSignal, Show, For, onCleanup } from "solid-js"
 import { TextAttributes, type TextareaRenderable, type KeyEvent, type CliRenderer, decodePasteBytes } from "@opentui/core"
-import { useRenderer, usePaste } from "@opentui/solid"
+import { useRenderer, usePaste, useTerminalDimensions } from "@opentui/solid"
 import { tmpdir } from "os"
 import { join } from "path"
 import { writeFileSync, readFileSync, unlinkSync } from "fs"
@@ -156,6 +156,7 @@ export function InputArea() {
   const sync = useSync()
   const { state: messagesState } = useMessages()
   const renderer = useRenderer()
+  const dims = useTerminalDimensions()
   let textareaRef: TextareaRenderable | undefined
 
   // Debounce timer for expensive file autocomplete searches
@@ -172,11 +173,17 @@ export function InputArea() {
   // Register module-level reset so clearInput() can reset height
   _resetLineCount = () => setLineCount(1)
 
-  /** Count lines in the textarea and update the signal */
+  /** Count visual lines (accounting for word wrap) and update the signal */
   const updateLineCount = () => {
     const text = textareaRef?.plainText ?? ""
-    const newlines = text.split("\n").length
-    setLineCount(newlines)
+    // Available width = terminal width - prompt "❯ " (2 chars) - scrollbox paddingRight (1)
+    const width = Math.max((dims()?.width ?? 120) - 3, 20)
+    let totalLines = 0
+    for (const line of text.split("\n")) {
+      // Each logical line occupies ceil(length / width) visual lines, minimum 1
+      totalLines += Math.max(1, Math.ceil(line.length / width))
+    }
+    setLineCount(totalLines)
   }
 
   // Autocomplete dropdown state

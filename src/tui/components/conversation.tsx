@@ -480,7 +480,7 @@ function BlockView(props: { block: Block; viewLevel: ViewLevel; prevType?: strin
       {/* Thinking block — hidden in collapsed view or when thinking toggle is off */}
       <Show when={props.showThinking !== false && props.viewLevel !== "collapsed" && thinkingBlock()}>{(tb) =>
         <box marginTop={1}>
-          <ThinkingBlock text={tb().text} collapsed={props.viewLevel === "expanded"} />
+          <ThinkingBlock text={tb().text} collapsed={false} />
         </box>
       }</Show>
 
@@ -724,7 +724,7 @@ export function ConversationView(props: { children?: JSX.Element }) {
         <box flexDirection="column">
           <Show when={showThinking() && state.streamingThinking && viewLevel() !== "collapsed"}>
             <box marginTop={1}>
-              <ThinkingBlock text={state.streamingThinking} collapsed={viewLevel() === "expanded"} />
+              <ThinkingBlock text={state.streamingThinking} collapsed={false} />
             </box>
           </Show>
         </box>

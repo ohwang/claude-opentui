@@ -172,6 +172,7 @@ export class CodexAdapter implements AgentBackend {
     if (!approval) return
 
     const decision = options?.alwaysAllow ? "acceptForSession" : "accept"
+    log.info("Codex approval: approve", { id, decision, method: approval.method, rpcId: approval.rpcId })
     this.transport?.respond(approval.rpcId, { decision })
     this.pendingApprovals.delete(id)
     this.eventChannel?.push({
@@ -185,6 +186,7 @@ export class CodexAdapter implements AgentBackend {
     const approval = this.pendingApprovals.get(id)
     if (!approval) return
 
+    log.info("Codex approval: deny", { id, method: approval.method, rpcId: approval.rpcId })
     this.transport?.respond(approval.rpcId, { decision: "decline" })
     this.pendingApprovals.delete(id)
     this.eventChannel?.push({
@@ -198,6 +200,7 @@ export class CodexAdapter implements AgentBackend {
     const approval = this.pendingApprovals.get(id)
     if (!approval) return
 
+    log.info("Codex elicitation: respond", { id, method: approval.method, answerKeys: Object.keys(answers).join(",") })
     // MCP elicitation response
     this.transport?.respond(approval.rpcId, {
       action: "accept",
@@ -215,6 +218,7 @@ export class CodexAdapter implements AgentBackend {
     const approval = this.pendingApprovals.get(id)
     if (!approval) return
 
+    log.info("Codex elicitation: cancel", { id, method: approval.method })
     this.transport?.respond(approval.rpcId, {
       action: "decline",
       content: null,
@@ -426,6 +430,10 @@ export class CodexAdapter implements AgentBackend {
         turnParams,
       )) as any
       this.activeTurnId = result?.turn?.id ?? null
+      log.info("Codex turn started", {
+        turnId: this.activeTurnId,
+        turnStatus: result?.turn?.status,
+      })
 
       // Wait for turn to complete (signaled by turn/completed notification)
       await this.waitForTurnComplete()
@@ -460,6 +468,9 @@ export class CodexAdapter implements AgentBackend {
     log.debug("Codex notification", { method })
 
     const events = mapCodexNotification(method, params)
+    if (events.length === 0) {
+      log.debug("Codex notification produced no events", { method })
+    }
     for (const event of events) {
       this.eventChannel?.push(event)
     }

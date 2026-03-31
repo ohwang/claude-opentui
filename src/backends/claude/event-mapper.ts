@@ -338,6 +338,9 @@ export function mapAssistantMessage(msg: any): AgentEvent[] {
           })
         }
         break
+
+      default:
+        log.debug("Unhandled assistant content block type", { type: block.type, blockId: block.id })
     }
   }
 
@@ -437,6 +440,9 @@ export function mapStreamEvent(
     case "message_stop":
       // Message is complete. The result message follows with full usage.
       break
+
+    default:
+      log.debug("Unhandled stream event type", { type: event.type })
   }
 
   return events

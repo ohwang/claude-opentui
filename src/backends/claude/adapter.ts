@@ -309,6 +309,13 @@ export class ClaudeAdapter implements AgentBackend {
       try {
         for await (const msg of this.activeQuery!) {
           if (this.closed || !this.eventChannel) break
+          log.debug("V1 SDK message", {
+            type: msg.type,
+            subtype: (msg as any).subtype,
+            ...(msg.type === "stream_event" && {
+              eventType: (msg as any).event?.type,
+            }),
+          })
           const events = mapSDKMessage(msg, this.streamState)
           for (const event of events) {
             this.eventChannel?.push(event)
@@ -346,6 +353,14 @@ export class ClaudeAdapter implements AgentBackend {
   // -----------------------------------------------------------------------
 
   private buildOptions(config: SessionConfig): any {
+    log.info("Building V1 SDK options", {
+      model: config.model,
+      permissionMode: config.permissionMode,
+      resume: !!config.resume,
+      continue: !!config.continue,
+      forkSession: !!config.forkSession,
+      cwd: config.cwd,
+    })
     return {
       model: config.model,
       systemPrompt: config.systemPrompt,

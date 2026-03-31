@@ -69,6 +69,13 @@ export function createCanUseTool(state: PermissionBridgeState) {
     options: any,
   ): Promise<PermissionResult> => {
     const id = options?.toolUseID ?? crypto.randomUUID()
+    log.info("canUseTool callback invoked", {
+      toolName,
+      id,
+      isElicitation: toolName === "AskUserQuestion",
+      hasOptions: !!options,
+      inputKeys: Object.keys(input).join(","),
+    })
 
     // Detect AskUserQuestion (elicitation)
     if (toolName === "AskUserQuestion") {

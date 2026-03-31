@@ -349,7 +349,7 @@ function mapItemStarted(item: CodexItem): AgentEvent[] {
       break
 
     default:
-      log.debug("Unhandled item type in item/started", { type: item.type })
+      log.warn("Unhandled Codex item type in item/started", { type: item.type, id: item.id, keys: Object.keys(item).join(",") })
   }
 
   return events
@@ -452,7 +452,7 @@ function mapItemCompleted(item: CodexItem): AgentEvent[] {
       break
 
     default:
-      log.debug("Unhandled item type in item/completed", { type: item.type })
+      log.warn("Unhandled Codex item type in item/completed", { type: item.type, id: item.id, keys: Object.keys(item).join(",") })
   }
 
   return events

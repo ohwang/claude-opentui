@@ -132,6 +132,12 @@ export class ClaudeV2Adapter implements AgentBackend {
     // Close the session entirely and mark for resume on next turn.
     // The turn loop detects session=null and resumes via the saved session ID.
     this.interrupted = true
+    log.info("V2 interrupt", {
+      pendingPermissions: this.pendingPermissions.size,
+      pendingElicitations: this.pendingElicitations.size,
+      hasSession: !!this.session,
+      lastSessionId: this.lastSessionId,
+    })
 
     // Auto-deny pending permissions/elicitations (prevent SDK deadlock)
     for (const [, pending] of this.pendingPermissions) {
@@ -421,6 +427,11 @@ export class ClaudeV2Adapter implements AgentBackend {
   // -----------------------------------------------------------------------
 
   private buildOptions(config: SessionConfig): any {
+    log.info("Building V2 SDK options", {
+      model: config.model,
+      permissionMode: config.permissionMode,
+      resume: !!config.resume,
+    })
     const options = {
       model: config.model,
       permissionMode: config.permissionMode,

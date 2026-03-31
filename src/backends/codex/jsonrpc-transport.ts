@@ -137,6 +137,7 @@ export class JsonRpcTransport {
     const msg: JsonRpcRequest = { id, method }
     if (params !== undefined) msg.params = params
 
+    log.debug("Codex send request", { id, method })
     return new Promise<unknown>((resolve, reject) => {
       this.pendingRequests.set(id, { resolve, reject })
       this.writeLine(JSON.stringify(msg))
@@ -151,6 +152,7 @@ export class JsonRpcTransport {
 
     const msg: JsonRpcNotification = { method }
     if (params !== undefined) msg.params = params
+    log.debug("Codex send notification", { method })
     this.writeLine(JSON.stringify(msg))
   }
 
@@ -160,6 +162,7 @@ export class JsonRpcTransport {
   respond(id: number | string, result: unknown): void {
     if (this.closed || !this.process) return
 
+    log.debug("Codex send response", { id })
     const msg: JsonRpcResponse = { id, result }
     this.writeLine(JSON.stringify(msg))
   }
@@ -175,6 +178,7 @@ export class JsonRpcTransport {
   ): void {
     if (this.closed || !this.process) return
 
+    log.debug("Codex send error response", { id, code, message })
     const msg: JsonRpcResponse = { id, error: { code, message, data } }
     this.writeLine(JSON.stringify(msg))
   }

@@ -107,8 +107,9 @@ export function reduce(
     }
 
     case "turn_complete": {
-      // Guard: ignore if not in RUNNING or INTERRUPTING
-      if (state.sessionState !== "RUNNING" && state.sessionState !== "INTERRUPTING") {
+      // Guard: ignore if not in RUNNING, INTERRUPTING, or ERROR
+      // ERROR is accepted so that a turn_complete after a fatal error can recover to IDLE
+      if (state.sessionState !== "RUNNING" && state.sessionState !== "INTERRUPTING" && state.sessionState !== "ERROR") {
         return next
       }
 
@@ -172,6 +173,15 @@ export function reduce(
         return {
           ...next,
           blocks: [...state.blocks, { type: "user", text: event.text, queued: true }],
+        }
+      }
+      // ERROR state: auto-recover by clearing error and showing message
+      if (state.sessionState === "ERROR") {
+        return {
+          ...next,
+          sessionState: "IDLE",
+          lastError: null,
+          blocks: [...state.blocks, { type: "user", text: event.text }],
         }
       }
       // IDLE: show immediately

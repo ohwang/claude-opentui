@@ -9,6 +9,9 @@
 import { createSignal, onCleanup, For, Show } from "solid-js"
 import { TextAttributes } from "@opentui/core"
 import type { TaskInfo } from "../../protocol/types"
+import { colors } from "../theme/tokens"
+
+const MAX_VISIBLE_TASKS = 10
 
 export function TaskView(props: { tasks: [string, TaskInfo][] }) {
   const [tick, setTick] = createSignal(0)
@@ -35,7 +38,7 @@ export function TaskView(props: { tasks: [string, TaskInfo][] }) {
         <text fg="magenta" attributes={TextAttributes.BOLD}>
           {header()}
         </text>
-        <For each={props.tasks}>
+        <For each={props.tasks.slice(0, MAX_VISIBLE_TASKS)}>
           {([id, task], index) => {
             const isLast = () => index() === props.tasks.length - 1
             const prefix = () => (isLast() ? "└─" : "├─")
@@ -67,6 +70,11 @@ export function TaskView(props: { tasks: [string, TaskInfo][] }) {
             )
           }}
         </For>
+        <Show when={props.tasks.length > MAX_VISIBLE_TASKS}>
+          <text fg={colors.text.muted} attributes={TextAttributes.DIM}>
+            {"  ... and " + (props.tasks.length - MAX_VISIBLE_TASKS) + " more background tasks"}
+          </text>
+        </Show>
       </box>
     </Show>
   )

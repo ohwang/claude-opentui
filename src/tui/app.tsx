@@ -161,16 +161,16 @@ function Layout(props: { onExit?: () => void }) {
     }
 
     // Ctrl+D: exit when editor is empty (matches native Claude Code)
-    // First press = hint, second press within 2s = exit
+    // First press = hint, second press within 4s = exit
     if (event.ctrl && event.name === "d") {
       if (hasInputText()) return  // Ignore when editor has text
       ctrlDCount++
       clearTimeout(ctrlDTimer)
-      ctrlDTimer = setTimeout(() => { ctrlDCount = 0 }, 2000)
+      ctrlDTimer = setTimeout(() => { ctrlDCount = 0 }, 4000)
       if (ctrlDCount >= 2) {
         cleanExit("ctrl+d double-press")
       } else {
-        showTransientHint("Press Ctrl-D again to exit")
+        showTransientHint("Press Ctrl-D again to exit", 4500)
       }
       return
     }
@@ -214,12 +214,12 @@ function Layout(props: { onExit?: () => void }) {
         if (!hadText) {
           ctrlCEmptyCount++
           clearTimeout(ctrlCTimer)
-          ctrlCTimer = setTimeout(() => { ctrlCEmptyCount = 0 }, 2000)
+          ctrlCTimer = setTimeout(() => { ctrlCEmptyCount = 0 }, 4000)
           if (ctrlCEmptyCount >= 2) {
             cleanExit("ctrl+c double-press")
           } else {
             // Show "Press Ctrl-C again to exit" hint in status bar
-            showTransientHint("Press Ctrl-C again to exit")
+            showTransientHint("Press Ctrl-C again to exit", 4500)
           }
         } else {
           ctrlCEmptyCount = 0

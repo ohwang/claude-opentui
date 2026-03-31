@@ -173,15 +173,44 @@ export function parseElicitationInput(input: Record<string, unknown>): any[] {
     ]
   }
 
-  return questionsRaw.map((q: any) => ({
-    question: q.question ?? "Choose an option",
-    header: q.header,
-    options: (q.options ?? []).map((opt: any) => ({
+  const parsed = questionsRaw.map((q: any) => {
+    const options = (q.options ?? []).map((opt: any) => ({
       label: opt.label ?? String(opt),
       description: opt.description,
       preview: opt.preview,
-    })),
-    multiSelect: q.multiSelect ?? false,
-    allowFreeText: true,
-  }))
+    }))
+    let allowFreeText = q.allowFreeText ?? true
+    // Safety: if no options and free text is disabled, enable free text
+    // so the user has some way to respond
+    if (options.length === 0 && !allowFreeText) {
+      log.warn("Elicitation question has no options and allowFreeText=false; forcing allowFreeText=true", {
+        question: q.question,
+      })
+      allowFreeText = true
+    }
+    return {
+      question: q.question ?? "Choose an option",
+      header: q.header,
+      options,
+      multiSelect: q.multiSelect ?? false,
+      allowFreeText,
+    }
+  })
+
+  // If all questions were filtered out somehow, add a fallback
+  if (parsed.length === 0) {
+    const fallbackText = (input.question as string) ?? (input.text as string) ?? "No questions provided"
+    log.warn("Elicitation had empty questions array after parsing; adding fallback question", {
+      fallbackText,
+    })
+    parsed.push({
+      question: fallbackText,
+      header: undefined,
+      options: [],
+      multiSelect: false,
+      allowFreeText: true,
+    })
+  }
+
+  return parsed
 }

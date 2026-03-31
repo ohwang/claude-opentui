@@ -31,6 +31,12 @@ function QuestionView(props: {
   const [showFreeText, setShowFreeText] = createSignal(false)
   const [submitting, setSubmitting] = createSignal(false)
   let freeTextRef: TextareaRenderable | undefined
+  let freeTextOnlyInitialized = false
+
+  // When there are no predefined options but free text is allowed,
+  // skip the option list entirely and go straight to free text input
+  const freeTextOnly = () =>
+    props.question.options.length === 0 && props.question.allowFreeText !== false
 
   const options = () => {
     const opts = props.question.options.map((o) => ({
@@ -57,8 +63,19 @@ function QuestionView(props: {
   }
 
   useKeyboard((event) => {
+    // Auto-enter free text mode when there are no predefined options
+    if (freeTextOnly() && !freeTextOnlyInitialized) {
+      freeTextOnlyInitialized = true
+      setShowFreeText(true)
+    }
+
     if (showFreeText()) {
       if (event.name === "escape") {
+        // In free-text-only mode, escape cancels the whole elicitation
+        if (freeTextOnly()) {
+          props.onCancel()
+          return
+        }
         setShowFreeText(false)
         setSubmitting(false)
         return
@@ -77,15 +94,18 @@ function QuestionView(props: {
       return // ignore other keys in free text mode
     }
 
+    const len = options().length
+    if (len === 0) return // guard against empty options list
+
     if (event.name === "up" || event.name === "k") {
-      setSelected((prev) => (prev - 1 + options().length) % options().length)
+      setSelected((prev) => (prev - 1 + len) % len)
     } else if (event.name === "down" || event.name === "j") {
-      setSelected((prev) => (prev + 1) % options().length)
+      setSelected((prev) => (prev + 1) % len)
     } else if (event.name === "return") {
       selectOption(selected())
     } else if (event.name >= "1" && event.name <= "9") {
       const idx = parseInt(event.name) - 1
-      if (idx < options().length) {
+      if (idx < len) {
         selectOption(idx)
       }
     } else if (event.name === "escape") {
@@ -110,7 +130,7 @@ function QuestionView(props: {
         {props.question.question}
       </text>
 
-      <Show when={!showFreeText()}>
+      <Show when={!showFreeText() && !freeTextOnly()}>
         <For each={options()}>
           {(option, index) => (
             <box flexDirection="row">
@@ -128,8 +148,8 @@ function QuestionView(props: {
         </text>
       </Show>
 
-      <Show when={showFreeText()}>
-        <text fg={colors.text.muted}>Type your answer and press Enter (Esc to go back):</text>
+      <Show when={showFreeText() || freeTextOnly()}>
+        <text fg={colors.text.muted}>Type your answer and press Enter (Esc to cancel):</text>
         <textarea
           ref={(el: TextareaRenderable) => { freeTextRef = el }}
           focused
@@ -193,25 +213,38 @@ export function ElicitationDialog() {
     <Show when={session.sessionState === "WAITING_FOR_ELIC" && state.pendingElicitation}>
       {(elicitation) => {
         const questions = elicitation().questions
-        const question = () => questions[currentIdx()]
+
+        // Guard: empty questions array — auto-cancel since there's nothing to answer
+        if (questions.length === 0) {
+          handleCancel()
+          return (
+            <box flexDirection="column">
+              <text fg={colors.text.muted} attributes={TextAttributes.DIM}>
+                {"  No options available"}
+              </text>
+            </box>
+          )
+        }
+
+        // Clamp currentIdx to valid range to prevent undefined access
+        const question = () => {
+          const idx = Math.min(currentIdx(), questions.length - 1)
+          return questions[idx]
+        }
 
         return (
           <box flexDirection="column">
             {/* Progress indicator for multi-question elicitations */}
             <Show when={questions.length > 1}>
               <text fg={colors.text.muted} attributes={TextAttributes.DIM}>
-                {"  Question " + (currentIdx() + 1) + "/" + questions.length}
+                {"  Question " + (Math.min(currentIdx(), questions.length - 1) + 1) + "/" + questions.length}
               </text>
             </Show>
-            <Show when={question()}>
-              {(q) => (
-                <QuestionView
-                  question={q()}
-                  onAnswer={(value) => handleAnswer(q().question, value)}
-                  onCancel={handleCancel}
-                />
-              )}
-            </Show>
+            <QuestionView
+              question={question()}
+              onAnswer={(value) => handleAnswer(question().question, value)}
+              onCancel={handleCancel}
+            />
           </box>
         )
       }}

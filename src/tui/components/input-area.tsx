@@ -63,6 +63,15 @@ export function refocusInput(): void {
 }
 
 /**
+ * Register a callback to scroll the viewport to bottom.
+ * Called by ConversationView to avoid circular imports.
+ */
+let _scrollToBottom: (() => void) | undefined
+export function registerScrollToBottom(fn: () => void): void {
+  _scrollToBottom = fn
+}
+
+/**
  * Check whether the input textarea currently has non-whitespace text.
  * Used by the Ctrl+D handler to only trigger exit when the editor is empty.
  */
@@ -349,6 +358,10 @@ export function InputArea() {
 
   const handleKeyDown = (e: KeyEvent) => {
     if (isDisabled()) return // Don't handle any keys when disabled
+
+    // Ensure the viewport is scrolled to bottom when the user types,
+    // so the textarea is always visible even if they scrolled up to read.
+    _scrollToBottom?.()
 
     // During a paste, the stdin parser may emit \n bytes as "return"
     // key events.  Suppress them so pasted newlines don't trigger submit.

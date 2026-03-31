@@ -18,7 +18,7 @@ import { syntaxStyle } from "../theme"
 import { colors } from "../theme/tokens"
 import { HeaderBar } from "./header-bar"
 import type { Block } from "../../protocol/types"
-import { refocusInput } from "./input-area"
+import { refocusInput, registerScrollToBottom } from "./input-area"
 import { StreamingSpinner } from "./streaming-spinner"
 import { ToolSummaryView, groupBlocksForRendering, type ViewLevel } from "./tool-view"
 import { BlockView } from "./block-view"
@@ -194,7 +194,7 @@ export function ConversationView(props: { children?: JSX.Element }) {
   onCleanup(() => clearTimeout(scrollbarTimer))
 
   return (
-    <scrollbox ref={scrollboxRef} stickyScroll flexGrow={1}>
+    <scrollbox ref={(el: ScrollBoxRenderable) => { scrollboxRef = el; registerScrollToBottom(() => el.scrollBy(999999)) }} stickyScroll flexGrow={1}>
       <box flexDirection="column" paddingTop={1} paddingRight={1} paddingBottom={1}>
         {/* Header bar — scrolls with content */}
         <HeaderBar />

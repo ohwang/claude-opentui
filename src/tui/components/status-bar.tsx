@@ -393,82 +393,86 @@ export function StatusBar(props: { hint?: string | null }) {
   })
 
   // ---------------------------------------------------------------------------
-  // Render — single status line (matches Claude Code)
-  // Left side always shows: project, model, state, cost, git, ctx
-  // Right side shows: tok/s + timer + perm mode normally, or exit hint transiently
+  // Render — 2-line status bar (matches Claude Code)
+  // Line 1: project, model, state, cost, git, ctx — right side: tok/s + timer or hint
+  // Line 2: permission mode indicator (left-aligned)
   // ---------------------------------------------------------------------------
 
   return (
-    <box height={1} flexDirection="row" paddingLeft={2} paddingRight={1}>
-      {/* Left: project name + model (always visible) */}
-      <text fg={colors.status.warning} attributes={TextAttributes.BOLD}>
-        {projectName}
-      </text>
+    <box flexDirection="column">
+      {/* Line 1: project, model, state, cost, git, ctx — right side: tok/s + timer or hint */}
+      <box height={1} flexDirection="row" paddingLeft={2} paddingRight={1}>
+        {/* Left: project name + model (always visible) */}
+        <text fg={colors.status.warning} attributes={TextAttributes.BOLD}>
+          {projectName}
+        </text>
 
-      <text fg="gray">{"  "}</text>
+        <text fg="gray">{"  "}</text>
 
-      <text fg="white" attributes={TextAttributes.BOLD}>
-        {modelName()}
-      </text>
+        <text fg="white" attributes={TextAttributes.BOLD}>
+          {modelName()}
+        </text>
 
-      {/* State icon */}
-      <text fg="gray">{"  "}</text>
-      <text fg={stateColor()}>{stateIcon()}</text>
+        {/* State icon */}
+        <text fg="gray">{"  "}</text>
+        <text fg={stateColor()}>{stateIcon()}</text>
 
-      {/* Cost (hidden below 60 cols) */}
-      {showCost() && costStr() && (
-        <box flexDirection="row">
-          <text fg="gray">{"  "}</text>
-          <text fg={colors.status.success}>{costStr()}</text>
-        </box>
-      )}
+        {/* Cost (hidden below 60 cols) */}
+        {showCost() && costStr() && (
+          <box flexDirection="row">
+            <text fg="gray">{"  "}</text>
+            <text fg={colors.status.success}>{costStr()}</text>
+          </box>
+        )}
 
-      {/* Git branch + status (hidden below 80 cols) */}
-      {showGit() && gitStr() && (
-        <box flexDirection="row">
-          <text fg="gray">{"  "}</text>
-          <text fg={colors.status.info}>{gitStr()}</text>
-        </box>
-      )}
+        {/* Git branch + status (hidden below 80 cols) */}
+        {showGit() && gitStr() && (
+          <box flexDirection="row">
+            <text fg="gray">{"  "}</text>
+            <text fg={colors.status.info}>{gitStr()}</text>
+          </box>
+        )}
 
-      {/* Context window usage (hidden below 100 cols) */}
-      {showCtx() && ctxStr() && (
-        <box flexDirection="row">
-          <text fg="gray">{"  "}</text>
-          <text fg="gray">{ctxStr()}</text>
-        </box>
-      )}
+        {/* Context window usage (hidden below 100 cols) */}
+        {showCtx() && ctxStr() && (
+          <box flexDirection="row">
+            <text fg="gray">{"  "}</text>
+            <text fg="gray">{ctxStr()}</text>
+          </box>
+        )}
 
-      {/* Spacer pushes right-aligned items */}
-      <box flexGrow={1} />
+        {/* Spacer pushes right-aligned items */}
+        <box flexGrow={1} />
 
-      {/* Right side: exit hint (transient) OR normal right-side info */}
-      {props.hint ? (
-        <text fg={colors.status.warning}>{props.hint}</text>
-      ) : (
-        <>
-          {/* Tok/s (only during streaming) */}
-          {tokPerSecStr() && (
-            <box flexDirection="row">
-              <text fg={colors.status.info}>{tokPerSecStr()}</text>
-              <text fg="gray">{" "}</text>
-            </box>
-          )}
+        {/* Right side: exit hint (transient) OR normal right-side info */}
+        {props.hint ? (
+          <text fg={colors.status.warning}>{props.hint}</text>
+        ) : (
+          <>
+            {/* Tok/s (only during streaming) */}
+            {tokPerSecStr() && (
+              <box flexDirection="row">
+                <text fg={colors.status.info}>{tokPerSecStr()}</text>
+                <text fg="gray">{" "}</text>
+              </box>
+            )}
 
-          {/* Timer (only during streaming) */}
-          {timerStr() && (
-            <box flexDirection="row">
-              <text fg={colors.status.warning}>{timerStr()}</text>
-              <text fg="gray">{"  "}</text>
-            </box>
-          )}
+            {/* Timer (only during streaming) */}
+            {timerStr() && (
+              <box flexDirection="row">
+                <text fg={colors.status.warning}>{timerStr()}</text>
+              </box>
+            )}
+          </>
+        )}
+      </box>
 
-          {/* Permission mode indicator (right-aligned) */}
-          <text fg={permModeColor()}>{"\u25CF "}</text>
-          <text fg={colors.permission.modeLabel}>{permissionModeLabel(permMode())}</text>
-          <text fg="gray" attributes={TextAttributes.DIM}>{" · shift+tab"}</text>
-        </>
-      )}
+      {/* Line 2: permission mode indicator (left-aligned, matches Claude Code) */}
+      <box height={1} flexDirection="row" paddingLeft={2}>
+        <text fg={permModeColor()}>{"\u25CF "}</text>
+        <text fg={colors.permission.modeLabel}>{permissionModeLabel(permMode())}</text>
+        <text fg="gray" attributes={TextAttributes.DIM}>{" \u00B7 shift+tab"}</text>
+      </box>
     </box>
   )
 }

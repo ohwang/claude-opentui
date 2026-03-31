@@ -180,6 +180,28 @@ export function SyncProvider(props: ParentProps) {
   onMount(() => {
     startEventLoop()
 
+    // Session initialization timeout — recover if session_init never arrives
+    const initTimeout = setTimeout(() => {
+      if (session.state.sessionState === "INITIALIZING") {
+        log.error("Session initialization timed out after 30s")
+        pushEvent({
+          type: "error",
+          code: "init_timeout",
+          message: "Session initialization timed out. Check that your API key is valid and the backend is reachable.",
+          severity: "fatal",
+        })
+      }
+    }, 30_000)
+
+    // Clear the timeout once we leave INITIALIZING
+    createEffect(() => {
+      if (session.state.sessionState !== "INITIALIZING") {
+        clearTimeout(initTimeout)
+      }
+    })
+
+    onCleanup(() => clearTimeout(initTimeout))
+
     // Send initial prompt after backend is ready (session_init received)
     if (agent.config.initialPrompt) {
       const text = agent.config.initialPrompt

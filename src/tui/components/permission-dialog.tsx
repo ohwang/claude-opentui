@@ -104,7 +104,10 @@ interface PreviewLine {
   prefix?: "+" | "-" | " "
 }
 
-/** Extract content lines for preview (Write content, Edit diff, Bash command) */
+/** Extract content lines for preview (Write content, Edit diff, Bash command).
+ *  Returns ALL lines (uncapped) — the caller is responsible for viewport-aware
+ *  truncation so we can display "... N more lines" accurately.
+ */
 function extractPreviewLines(tool: string, input: unknown): PreviewLine[] | null {
   const inp = input as Record<string, unknown> | null
   if (!inp) return null
@@ -113,7 +116,7 @@ function extractPreviewLines(tool: string, input: unknown): PreviewLine[] | null
     case "Write": {
       const content = inp.content
       if (typeof content === "string" && content.trim()) {
-        return content.split("\n").slice(0, MAX_PREVIEW_LINES).map(l => ({ text: l, prefix: "+" as const }))
+        return content.split("\n").map(l => ({ text: l, prefix: "+" as const }))
       }
       return null
     }
@@ -123,12 +126,12 @@ function extractPreviewLines(tool: string, input: unknown): PreviewLine[] | null
       const newStr = inp.new_string
       const lines: PreviewLine[] = []
       if (typeof oldStr === "string" && oldStr.trim()) {
-        for (const l of oldStr.split("\n").slice(0, MAX_PREVIEW_LINES / 2)) {
+        for (const l of oldStr.split("\n")) {
           lines.push({ text: l, prefix: "-" })
         }
       }
       if (typeof newStr === "string" && newStr.trim()) {
-        for (const l of newStr.split("\n").slice(0, MAX_PREVIEW_LINES / 2)) {
+        for (const l of newStr.split("\n")) {
           lines.push({ text: l, prefix: "+" })
         }
       }
@@ -137,7 +140,7 @@ function extractPreviewLines(tool: string, input: unknown): PreviewLine[] | null
     case "Bash": {
       const cmd = inp.command
       if (typeof cmd === "string" && cmd.trim()) {
-        return cmd.split("\n").slice(0, MAX_PREVIEW_LINES).map(l => ({ text: l }))
+        return cmd.split("\n").map(l => ({ text: l }))
       }
       return null
     }
@@ -368,7 +371,34 @@ export function PermissionDialog() {
     <Show when={state.pendingPermission}>
       {(perm) => {
         const label = () => actionLabel(perm().tool, perm().displayName)
-        const previewLines = () => extractPreviewLines(perm().tool, perm().input)
+        const allPreviewLines = () => extractPreviewLines(perm().tool, perm().input)
+
+        // Viewport-aware preview truncation.
+        // Reserve lines for chrome: action label (1) + path (1) + description (1)
+        // + dashed borders (2) + question (1) + 4 options (4) + footer+margin (2)
+        // + padding (2) + truncation indicator (1) = ~15 lines.
+        const CHROME_LINES = 15
+        const maxPreviewLines = () => {
+          const termHeight = dims()?.height ?? 80
+          const available = termHeight - CHROME_LINES
+          // Always show at least 3 lines of preview, cap at MAX_PREVIEW_LINES
+          return Math.max(3, Math.min(available, MAX_PREVIEW_LINES))
+        }
+
+        const previewLines = () => {
+          const all = allPreviewLines()
+          if (!all) return null
+          const max = maxPreviewLines()
+          return all.length > max ? all.slice(0, max) : all
+        }
+
+        const truncatedCount = () => {
+          const all = allPreviewLines()
+          if (!all) return 0
+          const max = maxPreviewLines()
+          return Math.max(0, all.length - max)
+        }
+
         // Don't show path separately for Bash (command is shown in preview)
         const pathStr = () => {
           if (perm().tool === "Bash" && previewLines()) return ""
@@ -423,6 +453,11 @@ export function PermissionDialog() {
                       )
                     }}
                   </For>
+                  <Show when={truncatedCount() > 0}>
+                    <box height={1} paddingLeft={2}>
+                      <text fg={MUTED}>{`... ${truncatedCount()} more line${truncatedCount() === 1 ? "" : "s"}`}</text>
+                    </box>
+                  </Show>
                   <box height={1}>
                     <text fg={ACCENT}>{dashedLine()}</text>
                   </box>

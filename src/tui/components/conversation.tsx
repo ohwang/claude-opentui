@@ -419,7 +419,7 @@ function groupBlocksForRendering(blocks: Block[], viewLevel: ViewLevel): RenderI
 // BlockView — dispatches rendering by block type
 // ---------------------------------------------------------------------------
 
-function BlockView(props: { block: Block; viewLevel: ViewLevel; prevType?: string }) {
+function BlockView(props: { block: Block; viewLevel: ViewLevel; prevType?: string; showThinking?: boolean }) {
   const b = () => props.block
 
   // Typed narrowing helpers — each returns the narrowed variant or null.
@@ -465,8 +465,8 @@ function BlockView(props: { block: Block; viewLevel: ViewLevel; prevType?: strin
         </box>
       }</Show>
 
-      {/* Thinking block — hidden in collapsed view (matches Claude Code) */}
-      <Show when={props.viewLevel !== "collapsed" && thinkingBlock()}>{(tb) =>
+      {/* Thinking block — hidden in collapsed view or when thinking toggle is off */}
+      <Show when={props.showThinking !== false && props.viewLevel !== "collapsed" && thinkingBlock()}>{(tb) =>
         <box marginTop={1}>
           <ThinkingBlock text={tb().text} collapsed={props.viewLevel === "expanded"} />
         </box>
@@ -516,6 +516,7 @@ export function ConversationView(props: { children?: JSX.Element }) {
   const { state } = useMessages()
   const { state: session } = useSession()
   const [viewLevel, setViewLevel] = createSignal<ViewLevel>("collapsed")
+  const [showThinking, setShowThinking] = createSignal(true)
   const [viewLevelHint, setViewLevelHint] = createSignal<string | null>(null)
   let viewLevelHintTimer: ReturnType<typeof setTimeout> | undefined
   let scrollboxRef: ScrollBoxRenderable | undefined
@@ -622,7 +623,7 @@ export function ConversationView(props: { children?: JSX.Element }) {
   }
   onCleanup(() => clearTimeout(viewLevelHintTimer))
 
-  // Ctrl+O toggles collapsed/expanded, Ctrl+E shows all
+  // Ctrl+O toggles collapsed/expanded, Ctrl+E shows all, Ctrl+T toggles thinking
   // Ctrl+Up/Down scrolls the conversation
   useKeyboard((event) => {
     if (event.ctrl && event.name === "o") {
@@ -634,6 +635,14 @@ export function ConversationView(props: { children?: JSX.Element }) {
       const next: ViewLevel = viewLevel() === "show_all" ? "collapsed" : "show_all"
       setViewLevel(next)
       showViewLevelHint(next)
+    }
+    if (event.ctrl && event.name === "t") {
+      const next = !showThinking()
+      setShowThinking(next)
+      const text = next ? "Thinking: visible" : "Thinking: hidden"
+      setViewLevelHint(text)
+      clearTimeout(viewLevelHintTimer)
+      viewLevelHintTimer = setTimeout(() => setViewLevelHint(null), 2000)
     }
     if (event.ctrl && event.name === "up") {
       scrollboxRef?.scrollBy(-3)
@@ -694,14 +703,14 @@ export function ConversationView(props: { children?: JSX.Element }) {
 
               return item.kind === "tool-summary"
                 ? <ToolSummaryView tools={item.tools} />
-                : <BlockView block={item.block} viewLevel={viewLevel()} prevType={prevType} />
+                : <BlockView block={item.block} viewLevel={viewLevel()} prevType={prevType} showThinking={showThinking()} />
             }}
           </For>
         </box>
 
-        {/* Streaming thinking (transient) — hidden in collapsed view, spinner shows instead */}
+        {/* Streaming thinking (transient) — hidden in collapsed view, when thinking toggle is off, spinner shows instead */}
         <box flexDirection="column">
-          <Show when={state.streamingThinking && viewLevel() !== "collapsed"}>
+          <Show when={showThinking() && state.streamingThinking && viewLevel() !== "collapsed"}>
             <box marginTop={1}>
               <ThinkingBlock text={state.streamingThinking} collapsed={viewLevel() === "expanded"} />
             </box>

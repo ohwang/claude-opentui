@@ -29,6 +29,7 @@ function QuestionView(props: {
 }) {
   const [selected, setSelected] = createSignal(0)
   const [showFreeText, setShowFreeText] = createSignal(false)
+  const [submitting, setSubmitting] = createSignal(false)
   let freeTextRef: TextareaRenderable | undefined
 
   const options = () => {
@@ -43,11 +44,13 @@ function QuestionView(props: {
   }
 
   const selectOption = (idx: number) => {
+    if (submitting()) return
     const opt = options()[idx]
     if (!opt) return
     if (opt.isOther) {
       setShowFreeText(true)
     } else {
+      setSubmitting(true)
       // Answer value is the option label, matching SDK expectation
       props.onAnswer(opt.label)
     }
@@ -57,12 +60,15 @@ function QuestionView(props: {
     if (showFreeText()) {
       if (event.name === "escape") {
         setShowFreeText(false)
+        setSubmitting(false)
         return
       }
       if (event.name === "return") {
+        if (submitting()) return
         // Handle free text submit directly since useKeyboard fires before textarea's onSubmit
         const text = freeTextRef?.plainText?.trim() ?? ""
         if (text) {
+          setSubmitting(true)
           props.onAnswer(text)
           setShowFreeText(false)
         }
@@ -134,8 +140,10 @@ function QuestionView(props: {
             { name: "return", shift: true, action: "newline" },
           ]}
           onSubmit={() => {
+            if (submitting()) return
             const text = freeTextRef?.plainText?.trim() ?? ""
             if (text) {
+              setSubmitting(true)
               props.onAnswer(text)
             }
           }}

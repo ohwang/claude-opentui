@@ -498,7 +498,7 @@ export function PermissionDialog() {
 
             {/* Question prompt */}
             <box height={1} paddingLeft={1} marginTop={previewLines() ? 0 : 1}>
-              <text fg="white">
+              <text fg={colors.text.white}>
                 {question()}
               </text>
             </box>
@@ -507,7 +507,7 @@ export function PermissionDialog() {
             <box height={1} paddingLeft={1}>
               <Show when={selectedOption() === 0}
                 fallback={
-                  <text fg="white">{"  y. Allow"}</text>
+                  <text fg={colors.text.white}>{"  y. Allow"}</text>
                 }
               >
                 <text fg={ACCENT}>
@@ -520,7 +520,7 @@ export function PermissionDialog() {
             <box height={1} paddingLeft={1}>
               <Show when={selectedOption() === 1}
                 fallback={
-                  <text fg="white" attributes={TextAttributes.BOLD}>
+                  <text fg={colors.text.white} attributes={TextAttributes.BOLD}>
                     {"  a. " + opt2()}
                   </text>
                 }

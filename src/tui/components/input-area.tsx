@@ -723,7 +723,7 @@ export function InputArea() {
           flexGrow={1}
         />
         {completionHint() ? (
-          <text fg="gray" attributes={TextAttributes.DIM}>
+          <text fg={colors.text.muted} attributes={TextAttributes.DIM}>
             {completionHint()}
           </text>
         ) : null}
@@ -741,7 +741,7 @@ export function InputArea() {
                 >
                   {autocompleteMode() === "file" ? truncatePath(item.name) : `/${item.name}`}
                 </text>
-                <text fg="gray" attributes={index() !== selectedIndex() ? TextAttributes.DIM : 0}>
+                <text fg={colors.text.muted} attributes={index() !== selectedIndex() ? TextAttributes.DIM : 0}>
                   {"  \u2013  "}{item.description}
                 </text>
               </box>

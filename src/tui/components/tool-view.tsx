@@ -147,9 +147,9 @@ export function ToolBlockView(props: { block: Extract<Block, { type: "tool" }>; 
         <box width={2} flexShrink={0}>
           <text fg={prefixColor()}>{"\u23FA"}</text>
         </box>
-        <text fg="white">{b().tool}</text>
+        <text fg={colors.text.white}>{b().tool}</text>
         <Show when={primaryArg()}>
-          <text fg="gray">{"(" + primaryArg() + ")"}</text>
+          <text fg={colors.text.muted}>{"(" + primaryArg() + ")"}</text>
         </Show>
         {/* Duration for completed tools (expanded/show_all views) */}
         <Show when={b().status !== "running" && props.viewLevel !== "collapsed" && b().duration !== undefined && b().duration! >= 1000}>
@@ -169,7 +169,7 @@ export function ToolBlockView(props: { block: Extract<Block, { type: "tool" }>; 
       {/* Result line: ⎿  summary */}
       <Show when={props.viewLevel !== "collapsed" && resultSummary()}>
         <box paddingLeft={2}>
-          <text fg="gray" attributes={TextAttributes.DIM}>
+          <text fg={colors.text.muted} attributes={TextAttributes.DIM}>
             {"\u23BF  " + resultSummary()}
           </text>
         </box>
@@ -180,7 +180,7 @@ export function ToolBlockView(props: { block: Extract<Block, { type: "tool" }>; 
           <Show
             when={isDiffOutput(b().tool, b().output ?? "")}
             fallback={
-              <text fg="gray" attributes={TextAttributes.DIM}>
+              <text fg={colors.text.muted} attributes={TextAttributes.DIM}>
                 {b().output}
               </text>
             }

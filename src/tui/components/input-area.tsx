@@ -475,6 +475,7 @@ export function InputArea() {
           log.warn("openExternalEditor promise rejected", {
             error: String(err),
           })
+          sync.pushEvent({ type: "system_message", text: `External editor failed: ${err instanceof Error ? err.message : String(err)}` })
         })
       return
     }

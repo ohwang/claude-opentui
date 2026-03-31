@@ -244,16 +244,11 @@ export function DiagnosticsPanel(props: { visible: boolean; onClose: () => void 
 
   return (
     <Show when={props.visible}>
+      {/* Diagnostics panel — fills the entire terminal, replacing the conversation */}
       <box
-        position="absolute"
-        top={2}
-        left={4}
-        width={dims()?.width ? dims()!.width - 8 : 70}
-        height={dims()?.height ? dims()!.height - 6 : 30}
-        zIndex={100}
+        flexGrow={1}
+        width="100%"
         bg={colors.bg.overlay}
-        borderStyle="single"
-        borderColor={colors.border.default}
         flexDirection="column"
         paddingLeft={2}
         paddingRight={2}
@@ -261,7 +256,7 @@ export function DiagnosticsPanel(props: { visible: boolean; onClose: () => void 
         paddingBottom={1}
       >
         {/* Title bar */}
-        <box flexDirection="row">
+        <box flexDirection="row" flexShrink={0}>
           <text fg="white" attributes={TextAttributes.BOLD}>
             {"Diagnostics"}
           </text>
@@ -270,8 +265,13 @@ export function DiagnosticsPanel(props: { visible: boolean; onClose: () => void 
           </text>
         </box>
 
+        {/* Separator line */}
+        <box height={1} flexShrink={0}>
+          <text fg="#4a4a6a">{"─".repeat(dims()?.width ? dims()!.width - 4 : 70)}</text>
+        </box>
+
         {/* Content in a scrollbox so it doesn't overflow */}
-        <scrollbox flexGrow={1} stickyScroll={false}>
+        <scrollbox flexGrow={1} stickyScroll={false} bg="#16161e">
           {/* Sections */}
           <For each={sections()}>
             {(section) => (

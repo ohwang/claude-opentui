@@ -153,15 +153,28 @@ function Layout(props: { onExit?: () => void }) {
 
   // Global keyboard shortcuts
   useKeyboard((event) => {
-    // Ctrl+Shift+D: toggle diagnostics panel
-    if (event.ctrl && event.shift && event.name === "d") {
-      setShowDiagnostics((v) => !v)
+    // When diagnostics overlay is open, capture ALL keyboard input.
+    // Only allow close keys (Esc, q, Ctrl+Shift+D) — block everything
+    // else from reaching the textarea or other handlers.
+    if (showDiagnostics()) {
+      if (event.name === "escape" || event.name === "q") {
+        event.preventDefault()
+        setShowDiagnostics(false)
+        return
+      }
+      if (event.ctrl && event.shift && event.name === "d") {
+        event.preventDefault()
+        setShowDiagnostics(false)
+        return
+      }
+      // Block all other keys from reaching the textarea
+      event.preventDefault()
       return
     }
 
-    // Esc or q: close diagnostics if open
-    if (showDiagnostics() && (event.name === "escape" || event.name === "q")) {
-      setShowDiagnostics(false)
+    // Ctrl+Shift+D: toggle diagnostics panel
+    if (event.ctrl && event.shift && event.name === "d") {
+      setShowDiagnostics(true)
       return
     }
 
@@ -245,10 +258,13 @@ function Layout(props: { onExit?: () => void }) {
     // model can shift focus to the scrollbox (e.g. on mouse click or
     // scroll interaction). Re-focusing on every keypress ensures the
     // textarea immediately reclaims input regardless of what stole focus.
+    // Skip refocusing when the diagnostics overlay is open so it doesn't
+    // steal focus back from the overlay.
     const typingDisabled =
       session.sessionState === "WAITING_FOR_PERM" ||
       session.sessionState === "WAITING_FOR_ELIC" ||
-      session.sessionState === "SHUTTING_DOWN"
+      session.sessionState === "SHUTTING_DOWN" ||
+      showDiagnostics()
     if (!typingDisabled) {
       refocusInput()
     }
@@ -256,23 +272,25 @@ function Layout(props: { onExit?: () => void }) {
 
   return (
     <box flexDirection="column" width="100%" height="100%">
-      <ConversationView>
-        {/* Permission dialog (shown inline when WAITING_FOR_PERM) */}
-        <PermissionDialog />
+      <Show when={!showDiagnostics()}>
+        <ConversationView>
+          {/* Permission dialog (shown inline when WAITING_FOR_PERM) */}
+          <PermissionDialog />
 
-        {/* Elicitation dialog (shown inline when WAITING_FOR_ELIC) */}
-        <ElicitationDialog />
+          {/* Elicitation dialog (shown inline when WAITING_FOR_ELIC) */}
+          <ElicitationDialog />
 
-        {/* Input area - Claude Code-style dash lines top and bottom */}
-        <DashLine />
-        <InputArea />
-        <DashLine />
+          {/* Input area - Claude Code-style dash lines top and bottom */}
+          <DashLine />
+          <InputArea />
+          <DashLine />
 
-        {/* Status bar */}
-        <StatusBar hint={statusHint()} />
-      </ConversationView>
+          {/* Status bar */}
+          <StatusBar hint={statusHint()} />
+        </ConversationView>
+      </Show>
 
-      {/* Diagnostics overlay — renders on top of everything */}
+      {/* Diagnostics panel — replaces conversation when visible */}
       <DiagnosticsPanel
         visible={showDiagnostics()}
         onClose={() => setShowDiagnostics(false)}

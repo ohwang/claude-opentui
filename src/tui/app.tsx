@@ -21,6 +21,7 @@ import { InputArea, clearInput, hasInputText, refocusInput } from "./components/
 import { StatusBar } from "./components/status-bar"
 import { PermissionDialog } from "./components/permission-dialog"
 import { ElicitationDialog } from "./components/elicitation"
+import { DiagnosticsPanel } from "./components/diagnostics"
 
 // Module-level exit function so slash commands can trigger clean shutdown
 let _cleanExit: (() => void) | undefined
@@ -62,6 +63,7 @@ function Layout(props: { onExit?: () => void }) {
   let ctrlCEmptyCount = 0
   let ctrlCTimer: ReturnType<typeof setTimeout> | undefined
   const [statusHint, setStatusHint] = createSignal<string | null>(null)
+  const [showDiagnostics, setShowDiagnostics] = createSignal(false)
   let statusHintTimer: ReturnType<typeof setTimeout> | undefined
   let interruptTimeout: ReturnType<typeof setTimeout> | undefined
 
@@ -91,6 +93,18 @@ function Layout(props: { onExit?: () => void }) {
 
   // Global keyboard shortcuts
   useKeyboard((event) => {
+    // Ctrl+Shift+D: toggle diagnostics panel
+    if (event.ctrl && event.shift && event.name === "d") {
+      setShowDiagnostics((v) => !v)
+      return
+    }
+
+    // Esc or q: close diagnostics if open
+    if (showDiagnostics() && (event.name === "escape" || event.name === "q")) {
+      setShowDiagnostics(false)
+      return
+    }
+
     // Ctrl+D: exit when editor is empty (matches native Claude Code)
     // First press = hint, second press within 2s = exit
     if (event.ctrl && event.name === "d") {
@@ -183,6 +197,12 @@ function Layout(props: { onExit?: () => void }) {
   return (
     <box flexDirection="column" width="100%" height="100%">
       <ConversationView>
+        {/* Diagnostics panel (toggled via Ctrl+Shift+D) */}
+        <DiagnosticsPanel
+          visible={showDiagnostics()}
+          onClose={() => setShowDiagnostics(false)}
+        />
+
         {/* Permission dialog (shown inline when WAITING_FOR_PERM) */}
         <PermissionDialog />
 

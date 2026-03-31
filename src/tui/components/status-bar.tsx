@@ -357,6 +357,7 @@ export function StatusBar(props: { hint?: string | null }) {
     // Prefer dynamic context window from SDK, fall back to hardcoded
     const ctxWindow = model?.contextWindow ?? MODEL_CONTEXT_WINDOWS[raw] ?? DEFAULT_CONTEXT_WINDOW
     const pct = Math.round((fill / ctxWindow) * 100)
+    if (pct === 0) return ""
     return `ctx:${pct}%`
   })
 

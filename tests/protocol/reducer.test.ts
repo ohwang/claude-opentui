@@ -982,9 +982,15 @@ describe("ConversationState reducer", () => {
         createInitialState(),
       )
 
+      // Strip time-dependent fields (timestamp, duration, startTime) before
+      // comparing — the two reduce loops call Date.now() at different wall-clock
+      // times, so 1ms drift is expected and not a real inconsistency.
+      const stripTime = (blocks: any[]) =>
+        blocks.map(({ timestamp, duration, startTime, ...rest }: any) => rest)
+
       // States should match
       expect(state2.sessionState).toBe(state1.sessionState)
-      expect(state2.blocks).toEqual(state1.blocks)
+      expect(stripTime(state2.blocks)).toEqual(stripTime(state1.blocks))
       expect(state2.cost).toEqual(state1.cost)
       expect(state2.turnNumber).toBe(state1.turnNumber)
     })

@@ -10,6 +10,7 @@ import { TextAttributes } from "@opentui/core"
 import { createSignal, createEffect, on, ErrorBoundary, Show } from "solid-js"
 import type { AgentBackend, SessionConfig } from "../protocol/types"
 import { log } from "../utils/logger"
+import { copyToClipboard } from "../utils/clipboard"
 import { AgentProvider, useAgent, type AgentContextValue } from "./context/agent"
 import { MessagesProvider } from "./context/messages"
 import { SessionProvider, useSession } from "./context/session"
@@ -309,5 +310,20 @@ export function startApp(options: AppOptions): void {
         </SessionProvider>
       </AgentProvider>
     </ErrorBoundary>
-  ), { exitOnCtrlC: false })
+  ), {
+    exitOnCtrlC: false,
+    useMouse: true,
+    consoleOptions: {
+      onCopySelection: (text: string) => {
+        copyToClipboard(text).then(() => {
+          log.info("Copied selection to clipboard", { chars: text.length })
+        }).catch((err: unknown) => {
+          log.warn("Failed to copy selection to clipboard", {
+            error: err instanceof Error ? err.message : String(err),
+          })
+        })
+      },
+      selectionColor: "#4a4a6a",
+    },
+  })
 }

@@ -27,8 +27,11 @@ export function ContextualTips() {
 
   // Pick a tip for the current state.
   // Use turnNumber as a stable index so tips don't flicker during re-renders.
+  // Hide tips entirely during dialog states — the dialog provides its own hints.
   const tip = () => {
-    const stateTips = TIPS[state.sessionState] ?? TIPS.IDLE ?? []
+    const s = state.sessionState
+    if (s === "WAITING_FOR_PERM" || s === "WAITING_FOR_ELIC") return ""
+    const stateTips = TIPS[s] ?? TIPS.IDLE ?? []
     if (stateTips.length === 0) return ""
     return stateTips[state.turnNumber % stateTips.length] ?? stateTips[0]
   }

@@ -443,6 +443,9 @@ export function InputArea() {
             clearTimeout(isPastingTimer)
             isPastingTimer = setTimeout(() => { isPasting = false }, PASTE_GUARD_MS)
           }
+        }).catch((err) => {
+          log.warn("Ctrl+V text clipboard read failed", { error: String(err) })
+          sync.pushEvent({ type: "system_message", text: "Clipboard read failed — try pasting with your terminal's built-in paste" })
         })
       }).catch((err) => {
         log.warn("Ctrl+V clipboard read failed", { error: String(err) })

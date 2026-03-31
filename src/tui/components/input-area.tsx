@@ -198,6 +198,11 @@ export function InputArea() {
       clearConversation: sync.clearConversation,
       setModel: (model: string) => agent.backend.setModel(model),
       exit: triggerCleanExit,
+      getSessionState: () => ({
+        cost: session.cost,
+        turnNumber: session.turnNumber,
+        currentModel: session.currentModel,
+      }),
     })
 
     if (!handled) {

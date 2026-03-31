@@ -7,7 +7,7 @@
  * Supports fuzzy matching for command palette UX.
  */
 
-import type { AgentBackend, SessionConfig } from "../protocol/types"
+import type { AgentBackend, CostTotals, SessionConfig } from "../protocol/types"
 
 export interface CommandContext {
   backend: AgentBackend
@@ -15,6 +15,7 @@ export interface CommandContext {
   clearConversation: () => void
   setModel: (model: string) => Promise<void>
   exit?: () => void
+  getSessionState?: () => { cost: CostTotals; turnNumber: number; currentModel: string }
 }
 
 export interface SlashCommand {
@@ -87,6 +88,13 @@ export class CommandRegistry {
     await command.execute(args, ctx)
     return true
   }
+}
+
+/** Format token counts for human-readable display */
+function formatTokens(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`
+  return String(n)
 }
 
 /** Create a registry with all built-in commands */
@@ -177,25 +185,40 @@ export function createCommandRegistry(): CommandRegistry {
     },
   })
 
-  // /cost
+  // /cost or /usage — detailed cost and token breakdown
   registry.register({
     name: "cost",
-    description: "Show current session cost and token usage",
-    execute: async (_args, ctx) => {
-      const models = await ctx.backend.availableModels()
-      const caps = ctx.backend.capabilities()
-      const modelNames = models
-        .map((m) => m.name || m.id)
-        .filter((name) => name)
-      const lines = [`Backend: ${caps.name}`]
-      if (modelNames.length > 0) {
-        lines.push(`Models: ${modelNames.join(", ")}`)
+    aliases: ["usage"],
+    description: "Show session cost and token breakdown",
+    execute: (_args, ctx) => {
+      const state = ctx.getSessionState?.()
+      if (!state) {
+        ctx.pushEvent({ type: "system_message", text: "Cost data not available." })
+        return
       }
-      lines.push("Use the status bar for live cost/token tracking.")
-      ctx.pushEvent({
-        type: "system_message",
-        text: lines.join("\n"),
-      })
+
+      const { cost, turnNumber, currentModel } = state
+      const totalTokens = cost.inputTokens + cost.outputTokens
+      const cacheTokens = cost.cacheReadTokens + cost.cacheWriteTokens
+
+      const lines = [
+        `Session Usage (${turnNumber} turn${turnNumber !== 1 ? "s" : ""})`,
+        ``,
+        `  Model:    ${currentModel || "unknown"}`,
+        `  Cost:     $${cost.totalCostUsd.toFixed(4)}`,
+        ``,
+        `  Tokens:   ${formatTokens(totalTokens)} total`,
+        `    Input:  ${formatTokens(cost.inputTokens)}`,
+        `    Output: ${formatTokens(cost.outputTokens)}`,
+        `    Cache:  ${formatTokens(cacheTokens)} (${formatTokens(cost.cacheReadTokens)} read, ${formatTokens(cost.cacheWriteTokens)} write)`,
+      ]
+
+      if (turnNumber > 0) {
+        lines.push(``)
+        lines.push(`  Avg/turn: $${(cost.totalCostUsd / turnNumber).toFixed(4)} · ${formatTokens(Math.round(totalTokens / turnNumber))} tokens`)
+      }
+
+      ctx.pushEvent({ type: "system_message", text: lines.join("\n") })
     },
   })
 

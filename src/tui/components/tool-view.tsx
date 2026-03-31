@@ -9,6 +9,7 @@ import { createSignal, createEffect, createMemo, onCleanup, Show } from "solid-j
 import { TextAttributes } from "@opentui/core"
 import type { Block } from "../../protocol/types"
 import { colors } from "../theme/tokens"
+import { syntaxStyle } from "../theme/syntax"
 
 export type ViewLevel = "collapsed" | "expanded" | "show_all"
 
@@ -19,6 +20,32 @@ export type ViewLevel = "collapsed" | "expanded" | "show_all"
 /** User-initiated cancellation messages that shouldn't render as errors */
 export function isUserDecline(error: string): boolean {
   return error.includes("User declined to answer") || error.includes("Interrupted by user")
+}
+
+/** Detect whether tool output contains a unified diff */
+function isDiffOutput(tool: string, output: string): boolean {
+  if (tool === "Edit" || tool === "Write") {
+    return output.includes("--- ") && output.includes("+++ ") && output.includes("@@")
+  }
+  return false
+}
+
+/** Extract a filetype hint from a file path for syntax highlighting */
+function filetypeFromPath(filePath: string | undefined): string | undefined {
+  if (!filePath) return undefined
+  const dot = filePath.lastIndexOf(".")
+  if (dot === -1) return undefined
+  const ext = filePath.slice(dot + 1).toLowerCase()
+  // Map common extensions to tree-sitter language names
+  const map: Record<string, string> = {
+    ts: "typescript", tsx: "tsx", js: "javascript", jsx: "jsx",
+    py: "python", rs: "rust", go: "go", rb: "ruby",
+    java: "java", c: "c", cpp: "cpp", h: "c", hpp: "cpp",
+    css: "css", html: "html", json: "json", yaml: "yaml", yml: "yaml",
+    md: "markdown", sh: "bash", bash: "bash", zsh: "bash",
+    toml: "toml", zig: "zig", swift: "swift", kt: "kotlin",
+  }
+  return map[ext] ?? ext
 }
 
 /** Threshold in seconds before showing a critical "may be stuck" warning */
@@ -141,9 +168,26 @@ export function ToolBlockView(props: { block: Extract<Block, { type: "tool" }>; 
       {/* Full output (show_all mode) */}
       <Show when={props.viewLevel === "show_all" && b().output}>
         <box paddingLeft={4}>
-          <text fg="gray" attributes={TextAttributes.DIM}>
-            {b().output}
-          </text>
+          <Show
+            when={isDiffOutput(b().tool, b().output ?? "")}
+            fallback={
+              <text fg="gray" attributes={TextAttributes.DIM}>
+                {b().output}
+              </text>
+            }
+          >
+            <diff
+              diff={b().output ?? ""}
+              view="unified"
+              syntaxStyle={syntaxStyle}
+              filetype={filetypeFromPath((b().input as Record<string, unknown> | null)?.file_path as string | undefined)}
+              addedSignColor={colors.diff.added}
+              removedSignColor={colors.diff.removed}
+              addedBg="#1a2e1a"
+              removedBg="#2e1a1a"
+              fg={colors.text.primary}
+            />
+          </Show>
         </box>
       </Show>
       {/* Error display — prominent bordered box so failures are hard to miss */}

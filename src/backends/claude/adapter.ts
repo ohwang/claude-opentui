@@ -5,7 +5,7 @@
  *
  * Key patterns:
  * - AsyncIterable prompt mode for multi-turn message queuing
- * - canUseTool callback bridges permission_request ↔ approveToolUse/denyToolUse
+ * - canUseTool callback bridges permission_request <-> approveToolUse/denyToolUse
  * - Single AsyncGenerator for the entire session (not per-turn)
  * - Process lifecycle management (SIGINT/SIGTERM/SIGHUP cleanup)
  */
@@ -24,82 +24,24 @@ import type {
   UserMessage,
 } from "../../protocol/types"
 import { EventChannel } from "../../utils/event-channel"
+import { AsyncQueue } from "../../utils/async-queue"
+import { mapSDKMessage, ToolStreamState } from "./event-mapper"
+import {
+  createCanUseTool,
+  handlePermission,
+  handleElicitation,
+  parseElicitationInput,
+  type PendingPermission,
+  type PendingElicitation,
+  type PermissionResult,
+  type PermissionBridgeState,
+} from "./permission-bridge"
 
 // ---------------------------------------------------------------------------
-// Types for bridging SDK ↔ adapter
+// Types
 // ---------------------------------------------------------------------------
 
 type SDKQuery = ReturnType<typeof sdkQuery>
-
-interface PendingPermission {
-  resolve: (result: PermissionResult) => void
-  reject: (error: Error) => void
-  toolName: string
-  input: Record<string, unknown>
-}
-
-type PermissionDecisionClassification = "user_temporary" | "user_permanent" | "user_reject"
-
-type PermissionResult = {
-  behavior: "allow"
-  updatedInput?: Record<string, unknown>
-  updatedPermissions?: unknown[]
-  toolUseID?: string
-  decisionClassification?: PermissionDecisionClassification
-} | {
-  behavior: "deny"
-  message: string
-  interrupt?: boolean
-  toolUseID?: string
-  decisionClassification?: PermissionDecisionClassification
-}
-
-interface PendingElicitation {
-  resolve: (result: PermissionResult) => void
-  reject: (error: Error) => void
-}
-
-// ---------------------------------------------------------------------------
-// Async queue for message queuing
-// ---------------------------------------------------------------------------
-
-class AsyncQueue<T> {
-  private queue: T[] = []
-  private waiting: { resolve: (value: T) => void; reject: (error: Error) => void }[] = []
-  private closed = false
-
-  push(item: T): void {
-    if (this.closed) return
-    const waiter = this.waiting.shift()
-    if (waiter) {
-      waiter.resolve(item)
-    } else {
-      this.queue.push(item)
-    }
-  }
-
-  async pull(): Promise<T> {
-    const item = this.queue.shift()
-    if (item !== undefined) return item
-    if (this.closed) throw new Error("Queue closed")
-    return new Promise<T>((resolve, reject) => {
-      this.waiting.push({ resolve, reject })
-    })
-  }
-
-  close(): void {
-    this.closed = true
-    const err = new Error("Queue closed")
-    for (const waiter of this.waiting) {
-      waiter.reject(err)
-    }
-    this.waiting = []
-  }
-
-  get size(): number {
-    return this.queue.length
-  }
-}
 
 // ---------------------------------------------------------------------------
 // Claude V1 Adapter
@@ -116,11 +58,21 @@ export class ClaudeAdapter implements AgentBackend {
   private closed = false
 
   // Tool input JSON accumulation from streaming deltas
-  private toolInputJsons = new Map<string, string>()
-  private currentToolIds = new Map<number, string>()
+  private streamState = new ToolStreamState()
 
   // Tools denied for the duration of this session (via "deny for session" option)
   private sessionDeniedTools = new Set<string>()
+
+  // Permission bridge state (passed to extracted functions)
+  private get bridgeState(): PermissionBridgeState {
+    return {
+      pendingPermissions: this.pendingPermissions,
+      pendingElicitations: this.pendingElicitations,
+      pendingElicitationInputs: this.pendingElicitationInputs,
+      sessionDeniedTools: this.sessionDeniedTools,
+      eventChannel: this.eventChannel,
+    }
+  }
 
   capabilities(): BackendCapabilities {
     return {
@@ -211,7 +163,7 @@ export class ClaudeAdapter implements AgentBackend {
     pending.resolve(result)
     this.pendingPermissions.delete(id)
 
-    // Emit event to transition state machine WAITING_FOR_PERM → RUNNING
+    // Emit event to transition state machine WAITING_FOR_PERM -> RUNNING
     this.eventChannel?.push({ type: "permission_response", id, behavior: "allow" })
   }
 
@@ -233,7 +185,7 @@ export class ClaudeAdapter implements AgentBackend {
     })
     this.pendingPermissions.delete(id)
 
-    // Emit event to transition state machine WAITING_FOR_PERM → RUNNING
+    // Emit event to transition state machine WAITING_FOR_PERM -> RUNNING
     this.eventChannel?.push({ type: "permission_response", id, behavior: "deny" })
   }
 
@@ -254,7 +206,7 @@ export class ClaudeAdapter implements AgentBackend {
     this.pendingElicitations.delete(id)
     this.pendingElicitationInputs.delete(id)
 
-    // Emit event to transition state machine WAITING_FOR_ELIC → RUNNING
+    // Emit event to transition state machine WAITING_FOR_ELIC -> RUNNING
     this.eventChannel?.push({ type: "elicitation_response", id, answers })
   }
 
@@ -269,7 +221,7 @@ export class ClaudeAdapter implements AgentBackend {
     this.pendingElicitations.delete(id)
     this.pendingElicitationInputs.delete(id)
 
-    // Emit event to transition state machine WAITING_FOR_ELIC → RUNNING
+    // Emit event to transition state machine WAITING_FOR_ELIC -> RUNNING
     this.eventChannel?.push({ type: "elicitation_response", id, answers: {} })
   }
 
@@ -341,7 +293,7 @@ export class ClaudeAdapter implements AgentBackend {
   }
 
   // -----------------------------------------------------------------------
-  // Private: SDK message → AgentEvent mapping
+  // Private: SDK message -> AgentEvent mapping
   // -----------------------------------------------------------------------
 
   private async *iterateQuery(): AsyncGenerator<AgentEvent> {
@@ -357,7 +309,7 @@ export class ClaudeAdapter implements AgentBackend {
       try {
         for await (const msg of this.activeQuery!) {
           if (this.closed || !this.eventChannel) break
-          const events = this.mapSDKMessage(msg)
+          const events = mapSDKMessage(msg, this.streamState)
           for (const event of events) {
             this.eventChannel?.push(event)
           }
@@ -379,318 +331,6 @@ export class ClaudeAdapter implements AgentBackend {
     yield* this.eventChannel[Symbol.asyncIterator]()
   }
 
-  private mapSDKMessage(msg: any): AgentEvent[] {
-    const events: AgentEvent[] = []
-
-    switch (msg.type) {
-      case "system":
-        if (msg.subtype === "init") {
-          // Extract context window from bracket suffix if present (e.g. "claude-opus-4-6 [1M context]")
-          let contextWindow: number | undefined
-          const bracketMatch = msg.model?.match(/\[(\d+)([KkMm])\s*(?:context|tokens?)?\]/)
-          if (bracketMatch) {
-            const num = parseInt(bracketMatch[1])
-            const unit = bracketMatch[2].toUpperCase()
-            contextWindow = unit === "M" ? num * 1_000_000 : num * 1_000
-          }
-          const cleanModel = msg.model?.replace(/\s*\[.*\]$/, "")
-          const models: ModelInfo[] = cleanModel
-            ? [{ id: cleanModel, name: cleanModel, provider: "anthropic", contextWindow }]
-            : []
-          events.push({
-            type: "session_init",
-            tools: (msg.tools ?? []).map((t: string) => ({
-              name: t,
-            })),
-            models,
-            account: msg.account,
-          })
-        } else if (msg.subtype === "status") {
-          if (msg.status === "compacting") {
-            events.push({
-              type: "compact",
-              summary: "Conversation context is being compacted...",
-            })
-          }
-        } else if (msg.subtype === "compact_boundary") {
-          const meta = msg.compact_metadata ?? {}
-          events.push({
-            type: "compact",
-            summary: `Conversation compacted (${meta.trigger ?? "manual"}, ${meta.pre_tokens ?? "?"} tokens before).`,
-          })
-        } else if (msg.subtype === "local_command_output") {
-          events.push({
-            type: "system_message",
-            text: msg.content ?? "",
-          })
-        }
-        break
-
-      case "stream_event":
-        events.push(...this.mapStreamEvent(msg.event, msg.parent_tool_use_id))
-        break
-
-      case "assistant":
-        // Full assistant message (contains complete content blocks)
-        // We use stream_event for real-time updates, so this is a no-op
-        // unless we want to emit text_complete for the full message
-        break
-
-      case "result":
-        if (msg.subtype === "success" || !msg.is_error) {
-          events.push({
-            type: "turn_complete",
-            usage: {
-              inputTokens: msg.usage?.input_tokens ?? 0,
-              outputTokens: msg.usage?.output_tokens ?? 0,
-              cacheReadTokens: msg.usage?.cache_read_input_tokens ?? 0,
-              cacheWriteTokens: msg.usage?.cache_creation_input_tokens ?? 0,
-              totalCostUsd: msg.total_cost_usd ?? 0,
-            },
-          })
-        } else {
-          events.push({
-            type: "error",
-            code: msg.subtype ?? "error_during_execution",
-            message: msg.errors?.join(", ") ?? "Unknown error",
-            severity: "fatal",
-          })
-          events.push({
-            type: "turn_complete",
-            usage: {
-              inputTokens: msg.usage?.input_tokens ?? 0,
-              outputTokens: msg.usage?.output_tokens ?? 0,
-              totalCostUsd: msg.total_cost_usd ?? 0,
-            },
-          })
-        }
-        break
-
-      case "tool_progress":
-        events.push({
-          type: "tool_use_progress",
-          id: msg.tool_use_id,
-          output: msg.content ?? `[${msg.tool_name}] ${msg.elapsed_time_seconds}s elapsed`,
-        })
-        break
-
-      case "task_started":
-        events.push({
-          type: "task_start",
-          taskId: msg.task_id ?? msg.uuid,
-          description: msg.description ?? "Background task",
-        })
-        break
-
-      case "task_progress":
-        events.push({
-          type: "task_progress",
-          taskId: msg.task_id ?? msg.uuid,
-          output: msg.content ?? "",
-        })
-        break
-
-      case "task_notification":
-        events.push({
-          type: "task_complete",
-          taskId: msg.task_id ?? msg.uuid,
-          output: msg.content ?? msg.result ?? "",
-        })
-        break
-
-      case "rate_limit":
-        events.push({
-          type: "error",
-          code: "rate_limit",
-          message: "Rate limited by API",
-          severity: "recoverable",
-        })
-        break
-
-      case "user": {
-        // Tool result message — the SDK sends this when a tool completes.
-        // Extract tool output to emit tool_use_end for result summary display.
-        if (msg.tool_use_result) {
-          // Find the tool_use_id from the message content blocks
-          const content = msg.message?.content
-          let toolUseId: string | undefined
-          let output = ""
-          let isError = false
-
-          if (Array.isArray(content)) {
-            for (const block of content) {
-              if (block.type === "tool_result") {
-                toolUseId = block.tool_use_id
-                isError = block.is_error ?? false
-                // Extract text from content
-                if (typeof block.content === "string") {
-                  output = block.content
-                } else if (Array.isArray(block.content)) {
-                  output = block.content
-                    .filter((c: any) => c.type === "text")
-                    .map((c: any) => c.text)
-                    .join("\n")
-                }
-              }
-            }
-          }
-
-          // Fallback 1: tool_use_id on the message itself (some SDK versions)
-          if (!toolUseId && msg.tool_use_id) {
-            toolUseId = msg.tool_use_id
-          }
-
-          // Fallback 2: extract output from tool_use_result directly
-          if (!toolUseId || !output) {
-            if (typeof msg.tool_use_result === "string") {
-              output = output || msg.tool_use_result
-            } else if (typeof msg.tool_use_result === "object" && msg.tool_use_result !== null) {
-              // SDK may wrap result in an object with content/error fields
-              const r = msg.tool_use_result as Record<string, unknown>
-              if (r.tool_use_id && !toolUseId) toolUseId = String(r.tool_use_id)
-              if (r.is_error) isError = true
-              if (r.content && !output) output = String(r.content)
-              if (r.error) {
-                isError = true
-                output = output || String(r.error)
-              }
-            }
-          }
-
-          // Fallback 3: check msg-level is_error flag
-          if (msg.is_error === true) {
-            isError = true
-          }
-
-          if (toolUseId) {
-            events.push({
-              type: "tool_use_end",
-              id: toolUseId,
-              output,
-              error: isError ? output : undefined,
-            })
-          } else {
-            // Last resort: find the most recently started tool that's still
-            // running and close it. Without this, the tool block spins forever
-            // because we can't match the result to its tool_use_start.
-            log.warn("Tool result missing tool_use_id — closing last running tool", {
-              keys: Object.keys(msg).join(","),
-              resultType: typeof msg.tool_use_result,
-              hasMessage: !!msg.message,
-              contentLength: Array.isArray(content) ? content.length : 0,
-            })
-            events.push({
-              type: "tool_use_end",
-              id: "__last_running__",
-              output,
-              error: isError ? output : undefined,
-            })
-          }
-        }
-        break
-      }
-
-      case "rate_limit_event":
-        // Rate limit info — not an error, just informational
-        log.debug("Rate limit event", { info: msg.rate_limit_info })
-        break
-
-      default:
-        // Log unhandled message types as warnings so we can add handlers
-        log.warn("Unhandled SDK message type", { type: msg.type, subtype: msg.subtype, keys: Object.keys(msg).join(",") })
-        events.push({
-          type: "backend_specific",
-          backend: "claude",
-          data: msg,
-        })
-    }
-
-    return events
-  }
-
-  private mapStreamEvent(event: any, parentToolUseId: string | null): AgentEvent[] {
-    const events: AgentEvent[] = []
-
-    switch (event.type) {
-      case "message_start":
-        events.push({ type: "turn_start" })
-        break
-
-      case "content_block_start": {
-        const block = event.content_block
-        if (block?.type === "tool_use") {
-          this.currentToolIds.set(event.index, block.id)
-          this.toolInputJsons.set(block.id, "")
-          events.push({
-            type: "tool_use_start",
-            id: block.id,
-            tool: block.name,
-            input: {},
-          })
-        }
-        // text and thinking blocks are just markers; content comes via deltas
-        break
-      }
-
-      case "content_block_delta": {
-        const delta = event.delta
-        if (delta?.type === "text_delta") {
-          events.push({ type: "text_delta", text: delta.text })
-        } else if (delta?.type === "thinking_delta") {
-          events.push({ type: "thinking_delta", text: delta.thinking })
-        } else if (delta?.type === "input_json_delta") {
-          // Accumulate tool input JSON fragments
-          const toolId = this.currentToolIds.get(event.index)
-          if (toolId) {
-            const prev = this.toolInputJsons.get(toolId) ?? ""
-            this.toolInputJsons.set(toolId, prev + delta.partial_json)
-          }
-        }
-        break
-      }
-
-      case "content_block_stop": {
-        const toolId = this.currentToolIds.get(event.index)
-        if (toolId) {
-          const jsonStr = this.toolInputJsons.get(toolId)
-          if (jsonStr) {
-            try {
-              const parsedInput = JSON.parse(jsonStr)
-              events.push({
-                type: "tool_use_progress",
-                id: toolId,
-                output: "",
-                input: parsedInput,
-              })
-            } catch {
-              // JSON parse failed — leave input as-is
-            }
-          }
-          this.currentToolIds.delete(event.index)
-          this.toolInputJsons.delete(toolId)
-        }
-        break
-      }
-
-      case "message_delta":
-        // Contains stop_reason and usage delta. Cost update.
-        if (event.usage) {
-          events.push({
-            type: "cost_update",
-            inputTokens: 0,
-            outputTokens: event.usage.output_tokens ?? 0,
-          })
-        }
-        break
-
-      case "message_stop":
-        // Message is complete. The result message follows with full usage.
-        break
-    }
-
-    return events
-  }
-
   // -----------------------------------------------------------------------
   // Private: Build SDK options from SessionConfig
   // -----------------------------------------------------------------------
@@ -710,123 +350,9 @@ export class ClaudeAdapter implements AgentBackend {
       allowedTools: config.allowedTools,
       disallowedTools: config.disallowedTools,
       additionalDirectories: config.additionalDirectories,
-      canUseTool: this.createCanUseTool(),
+      canUseTool: createCanUseTool(this.bridgeState),
       includePartialMessages: true,
     }
-  }
-
-  // -----------------------------------------------------------------------
-  // Private: canUseTool callback (permission + elicitation bridge)
-  // -----------------------------------------------------------------------
-
-  private createCanUseTool() {
-    return async (
-      toolName: string,
-      input: Record<string, unknown>,
-      options: any,
-    ): Promise<PermissionResult> => {
-      const id = options?.toolUseID ?? crypto.randomUUID()
-
-      // Detect AskUserQuestion (elicitation)
-      if (toolName === "AskUserQuestion") {
-        return this.handleElicitation(id, input)
-      }
-
-      // Normal permission request
-      return this.handlePermission(id, toolName, input, options)
-    }
-  }
-
-  private handlePermission(
-    id: string,
-    toolName: string,
-    input: Record<string, unknown>,
-    options: any,
-  ): Promise<PermissionResult> {
-    // Check session-level denials before prompting
-    if (this.sessionDeniedTools.has(toolName)) {
-      log.debug("Permission auto-denied by session deny list", { tool: toolName })
-      return Promise.resolve({
-        behavior: "deny" as const,
-        message: "Denied for session",
-        toolUseID: id,
-        decisionClassification: "user_reject" as const,
-      })
-    }
-
-    return new Promise<PermissionResult>((resolve, reject) => {
-      this.pendingPermissions.set(id, { resolve, reject, toolName, input })
-
-      // Push permission_request to the event channel so the TUI sees it
-      // immediately, even while the SDK is blocked waiting for canUseTool
-      this.eventChannel?.push({
-        type: "permission_request",
-        id,
-        tool: toolName,
-        input,
-        suggestions: options?.suggestions,
-        displayName: options?.displayName,
-        title: options?.title,
-        description: options?.description,
-        decisionReason: options?.decisionReason,
-        blockedPath: options?.blockedPath,
-      })
-    })
-  }
-
-  private handleElicitation(
-    id: string,
-    input: Record<string, unknown>,
-  ): Promise<PermissionResult> {
-    return new Promise<PermissionResult>((resolve, reject) => {
-      this.pendingElicitations.set(id, { resolve, reject })
-      // Store original input so respondToElicitation can build updatedInput
-      this.pendingElicitationInputs.set(id, input)
-
-      // Parse AskUserQuestion input into ElicitationQuestion[]
-      const questions = this.parseElicitationInput(input)
-
-      // Push elicitation_request to the event channel so the TUI sees it
-      // immediately, even while the SDK is blocked waiting for the callback
-      this.eventChannel?.push({
-        type: "elicitation_request",
-        id,
-        questions,
-      })
-    })
-  }
-
-  private parseElicitationInput(input: Record<string, unknown>): any[] {
-    // AskUserQuestionInput has: { questions: [{ question, header, options: [{ label, description, preview? }], multiSelect }] }
-    const questionsRaw = input.questions
-    if (!Array.isArray(questionsRaw) || questionsRaw.length === 0) {
-      // Fallback: try legacy single-question shape { question, options }
-      const question = (input.question as string) ?? "Choose an option"
-      const options = (input.options as any[]) ?? []
-      return [
-        {
-          question,
-          options: options.map((opt: any) => ({
-            label: typeof opt === "string" ? opt : (opt.label ?? String(opt)),
-            description: typeof opt === "object" ? opt.description : undefined,
-            preview: typeof opt === "object" ? opt.preview : undefined,
-          })),
-          allowFreeText: true,
-        },
-      ]
-    }
-
-    return questionsRaw.map((q: any) => ({
-      question: q.question ?? "Choose an option",
-      header: q.header,
-      options: (q.options ?? []).map((opt: any) => ({
-        label: opt.label ?? String(opt),
-        description: opt.description,
-        preview: opt.preview,
-      })),
-      multiSelect: q.multiSelect ?? false,
-      allowFreeText: true,
-    }))
   }
 
   // -----------------------------------------------------------------------

@@ -1,5 +1,8 @@
 import { describe, expect, it, mock, beforeEach } from "bun:test"
 import { ClaudeAdapter } from "../../src/backends/claude/adapter"
+import { mapSDKMessage, mapStreamEvent, ToolStreamState } from "../../src/backends/claude/event-mapper"
+import { parseElicitationInput, handlePermission, type PermissionBridgeState, type PendingPermission } from "../../src/backends/claude/permission-bridge"
+import { AsyncQueue } from "../../src/utils/async-queue"
 
 describe("ClaudeAdapter", () => {
   describe("capabilities", () => {
@@ -94,12 +97,11 @@ describe("ClaudeAdapter", () => {
   })
 
   describe("SDKMessage mapping", () => {
-    // These test the private mapSDKMessage method via its public effects.
-    // We test the mapping logic directly since it's the adapter's core value.
+    // These test the extracted mapSDKMessage function directly.
 
     it("maps system init message correctly", () => {
-      const adapter = new ClaudeAdapter()
-      const events = (adapter as any).mapSDKMessage({
+      const streamState = new ToolStreamState()
+      const events = mapSDKMessage({
         type: "system",
         subtype: "init",
         tools: ["Read", "Write", "Bash"],
@@ -107,7 +109,7 @@ describe("ClaudeAdapter", () => {
         cwd: "/tmp",
         uuid: "test-uuid",
         session_id: "test-session",
-      })
+      }, streamState)
 
       expect(events).toHaveLength(1)
       expect(events[0].type).toBe("session_init")
@@ -122,8 +124,8 @@ describe("ClaudeAdapter", () => {
     })
 
     it("maps result success to turn_complete", () => {
-      const adapter = new ClaudeAdapter()
-      const events = (adapter as any).mapSDKMessage({
+      const streamState = new ToolStreamState()
+      const events = mapSDKMessage({
         type: "result",
         subtype: "success",
         is_error: false,
@@ -135,7 +137,7 @@ describe("ClaudeAdapter", () => {
         total_cost_usd: 0.005,
         uuid: "test",
         session_id: "test",
-      })
+      }, streamState)
 
       expect(events).toHaveLength(1)
       expect(events[0].type).toBe("turn_complete")
@@ -146,8 +148,8 @@ describe("ClaudeAdapter", () => {
     })
 
     it("maps result error to error + turn_complete", () => {
-      const adapter = new ClaudeAdapter()
-      const events = (adapter as any).mapSDKMessage({
+      const streamState = new ToolStreamState()
+      const events = mapSDKMessage({
         type: "result",
         subtype: "error_max_turns",
         is_error: true,
@@ -156,7 +158,7 @@ describe("ClaudeAdapter", () => {
         total_cost_usd: 0.01,
         uuid: "test",
         session_id: "test",
-      })
+      }, streamState)
 
       expect(events).toHaveLength(2)
       expect(events[0].type).toBe("error")
@@ -165,13 +167,14 @@ describe("ClaudeAdapter", () => {
     })
 
     it("maps stream_event content_block_delta text_delta", () => {
-      const adapter = new ClaudeAdapter()
-      const events = (adapter as any).mapStreamEvent(
+      const streamState = new ToolStreamState()
+      const events = mapStreamEvent(
         {
           type: "content_block_delta",
           delta: { type: "text_delta", text: "Hello world" },
         },
         null,
+        streamState,
       )
 
       expect(events).toHaveLength(1)
@@ -179,13 +182,14 @@ describe("ClaudeAdapter", () => {
     })
 
     it("maps stream_event content_block_delta thinking_delta", () => {
-      const adapter = new ClaudeAdapter()
-      const events = (adapter as any).mapStreamEvent(
+      const streamState = new ToolStreamState()
+      const events = mapStreamEvent(
         {
           type: "content_block_delta",
           delta: { type: "thinking_delta", thinking: "Let me think..." },
         },
         null,
+        streamState,
       )
 
       expect(events).toHaveLength(1)
@@ -196,8 +200,8 @@ describe("ClaudeAdapter", () => {
     })
 
     it("maps stream_event content_block_start tool_use", () => {
-      const adapter = new ClaudeAdapter()
-      const events = (adapter as any).mapStreamEvent(
+      const streamState = new ToolStreamState()
+      const events = mapStreamEvent(
         {
           type: "content_block_start",
           content_block: {
@@ -207,6 +211,7 @@ describe("ClaudeAdapter", () => {
           },
         },
         null,
+        streamState,
       )
 
       expect(events).toHaveLength(1)
@@ -216,10 +221,11 @@ describe("ClaudeAdapter", () => {
     })
 
     it("maps stream_event message_start to turn_start", () => {
-      const adapter = new ClaudeAdapter()
-      const events = (adapter as any).mapStreamEvent(
+      const streamState = new ToolStreamState()
+      const events = mapStreamEvent(
         { type: "message_start" },
         null,
+        streamState,
       )
 
       expect(events).toHaveLength(1)
@@ -227,26 +233,26 @@ describe("ClaudeAdapter", () => {
     })
 
     it("maps compacting status to compact event", () => {
-      const adapter = new ClaudeAdapter()
-      const events = (adapter as any).mapSDKMessage({
+      const streamState = new ToolStreamState()
+      const events = mapSDKMessage({
         type: "system",
         subtype: "status",
         status: "compacting",
         uuid: "test",
         session_id: "test",
-      })
+      }, streamState)
 
       expect(events).toHaveLength(1)
       expect(events[0].type).toBe("compact")
     })
 
     it("maps rate_limit to recoverable error", () => {
-      const adapter = new ClaudeAdapter()
-      const events = (adapter as any).mapSDKMessage({
+      const streamState = new ToolStreamState()
+      const events = mapSDKMessage({
         type: "rate_limit",
         uuid: "test",
         session_id: "test",
-      })
+      }, streamState)
 
       expect(events).toHaveLength(1)
       expect(events[0].type).toBe("error")
@@ -254,13 +260,13 @@ describe("ClaudeAdapter", () => {
     })
 
     it("maps unknown message type to backend_specific", () => {
-      const adapter = new ClaudeAdapter()
-      const events = (adapter as any).mapSDKMessage({
+      const streamState = new ToolStreamState()
+      const events = mapSDKMessage({
         type: "some_future_type",
         data: "test",
         uuid: "test",
         session_id: "test",
-      })
+      }, streamState)
 
       expect(events).toHaveLength(1)
       expect(events[0].type).toBe("backend_specific")
@@ -268,8 +274,8 @@ describe("ClaudeAdapter", () => {
     })
 
     it("maps user tool_result with is_error to tool_use_end with error", () => {
-      const adapter = new ClaudeAdapter()
-      const events = (adapter as any).mapSDKMessage({
+      const streamState = new ToolStreamState()
+      const events = mapSDKMessage({
         type: "user",
         tool_use_result: true,
         message: {
@@ -283,7 +289,7 @@ describe("ClaudeAdapter", () => {
             },
           ],
         },
-      })
+      }, streamState)
 
       expect(events).toHaveLength(1)
       expect(events[0].type).toBe("tool_use_end")
@@ -292,13 +298,13 @@ describe("ClaudeAdapter", () => {
     })
 
     it("maps user tool_result with tool_use_id on msg directly", () => {
-      const adapter = new ClaudeAdapter()
-      const events = (adapter as any).mapSDKMessage({
+      const streamState = new ToolStreamState()
+      const events = mapSDKMessage({
         type: "user",
         tool_use_result: "some output",
         tool_use_id: "tool_fb_1",
         message: { role: "user", content: [] },
-      })
+      }, streamState)
 
       expect(events).toHaveLength(1)
       expect(events[0].type).toBe("tool_use_end")
@@ -307,8 +313,8 @@ describe("ClaudeAdapter", () => {
     })
 
     it("maps user tool_result with object tool_use_result containing error", () => {
-      const adapter = new ClaudeAdapter()
-      const events = (adapter as any).mapSDKMessage({
+      const streamState = new ToolStreamState()
+      const events = mapSDKMessage({
         type: "user",
         tool_use_result: {
           tool_use_id: "tool_obj_1",
@@ -317,7 +323,7 @@ describe("ClaudeAdapter", () => {
           content: "Permission denied",
         },
         message: { role: "user", content: [] },
-      })
+      }, streamState)
 
       expect(events).toHaveLength(1)
       expect(events[0].type).toBe("tool_use_end")
@@ -326,8 +332,8 @@ describe("ClaudeAdapter", () => {
     })
 
     it("maps user tool_result with msg-level is_error flag", () => {
-      const adapter = new ClaudeAdapter()
-      const events = (adapter as any).mapSDKMessage({
+      const streamState = new ToolStreamState()
+      const events = mapSDKMessage({
         type: "user",
         tool_use_result: "Timeout exceeded",
         is_error: true,
@@ -341,7 +347,7 @@ describe("ClaudeAdapter", () => {
             },
           ],
         },
-      })
+      }, streamState)
 
       expect(events).toHaveLength(1)
       expect(events[0].type).toBe("tool_use_end")
@@ -350,12 +356,12 @@ describe("ClaudeAdapter", () => {
     })
 
     it("emits tool_use_end with sentinel when tool_use_id cannot be determined", () => {
-      const adapter = new ClaudeAdapter()
-      const events = (adapter as any).mapSDKMessage({
+      const streamState = new ToolStreamState()
+      const events = mapSDKMessage({
         type: "user",
         tool_use_result: 42, // non-string, non-object
         message: { role: "user", content: [] },
-      })
+      }, streamState)
 
       expect(events).toHaveLength(1)
       expect(events[0].type).toBe("tool_use_end")
@@ -363,8 +369,8 @@ describe("ClaudeAdapter", () => {
     })
 
     it("maps user tool_result with array content blocks containing text", () => {
-      const adapter = new ClaudeAdapter()
-      const events = (adapter as any).mapSDKMessage({
+      const streamState = new ToolStreamState()
+      const events = mapSDKMessage({
         type: "user",
         tool_use_result: true,
         message: {
@@ -381,7 +387,7 @@ describe("ClaudeAdapter", () => {
             },
           ],
         },
-      })
+      }, streamState)
 
       expect(events).toHaveLength(1)
       expect(events[0].type).toBe("tool_use_end")
@@ -396,14 +402,14 @@ describe("ClaudeAdapter", () => {
   // -------------------------------------------------------------------------
 
   describe("context window bracket parsing", () => {
-    it("parses [1M context] → contextWindow: 1_000_000 and cleans model name", () => {
-      const adapter = new ClaudeAdapter()
-      const events = (adapter as any).mapSDKMessage({
+    it("parses [1M context] -> contextWindow: 1_000_000 and cleans model name", () => {
+      const streamState = new ToolStreamState()
+      const events = mapSDKMessage({
         type: "system",
         subtype: "init",
         model: "claude-opus-4-6 [1M context]",
         tools: [],
-      })
+      }, streamState)
 
       expect(events).toHaveLength(1)
       expect(events[0].type).toBe("session_init")
@@ -413,28 +419,28 @@ describe("ClaudeAdapter", () => {
       expect(events[0].models[0].contextWindow).toBe(1_000_000)
     })
 
-    it("parses [200K tokens] → contextWindow: 200_000", () => {
-      const adapter = new ClaudeAdapter()
-      const events = (adapter as any).mapSDKMessage({
+    it("parses [200K tokens] -> contextWindow: 200_000", () => {
+      const streamState = new ToolStreamState()
+      const events = mapSDKMessage({
         type: "system",
         subtype: "init",
         model: "claude-sonnet-4-6 [200K tokens]",
         tools: [],
-      })
+      }, streamState)
 
       expect(events).toHaveLength(1)
       expect(events[0].models[0].id).toBe("claude-sonnet-4-6")
       expect(events[0].models[0].contextWindow).toBe(200_000)
     })
 
-    it("model string without brackets → no contextWindow, name unchanged", () => {
-      const adapter = new ClaudeAdapter()
-      const events = (adapter as any).mapSDKMessage({
+    it("model string without brackets -> no contextWindow, name unchanged", () => {
+      const streamState = new ToolStreamState()
+      const events = mapSDKMessage({
         type: "system",
         subtype: "init",
         model: "claude-sonnet-4-6",
         tools: [],
-      })
+      }, streamState)
 
       expect(events).toHaveLength(1)
       expect(events[0].models[0].id).toBe("claude-sonnet-4-6")
@@ -442,14 +448,14 @@ describe("ClaudeAdapter", () => {
       expect(events[0].models[0].contextWindow).toBeUndefined()
     })
 
-    it("parses [8K context] → contextWindow: 8_000", () => {
-      const adapter = new ClaudeAdapter()
-      const events = (adapter as any).mapSDKMessage({
+    it("parses [8K context] -> contextWindow: 8_000", () => {
+      const streamState = new ToolStreamState()
+      const events = mapSDKMessage({
         type: "system",
         subtype: "init",
         model: "gpt-4o-mini [8K context]",
         tools: [],
-      })
+      }, streamState)
 
       expect(events).toHaveLength(1)
       expect(events[0].models[0].id).toBe("gpt-4o-mini")
@@ -463,38 +469,43 @@ describe("ClaudeAdapter", () => {
 
   describe("tool input JSON accumulation", () => {
     it("accumulates input_json_delta fragments and emits parsed input on content_block_stop", () => {
-      const adapter = new ClaudeAdapter()
+      const streamState = new ToolStreamState()
 
       // content_block_start: register the tool
-      const startEvents = (adapter as any).mapStreamEvent(
+      const startEvents = mapStreamEvent(
         {
           type: "content_block_start",
           index: 0,
           content_block: { type: "tool_use", id: "tool_json_1", name: "Read" },
         },
         null,
+        streamState,
       )
       expect(startEvents).toHaveLength(1)
       expect(startEvents[0].type).toBe("tool_use_start")
 
       // Three input_json_delta fragments
-      ;(adapter as any).mapStreamEvent(
+      mapStreamEvent(
         { type: "content_block_delta", index: 0, delta: { type: "input_json_delta", partial_json: '{"file' } },
         null,
+        streamState,
       )
-      ;(adapter as any).mapStreamEvent(
+      mapStreamEvent(
         { type: "content_block_delta", index: 0, delta: { type: "input_json_delta", partial_json: '":"src/' } },
         null,
+        streamState,
       )
-      ;(adapter as any).mapStreamEvent(
+      mapStreamEvent(
         { type: "content_block_delta", index: 0, delta: { type: "input_json_delta", partial_json: 'index.ts"}' } },
         null,
+        streamState,
       )
 
       // content_block_stop: should emit tool_use_progress with parsed JSON
-      const stopEvents = (adapter as any).mapStreamEvent(
+      const stopEvents = mapStreamEvent(
         { type: "content_block_stop", index: 0 },
         null,
+        streamState,
       )
 
       expect(stopEvents).toHaveLength(1)
@@ -504,26 +515,29 @@ describe("ClaudeAdapter", () => {
     })
 
     it("does not crash on invalid JSON — no tool_use_progress emitted with parsed input", () => {
-      const adapter = new ClaudeAdapter()
+      const streamState = new ToolStreamState()
 
-      ;(adapter as any).mapStreamEvent(
+      mapStreamEvent(
         {
           type: "content_block_start",
           index: 0,
           content_block: { type: "tool_use", id: "tool_bad_json", name: "Write" },
         },
         null,
+        streamState,
       )
 
-      ;(adapter as any).mapStreamEvent(
+      mapStreamEvent(
         { type: "content_block_delta", index: 0, delta: { type: "input_json_delta", partial_json: '{"incomplete: true' } },
         null,
+        streamState,
       )
 
       // content_block_stop with unparseable JSON — should not crash
-      const stopEvents = (adapter as any).mapStreamEvent(
+      const stopEvents = mapStreamEvent(
         { type: "content_block_stop", index: 0 },
         null,
+        streamState,
       )
 
       // No tool_use_progress emitted because JSON.parse failed
@@ -531,57 +545,65 @@ describe("ClaudeAdapter", () => {
     })
 
     it("tracks multiple concurrent tools at different event.index values independently", () => {
-      const adapter = new ClaudeAdapter()
+      const streamState = new ToolStreamState()
 
       // Start two tools at different indices
-      ;(adapter as any).mapStreamEvent(
+      mapStreamEvent(
         {
           type: "content_block_start",
           index: 0,
           content_block: { type: "tool_use", id: "tool_a", name: "Read" },
         },
         null,
+        streamState,
       )
-      ;(adapter as any).mapStreamEvent(
+      mapStreamEvent(
         {
           type: "content_block_start",
           index: 1,
           content_block: { type: "tool_use", id: "tool_b", name: "Write" },
         },
         null,
+        streamState,
       )
 
       // Interleave deltas
-      ;(adapter as any).mapStreamEvent(
+      mapStreamEvent(
         { type: "content_block_delta", index: 0, delta: { type: "input_json_delta", partial_json: '{"a":' } },
         null,
+        streamState,
       )
-      ;(adapter as any).mapStreamEvent(
+      mapStreamEvent(
         { type: "content_block_delta", index: 1, delta: { type: "input_json_delta", partial_json: '{"b":' } },
         null,
+        streamState,
       )
-      ;(adapter as any).mapStreamEvent(
+      mapStreamEvent(
         { type: "content_block_delta", index: 0, delta: { type: "input_json_delta", partial_json: "1}" } },
         null,
+        streamState,
       )
-      ;(adapter as any).mapStreamEvent(
+      mapStreamEvent(
         { type: "content_block_delta", index: 1, delta: { type: "input_json_delta", partial_json: "2}" } },
         null,
+        streamState,
       )
 
       // Stop tool_a
-      const stopA = (adapter as any).mapStreamEvent(
+      const stopA = mapStreamEvent(
         { type: "content_block_stop", index: 0 },
         null,
+        streamState,
       )
       expect(stopA).toHaveLength(1)
       expect(stopA[0].input).toEqual({ a: 1 })
       expect(stopA[0].id).toBe("tool_a")
 
       // Stop tool_b
-      const stopB = (adapter as any).mapStreamEvent(
+      const stopB = mapStreamEvent(
         { type: "content_block_stop", index: 1 },
         null,
+        streamState,
       )
       expect(stopB).toHaveLength(1)
       expect(stopB[0].input).toEqual({ b: 2 })
@@ -595,12 +617,12 @@ describe("ClaudeAdapter", () => {
 
   describe("task lifecycle mapping", () => {
     it("maps task_started to task_start event", () => {
-      const adapter = new ClaudeAdapter()
-      const events = (adapter as any).mapSDKMessage({
+      const streamState = new ToolStreamState()
+      const events = mapSDKMessage({
         type: "task_started",
         task_id: "task_1",
         description: "Running tests",
-      })
+      }, streamState)
 
       expect(events).toHaveLength(1)
       expect(events[0].type).toBe("task_start")
@@ -609,11 +631,11 @@ describe("ClaudeAdapter", () => {
     })
 
     it("maps task_started falls back to uuid when task_id missing", () => {
-      const adapter = new ClaudeAdapter()
-      const events = (adapter as any).mapSDKMessage({
+      const streamState = new ToolStreamState()
+      const events = mapSDKMessage({
         type: "task_started",
         uuid: "uuid_1",
-      })
+      }, streamState)
 
       expect(events).toHaveLength(1)
       expect(events[0].type).toBe("task_start")
@@ -622,12 +644,12 @@ describe("ClaudeAdapter", () => {
     })
 
     it("maps task_progress to task_progress event", () => {
-      const adapter = new ClaudeAdapter()
-      const events = (adapter as any).mapSDKMessage({
+      const streamState = new ToolStreamState()
+      const events = mapSDKMessage({
         type: "task_progress",
         task_id: "task_2",
         content: "50% complete",
-      })
+      }, streamState)
 
       expect(events).toHaveLength(1)
       expect(events[0].type).toBe("task_progress")
@@ -636,12 +658,12 @@ describe("ClaudeAdapter", () => {
     })
 
     it("maps task_notification to task_complete event", () => {
-      const adapter = new ClaudeAdapter()
-      const events = (adapter as any).mapSDKMessage({
+      const streamState = new ToolStreamState()
+      const events = mapSDKMessage({
         type: "task_notification",
         task_id: "task_3",
         content: "All tests passed",
-      })
+      }, streamState)
 
       expect(events).toHaveLength(1)
       expect(events[0].type).toBe("task_complete")
@@ -650,12 +672,12 @@ describe("ClaudeAdapter", () => {
     })
 
     it("maps task_notification falls back to result when content missing", () => {
-      const adapter = new ClaudeAdapter()
-      const events = (adapter as any).mapSDKMessage({
+      const streamState = new ToolStreamState()
+      const events = mapSDKMessage({
         type: "task_notification",
         task_id: "task_4",
         result: "Done",
-      })
+      }, streamState)
 
       expect(events).toHaveLength(1)
       expect(events[0].type).toBe("task_complete")
@@ -669,8 +691,7 @@ describe("ClaudeAdapter", () => {
 
   describe("parseElicitationInput", () => {
     it("parses modern format with questions array containing object options", () => {
-      const adapter = new ClaudeAdapter()
-      const result = (adapter as any).parseElicitationInput({
+      const result = parseElicitationInput({
         questions: [
           {
             question: "Pick one",
@@ -692,8 +713,7 @@ describe("ClaudeAdapter", () => {
     })
 
     it("falls back to legacy single-question shape when questions array is missing", () => {
-      const adapter = new ClaudeAdapter()
-      const result = (adapter as any).parseElicitationInput({
+      const result = parseElicitationInput({
         question: "Choose",
         options: ["X", "Y", "Z"],
       })
@@ -708,8 +728,7 @@ describe("ClaudeAdapter", () => {
     })
 
     it("falls back to legacy shape when questions array is empty", () => {
-      const adapter = new ClaudeAdapter()
-      const result = (adapter as any).parseElicitationInput({
+      const result = parseElicitationInput({
         questions: [],
         question: "Fallback question",
         options: ["A"],
@@ -721,8 +740,7 @@ describe("ClaudeAdapter", () => {
     })
 
     it("handles options that are objects vs strings in legacy format", () => {
-      const adapter = new ClaudeAdapter()
-      const result = (adapter as any).parseElicitationInput({
+      const result = parseElicitationInput({
         question: "Mixed",
         options: [
           "plain-string",
@@ -740,8 +758,7 @@ describe("ClaudeAdapter", () => {
     })
 
     it("defaults question text and options when legacy input is minimal", () => {
-      const adapter = new ClaudeAdapter()
-      const result = (adapter as any).parseElicitationInput({})
+      const result = parseElicitationInput({})
 
       expect(result).toHaveLength(1)
       expect(result[0].question).toBe("Choose an option")
@@ -749,8 +766,7 @@ describe("ClaudeAdapter", () => {
     })
 
     it("preserves multiSelect and header from modern format", () => {
-      const adapter = new ClaudeAdapter()
-      const result = (adapter as any).parseElicitationInput({
+      const result = parseElicitationInput({
         questions: [
           {
             question: "Select many",
@@ -768,15 +784,12 @@ describe("ClaudeAdapter", () => {
   })
 
   // -------------------------------------------------------------------------
-  // AsyncQueue internal (adapter's message queue)
+  // AsyncQueue (extracted utility)
   // -------------------------------------------------------------------------
 
   describe("AsyncQueue", () => {
-    // Access the private AsyncQueue class by creating an adapter and extracting its queue
     function createQueue() {
-      const adapter = new ClaudeAdapter()
-      // The messageQueue is an AsyncQueue<UserMessage>
-      return (adapter as any).messageQueue
+      return new AsyncQueue<{ text: string }>()
     }
 
     it("push then pull resolves immediately", async () => {
@@ -851,11 +864,12 @@ describe("ClaudeAdapter", () => {
       ;(adapter as any).eventChannel = new EventChannel()
 
       // Simulate a pending permission for the tool we'll deny
-      const firstPermPromise = (adapter as any).handlePermission(
+      const firstPermPromise = handlePermission(
         "perm_1",
         "Bash",
         { command: "rm -rf /" },
         {},
+        (adapter as any).bridgeState,
       )
 
       // Deny it with denyForSession
@@ -865,22 +879,24 @@ describe("ClaudeAdapter", () => {
       expect(firstResult.behavior).toBe("deny")
 
       // Now a second permission request for the same tool should be auto-denied
-      const secondResult = await (adapter as any).handlePermission(
+      const secondResult = await handlePermission(
         "perm_2",
         "Bash",
         { command: "ls" },
         {},
+        (adapter as any).bridgeState,
       )
 
       expect(secondResult.behavior).toBe("deny")
       expect(secondResult.message).toBe("Denied for session")
 
       // A different tool should still prompt (not auto-denied)
-      const thirdPermPromise = (adapter as any).handlePermission(
+      const thirdPermPromise = handlePermission(
         "perm_3",
         "Read",
         { file: "test.txt" },
         {},
+        (adapter as any).bridgeState,
       )
 
       // The promise should be pending (not auto-resolved)

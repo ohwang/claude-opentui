@@ -26,6 +26,12 @@ import { readClipboard } from "../../utils/clipboard"
 
 const commandRegistry = createCommandRegistry()
 
+/** Truncate a file path to fit the terminal, showing the tail end */
+function truncatePath(path: string, maxLen: number = 70): string {
+  if (path.length <= maxLen) return path
+  return "..." + path.slice(-(maxLen - 3))
+}
+
 /** Discriminated union for autocomplete modes */
 type AutocompleteMode = "slash" | "file" | null
 
@@ -651,7 +657,7 @@ export function InputArea() {
                   attributes={index() === selectedIndex() ? TextAttributes.BOLD : 0}
                   fg={index() === selectedIndex() ? "cyan" : "white"}
                 >
-                  {autocompleteMode() === "file" ? item.name : `/${item.name}`}
+                  {autocompleteMode() === "file" ? truncatePath(item.name) : `/${item.name}`}
                 </text>
                 <text fg="gray" attributes={index() !== selectedIndex() ? TextAttributes.DIM : 0}>
                   {"  \u2013  "}{item.description}

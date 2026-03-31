@@ -18,7 +18,7 @@ export const colors = {
   // -- Backgrounds --------------------------------------------------------
   bg: {
     primary: "#1e1e2e",      // Terminal default (not set, inherited)
-    surface: "#303040",      // User message background (slightly visible against terminal default)
+    surface: "#35354a",      // User message background (visible blue tint against terminal default)
     overlay: "#1a1a2e",      // Popup/overlay background (diagnostics)
     selection: "#4a4a6a",    // Text selection highlight
   },

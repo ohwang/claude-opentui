@@ -15,6 +15,7 @@ import { writeFileSync, readFileSync, unlinkSync } from "fs"
 import { useAgent } from "../context/agent"
 import { useSession } from "../context/session"
 import { useSync } from "../context/sync"
+import { useMessages } from "../context/messages"
 import { createCommandRegistry, type SlashCommand } from "../../commands/registry"
 import { triggerCleanExit, toggleDiagnostics } from "../app"
 import { log } from "../../utils/logger"
@@ -126,6 +127,7 @@ export function InputArea() {
   const agent = useAgent()
   const { state: session } = useSession()
   const sync = useSync()
+  const { state: messagesState } = useMessages()
   const renderer = useRenderer()
   let textareaRef: TextareaRenderable | undefined
 
@@ -283,6 +285,7 @@ export function InputArea() {
         currentModel: session.currentModel,
         session: session.session,
       }),
+      getBlocks: () => messagesState.blocks,
     })
 
     if (!handled) {

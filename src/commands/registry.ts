@@ -7,7 +7,7 @@
  * Supports fuzzy matching for command palette UX.
  */
 
-import type { AgentBackend, CostTotals, SessionConfig, SessionMetadata } from "../protocol/types"
+import type { AgentBackend, Block, CostTotals, SessionConfig, SessionMetadata } from "../protocol/types"
 
 export interface CommandContext {
   backend: AgentBackend
@@ -18,6 +18,7 @@ export interface CommandContext {
   exit?: () => void
   toggleDiagnostics?: () => void
   getSessionState?: () => { cost: CostTotals; turnNumber: number; currentModel: string; session: SessionMetadata | null }
+  getBlocks?: () => Block[]
 }
 
 export interface SlashCommand {
@@ -99,9 +100,14 @@ function formatTokens(n: number): string {
   return String(n)
 }
 
+import { copyCommand } from "./builtin/copy"
+
 /** Create a registry with all built-in commands */
 export function createCommandRegistry(): CommandRegistry {
   const registry = new CommandRegistry()
+
+  // /copy
+  registry.register(copyCommand)
 
   // /help
   registry.register({

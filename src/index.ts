@@ -22,6 +22,12 @@ import type { AgentBackend } from "./protocol/types"
 const VERSION = "0.0.1"
 
 async function main() {
+  // Capture the actual launch directory before anything (SDK, plugins) can
+  // change it.  This is the CWD the user sees in their shell when they run
+  // the command — it must be preserved for the header bar display and for
+  // the backend so file operations target the correct directory.
+  const launchCwd = process.cwd()
+
   const flags = parseFlags(process.argv)
 
   if (flags.help) {
@@ -34,11 +40,18 @@ async function main() {
     process.exit(0)
   }
 
+  // Default config.cwd to the actual launch directory when not overridden
+  // by --cwd.  Without this, config.cwd is undefined and the SDK resolves
+  // the git repo root instead, which is wrong for worktrees and subdirs.
+  if (!flags.config.cwd) {
+    flags.config.cwd = launchCwd
+  }
+
   // Configure logging
   if (flags.debug) {
     log.setLevel("debug")
   }
-  log.info("Starting claude-opentui", { version: VERSION, backend: flags.backend, debug: flags.debug })
+  log.info("Starting claude-opentui", { version: VERSION, backend: flags.backend, debug: flags.debug, cwd: flags.config.cwd })
   log.debug("Session config", flags.config)
 
   // Print session ID on exit so users can correlate with log files

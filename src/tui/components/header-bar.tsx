@@ -9,6 +9,7 @@
  */
 
 import { homedir } from "node:os"
+import { resolve } from "node:path"
 import { TextAttributes } from "@opentui/core"
 import { useSession } from "../context/session"
 import { useAgent } from "../context/agent"
@@ -41,7 +42,9 @@ export function HeaderBar() {
   const { state } = useSession()
   const agent = useAgent()
 
-  const projectPath = process.cwd().replace(homedir(), "~")
+  // Use the CWD from config (captured at launch) rather than process.cwd(),
+  // which may have been changed by the SDK or plugins after startup.
+  const projectPath = resolve(agent.config.cwd ?? process.cwd()).replace(homedir(), "~")
 
   const modelInfo = () => {
     // Prefer session metadata model name, fall back to config

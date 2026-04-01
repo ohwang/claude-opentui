@@ -35,12 +35,16 @@ describe("Codex Event Mapper", () => {
 
     it("maps thread/tokenUsage/updated to cost_update", () => {
       const events = mapCodexNotification("thread/tokenUsage/updated", {
-        usage: { inputTokens: 100, outputTokens: 50, cachedInputTokens: 10 },
+        tokenUsage: {
+          last: { inputTokens: 100, outputTokens: 50, cachedInputTokens: 10 },
+          total: { inputTokens: 200, outputTokens: 100, cachedInputTokens: 20 },
+        },
       })
 
       expect(events).toHaveLength(1)
       expect(events[0].type).toBe("cost_update")
       const cost = events[0] as any
+      // Should prefer .last over .total
       expect(cost.inputTokens).toBe(100)
       expect(cost.outputTokens).toBe(50)
       expect(cost.cacheReadTokens).toBe(10)

@@ -132,7 +132,7 @@ describe("Gemini Event Mapper", () => {
   })
 
   describe("turn lifecycle", () => {
-    it("maps Finished to turn_complete with usage", () => {
+    it("maps Finished to cost_update + turn_complete with usage", () => {
       const events = mapGeminiEvent({
         type: GeminiEventType.Finished,
         value: {
@@ -144,8 +144,15 @@ describe("Gemini Event Mapper", () => {
           },
         },
       })
-      expect(events).toHaveLength(1)
-      const complete = events[0] as any
+      expect(events).toHaveLength(2)
+      // First event: cost_update for running token totals
+      const costUpdate = events[0] as any
+      expect(costUpdate.type).toBe("cost_update")
+      expect(costUpdate.inputTokens).toBe(100)
+      expect(costUpdate.outputTokens).toBe(50)
+      expect(costUpdate.cacheReadTokens).toBe(10)
+      // Second event: turn_complete with authoritative usage
+      const complete = events[1] as any
       expect(complete.type).toBe("turn_complete")
       expect(complete.usage.inputTokens).toBe(100)
       expect(complete.usage.outputTokens).toBe(50)

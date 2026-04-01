@@ -24,7 +24,7 @@ describe("Codex SDK Event Mapper", () => {
       expect(events).toHaveLength(0)
     })
 
-    it("maps turn.completed to turn_complete with usage", () => {
+    it("maps turn.completed to cost_update + turn_complete with usage", () => {
       const events = mapper.map({
         type: "turn.completed",
         usage: {
@@ -33,8 +33,15 @@ describe("Codex SDK Event Mapper", () => {
           output_tokens: 50,
         },
       })
-      expect(events).toHaveLength(1)
-      const complete = events[0] as any
+      expect(events).toHaveLength(2)
+      // First event: cost_update for running token totals
+      const costUpdate = events[0] as any
+      expect(costUpdate.type).toBe("cost_update")
+      expect(costUpdate.inputTokens).toBe(100)
+      expect(costUpdate.outputTokens).toBe(50)
+      expect(costUpdate.cacheReadTokens).toBe(20)
+      // Second event: turn_complete with authoritative usage
+      const complete = events[1] as any
       expect(complete.type).toBe("turn_complete")
       expect(complete.usage.inputTokens).toBe(100)
       expect(complete.usage.outputTokens).toBe(50)

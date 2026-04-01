@@ -48,8 +48,6 @@ import {
   type PermissionBridgeState,
 } from "./permission-bridge"
 
-const trace = backendTrace.scoped("claude-v2")
-
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------

@@ -277,7 +277,7 @@ export function ConversationView(props: { children?: JSX.Element }) {
             CodeRenderable sub-blocks to re-highlight from scratch, leaving
             text invisible for 1+ frames while async tree-sitter completes. */}
         <box flexDirection="column">
-          <box flexDirection="row" marginTop={state.streamingText ? 1 : 0} visible={!!state.streamingText}>
+          <box flexDirection="row" marginTop={1} visible={!!state.streamingText}>
             <box width={2} flexShrink={0}>
               <text fg={colors.text.white}>{"\u23FA"}</text>
             </box>

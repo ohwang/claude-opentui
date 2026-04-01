@@ -15,7 +15,6 @@ const TIPS: Record<string, string[]> = {
   IDLE: [
     "Type a message and press Enter to send",
     "/help for commands \u00b7 Ctrl+P to switch models \u00b7 Shift+Tab for permission mode",
-    "Ctrl+D twice to exit \u00b7 /new to start fresh",
   ],
   RUNNING: [
     "Ctrl+C to interrupt \u00b7 Ctrl+O to expand tool output",

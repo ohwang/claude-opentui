@@ -491,18 +491,20 @@ export class ClaudeV2Adapter implements AgentBackend {
       permissionMode: config.permissionMode,
       resume: !!config.resume,
     })
+    // NOTE: SDKSessionOptions (V2) is far more limited than V1's Options type.
+    // The V2 createSession() hardcodes settingSources:[] internally, which means
+    // user/project skills, CLAUDE.md files, and settings.json are NOT loaded.
+    // Fields like cwd, systemPrompt, maxTurns, mcpServers, additionalDirectories,
+    // and settingSources are silently ignored even if passed here.
+    // This is a feature gap in the TS SDK V2 — the Go SDK's V2 supports these
+    // via WithSettingSources() and the full Options struct.
+    // TODO: Revisit when SDK stabilizes V2, or blend V1 query() for session
+    // setup with V2 send()/stream() for turn control.
     const options = {
       model: config.model,
       permissionMode: config.permissionMode,
-      cwd: config.cwd,
-      systemPrompt: config.systemPrompt,
-      maxTurns: config.maxTurns,
-      maxBudgetUsd: config.maxBudgetUsd,
-      mcpServers: config.mcpServers,
       allowedTools: config.allowedTools,
       disallowedTools: config.disallowedTools,
-      additionalDirectories: config.additionalDirectories,
-      settingSources: ["user", "project", "local"],
       canUseTool: createCanUseTool(this.bridgeState),
     }
     this.lastSessionOptions = options

@@ -20,7 +20,7 @@ import { syntaxStyle } from "../theme"
 import { colors } from "../theme/tokens"
 import { HeaderBar } from "./header-bar"
 import type { Block } from "../../protocol/types"
-import { refocusInput, registerScrollToBottom } from "./input-area"
+import { refocusInput, blurInput, registerScrollToBottom } from "./input-area"
 import { StreamingSpinner } from "./streaming-spinner"
 import { type ViewLevel } from "./tool-view"
 import { BlockView } from "./block-view"
@@ -197,17 +197,25 @@ export function ConversationView(props: { children?: JSX.Element }) {
       scrollboxRef?.scrollBy(-3)
       setUserScrolledAway(true)
       showScrollbarBriefly()
-      refocusInput()
+      blurInput()  // Hide cursor when scrolled away from input
     }
     if (event.ctrl && event.name === "down") {
       event.preventDefault()
       scrollboxRef?.scrollBy(3)
-      // Only re-engage auto-scroll if we've actually reached the bottom
+      // Only re-engage auto-scroll and refocus when back at bottom
       if (scrollboxRef && isNearBottom(scrollboxRef)) {
         setUserScrolledAway(false)
+        refocusInput()
       }
       showScrollbarBriefly()
+    }
+
+    // Auto-scroll to bottom and refocus on any printable input while scrolled away
+    if (userScrolledAway() && !event.ctrl && !event.option && !event.meta && event.name.length === 1) {
+      scrollboxRef?.scrollBy(999999)
+      setUserScrolledAway(false)
       refocusInput()
+      // Don't preventDefault — let the keystroke reach the textarea
     }
   })
 

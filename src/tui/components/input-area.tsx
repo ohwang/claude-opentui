@@ -93,6 +93,14 @@ export function refocusInput(): void {
 }
 
 /**
+ * Blur the textarea so the cursor disappears.
+ * Called when the user scrolls away from the input area (Ctrl+Up).
+ */
+export function blurInput(): void {
+  _sharedTextareaRef?.blur()
+}
+
+/**
  * Register a callback to scroll the viewport to bottom.
  * Called by ConversationView to avoid circular imports.
  */

@@ -27,6 +27,9 @@ export interface CLIFlags {
 
   /** Enable debug output */
   debug: boolean
+
+  /** Enable raw backend JSONL tracing */
+  debugBackend: boolean
 }
 
 /**
@@ -50,11 +53,12 @@ export function parseFlags(argv: string[]): CLIFlags {
     help: false,
     version: false,
     debug: false,
+    debugBackend: false,
   }
 
   let i = 0
   while (i < args.length) {
-    const arg = args[i]
+    const arg = args[i]!
 
     switch (arg) {
       case "--help":
@@ -69,6 +73,10 @@ export function parseFlags(argv: string[]): CLIFlags {
 
       case "--debug":
         flags.debug = true
+        break
+
+      case "--debug-backend":
+        flags.debugBackend = true
         break
 
       // Session management
@@ -173,5 +181,6 @@ Options:
   --cwd <path>            Working directory
   --system-prompt <text>  System prompt
   --debug                 Enable debug output
+  --debug-backend         Write raw backend JSONL trace
 `)
 }

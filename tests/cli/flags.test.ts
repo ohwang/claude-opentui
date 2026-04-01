@@ -19,6 +19,7 @@ describe("parseFlags", () => {
       expect(result.help).toBe(false)
       expect(result.version).toBe(false)
       expect(result.debug).toBe(false)
+      expect(result.debugBackend).toBe(false)
       expect(result.prompt).toBeUndefined()
     })
   })
@@ -109,6 +110,11 @@ describe("parseFlags", () => {
     it("--debug sets debug to true", () => {
       const result = parseFlags(argv("--debug"))
       expect(result.debug).toBe(true)
+    })
+
+    it("--debug-backend sets debugBackend to true", () => {
+      const result = parseFlags(argv("--debug-backend"))
+      expect(result.debugBackend).toBe(true)
     })
   })
 

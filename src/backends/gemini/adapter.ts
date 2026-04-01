@@ -29,6 +29,10 @@ import type {
 } from "../../protocol/types"
 import { EventChannel } from "../../utils/event-channel"
 import { AsyncQueue } from "../../utils/async-queue"
+import { backendTrace } from "../../utils/backend-trace"
+
+const trace = backendTrace.scoped("gemini")
+
 import { mapGeminiEvent } from "./event-mapper"
 import type {
   IGeminiCliAgent,
@@ -117,6 +121,12 @@ export class GeminiAdapter implements AgentBackend {
   }
 
   sendMessage(message: UserMessage): void {
+    trace.write({
+      dir: "out",
+      stage: "adapter_event",
+      type: "sendMessage",
+      payload: message,
+    })
     this.messageQueue.push(message)
   }
 
@@ -220,13 +230,31 @@ export class GeminiAdapter implements AgentBackend {
         model: agentOptions.model,
         cwd: agentOptions.cwd,
       })
+      trace.write({
+        dir: "out",
+        stage: "sdk_call",
+        type: "GeminiCliAgent",
+        payload: agentOptions,
+      })
       this.agent = new sdk.GeminiCliAgent(agentOptions)
 
       // 3. Create or resume session
       if (resumeSessionId) {
         log.info("Resuming Gemini session", { sessionId: resumeSessionId })
+        trace.write({
+          dir: "out",
+          stage: "sdk_call",
+          type: "resumeSession",
+          payload: { sessionId: resumeSessionId },
+        })
         this.session = await this.agent.resumeSession(resumeSessionId)
       } else {
+        trace.write({
+          dir: "out",
+          stage: "sdk_call",
+          type: "session",
+          payload: {},
+        })
         this.session = this.agent.session()
       }
       log.info("Gemini session created", { sessionId: this.session.id })
@@ -273,9 +301,21 @@ export class GeminiAdapter implements AgentBackend {
     log.info("Starting Gemini turn", { promptLength: prompt.length })
 
     // Emit turn_start
+    trace.write({
+      dir: "internal",
+      stage: "adapter_event",
+      type: "turn_start",
+      payload: { prompt },
+    })
     this.eventChannel?.push({ type: "turn_start" })
 
     try {
+      trace.write({
+        dir: "out",
+        stage: "sdk_call",
+        type: "sendStream",
+        payload: { prompt },
+      })
       const stream = this.session.sendStream(prompt, this.abortController.signal)
 
       // Guard: if the stream produces no events within FIRST_EVENT_TIMEOUT_MS,
@@ -302,12 +342,25 @@ export class GeminiAdapter implements AgentBackend {
           if (this.closed) break
 
           log.debug("Gemini stream event", { type: event.type })
+          trace.write({
+            dir: "in",
+            stage: "sdk_event",
+            type: event.type,
+            payload: event,
+          })
 
           const mapped = mapGeminiEvent(event)
           if (mapped.length === 0) {
             log.debug("Gemini event produced no mapped events", { type: event.type })
           }
           for (const agentEvent of mapped) {
+            trace.write({
+              dir: "internal",
+              stage: "mapped_event",
+              type: agentEvent.type,
+              payload: agentEvent,
+              meta: { sourceType: event.type },
+            })
             this.eventChannel?.push(agentEvent)
           }
         }

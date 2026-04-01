@@ -30,6 +30,10 @@ import type {
 } from "../../protocol/types"
 import { EventChannel } from "../../utils/event-channel"
 import { AsyncQueue } from "../../utils/async-queue"
+import { backendTrace } from "../../utils/backend-trace"
+
+const trace = backendTrace.scoped("codex")
+
 import { JsonRpcTransport } from "./jsonrpc-transport"
 import { mapCodexNotification } from "./event-mapper"
 
@@ -131,6 +135,12 @@ export class CodexAdapter implements AgentBackend {
   }
 
   sendMessage(message: UserMessage): void {
+    trace.write({
+      dir: "out",
+      stage: "adapter_event",
+      type: "sendMessage",
+      payload: message,
+    })
     this.messageQueue.push(message)
   }
 
@@ -472,6 +482,13 @@ export class CodexAdapter implements AgentBackend {
       log.debug("Codex notification produced no events", { method })
     }
     for (const event of events) {
+      trace.write({
+        dir: "internal",
+        stage: "mapped_event",
+        type: event.type,
+        payload: event,
+        meta: { sourceMethod: method },
+      })
       this.eventChannel?.push(event)
     }
 
@@ -496,6 +513,12 @@ export class CodexAdapter implements AgentBackend {
     params: any,
   ): void {
     log.info("Codex server request", { method, rpcId })
+    trace.write({
+      dir: "internal",
+      stage: "adapter_event",
+      type: "server_request",
+      payload: { rpcId, method, params },
+    })
 
     switch (method) {
       case "item/commandExecution/requestApproval": {

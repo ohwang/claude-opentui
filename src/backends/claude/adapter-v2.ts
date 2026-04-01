@@ -35,6 +35,10 @@ import type {
 } from "../../protocol/types"
 import { EventChannel } from "../../utils/event-channel"
 import { AsyncQueue } from "../../utils/async-queue"
+import { backendTrace } from "../../utils/backend-trace"
+
+const trace = backendTrace.scoped("claude-v2")
+
 import { mapSDKMessage, ToolStreamState, type MapperOptions } from "./event-mapper"
 import {
   createCanUseTool,
@@ -113,6 +117,12 @@ export class ClaudeV2Adapter implements AgentBackend {
     const options = this.buildOptions(config)
 
     log.info("Creating V2 session", { model: options.model })
+    trace.write({
+      dir: "out",
+      stage: "sdk_call",
+      type: "createSession",
+      payload: options,
+    })
     this.session = unstable_v2_createSession(options)
 
     yield* this.runSessionLoop(config)
@@ -123,12 +133,24 @@ export class ClaudeV2Adapter implements AgentBackend {
     const options = this.buildOptions(config)
 
     log.info("Resuming V2 session", { sessionId })
+    trace.write({
+      dir: "out",
+      stage: "sdk_call",
+      type: "resumeSession",
+      payload: { sessionId, options },
+    })
     this.session = unstable_v2_resumeSession(sessionId, options)
 
     yield* this.runSessionLoop(config)
   }
 
   sendMessage(message: UserMessage): void {
+    trace.write({
+      dir: "out",
+      stage: "adapter_event",
+      type: "sendMessage",
+      payload: message,
+    })
     this.messageQueue.push(message)
   }
 
@@ -324,6 +346,12 @@ export class ClaudeV2Adapter implements AgentBackend {
       try {
         // If there's an initial prompt, send it to kick off the first turn
         if (config.initialPrompt) {
+          trace.write({
+            dir: "out",
+            stage: "sdk_call",
+            type: "session.send",
+            payload: config.initialPrompt,
+          })
           await this.session!.send(config.initialPrompt)
           await this.streamTurn()
         }
@@ -337,12 +365,25 @@ export class ClaudeV2Adapter implements AgentBackend {
             // If session was closed by interrupt, resume it
             if (!this.session && this.lastSessionId) {
               log.info("Resuming V2 session after interrupt", { sessionId: this.lastSessionId })
+              trace.write({
+                dir: "out",
+                stage: "sdk_call",
+                type: "resumeSession",
+                payload: { sessionId: this.lastSessionId, options: this.lastSessionOptions },
+              })
               this.session = unstable_v2_resumeSession(this.lastSessionId, this.lastSessionOptions)
               this.interrupted = false
             }
             if (!this.session) break
 
-            await this.session.send(this.toSDKMessage(message))
+            const sdkMessage = this.toSDKMessage(message)
+            trace.write({
+              dir: "out",
+              stage: "sdk_call",
+              type: "session.send",
+              payload: sdkMessage,
+            })
+            await this.session.send(sdkMessage)
             await this.streamTurn()
           } catch (err) {
             // Queue closed or session ended
@@ -402,6 +443,12 @@ export class ClaudeV2Adapter implements AgentBackend {
             eventType: (msg as any).event?.type,
           }),
         })
+        trace.write({
+          dir: "in",
+          stage: "sdk_event",
+          type: msg.type,
+          payload: msg,
+        })
         // Capture session ID from the running session for resume-after-interrupt
         if (!this.lastSessionId && this.session) {
           try { this.lastSessionId = this.session.sessionId } catch {}
@@ -409,6 +456,13 @@ export class ClaudeV2Adapter implements AgentBackend {
 
         const events = mapSDKMessage(msg, this.streamState, this.mapperOptions)
         for (const event of events) {
+          trace.write({
+            dir: "internal",
+            stage: "mapped_event",
+            type: event.type,
+            payload: event,
+            meta: { sourceType: msg.type },
+          })
           this.eventChannel.push(event)
         }
       }

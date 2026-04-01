@@ -33,6 +33,10 @@ import type {
 } from "../../protocol/types"
 import { EventChannel } from "../../utils/event-channel"
 import { AsyncQueue } from "../../utils/async-queue"
+import { backendTrace } from "../../utils/backend-trace"
+
+const trace = backendTrace.scoped("codex-sdk")
+
 import { CodexSdkEventMapper } from "./event-mapper"
 import type {
   ICodex,
@@ -136,6 +140,12 @@ export class CodexSdkAdapter implements AgentBackend {
   }
 
   sendMessage(message: UserMessage): void {
+    trace.write({
+      dir: "out",
+      stage: "adapter_event",
+      type: "sendMessage",
+      payload: message,
+    })
     this.messageQueue.push(message)
   }
 
@@ -240,9 +250,21 @@ export class CodexSdkAdapter implements AgentBackend {
       // 4. Create or resume thread
       if (resumeSessionId) {
         log.info("Resuming Codex SDK thread", { threadId: resumeSessionId })
+        trace.write({
+          dir: "out",
+          stage: "sdk_call",
+          type: "resumeThread",
+          payload: { threadId: resumeSessionId, options: threadOptions },
+        })
         this.thread = this.codex.resumeThread(resumeSessionId, threadOptions)
       } else {
         log.info("Starting Codex SDK thread", { model: threadOptions.model })
+        trace.write({
+          dir: "out",
+          stage: "sdk_call",
+          type: "startThread",
+          payload: { options: threadOptions },
+        })
         this.thread = this.codex.startThread(threadOptions)
       }
 
@@ -289,9 +311,21 @@ export class CodexSdkAdapter implements AgentBackend {
     log.info("Starting Codex SDK turn", { promptLength: prompt.length })
 
     // Emit synthetic turn_start before the stream begins
+    trace.write({
+      dir: "internal",
+      stage: "adapter_event",
+      type: "turn_start",
+      payload: { prompt },
+    })
     this.eventChannel?.push({ type: "turn_start" })
 
     try {
+      trace.write({
+        dir: "out",
+        stage: "sdk_call",
+        type: "runStreamed",
+        payload: { prompt },
+      })
       const { events } = await this.thread.runStreamed(prompt, {
         signal: this.abortController.signal,
       })
@@ -317,9 +351,22 @@ export class CodexSdkAdapter implements AgentBackend {
           if (this.closed) break
 
           log.debug("Codex SDK stream event", { type: event.type })
+          trace.write({
+            dir: "in",
+            stage: "sdk_event",
+            type: event.type,
+            payload: event,
+          })
 
           const mapped = this.eventMapper.map(event)
           for (const agentEvent of mapped) {
+            trace.write({
+              dir: "internal",
+              stage: "mapped_event",
+              type: agentEvent.type,
+              payload: agentEvent,
+              meta: { sourceType: event.type },
+            })
             this.eventChannel?.push(agentEvent)
           }
         }

@@ -25,6 +25,10 @@ import type {
 } from "../../protocol/types"
 import { EventChannel } from "../../utils/event-channel"
 import { AsyncQueue } from "../../utils/async-queue"
+import { backendTrace } from "../../utils/backend-trace"
+
+const trace = backendTrace.scoped("claude")
+
 import { mapSDKMessage, ToolStreamState } from "./event-mapper"
 import {
   createCanUseTool,
@@ -106,6 +110,12 @@ export class ClaudeAdapter implements AgentBackend {
     const messageIterable = this.createMessageIterable(config)
 
     // Start the query
+    trace.write({
+      dir: "out",
+      stage: "sdk_call",
+      type: "query",
+      payload: { options },
+    })
     this.activeQuery = sdkQuery({
       prompt: messageIterable,
       options,
@@ -121,6 +131,12 @@ export class ClaudeAdapter implements AgentBackend {
   }
 
   sendMessage(message: UserMessage): void {
+    trace.write({
+      dir: "out",
+      stage: "adapter_event",
+      type: "sendMessage",
+      payload: message,
+    })
     this.messageQueue.push(message)
   }
 
@@ -321,8 +337,21 @@ export class ClaudeAdapter implements AgentBackend {
               eventType: (msg as any).event?.type,
             }),
           })
+          trace.write({
+            dir: "in",
+            stage: "sdk_event",
+            type: msg.type,
+            payload: msg,
+          })
           const events = mapSDKMessage(msg, this.streamState)
           for (const event of events) {
+            trace.write({
+              dir: "internal",
+              stage: "mapped_event",
+              type: event.type,
+              payload: event,
+              meta: { sourceType: msg.type },
+            })
             this.eventChannel?.push(event)
           }
         }
@@ -402,7 +431,14 @@ export class ClaudeAdapter implements AgentBackend {
     while (!this.closed) {
       try {
         const message = await this.messageQueue.pull()
-        yield this.toSDKUserMessage(message)
+        const sdkMessage = this.toSDKUserMessage(message)
+        trace.write({
+          dir: "out",
+          stage: "sdk_call",
+          type: "prompt",
+          payload: sdkMessage,
+        })
+        yield sdkMessage
       } catch {
         break
       }

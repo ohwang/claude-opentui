@@ -20,6 +20,7 @@ import { GeminiAdapter } from "./backends/gemini/adapter"
 import { MockAdapter } from "./backends/mock/adapter"
 import { startApp } from "./tui/app"
 import { log } from "./utils/logger"
+import { backendTrace } from "./utils/backend-trace"
 import type { AgentBackend } from "./protocol/types"
 
 const VERSION = "0.0.1"
@@ -54,12 +55,16 @@ async function main() {
   if (flags.debug) {
     log.setLevel("debug")
   }
+  backendTrace.setEnabled(flags.debugBackend)
   log.info("Starting claude-opentui", { version: VERSION, backend: flags.backend, debug: flags.debug, cwd: flags.config.cwd })
   log.debug("Session config", flags.config)
 
   // Print session ID on exit so users can correlate with log files
   process.on("exit", () => {
     process.stdout.write(`\nSession: ${log.getSessionId()} | Log: ${log.getLogFile()}\n`)
+    if (backendTrace.isEnabled()) {
+      process.stdout.write(`Backend trace: ${backendTrace.getFilePath()}\n`)
+    }
   })
 
   // Create backend
@@ -97,6 +102,7 @@ async function main() {
   const cleanup = () => {
     log.info("Cleanup: closing backend")
     backend.close()
+    backendTrace.close()
   }
 
   // Replace the early no-op SIGINT handler with a safety-net that only fires

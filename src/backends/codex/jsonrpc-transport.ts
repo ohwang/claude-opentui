@@ -13,6 +13,9 @@
 
 import { spawn, type ChildProcess } from "child_process"
 import { log } from "../../utils/logger"
+import { backendTrace } from "../../utils/backend-trace"
+
+const trace = backendTrace.scoped("codex")
 
 // ---------------------------------------------------------------------------
 // Types
@@ -94,6 +97,12 @@ export class JsonRpcTransport {
       if (text) {
         this.stderrChunks.push(text)
         log.debug("Codex stderr", { text: text.slice(0, 200) })
+        trace.write({
+          dir: "in",
+          stage: "transport_stderr",
+          type: "stderr",
+          payload: { text },
+        })
       }
     })
 
@@ -138,6 +147,12 @@ export class JsonRpcTransport {
     if (params !== undefined) msg.params = params
 
     log.debug("Codex send request", { id, method })
+    trace.write({
+      dir: "out",
+      stage: "transport_send",
+      type: method,
+      payload: msg,
+    })
     return new Promise<unknown>((resolve, reject) => {
       this.pendingRequests.set(id, { resolve, reject })
       this.writeLine(JSON.stringify(msg))
@@ -153,6 +168,12 @@ export class JsonRpcTransport {
     const msg: JsonRpcNotification = { method }
     if (params !== undefined) msg.params = params
     log.debug("Codex send notification", { method })
+    trace.write({
+      dir: "out",
+      stage: "transport_send",
+      type: method,
+      payload: msg,
+    })
     this.writeLine(JSON.stringify(msg))
   }
 
@@ -164,6 +185,12 @@ export class JsonRpcTransport {
 
     log.debug("Codex send response", { id })
     const msg: JsonRpcResponse = { id, result }
+    trace.write({
+      dir: "out",
+      stage: "transport_send",
+      type: "response",
+      payload: msg,
+    })
     this.writeLine(JSON.stringify(msg))
   }
 
@@ -180,6 +207,12 @@ export class JsonRpcTransport {
 
     log.debug("Codex send error response", { id, code, message })
     const msg: JsonRpcResponse = { id, error: { code, message, data } }
+    trace.write({
+      dir: "out",
+      stage: "transport_send",
+      type: "response.error",
+      payload: msg,
+    })
     this.writeLine(JSON.stringify(msg))
   }
 
@@ -254,6 +287,12 @@ export class JsonRpcTransport {
       msg = JSON.parse(line)
     } catch {
       log.warn("Non-JSON line from app-server", { line: line.slice(0, 200) })
+      trace.write({
+        dir: "in",
+        stage: "transport_recv",
+        type: "non_json_line",
+        payload: { line },
+      })
       return
     }
 
@@ -262,6 +301,12 @@ export class JsonRpcTransport {
       method: msg.method,
       hasResult: msg.result !== undefined,
       hasError: msg.error !== undefined,
+    })
+    trace.write({
+      dir: "in",
+      stage: "transport_recv",
+      type: msg.method ?? (msg.error ? "response.error" : "response"),
+      payload: msg,
     })
 
     // Response to a client request (has id + result/error, no method)

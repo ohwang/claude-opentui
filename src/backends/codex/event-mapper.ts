@@ -214,11 +214,24 @@ export function mapCodexNotification(
 
     // ----- Guardian/auto-approval review -----
 
-    case "item/autoApprovalReview/started":
-    case "item/autoApprovalReview/completed":
     case "item/guardianApprovalReview/started":
+      events.push({
+        type: "system_message",
+        text: "Safety review in progress...",
+      })
+      break
+
+    case "item/autoApprovalReview/started":
+      // Auto-approval is routine — keep as backend_specific for trace observability
+      events.push({
+        type: "backend_specific",
+        backend: "codex",
+        data: { method, params },
+      })
+      break
+
+    case "item/autoApprovalReview/completed":
     case "item/guardianApprovalReview/completed":
-      // Informational — passthrough
       events.push({
         type: "backend_specific",
         backend: "codex",
@@ -234,8 +247,17 @@ export function mapCodexNotification(
 
     // ----- Account/model/skills updates -----
 
+    case "model/rerouted": {
+      const newModel = params?.model ?? params?.newModel ?? params?.modelProvider ?? "unknown"
+      log.info("Codex model rerouted", { model: newModel })
+      events.push({
+        type: "model_changed",
+        model: typeof newModel === "string" ? newModel : String(newModel),
+      })
+      break
+    }
+
     case "account/updated":
-    case "model/rerouted":
     case "skills/changed":
     case "mcpServer/startupStatus/updated":
       events.push({

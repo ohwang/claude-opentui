@@ -165,7 +165,7 @@ Options:
   -p, --prompt <text>     Initial prompt
   -c, --continue          Continue most recent session
   -r, --resume <id>       Resume a specific session
-  -b, --backend <name>    Backend (claude, claude-v2)
+  -b, --backend <name>    Backend (claude, claude-v2, codex, codex-sdk, gemini, mock)
   --permission-mode <m>   Permission mode (default, acceptEdits, bypassPermissions, plan, dontAsk)
   --dangerously-skip-permissions  Shorthand for --permission-mode bypassPermissions
   --max-turns <n>         Maximum turns

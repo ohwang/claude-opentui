@@ -68,14 +68,22 @@ export class CodexSdkEventMapper {
         return []
 
       case "turn.completed":
-        return [{
-          type: "turn_complete",
-          usage: {
+        return [
+          {
+            type: "cost_update",
             inputTokens: event.usage.input_tokens,
             outputTokens: event.usage.output_tokens,
             cacheReadTokens: event.usage.cached_input_tokens,
           },
-        }]
+          {
+            type: "turn_complete",
+            usage: {
+              inputTokens: event.usage.input_tokens,
+              outputTokens: event.usage.output_tokens,
+              cacheReadTokens: event.usage.cached_input_tokens,
+            },
+          },
+        ]
 
       case "turn.failed":
         return [

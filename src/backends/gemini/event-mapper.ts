@@ -122,6 +122,16 @@ export function mapGeminiEvent(event: ServerGeminiStreamEvent): AgentEvent[] {
       const value = event.value
       const usage = value?.usageMetadata
 
+      // Emit cost_update before turn_complete so running token totals accumulate
+      if (usage) {
+        events.push({
+          type: "cost_update",
+          inputTokens: usage.promptTokenCount ?? 0,
+          outputTokens: usage.candidatesTokenCount ?? 0,
+          cacheReadTokens: usage.cachedContentTokenCount ?? 0,
+        })
+      }
+
       events.push({
         type: "turn_complete",
         usage: usage
@@ -133,7 +143,6 @@ export function mapGeminiEvent(event: ServerGeminiStreamEvent): AgentEvent[] {
           : undefined,
       })
 
-      // Log the finish reason for debugging
       if (value?.reason) {
         log.info("Gemini turn finished", { reason: value.reason })
       }

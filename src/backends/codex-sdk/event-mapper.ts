@@ -37,7 +37,15 @@ export class CodexSdkEventMapper {
   /** Track text offsets for incremental deltas from full-text item.updated events */
   private textOffsets = new Map<string, number>()
 
-  /** Reset state between turns */
+  /** Model name injected by the adapter — included in session_init */
+  private modelName: string | null = null
+
+  /** Set the model name to include in session_init events */
+  setModel(name: string): void {
+    this.modelName = name
+  }
+
+  /** Reset per-turn state (text offsets). Model name persists across turns. */
   reset(): void {
     this.textOffsets.clear()
   }
@@ -48,7 +56,9 @@ export class CodexSdkEventMapper {
         return [{
           type: "session_init",
           tools: [],
-          models: [],
+          models: this.modelName
+            ? [{ id: this.modelName, name: this.modelName, provider: "openai" }]
+            : [],
         }]
 
       case "turn.started":

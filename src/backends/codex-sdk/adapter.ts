@@ -247,6 +247,11 @@ export class CodexSdkAdapter implements AgentBackend {
         approvalPolicy: toApprovalPolicy(config.permissionMode),
       }
 
+      // 3b. Inject model name into event mapper so session_init includes it
+      if (threadOptions.model) {
+        this.eventMapper.setModel(threadOptions.model)
+      }
+
       // 4. Create or resume thread
       if (resumeSessionId) {
         log.info("Resuming Codex SDK thread", { threadId: resumeSessionId })

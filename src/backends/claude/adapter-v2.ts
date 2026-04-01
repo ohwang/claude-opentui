@@ -22,6 +22,7 @@ import {
   listSessions as sdkListSessions,
 } from "@anthropic-ai/claude-agent-sdk"
 import { log } from "../../utils/logger"
+import { backendTrace } from "../../utils/backend-trace"
 import type {
   AgentBackend,
   AgentEvent,
@@ -46,6 +47,8 @@ import {
   type PendingElicitation,
   type PermissionBridgeState,
 } from "./permission-bridge"
+
+const trace = backendTrace.scoped("claude-v2")
 
 // ---------------------------------------------------------------------------
 // Types
@@ -155,6 +158,17 @@ export class ClaudeV2Adapter implements AgentBackend {
   }
 
   interrupt(): void {
+    trace.write({
+      dir: "out",
+      stage: "adapter_event",
+      type: "interrupt",
+      payload: {
+        pendingPermissions: this.pendingPermissions.size,
+        pendingElicitations: this.pendingElicitations.size,
+        hasSession: !!this.session,
+        lastSessionId: this.lastSessionId,
+      },
+    })
     // V2 has no interrupt() method on the session.
     // Close the session entirely and mark for resume on next turn.
     // The turn loop detects session=null and resumes via the saved session ID.
@@ -307,6 +321,12 @@ export class ClaudeV2Adapter implements AgentBackend {
   }
 
   close(): void {
+    trace.write({
+      dir: "out",
+      stage: "adapter_event",
+      type: "close",
+      payload: { hadSession: !!this.session },
+    })
     this.closed = true
     this.messageQueue.close()
 
@@ -425,10 +445,23 @@ export class ClaudeV2Adapter implements AgentBackend {
   private async streamTurn(): Promise<void> {
     if (!this.session || this.closed) return
 
+    trace.write({
+      dir: "internal",
+      stage: "adapter_event",
+      type: "turn_start",
+      payload: {},
+    })
+
     // Reset interrupted flag at the start of each turn
     this.interrupted = false
 
     try {
+      trace.write({
+        dir: "out",
+        stage: "sdk_call",
+        type: "session.stream",
+        payload: {},
+      })
       this.activeStream = this.session.stream()
       for await (const msg of this.activeStream) {
         if (this.closed || this.interrupted || !this.eventChannel) break
@@ -469,6 +502,12 @@ export class ClaudeV2Adapter implements AgentBackend {
     } catch (err) {
       // If stream was interrupted (return() called), this may throw — that's expected
       if (!this.closed && !this.interrupted && this.eventChannel) {
+        trace.write({
+          dir: "internal",
+          stage: "adapter_event",
+          type: "turn_error",
+          payload: { error: err instanceof Error ? err.message : String(err) },
+        })
         this.eventChannel.push({
           type: "error",
           code: "stream_error",

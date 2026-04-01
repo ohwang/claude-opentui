@@ -183,10 +183,18 @@ export class CodexSdkAdapter implements AgentBackend {
 
   async setModel(_model: string): Promise<void> {
     log.warn("setModel() on Codex SDK adapter — model is fixed at thread creation")
+    this.eventChannel?.push({
+      type: "system_message",
+      text: "Model switching is not supported by the Codex SDK backend. Restart with --model <name> to change.",
+    })
   }
 
   async setPermissionMode(_mode: PermissionMode): Promise<void> {
     log.warn("setPermissionMode() on Codex SDK adapter — policy is fixed at thread creation")
+    this.eventChannel?.push({
+      type: "system_message",
+      text: "Permission mode switching is not supported by the Codex SDK backend.",
+    })
   }
 
   async availableModels(): Promise<ModelInfo[]> {

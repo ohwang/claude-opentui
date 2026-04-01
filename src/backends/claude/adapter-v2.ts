@@ -284,11 +284,19 @@ export class ClaudeV2Adapter implements AgentBackend {
   async setModel(_model: string): Promise<void> {
     // V2 doesn't support runtime model changes
     log.warn("setModel() not supported on V2 adapter — model is fixed at session creation")
+    this.eventChannel?.push({
+      type: "system_message",
+      text: "Model switching is not supported by the Claude V2 backend. Restart with --model <name> to change.",
+    })
   }
 
   async setPermissionMode(_mode: PermissionMode): Promise<void> {
     // V2 doesn't support runtime permission mode changes
     log.warn("setPermissionMode() not supported on V2 adapter — mode is fixed at session creation")
+    this.eventChannel?.push({
+      type: "system_message",
+      text: "Permission mode switching is not supported by the Claude V2 backend.",
+    })
   }
 
   async availableModels(): Promise<ModelInfo[]> {

@@ -1,13 +1,10 @@
 /**
  * Status Bar — 2-line Claude Code-style status bar
  *
- * Line 1: project name | model | state | cost | git branch+status | tokens | tok/s | timer
+ * Line 1: project name | model | state | cost | git branch+status | tokens | tok/s
  * Line 2: permission mode indicator (pink, with cycle hint)
  *
- * During RUNNING state, shows:
- * - Live cost ticker (updates every 300ms based on streaming token counts)
- * - Tokens-per-second throughput
- * - Turn duration timer
+ * During RUNNING state, shows live cost ticker and tokens-per-second throughput.
  */
 
 import { createSignal, createEffect, createMemo, onCleanup } from "solid-js"
@@ -186,10 +183,6 @@ export function StatusBar(props: { hint?: string | null }) {
     prevState = current
   })
 
-  // -- Turn timer state --
-  const [turnStartTime, setTurnStartTime] = createSignal<number | null>(null)
-  const [elapsedSeconds, setElapsedSeconds] = createSignal(0)
-
   // -- Token-rate tracking --
   const [tokPerSec, setTokPerSec] = createSignal(0)
   let tokenSamples: TokenSample[] = []
@@ -204,29 +197,20 @@ export function StatusBar(props: { hint?: string | null }) {
 
     // Detect IDLE/other -> RUNNING transition
     if (isRunning && prevSessionState !== "RUNNING") {
-      setTurnStartTime(Date.now())
-      setElapsedSeconds(0)
       tokenSamples = []
       setTokPerSec(0)
     }
 
     // Detect RUNNING -> non-RUNNING transition (turn ended)
     if (!isRunning && prevSessionState === "RUNNING") {
-      setTurnStartTime(null)
-      setElapsedSeconds(0)
       tokenSamples = []
       setTokPerSec(0)
     }
 
     prevSessionState = currentState
 
-    // While running, update elapsed time and tok/s
+    // While running, update tok/s
     if (isRunning) {
-      const start = turnStartTime()
-      if (start !== null) {
-        setElapsedSeconds(Math.floor((Date.now() - start) / 1000))
-      }
-
       // Sample current token count
       const now = Date.now()
       const totalTokens = state.cost.inputTokens + state.cost.outputTokens
@@ -368,15 +352,6 @@ export function StatusBar(props: { hint?: string | null }) {
     return `${rate} tok/s`
   })
 
-  const timerStr = createMemo(() => {
-    if (!isRunning()) return ""
-    const secs = elapsedSeconds()
-    if (secs < 60) return `${secs}s`
-    const mins = Math.floor(secs / 60)
-    const remSecs = secs % 60
-    return `${mins}m ${remSecs}s`
-  })
-
   const gitStr = createMemo(() => {
     const info = gitInfo()
     if (!info) return ""
@@ -457,12 +432,7 @@ export function StatusBar(props: { hint?: string | null }) {
               </box>
             )}
 
-            {/* Timer (only during streaming) */}
-            {timerStr() && (
-              <box flexDirection="row">
-                <text fg={colors.status.warning}>{timerStr()}</text>
-              </box>
-            )}
+
           </>
         )}
       </box>

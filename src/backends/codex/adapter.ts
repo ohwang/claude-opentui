@@ -148,6 +148,13 @@ export class CodexAdapter implements AgentBackend {
   interrupt(): void {
     if (!this.transport?.isAlive || !this.threadId || !this.activeTurnId) return
 
+    trace.write({
+      dir: "out",
+      stage: "adapter_event",
+      type: "interrupt",
+      payload: { threadId: this.threadId, turnId: this.activeTurnId, pendingApprovals: this.pendingApprovals.size },
+    })
+
     log.info("Interrupting Codex turn", {
       threadId: this.threadId,
       turnId: this.activeTurnId,
@@ -297,6 +304,14 @@ export class CodexAdapter implements AgentBackend {
 
   close(): void {
     if (this.closed) return
+
+    trace.write({
+      dir: "out",
+      stage: "adapter_event",
+      type: "close",
+      payload: { threadId: this.threadId, hadTransport: !!this.transport },
+    })
+
     this.closed = true
 
     this.messageQueue.close()

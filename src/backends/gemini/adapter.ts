@@ -131,6 +131,13 @@ export class GeminiAdapter implements AgentBackend {
   }
 
   interrupt(): void {
+    trace.write({
+      dir: "out",
+      stage: "adapter_event",
+      type: "interrupt",
+      payload: { hasAbortController: !!this.abortController },
+    })
+
     log.info("Gemini interrupt", { hasAbortController: !!this.abortController })
     this.userInitiatedAbort = true
     if (this.abortController) {
@@ -190,6 +197,14 @@ export class GeminiAdapter implements AgentBackend {
 
   close(): void {
     if (this.closed) return
+
+    trace.write({
+      dir: "out",
+      stage: "adapter_event",
+      type: "close",
+      payload: { hadSession: !!this.session },
+    })
+
     this.closed = true
 
     // Abort any active stream
@@ -404,6 +419,12 @@ export class GeminiAdapter implements AgentBackend {
 
       if (!this.closed && this.eventChannel) {
         log.error("Gemini turn error", { error: String(err) })
+        trace.write({
+          dir: "internal",
+          stage: "adapter_event",
+          type: "turn_error",
+          payload: { error: err instanceof Error ? err.message : String(err) },
+        })
         this.eventChannel.push({
           type: "error",
           code: "turn_error",

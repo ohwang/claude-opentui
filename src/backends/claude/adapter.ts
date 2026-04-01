@@ -141,6 +141,13 @@ export class ClaudeAdapter implements AgentBackend {
   }
 
   interrupt(): void {
+    trace.write({
+      dir: "out",
+      stage: "adapter_event",
+      type: "interrupt",
+      payload: { pendingPermissions: this.pendingPermissions.size, pendingElicitations: this.pendingElicitations.size },
+    })
+
     if (this.activeQuery) {
       // Auto-deny any pending permissions (prevent SDK deadlock)
       for (const [id, pending] of this.pendingPermissions) {
@@ -285,6 +292,13 @@ export class ClaudeAdapter implements AgentBackend {
   }
 
   close(): void {
+    trace.write({
+      dir: "out",
+      stage: "adapter_event",
+      type: "close",
+      payload: { hadActiveQuery: !!this.activeQuery },
+    })
+
     this.closed = true
     this.messageQueue.close()
 

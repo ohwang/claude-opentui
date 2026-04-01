@@ -150,6 +150,12 @@ export class CodexSdkAdapter implements AgentBackend {
   }
 
   interrupt(): void {
+    trace.write({
+      dir: "out",
+      stage: "adapter_event",
+      type: "interrupt",
+      payload: { hasAbortController: !!this.abortController },
+    })
     log.info("Codex SDK interrupt", { hasAbortController: !!this.abortController })
     this.userInitiatedAbort = true
     if (this.abortController) {
@@ -205,6 +211,12 @@ export class CodexSdkAdapter implements AgentBackend {
 
   close(): void {
     if (this.closed) return
+    trace.write({
+      dir: "out",
+      stage: "adapter_event",
+      type: "close",
+      payload: { hadThread: !!this.thread },
+    })
     this.closed = true
 
     if (this.abortController) {
@@ -399,6 +411,12 @@ export class CodexSdkAdapter implements AgentBackend {
       }
 
       if (!this.closed && this.eventChannel) {
+        trace.write({
+          dir: "internal",
+          stage: "adapter_event",
+          type: "turn_error",
+          payload: { error: err instanceof Error ? err.message : String(err) },
+        })
         log.error("Codex SDK turn error", { error: String(err) })
         this.eventChannel.push({
           type: "error",

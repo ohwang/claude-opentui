@@ -255,11 +255,19 @@ export class CodexAdapter implements AgentBackend {
   async setModel(_model: string): Promise<void> {
     // Model is set per-turn via turn/start params — no runtime change needed
     log.warn("setModel() on Codex adapter — model is set per turn via turn/start")
+    this.eventChannel?.push({
+      type: "system_message",
+      text: "Model switching is not supported by the Codex backend. The model is set per-turn. Restart with --model <name> to change.",
+    } as AgentEvent)
   }
 
   async setPermissionMode(_mode: PermissionMode): Promise<void> {
     // Approval policy is set per-turn via turn/start params
     log.warn("setPermissionMode() on Codex adapter — approval policy is set per turn")
+    this.eventChannel?.push({
+      type: "system_message",
+      text: "Permission mode switching is not supported by the Codex backend at runtime.",
+    } as AgentEvent)
   }
 
   async availableModels(): Promise<ModelInfo[]> {

@@ -146,11 +146,12 @@ export function ConversationView(props: { children?: JSX.Element }) {
   })
 
   // Auto-scroll to bottom when permission/elicitation dialog appears
-  // so the user can see and interact with it immediately
+  // so the user can see and interact with it immediately.
+  // Deferred by 50ms to avoid scrolling during layout recalculation.
   createEffect(() => {
     const state = session.sessionState
     if (state === "WAITING_FOR_PERM" || state === "WAITING_FOR_ELIC") {
-      scrollboxRef?.scrollBy(999999)
+      setTimeout(() => scrollboxRef?.scrollBy(999999), 50)
     }
   })
 
@@ -229,7 +230,7 @@ export function ConversationView(props: { children?: JSX.Element }) {
   onCleanup(() => clearTimeout(scrollbarTimer))
 
   return (
-    <scrollbox ref={(el: ScrollBoxRenderable) => { scrollboxRef = el; registerScrollToBottom(() => { setUserScrolledAway(false); el.scrollBy(999999) }) }} flexGrow={1}>
+    <scrollbox ref={(el: ScrollBoxRenderable) => { scrollboxRef = el; registerScrollToBottom(() => { setUserScrolledAway(false); setTimeout(() => el.scrollBy(999999), 50) }) }} flexGrow={1}>
       <box flexDirection="column" paddingTop={1} paddingRight={1} paddingBottom={1}>
         {/* Header bar — scrolls with content */}
         <HeaderBar />

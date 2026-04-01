@@ -67,6 +67,7 @@ export class CodexAdapter implements AgentBackend {
   // Thread/turn state
   private threadId: string | null = null
   private activeTurnId: string | null = null
+  private modelName: string | null = null
 
   // Pending approval requests (server-initiated JSON-RPC requests awaiting our response)
   private pendingApprovals = new Map<
@@ -357,11 +358,13 @@ export class CodexAdapter implements AgentBackend {
           threadId: resumeSessionId,
         })) as any
         this.threadId = result?.thread?.id ?? resumeSessionId
-        log.info("Resumed Codex thread", { threadId: this.threadId })
+        this.modelName = result?.model ?? result?.modelProvider ?? null
+        log.info("Resumed Codex thread", { threadId: this.threadId, model: this.modelName })
       } else {
         const result = (await this.transport.request("thread/start", {})) as any
         this.threadId = result?.thread?.id
-        log.info("Started Codex thread", { threadId: this.threadId })
+        this.modelName = result?.model ?? result?.modelProvider ?? null
+        log.info("Started Codex thread", { threadId: this.threadId, model: this.modelName })
       }
 
       if (!this.threadId) {
@@ -482,12 +485,16 @@ export class CodexAdapter implements AgentBackend {
       log.debug("Codex notification produced no events", { method })
     }
     for (const event of events) {
+      // Augment session_init with actual model name from thread/start response
+      if (event.type === "session_init" && this.modelName) {
+        event.models = [{ id: this.modelName, name: this.modelName, provider: "openai" }]
+      }
       trace.write({
         dir: "internal",
         stage: "mapped_event",
         type: event.type,
         payload: event,
-        meta: { sourceMethod: method },
+        meta: { sourceType: method },
       })
       this.eventChannel?.push(event)
     }

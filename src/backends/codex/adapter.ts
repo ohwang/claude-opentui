@@ -69,6 +69,9 @@ export class CodexAdapter implements AgentBackend {
   private activeTurnId: string | null = null
   private modelName: string | null = null
 
+  // Cached token usage from thread/tokenUsage/updated (arrives before turn/completed)
+  private lastTokenUsage: { inputTokens: number; outputTokens: number; cacheReadTokens: number } | null = null
+
   // Pending approval requests (server-initiated JSON-RPC requests awaiting our response)
   private pendingApprovals = new Map<
     string,
@@ -479,10 +482,37 @@ export class CodexAdapter implements AgentBackend {
   /**
    * Block until the active turn completes.
    * The turn loop is driven by notifications — turn/completed signals the end.
+   * Includes an exit guard: if the transport dies mid-turn, we emit an error
+   * and resolve rather than hanging forever.
    */
   private waitForTurnComplete(): Promise<void> {
     return new Promise<void>((resolve) => {
       this.turnCompleteResolve = resolve
+
+      // Guard: if transport dies while waiting, don't hang forever
+      const exitGuard = setInterval(() => {
+        if (!this.transport?.isAlive && this.turnCompleteResolve) {
+          clearInterval(exitGuard)
+          this.activeTurnId = null
+          this.eventChannel?.push({
+            type: "error",
+            code: "transport_died",
+            message: "Codex process exited unexpectedly during turn",
+            severity: "fatal",
+          })
+          this.eventChannel?.push({ type: "turn_complete" } as AgentEvent)
+          const r = this.turnCompleteResolve
+          this.turnCompleteResolve = null
+          r()
+        }
+      }, 500)
+
+      // Clean up the guard when turn completes normally
+      const origResolve = this.turnCompleteResolve
+      this.turnCompleteResolve = () => {
+        clearInterval(exitGuard)
+        origResolve()
+      }
     })
   }
 
@@ -495,14 +525,34 @@ export class CodexAdapter implements AgentBackend {
   private handleNotification(method: string, params: unknown): void {
     log.debug("Codex notification", { method })
 
+    // Capture token usage from thread/tokenUsage/updated (fires before turn/completed)
+    if (method === "thread/tokenUsage/updated") {
+      const p = params as any
+      const usage = p?.tokenUsage?.last ?? p?.tokenUsage?.total
+      if (usage) {
+        this.lastTokenUsage = {
+          inputTokens: usage.inputTokens ?? 0,
+          outputTokens: usage.outputTokens ?? 0,
+          cacheReadTokens: usage.cachedInputTokens ?? 0,
+        }
+        log.debug("Cached token usage from tokenUsage/updated", this.lastTokenUsage)
+      }
+    }
+
     const events = mapCodexNotification(method, params)
     if (events.length === 0) {
       log.debug("Codex notification produced no events", { method })
     }
+
     for (const event of events) {
       // Augment session_init with actual model name from thread/start response
       if (event.type === "session_init" && this.modelName) {
         event.models = [{ id: this.modelName, name: this.modelName, provider: "openai" }]
+      }
+      // Inject cached token usage into turn_complete events if usage is undefined
+      if (event.type === "turn_complete" && !(event as any).usage && this.lastTokenUsage) {
+        ;(event as any).usage = { ...this.lastTokenUsage }
+        this.lastTokenUsage = null
       }
       trace.write({
         dir: "internal",

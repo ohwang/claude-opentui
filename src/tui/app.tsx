@@ -24,7 +24,6 @@ import { StatusBar } from "./components/status-bar"
 import { PermissionDialog } from "./components/permission-dialog"
 import { ElicitationDialog } from "./components/elicitation"
 import { DiagnosticsPanel, scrollDiagnostics } from "./components/diagnostics"
-import { ContextualTips } from "./components/tips"
 import { MODEL_NAMES, friendlyModelName } from "./models"
 
 // Module-level exit function so slash commands can trigger clean shutdown
@@ -341,8 +340,6 @@ function Layout(props: { onExit?: () => void }) {
           {/* Elicitation dialog (shown inline when WAITING_FOR_ELIC) */}
           <ElicitationDialog />
 
-          {/* Contextual keyboard tips + input area */}
-          <ContextualTips />
           <DashLine />
           <InputArea />
           <DashLine />

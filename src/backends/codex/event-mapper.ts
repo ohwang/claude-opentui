@@ -85,7 +85,8 @@ export function mapCodexNotification(
       break
 
     case "thread/tokenUsage/updated": {
-      const usage = params?.usage
+      const tokenUsage = params?.tokenUsage
+      const usage = tokenUsage?.last ?? tokenUsage?.total
       if (usage) {
         events.push({
           type: "cost_update",

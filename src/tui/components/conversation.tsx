@@ -22,7 +22,7 @@ import { HeaderBar } from "./header-bar"
 import type { Block } from "../../protocol/types"
 import { refocusInput, registerScrollToBottom } from "./input-area"
 import { StreamingSpinner } from "./streaming-spinner"
-import { ToolSummaryView, groupBlocksForRendering, type ViewLevel } from "./tool-view"
+import { type ViewLevel } from "./tool-view"
 import { BlockView } from "./block-view"
 
 export type { ViewLevel }
@@ -51,10 +51,9 @@ export function ConversationView(props: { children?: JSX.Element }) {
   let scrollboxRef: ScrollBoxRenderable | undefined
   const [userScrolledAway, setUserScrolledAway] = createSignal(false)
 
-  // Derived: separate queued vs non-queued blocks, group tools for rendering
+  // Derived: separate queued vs non-queued blocks
   const nonQueuedBlocks = () => state.blocks.filter(b => !(b.type === "user" && b.queued))
   const queuedBlocks = () => state.blocks.filter(b => b.type === "user" && b.queued) as Array<Extract<Block, { type: "user" }>>
-  const renderItems = () => groupBlocksForRendering(nonQueuedBlocks(), viewLevel())
 
   // -- Turn elapsed time for the spinner --
   const [turnStartTime, setTurnStartTime] = createSignal<number | null>(null)
@@ -244,19 +243,20 @@ export function ConversationView(props: { children?: JSX.Element }) {
           blocks instead of below).
         */}
 
-        {/* Committed blocks (non-queued) — tool blocks grouped in collapsed view */}
+        {/* Committed blocks (non-queued) — each block renders itself based on view level */}
         <box flexDirection="column">
-          <For each={renderItems()}>
-            {(item, index) => {
-              const items = renderItems()
-              const prev = index() > 0 ? items[index() - 1] : undefined
-              const prevType = prev
-                ? prev.kind === "tool-summary" ? "tool-summary" : prev.block.type
-                : undefined
-
-              return item.kind === "tool-summary"
-                ? <box marginTop={prevType !== "tool-summary" ? 1 : 0}><ToolSummaryView tools={item.tools} /></box>
-                : <BlockView block={item.block} viewLevel={viewLevel()} prevType={prevType} showThinking={showThinking()} />
+          <For each={nonQueuedBlocks()}>
+            {(block, index) => {
+              const blocks = nonQueuedBlocks()
+              const prev = index() > 0 ? blocks[index() - 1] : undefined
+              return (
+                <BlockView
+                  block={block}
+                  viewLevel={viewLevel()}
+                  prevType={prev?.type}
+                  showThinking={showThinking()}
+                />
+              )
             }}
           </For>
         </box>

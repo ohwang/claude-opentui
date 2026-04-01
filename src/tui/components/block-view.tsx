@@ -8,7 +8,7 @@
 import { Show } from "solid-js"
 import { TextAttributes } from "@opentui/core"
 import { ThinkingBlock } from "./thinking-block"
-import { ToolBlockView } from "./tool-view"
+import { ToolBlockView, isUserDecline } from "./tool-view"
 import { syntaxStyle } from "../theme"
 import { colors } from "../theme/tokens"
 import type { Block } from "../../protocol/types"
@@ -75,7 +75,12 @@ export function BlockView(props: { block: Block; viewLevel: ViewLevel; prevType?
       {/* Tool block — tight grouping for consecutive tools */}
       <Show when={toolBlock()}>{(tb) =>
         <box marginTop={props.prevType !== "tool" ? 1 : (props.viewLevel !== "collapsed" ? 1 : 0)}>
-          <ToolBlockView block={tb()} viewLevel={props.viewLevel} />
+          <Show
+            when={props.viewLevel !== "collapsed"}
+            fallback={<CollapsedToolLine block={tb()} />}
+          >
+            <ToolBlockView block={tb()} viewLevel={props.viewLevel} />
+          </Show>
         </box>
       }</Show>
 
@@ -114,5 +119,47 @@ export function BlockView(props: { block: Block; viewLevel: ViewLevel; prevType?
         )
       }}</Show>
     </box>
+  )
+}
+
+/** Collapsed single-line tool summary — avoids destroying/recreating ToolBlockView on view toggle */
+function CollapsedToolLine(props: { block: Extract<Block, { type: "tool" }> }) {
+  const b = () => props.block
+
+  const primaryArg = () => {
+    const inp = b().input as Record<string, unknown> | null
+    if (!inp) return ""
+    if (inp.file_path) return ` ${String(inp.file_path)}`
+    if (inp.command) {
+      const cmd = String(inp.command)
+      return ` ${cmd.length > 60 ? cmd.slice(0, 57) + "..." : cmd}`
+    }
+    if (inp.pattern) return ` ${String(inp.pattern)}`
+    return ""
+  }
+
+  const hint = () => {
+    if (b().status === "running") return "..."
+    if (b().error) {
+      return isUserDecline(b().error!) ? " — declined" : " — failed"
+    }
+    const out = b().output ?? ""
+    if (!out) return ""
+    if (b().tool === "Read" || b().tool === "Glob" || b().tool === "Grep") {
+      const lines = out.trim().split("\n").filter((l: string) => l.trim()).length
+      return ` — ${lines} result${lines === 1 ? "" : "s"}`
+    }
+    return ""
+  }
+
+  const isError = () => !!(b().error && !isUserDecline(b().error!))
+
+  return (
+    <text
+      fg={isError() ? colors.status.error : colors.text.secondary}
+      attributes={TextAttributes.DIM}
+    >
+      {b().tool + primaryArg() + hint()}
+    </text>
   )
 }

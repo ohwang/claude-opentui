@@ -13,7 +13,6 @@ import { TextAttributes } from "@opentui/core"
 import { useKeyboard, useTerminalDimensions } from "@opentui/solid"
 import { useSession } from "../context/session"
 import { useAgent } from "../context/agent"
-import { useSync } from "../context/sync"
 import { log } from "../../utils/logger"
 import { colors } from "../theme/tokens"
 import type { PermissionMode } from "../../protocol/types"
@@ -124,8 +123,6 @@ function permissionModeLabel(mode: PermissionMode | undefined): string {
 export function StatusBar(props: { hint?: string | null }) {
   const { state } = useSession()
   const agent = useAgent()
-  const sync = useSync()
-
   // -- Permission mode (local signal so it's reactive) --
   const [permMode, setPermMode] = createSignal<PermissionMode>(
     agent.config.permissionMode ?? "default",
@@ -369,13 +366,13 @@ export function StatusBar(props: { hint?: string | null }) {
 
   // ---------------------------------------------------------------------------
   // Render — 2-line status bar (matches Claude Code)
-  // Line 1: project, model, state, cost, git, ctx — right side: tok/s + timer or hint
+  // Line 1: project, model, state, cost, git, ctx — right side: tok/s or hint
   // Line 2: permission mode indicator (left-aligned)
   // ---------------------------------------------------------------------------
 
   return (
     <box flexDirection="column">
-      {/* Line 1: project, model, state, cost, git, ctx — right side: tok/s + timer or hint */}
+      {/* Line 1: project, model, state, cost, git, ctx — right side: tok/s or hint */}
       <box height={1} flexDirection="row" paddingLeft={2} paddingRight={1}>
         {/* Left: project name + model (always visible) */}
         <text fg={colors.status.warning} attributes={TextAttributes.BOLD}>
@@ -428,11 +425,8 @@ export function StatusBar(props: { hint?: string | null }) {
             {tokPerSecStr() && (
               <box flexDirection="row">
                 <text fg={colors.status.info}>{tokPerSecStr()}</text>
-                <text fg={colors.text.muted}>{" "}</text>
               </box>
             )}
-
-
           </>
         )}
       </box>

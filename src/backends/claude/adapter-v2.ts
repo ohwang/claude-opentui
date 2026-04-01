@@ -54,6 +54,10 @@ type SDKSession = ReturnType<typeof unstable_v2_createSession>
 // ---------------------------------------------------------------------------
 
 export class ClaudeV2Adapter implements AgentBackend {
+  private static sdkVersion: string = (() => {
+    try { return require("@anthropic-ai/claude-agent-sdk/package.json").version } catch { return "unknown" }
+  })()
+
   private session: SDKSession | null = null
   private messageQueue = new AsyncQueue<UserMessage>()
   private pendingPermissions = new Map<string, PendingPermission>()
@@ -88,6 +92,7 @@ export class ClaudeV2Adapter implements AgentBackend {
   capabilities(): BackendCapabilities {
     return {
       name: "claude-v2",
+      sdkVersion: ClaudeV2Adapter.sdkVersion,
       supportsThinking: true,
       supportsToolApproval: true,
       supportsResume: true,

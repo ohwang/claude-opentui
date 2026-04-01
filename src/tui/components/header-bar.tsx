@@ -43,6 +43,11 @@ export function HeaderBar() {
   // which may have been changed by the SDK or plugins after startup.
   const projectPath = resolve(agent.config.cwd ?? process.cwd()).replace(homedir(), "~")
 
+  const backendLabel = () => {
+    const caps = agent.backend.capabilities()
+    return caps.sdkVersion ? `${caps.name} ${caps.sdkVersion}` : caps.name
+  }
+
   const modelInfo = () => {
     // Prefer currentModel (set by Ctrl+P model cycling), then session metadata,
     // then configured model. session_init only arrives after the first user
@@ -79,7 +84,7 @@ export function HeaderBar() {
       <box flexDirection="row">
         <text fg={LOGO_COLOR}>{LOGO_LINES[0]}</text>
         <text fg={LOGO_COLOR} attributes={TextAttributes.BOLD}>{"claude-opentui"}</text>
-        <text fg={colors.text.muted} attributes={TextAttributes.DIM}>{"  v0.0.1"}</text>
+        <text fg={colors.text.muted} attributes={TextAttributes.DIM}>{`  v0.0.1 (${backendLabel()})`}</text>
       </box>
       {/* Row 1: body + model info */}
       <box flexDirection="row">

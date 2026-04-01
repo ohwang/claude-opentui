@@ -366,6 +366,7 @@ export interface ForkOptions {
 
 export interface BackendCapabilities {
   name: string
+  sdkVersion?: string
   supportsThinking: boolean
   supportsToolApproval: boolean
   supportsResume: boolean

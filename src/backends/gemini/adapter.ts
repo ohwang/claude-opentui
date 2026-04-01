@@ -42,6 +42,10 @@ import type {
 // ---------------------------------------------------------------------------
 
 export class GeminiAdapter implements AgentBackend {
+  private static sdkVersion: string = (() => {
+    try { return require("@google/gemini-cli-sdk/package.json").version } catch { return "unknown" }
+  })()
+
   /** Timeout (ms) for the first event from sendStream(). If exceeded, the turn
    *  is aborted and a recoverable error is emitted. Guards against SDK hangs. */
   private static readonly FIRST_EVENT_TIMEOUT_MS = 120_000 // 2 minutes
@@ -63,6 +67,7 @@ export class GeminiAdapter implements AgentBackend {
   capabilities(): BackendCapabilities {
     return {
       name: "gemini",
+      sdkVersion: GeminiAdapter.sdkVersion,
       supportsThinking: true,
       supportsToolApproval: false, // SDK handles tools internally via policy engine
       supportsResume: true,

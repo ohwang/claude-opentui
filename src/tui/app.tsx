@@ -7,7 +7,7 @@
 
 import { render, useKeyboard, useRenderer } from "@opentui/solid"
 import { TextAttributes } from "@opentui/core"
-import { createSignal, createEffect, on, onCleanup, ErrorBoundary, Show } from "solid-js"
+import { createSignal, createEffect, on, onCleanup, ErrorBoundary } from "solid-js"
 import type { AgentBackend, SessionConfig } from "../protocol/types"
 import { log } from "../utils/logger"
 import { copyToClipboard } from "../utils/clipboard"
@@ -332,7 +332,9 @@ function Layout(props: { onExit?: () => void }) {
 
   return (
     <box flexDirection="column" width="100%" height="100%">
-      <Show when={!showDiagnostics()}>
+      {/* Keep ConversationView always mounted to preserve textarea state.
+           Hide it via height={0} when diagnostics overlay is open. */}
+      <box flexDirection="column" width="100%" height={showDiagnostics() ? 0 : "100%"} flexGrow={showDiagnostics() ? 0 : 1}>
         <ConversationView>
           {/* Permission dialog (shown inline when WAITING_FOR_PERM) */}
           <PermissionDialog />
@@ -347,7 +349,7 @@ function Layout(props: { onExit?: () => void }) {
           {/* Status bar */}
           <StatusBar hint={statusHint()} />
         </ConversationView>
-      </Show>
+      </box>
 
       {/* Diagnostics panel — replaces conversation when visible */}
       <DiagnosticsPanel

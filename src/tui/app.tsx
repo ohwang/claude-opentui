@@ -389,6 +389,7 @@ export function startApp(options: AppOptions): void {
       </AgentProvider>
     </ErrorBoundary>
   ), {
+    targetFps: 60,
     exitOnCtrlC: false,
     useMouse: true,
     consoleOptions: {

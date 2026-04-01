@@ -221,8 +221,46 @@ function Layout(props: { onExit?: () => void }) {
       return
     }
 
+    // Meta+C (Cmd+C on macOS): copy selection if available
+    if (event.meta && event.name === "c") {
+      if (renderer.hasSelection) {
+        const sel = renderer.getSelection()
+        if (sel && sel.hasSelection()) {
+          const text = sel.getSelectedText()
+          if (text) {
+            event.preventDefault()
+            copyToClipboard(text).then(() => {
+              showCopyConfirmation(text.length)
+            }).catch((err: unknown) => {
+              log.warn("Failed to copy selection", { error: err instanceof Error ? err.message : String(err) })
+            })
+            renderer.clearSelection()
+          }
+        }
+      }
+      return
+    }
+
     // Ctrl+C: text=clear, empty single=nothing, empty double=exit, running=interrupt
     if (event.ctrl && event.name === "c") {
+      // Check for active text selection — copy takes priority over interrupt/clear
+      if (renderer.hasSelection) {
+        const sel = renderer.getSelection()
+        if (sel && sel.hasSelection()) {
+          const text = sel.getSelectedText()
+          if (text) {
+            event.preventDefault()
+            copyToClipboard(text).then(() => {
+              showCopyConfirmation(text.length)
+            }).catch((err: unknown) => {
+              log.warn("Failed to copy selection", { error: err instanceof Error ? err.message : String(err) })
+            })
+            renderer.clearSelection()
+            return
+          }
+        }
+      }
+
       if (
         session.sessionState === "RUNNING" ||
         session.sessionState === "WAITING_FOR_PERM" ||

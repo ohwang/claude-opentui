@@ -248,6 +248,12 @@ export class GeminiAdapter implements AgentBackend {
           payload: { sessionId: resumeSessionId },
         })
         this.session = await this.agent.resumeSession(resumeSessionId)
+        trace.write({
+          dir: "internal",
+          stage: "adapter_event",
+          type: "session_resumed",
+          payload: { sessionId: this.session.id, resumedFrom: resumeSessionId },
+        })
       } else {
         trace.write({
           dir: "out",
@@ -256,6 +262,12 @@ export class GeminiAdapter implements AgentBackend {
           payload: {},
         })
         this.session = this.agent.session()
+        trace.write({
+          dir: "internal",
+          stage: "adapter_event",
+          type: "session_created",
+          payload: { sessionId: this.session.id },
+        })
       }
       log.info("Gemini session created", { sessionId: this.session.id })
 

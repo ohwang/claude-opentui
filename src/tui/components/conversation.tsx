@@ -1,8 +1,10 @@
 /**
- * Conversation View — Scrollbox with sticky scroll
+ * Conversation View — Scrollbox with manual scroll management
  *
  * Renders all blocks, streaming content, active tools.
- * Uses OpenTUI stickyScroll for auto-following.
+ * Auto-scrolls during streaming via a 200ms nudge timer, but respects
+ * user scroll position — if the user scrolls up, auto-scroll disengages.
+ * Re-engages when user scrolls back to bottom or sends a new message.
  * Ctrl+O toggles tool view level, Ctrl+E shows all.
  */
 
@@ -24,6 +26,16 @@ import { ToolSummaryView, groupBlocksForRendering, type ViewLevel } from "./tool
 import { BlockView } from "./block-view"
 
 export type { ViewLevel }
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/** Check whether a scrollbox is at or near the bottom of its content */
+function isNearBottom(ref: ScrollBoxRenderable, threshold = 3): boolean {
+  const viewportHeight = ref.viewport.height
+  return ref.scrollTop + viewportHeight >= ref.scrollHeight - threshold
+}
 
 // ---------------------------------------------------------------------------
 // ConversationView — main export
@@ -85,30 +97,46 @@ export function ConversationView(props: { children?: JSX.Element }) {
     return "Thinking..."
   }
 
-  // Periodic stickyScroll re-engagement during streaming
+  // Periodic scroll nudge during streaming.
   // Uses a 200ms interval (not per-delta) to avoid scroll thrashing
-  // that was fixed in commit 91901ca
+  // that was fixed in commit 91901ca.
+  // Does NOT reset userScrolledAway on streaming start — if the user was
+  // scrolled up reading earlier content, we respect that position.
   let scrollNudgeTimer: ReturnType<typeof setInterval> | undefined
+  let lastKnownScrollTop: number | undefined
   createEffect(() => {
     const isStreaming = !!(state.streamingText || state.streamingThinking)
     if (isStreaming) {
       if (!scrollNudgeTimer) {
-        setUserScrolledAway(false)
-        // Initial nudge
+        // Initial nudge — only if user hasn't scrolled away
         if (!userScrolledAway()) {
           scrollboxRef?.scrollBy(1, "content")
         }
+        if (scrollboxRef) lastKnownScrollTop = scrollboxRef.scrollTop
         // Periodic nudge every 200ms — only when user hasn't scrolled away
         scrollNudgeTimer = setInterval(() => {
+          // Detect external scroll (mouse wheel): if scrollTop moved upward
+          // since last check without us nudging, the user scrolled away
+          if (scrollboxRef && lastKnownScrollTop !== undefined) {
+            if (scrollboxRef.scrollTop < lastKnownScrollTop) {
+              setUserScrolledAway(true)
+            }
+            // Re-engage auto-scroll if user scrolled back to bottom
+            if (!userScrolledAway() || isNearBottom(scrollboxRef)) {
+              setUserScrolledAway(false)
+            }
+          }
           if (!userScrolledAway()) {
             scrollboxRef?.scrollBy(1, "content")
           }
+          if (scrollboxRef) lastKnownScrollTop = scrollboxRef.scrollTop
         }, 200)
       }
     } else {
       if (scrollNudgeTimer) {
         clearInterval(scrollNudgeTimer)
         scrollNudgeTimer = undefined
+        lastKnownScrollTop = undefined
       }
     }
   })
@@ -174,7 +202,10 @@ export function ConversationView(props: { children?: JSX.Element }) {
     if (event.ctrl && event.name === "down") {
       event.preventDefault()
       scrollboxRef?.scrollBy(3)
-      setUserScrolledAway(false)
+      // Only re-engage auto-scroll if we've actually reached the bottom
+      if (scrollboxRef && isNearBottom(scrollboxRef)) {
+        setUserScrolledAway(false)
+      }
       showScrollbarBriefly()
       refocusInput()
     }
@@ -199,7 +230,7 @@ export function ConversationView(props: { children?: JSX.Element }) {
   onCleanup(() => clearTimeout(scrollbarTimer))
 
   return (
-    <scrollbox ref={(el: ScrollBoxRenderable) => { scrollboxRef = el; registerScrollToBottom(() => el.scrollBy(999999)) }} stickyScroll flexGrow={1}>
+    <scrollbox ref={(el: ScrollBoxRenderable) => { scrollboxRef = el; registerScrollToBottom(() => { setUserScrolledAway(false); el.scrollBy(999999) }) }} flexGrow={1}>
       <box flexDirection="column" paddingTop={1} paddingRight={1} paddingBottom={1}>
         {/* Header bar — scrolls with content */}
         <HeaderBar />

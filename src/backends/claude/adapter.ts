@@ -424,6 +424,7 @@ export class ClaudeAdapter implements AgentBackend {
       allowedTools: config.allowedTools,
       disallowedTools: config.disallowedTools,
       additionalDirectories: config.additionalDirectories,
+      settingSources: ["user", "project", "local"],
       canUseTool: createCanUseTool(this.bridgeState),
       includePartialMessages: true,
     }

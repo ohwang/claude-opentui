@@ -26,7 +26,33 @@ export interface SlashCommand {
   name: string
   description: string
   aliases?: string[]
+  /** 'local' runs in TUI (default), 'prompt' sends text to the model as a user message */
+  type?: "local" | "prompt"
+  /** Hint text shown after the command name in autocomplete (e.g., "<file path>") */
+  argumentHint?: string
   execute: (args: string, ctx: CommandContext) => void | Promise<void>
+}
+
+/** Create a prompt command — sends a fixed prompt (optionally with user args) to the model */
+export function createPromptCommand(opts: {
+  name: string
+  description: string
+  aliases?: string[]
+  prompt: string | ((args: string) => string)
+  argumentHint?: string
+}): SlashCommand {
+  return {
+    name: opts.name,
+    description: opts.description,
+    aliases: opts.aliases,
+    type: "prompt",
+    argumentHint: opts.argumentHint,
+    execute: (args, ctx) => {
+      const text = typeof opts.prompt === "function" ? opts.prompt(args) : (args ? `${opts.prompt} ${args}` : opts.prompt)
+      ctx.pushEvent({ type: "user_message", text })
+      ctx.backend.sendMessage(text)
+    },
+  }
 }
 
 export class CommandRegistry {
@@ -107,6 +133,7 @@ import { usageCommand } from "./builtin/usage"
 import { hotkeysCommand } from "./builtin/hotkeys"
 import { diagnosticsCommand } from "./builtin/diagnostics"
 import { exitCommand } from "./builtin/exit"
+import { bugCommand, reviewCommand, commitCommand, testCommand } from "./builtin/prompts"
 
 /** Create a registry with all built-in commands */
 export function createCommandRegistry(): CommandRegistry {
@@ -123,6 +150,12 @@ export function createCommandRegistry(): CommandRegistry {
   registry.register(hotkeysCommand)
   registry.register(diagnosticsCommand)
   registry.register(exitCommand)
+
+  // Prompt commands — send prompts to the model
+  registry.register(bugCommand)
+  registry.register(reviewCommand)
+  registry.register(commitCommand)
+  registry.register(testCommand)
 
   return registry
 }

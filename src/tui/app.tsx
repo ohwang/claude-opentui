@@ -18,8 +18,8 @@ import { PermissionsProvider } from "./context/permissions"
 import { SyncProvider, useSync } from "./context/sync"
 import { ToastProvider, toast } from "./context/toast"
 import { colors } from "./theme/tokens"
-import { useTerminalDimensions } from "@opentui/solid"
 import { ConversationView } from "./components/conversation"
+import { Divider } from "./components/primitives"
 import { InputArea, clearInput, hasInputText, refocusInput } from "./components/input-area"
 import { StatusBar } from "./components/status-bar"
 import { PermissionDialog } from "./components/permission-dialog"
@@ -45,14 +45,11 @@ export function showCopyConfirmation(chars: number): void {
   _showCopyHint?.(chars)
 }
 
-/** Render a full-width dash separator line (Claude Code style) */
+/** Render a full-width dash separator line (Claude Code style) — uses Divider primitive */
 function DashLine() {
-  const dims = useTerminalDimensions()
-  const width = () => dims()?.width ?? 120
-  const dashes = () => "─".repeat(Math.max(width(), 40))
   return (
-    <box height={1} flexShrink={0}>
-      <text fg={colors.text.muted}>{dashes()}</text>
+    <box flexShrink={0}>
+      <Divider color={colors.text.muted} />
     </box>
   )
 }

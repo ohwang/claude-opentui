@@ -10,7 +10,7 @@ export const usageCommand: SlashCommand = {
   execute: (_args, ctx) => {
     const state = ctx.getSessionState?.()
     if (!state) {
-      ctx.pushEvent({ type: "system_message", text: "Usage data not available." })
+      ctx.pushEvent({ type: "system_message", ephemeral: true, text: "Usage data not available." })
       return
     }
 
@@ -21,7 +21,7 @@ export const usageCommand: SlashCommand = {
       const lines = [
         "Plan usage info not available. Use /cost for session costs.",
       ]
-      ctx.pushEvent({ type: "system_message", text: lines.join("\n") })
+      ctx.pushEvent({ type: "system_message", ephemeral: true, text: lines.join("\n") })
       return
     }
 
@@ -38,6 +38,6 @@ export const usageCommand: SlashCommand = {
     lines.push(``)
     lines.push(`  Session cost: $${cost.totalCostUsd.toFixed(4)} (${turnNumber} turn${turnNumber !== 1 ? "s" : ""})`)
 
-    ctx.pushEvent({ type: "system_message", text: lines.join("\n") })
+    ctx.pushEvent({ type: "system_message", ephemeral: true, text: lines.join("\n") })
   },
 }

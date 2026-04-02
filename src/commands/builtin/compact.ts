@@ -23,6 +23,7 @@ export const compactCommand: SlashCommand = {
     ctx.pushEvent({
       type: "system_message",
       text: "Compacting conversation...",
+      ephemeral: true,
     })
   },
 }

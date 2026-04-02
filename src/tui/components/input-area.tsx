@@ -561,11 +561,11 @@ export function InputArea() {
           }
         }).catch((err) => {
           log.warn("Ctrl+V text clipboard read failed", { error: String(err) })
-          sync.pushEvent({ type: "system_message", text: "Clipboard read failed — try pasting with your terminal's built-in paste" })
+          sync.pushEvent({ type: "system_message", text: "Clipboard read failed — try pasting with your terminal's built-in paste", ephemeral: true })
         })
       }).catch((err) => {
         log.warn("Ctrl+V clipboard read failed", { error: String(err) })
-        sync.pushEvent({ type: "system_message", text: "Clipboard read failed — try pasting with your terminal's built-in paste" })
+        sync.pushEvent({ type: "system_message", text: "Clipboard read failed — try pasting with your terminal's built-in paste", ephemeral: true })
       })
       return
     }
@@ -647,7 +647,7 @@ export function InputArea() {
           log.warn("openExternalEditor promise rejected", {
             error: String(err),
           })
-          sync.pushEvent({ type: "system_message", text: `External editor failed: ${err instanceof Error ? err.message : String(err)}` })
+          sync.pushEvent({ type: "system_message", text: `External editor failed: ${err instanceof Error ? err.message : String(err)}`, ephemeral: true })
         })
       return
     }

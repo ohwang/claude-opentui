@@ -12,7 +12,7 @@ export const copyCommand: SlashCommand = {
   execute: async (_args: string, ctx: CommandContext) => {
     const blocks = ctx.getBlocks?.()
     if (!blocks) {
-      ctx.pushEvent({ type: "system_message", text: "Cannot access conversation history." })
+      ctx.pushEvent({ type: "system_message", ephemeral: true, text: "Cannot access conversation history." })
       return
     }
 
@@ -27,7 +27,7 @@ export const copyCommand: SlashCommand = {
     }
 
     if (!lastAssistantText) {
-      ctx.pushEvent({ type: "system_message", text: "No assistant message to copy." })
+      ctx.pushEvent({ type: "system_message", ephemeral: true, text: "No assistant message to copy." })
       return
     }
 
@@ -36,10 +36,10 @@ export const copyCommand: SlashCommand = {
       const preview = lastAssistantText.length > 80
         ? lastAssistantText.slice(0, 77) + "..."
         : lastAssistantText
-      ctx.pushEvent({ type: "system_message", text: `Copied to clipboard (${lastAssistantText.length} chars): ${preview}` })
+      ctx.pushEvent({ type: "system_message", ephemeral: true, text: `Copied to clipboard (${lastAssistantText.length} chars): ${preview}` })
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
-      ctx.pushEvent({ type: "system_message", text: `Failed to copy: ${msg}` })
+      ctx.pushEvent({ type: "system_message", ephemeral: true, text: `Failed to copy: ${msg}` })
     }
   },
 }

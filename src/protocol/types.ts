@@ -145,6 +145,9 @@ export type ModelChangedEvent = {
 export type SystemMessageEvent = {
   type: "system_message"
   text: string
+  /** Ephemeral messages are shown in the UI but excluded from API context.
+   *  Matches Claude Code's `display: 'system'` behavior for local commands. */
+  ephemeral?: boolean
 }
 
 /** Backend escape hatch */
@@ -262,7 +265,7 @@ export type Block =
   | { type: "assistant"; text: string; timestamp?: number; model?: string }
   | { type: "thinking"; text: string }
   | { type: "tool"; id: string; tool: string; input: unknown; status: ToolStatus; output?: string; error?: string; startTime: number; duration?: number }
-  | { type: "system"; text: string }
+  | { type: "system"; text: string; ephemeral?: boolean }
   | { type: "compact"; summary: string }
   | { type: "error"; code: string; message: string }
 

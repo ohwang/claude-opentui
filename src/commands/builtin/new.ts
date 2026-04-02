@@ -14,6 +14,7 @@ export const newCommand: SlashCommand = {
     ctx.pushEvent({
       type: "system_message",
       text: "New conversation started",
+      ephemeral: true,
     })
   },
 }

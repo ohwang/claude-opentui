@@ -272,14 +272,14 @@ function Layout(props: { onExit?: () => void }) {
           showTransientHint("Interrupt pending... Press Ctrl+D\u00D72 to force exit", 3000)
         } else {
           sync.pushEvent({ type: "interrupt" })
-          sync.pushEvent({ type: "system_message", text: "Interrupted \u00B7 What should Claude do instead?" })
+          sync.pushEvent({ type: "system_message", text: "Interrupted \u00B7 What should Claude do instead?", ephemeral: true })
           agent.backend.interrupt()
 
           // Interrupt timeout \u2014 if the SDK doesn't respond within 10s, force recovery
           interruptTimeout = setTimeout(() => {
             if (session.sessionState === "INTERRUPTING") {
               log.warn("Interrupt timed out after 10s \u2014 forcing recovery")
-              sync.pushEvent({ type: "system_message", text: "Interrupt timed out \u2014 recovering." })
+              sync.pushEvent({ type: "system_message", text: "Interrupt timed out \u2014 recovering.", ephemeral: true })
               sync.pushEvent({
                 type: "turn_complete",
                 usage: { inputTokens: 0, outputTokens: 0 },

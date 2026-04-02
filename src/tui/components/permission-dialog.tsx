@@ -390,6 +390,7 @@ export function PermissionDialog() {
     sync.pushEvent({
       type: "system_message",
       text: `Tool "${toolName}" denied by user`,
+      ephemeral: true,
     })
   }
 
@@ -399,6 +400,7 @@ export function PermissionDialog() {
     sync.pushEvent({
       type: "system_message",
       text: `Tool "${toolName}" denied for session`,
+      ephemeral: true,
     })
   }
 

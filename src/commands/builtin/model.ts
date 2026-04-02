@@ -14,6 +14,7 @@ export const modelCommand: SlashCommand = {
       ctx.pushEvent({
         type: "system_message",
         text: "Usage: /model <model-name>",
+        ephemeral: true,
       })
       return
     }
@@ -26,6 +27,7 @@ export const modelCommand: SlashCommand = {
       ctx.pushEvent({
         type: "system_message",
         text: `Unknown model: ${modelName}\n\nAvailable models:\n${available}`,
+        ephemeral: true,
       })
       return
     }
@@ -38,11 +40,13 @@ export const modelCommand: SlashCommand = {
       ctx.pushEvent({
         type: "system_message",
         text: `Switched to ${modelName}`,
+        ephemeral: true,
       })
     } catch (error) {
       ctx.pushEvent({
         type: "system_message",
         text: `Error: Could not switch to model '${modelName}'. ${error instanceof Error ? error.message : 'Unknown error'}`,
+        ephemeral: true,
       })
     }
   },

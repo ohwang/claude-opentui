@@ -18,7 +18,7 @@ export const costCommand: SlashCommand = {
   execute: (_args, ctx) => {
     const state = ctx.getSessionState?.()
     if (!state) {
-      ctx.pushEvent({ type: "system_message", text: "Cost data not available." })
+      ctx.pushEvent({ type: "system_message", text: "Cost data not available.", ephemeral: true })
       return
     }
 
@@ -43,6 +43,6 @@ export const costCommand: SlashCommand = {
       lines.push(`  Avg/turn: $${(cost.totalCostUsd / turnNumber).toFixed(4)} · ${formatTokens(Math.round(totalTokens / turnNumber))} tokens`)
     }
 
-    ctx.pushEvent({ type: "system_message", text: lines.join("\n") })
+    ctx.pushEvent({ type: "system_message", text: lines.join("\n"), ephemeral: true })
   },
 }

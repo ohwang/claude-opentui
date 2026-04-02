@@ -473,7 +473,11 @@ export function reduce(
     case "system_message":
       return {
         ...next,
-        blocks: [...state.blocks, { type: "system", text: event.text }],
+        blocks: [...state.blocks, {
+          type: "system",
+          text: event.text,
+          ...(event.ephemeral ? { ephemeral: true } : {}),
+        }],
       }
 
     // ----- Informational / passthrough -----

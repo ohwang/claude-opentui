@@ -15,6 +15,7 @@ export const diagnosticsCommand: SlashCommand = {
       ctx.pushEvent({
         type: "system_message",
         text: "Diagnostics panel not available.",
+        ephemeral: true,
       })
     }
   },

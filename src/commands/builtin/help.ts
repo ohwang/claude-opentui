@@ -23,6 +23,7 @@ export const helpCommand: SlashCommand = {
     ctx.pushEvent({
       type: "system_message",
       text: `Available commands:\n${text}`,
+      ephemeral: true,
     })
   },
 }

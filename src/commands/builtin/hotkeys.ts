@@ -75,6 +75,6 @@ export const hotkeysCommand: SlashCommand = {
       lines.push("")
     }
 
-    ctx.pushEvent({ type: "system_message", text: lines.join("\n") })
+    ctx.pushEvent({ type: "system_message", text: lines.join("\n"), ephemeral: true })
   },
 }

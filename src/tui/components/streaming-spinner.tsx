@@ -14,7 +14,7 @@
  * model is actively working.
  */
 
-import { createSignal, onCleanup } from "solid-js"
+import { createSignal, createEffect, onCleanup } from "solid-js"
 import { colors } from "../theme/tokens"
 
 // ---------------------------------------------------------------------------
@@ -29,9 +29,33 @@ const THINKING_VERBS = [
   "Evaluating", "Reflecting", "Synthesizing", "Formulating", "Exploring",
 ]
 
+// Stall detection thresholds (seconds without token count change)
+const STALL_WARNING_SECS = 30
+const STALL_ERROR_SECS = 60
+
 export function StreamingSpinner(props: { label: string; elapsedSeconds?: number; outputTokens?: number }) {
   const [frameIndex, setFrameIndex] = createSignal(0)
   const [verbIndex, setVerbIndex] = createSignal(Math.floor(Math.random() * THINKING_VERBS.length))
+
+  // -- Stall detection: track when outputTokens last changed ----------------
+  let lastTokenCount = props.outputTokens ?? 0
+  let lastTokenChangeTime = Date.now()
+  const [stallDurationSecs, setStallDurationSecs] = createSignal(0)
+
+  createEffect(() => {
+    const current = props.outputTokens ?? 0
+    if (current !== lastTokenCount) {
+      lastTokenCount = current
+      lastTokenChangeTime = Date.now()
+      setStallDurationSecs(0)
+    }
+  })
+
+  // Poll stall duration every second (aligned with the elapsed timer cadence)
+  const stallTimer = setInterval(() => {
+    const elapsed = (Date.now() - lastTokenChangeTime) / 1000
+    setStallDurationSecs(Math.floor(elapsed))
+  }, 1000)
 
   const timer = setInterval(() => {
     setFrameIndex((i) => (i + 1) % SPINNER_FRAMES.length)
@@ -55,6 +79,7 @@ export function StreamingSpinner(props: { label: string; elapsedSeconds?: number
   onCleanup(() => {
     clearInterval(timer)
     clearInterval(verbTimer)
+    clearInterval(stallTimer)
   })
 
   const displayLabel = () => {
@@ -85,11 +110,24 @@ export function StreamingSpinner(props: { label: string; elapsedSeconds?: number
     return parts.length > 0 ? ` (${parts.join(" \u00B7 ")})` : ""
   }
 
+  // -- Stall-aware color: normal -> amber (30s) -> red (60s) ----------------
+  const spinnerColor = () => {
+    const secs = stallDurationSecs()
+    if (secs >= STALL_ERROR_SECS) return colors.status.error
+    if (secs >= STALL_WARNING_SECS) return colors.status.warning
+    return colors.accent.primary
+  }
+
+  const stallSuffix = () => {
+    return stallDurationSecs() >= STALL_ERROR_SECS ? " (may be stalled)" : ""
+  }
+
   return (
     <box flexDirection="row">
-      <text fg={colors.accent.primary}>{SPINNER_FRAMES[frameIndex()]} </text>
-      <text fg={colors.accent.primary}>{displayLabel()}</text>
+      <text fg={spinnerColor()}>{SPINNER_FRAMES[frameIndex()]} </text>
+      <text fg={spinnerColor()}>{displayLabel()}</text>
       <text fg={colors.text.secondary}>{metaStr()}</text>
+      <text fg={colors.status.error}>{stallSuffix()}</text>
     </box>
   )
 }

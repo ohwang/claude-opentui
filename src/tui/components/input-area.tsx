@@ -260,7 +260,7 @@ export function InputArea() {
 
   // Autocomplete dropdown state
   const [showAutocomplete, setShowAutocomplete] = createSignal(false)
-  const [autocompleteItems, setAutocompleteItems] = createSignal<{ name: string; description: string }[]>([])
+  const [autocompleteItems, setAutocompleteItems] = createSignal<{ name: string; description: string; argumentHint?: string; type?: string }[]>([])
   const [selectedIndex, setSelectedIndex] = createSignal(0)
   const [autocompleteMode, setAutocompleteMode] = createSignal<AutocompleteMode>(null)
 
@@ -827,6 +827,16 @@ export function InputArea() {
                 >
                   {autocompleteMode() === "file" ? truncatePath(item.name) : `/${item.name}`}
                 </text>
+                {autocompleteMode() === "slash" && item.argumentHint && (
+                  <text fg={colors.text.muted} attributes={TextAttributes.DIM}>
+                    {` ${item.argumentHint}`}
+                  </text>
+                )}
+                {autocompleteMode() === "slash" && item.type === "prompt" && (
+                  <text fg={colors.accent.cyan} attributes={TextAttributes.DIM}>
+                    {" [prompt]"}
+                  </text>
+                )}
                 <text fg={colors.text.muted} attributes={index() !== selectedIndex() ? TextAttributes.DIM : 0}>
                   {"  \u2013  "}{item.description}
                 </text>

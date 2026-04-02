@@ -199,7 +199,7 @@ export function ToolBlockView(props: { block: Extract<Block, { type: "tool" }>; 
                 }
               >
                 <code
-                  code={b().output ?? ""}
+                  content={b().output ?? ""}
                   syntaxStyle={syntaxStyle}
                   filetype={filetypeFromPath((b().input as Record<string, unknown> | null)?.file_path as string | undefined)}
                   fg={colors.text.primary}

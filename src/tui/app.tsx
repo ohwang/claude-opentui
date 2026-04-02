@@ -97,12 +97,17 @@ function Layout(props: { onExit?: () => void }) {
 
   const renderer = useRenderer()
 
+  const GOODBYE_MESSAGES = ["Goodbye!", "See ya!", "Bye!", "Catch you later!", "Until next time!"]
+
   const cleanExit = (reason: string) => {
     log.info("Clean exit", { reason })
     sync.pushEvent({ type: "shutdown" })
     agent.backend.close()
     props.onExit?.()
+    // Show a random goodbye message before exit
+    const goodbye = GOODBYE_MESSAGES[Math.floor(Math.random() * GOODBYE_MESSAGES.length)]
     renderer.destroy()
+    console.log(`\n${goodbye}\n`)
     process.exit(0)
   }
 

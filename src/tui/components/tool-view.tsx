@@ -83,7 +83,11 @@ export function ToolBlockView(props: { block: Extract<Block, { type: "tool" }>; 
   const primaryArg = createMemo(() => {
     const inp = b().input as Record<string, unknown> | null
     if (!inp) return ""
-    if (inp.file_path) return String(inp.file_path)
+    if (inp.file_path) {
+      const raw = String(inp.file_path)
+      const cwd = process.cwd()
+      return raw.startsWith(cwd + "/") ? raw.slice(cwd.length + 1) : raw
+    }
     if (inp.command) {
       const cmd = String(inp.command)
       return cmd.length > 80 ? cmd.slice(0, 77) + "..." : cmd
@@ -231,7 +235,11 @@ export function ToolBlockView(props: { block: Extract<Block, { type: "tool" }>; 
 function extractPrimaryArg(tool: string, input: unknown): string {
   const inp = input as Record<string, unknown> | null
   if (!inp) return ""
-  if (inp.file_path && typeof inp.file_path === "string") return inp.file_path
+  if (inp.file_path && typeof inp.file_path === "string") {
+    const raw = inp.file_path
+    const cwd = process.cwd()
+    return raw.startsWith(cwd + "/") ? raw.slice(cwd.length + 1) : raw
+  }
   if (inp.command && typeof inp.command === "string") {
     const cmd = inp.command
     return cmd.length > 60 ? cmd.slice(0, 57) + "..." : cmd

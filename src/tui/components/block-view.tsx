@@ -55,6 +55,13 @@ export function BlockView(props: { block: Block; viewLevel: ViewLevel; prevType?
 
   return (
     <box flexDirection="column">
+      {/* Turn separator — subtle line between turns */}
+      <Show when={b().type === "user" && props.prevType && props.prevType !== "user"}>
+        <box height={1} paddingLeft={2} paddingRight={2}>
+          <text fg={colors.border.muted}>{"─".repeat(60)}</text>
+        </box>
+      </Show>
+
       {/* User block */}
       <Show when={userBlock()}>{(ub) =>
         <box flexDirection="column" marginTop={1}>
@@ -199,7 +206,12 @@ function CollapsedToolLine(props: { block: Extract<Block, { type: "tool" }> }) {
   const primaryArg = () => {
     const inp = b().input as Record<string, unknown> | null
     if (!inp) return ""
-    if (inp.file_path) return ` ${String(inp.file_path)}`
+    if (inp.file_path) {
+      const raw = String(inp.file_path)
+      const cwd = process.cwd()
+      const display = raw.startsWith(cwd + "/") ? raw.slice(cwd.length + 1) : raw
+      return ` ${display}`
+    }
     if (inp.command) {
       const cmd = String(inp.command)
       return ` ${cmd.length > 60 ? cmd.slice(0, 57) + "..." : cmd}`

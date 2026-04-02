@@ -16,6 +16,7 @@ import { MessagesProvider } from "./context/messages"
 import { SessionProvider, useSession } from "./context/session"
 import { PermissionsProvider } from "./context/permissions"
 import { SyncProvider, useSync } from "./context/sync"
+import { ToastProvider, toast } from "./context/toast"
 import { colors } from "./theme/tokens"
 import { useTerminalDimensions } from "@opentui/solid"
 import { ConversationView } from "./components/conversation"
@@ -115,7 +116,7 @@ function Layout(props: { onExit?: () => void }) {
   _toggleDiagnostics = () => setShowDiagnostics((v) => !v)
 
   _showCopyHint = (chars: number) => {
-    showTransientHint(`Copied ${chars} chars to clipboard`)
+    toast.success(`Copied ${chars} chars to clipboard`)
   }
 
   // Clear interrupt timeout when state transitions away from INTERRUPTING
@@ -140,7 +141,7 @@ function Layout(props: { onExit?: () => void }) {
   const cycleModel = (delta: number) => {
     // Only allow model cycling when idle (not mid-turn)
     if (session.sessionState !== "IDLE" && session.sessionState !== "INITIALIZING") {
-      showTransientHint("Cannot switch model while running")
+      toast.warn("Cannot switch model while running")
       return
     }
     if (modelIds.length === 0) return
@@ -153,12 +154,12 @@ function Layout(props: { onExit?: () => void }) {
     // Fire-and-forget model switch on the backend
     agent.backend.setModel(modelId).catch((err: unknown) => {
       log.warn("Failed to set model", { model: modelId, error: String(err) })
-      showTransientHint(`Failed to switch model: ${err instanceof Error ? err.message : String(err)}`)
+      toast.error(`Failed to switch model: ${err instanceof Error ? err.message : String(err)}`)
     })
 
     // Emit model_changed event so the session store / status bar update
     sync.pushEvent({ type: "model_changed", model: modelId })
-    showTransientHint(`Switched to ${displayName}`)
+    toast.info(`Switched to ${displayName}`)
   }
 
   // Global keyboard shortcuts
@@ -383,7 +384,9 @@ export function startApp(options: AppOptions): void {
           <MessagesProvider>
             <PermissionsProvider>
               <SyncProvider>
-                <Layout onExit={options.onExit} />
+                <ToastProvider>
+                  <Layout onExit={options.onExit} />
+                </ToastProvider>
               </SyncProvider>
             </PermissionsProvider>
           </MessagesProvider>

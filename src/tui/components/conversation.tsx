@@ -24,6 +24,7 @@ import { refocusInput, blurInput, registerScrollToBottom } from "./input-area"
 import { StreamingSpinner } from "./streaming-spinner"
 import { type ViewLevel } from "./tool-view"
 import { BlockView } from "./block-view"
+import { ToastDisplay } from "./toast"
 
 export type { ViewLevel }
 
@@ -380,6 +381,11 @@ export function ConversationView(props: { children?: JSX.Element }) {
             </text>
           </box>
         </Show>
+      </box>
+
+      {/* Toast notifications — between pill and input area */}
+      <box flexDirection="column" flexShrink={0}>
+        <ToastDisplay />
       </box>
 
       {/* Input area, status bar, dialogs — fixed below scrollbox */}

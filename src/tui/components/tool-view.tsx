@@ -23,6 +23,11 @@ export function isUserDecline(error: string): boolean {
   return error.includes("User declined to answer") || error.includes("Interrupted by user")
 }
 
+/** Detect whether a tool produces code-like output that benefits from syntax highlighting */
+function isCodeOutput(tool: string): boolean {
+  return tool === "Read" || tool === "Grep"
+}
+
 /** Detect whether tool output contains a unified diff */
 function isDiffOutput(tool: string, output: string): boolean {
   if (tool === "Edit" || tool === "Write") {
@@ -179,15 +184,27 @@ export function ToolBlockView(props: { block: Extract<Block, { type: "tool" }>; 
           </text>
         </box>
       </Show>
-      {/* Full output (show_all mode) */}
+      {/* Full output (show_all mode) — syntax highlighted for code-producing tools */}
       <Show when={props.viewLevel === "show_all" && b().output}>
         <box paddingLeft={4}>
           <Show
             when={isDiffOutput(b().tool, b().output ?? "")}
             fallback={
-              <text fg={colors.text.muted} attributes={TextAttributes.DIM}>
-                {b().output}
-              </text>
+              <Show
+                when={isCodeOutput(b().tool)}
+                fallback={
+                  <text fg={colors.text.muted} attributes={TextAttributes.DIM}>
+                    {b().output}
+                  </text>
+                }
+              >
+                <code
+                  code={b().output ?? ""}
+                  syntaxStyle={syntaxStyle}
+                  filetype={filetypeFromPath((b().input as Record<string, unknown> | null)?.file_path as string | undefined)}
+                  fg={colors.text.primary}
+                />
+              </Show>
             }
           >
             <diff

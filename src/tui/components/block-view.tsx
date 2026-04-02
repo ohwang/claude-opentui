@@ -65,7 +65,7 @@ export function BlockView(props: { block: Block; viewLevel: ViewLevel; prevType?
       }</Show>
 
       <Show when={systemBlock()}>{(sb) => <SystemBlock block={sb()} />}</Show>
-      <Show when={compactBlock()}>{() => <CompactBlock />}</Show>
+      <Show when={compactBlock()}>{(cb) => <CompactBlock block={cb()} />}</Show>
       <Show when={errorBlock()}>{(eb) => <ErrorBlock block={eb()} />}</Show>
     </box>
   )

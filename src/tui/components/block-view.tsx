@@ -5,7 +5,7 @@
  * user, assistant, thinking, tool, system, compact, error.
  */
 
-import { Show } from "solid-js"
+import { Show, createSignal, createEffect, onCleanup } from "solid-js"
 import { TextAttributes } from "@opentui/core"
 import { ThinkingBlock } from "./thinking-block"
 import { ToolBlockView, isUserDecline } from "./tool-view"
@@ -154,6 +154,41 @@ export function BlockView(props: { block: Block; viewLevel: ViewLevel; prevType?
 function CollapsedToolLine(props: { block: Extract<Block, { type: "tool" }> }) {
   const b = () => props.block
 
+  // --- Minimum display time: keep showing "running" for at least 700ms after completion ---
+  const MIN_DISPLAY_MS = 700
+  const [displayRunning, setDisplayRunning] = createSignal(b().status === "running")
+  let minDisplayTimer: ReturnType<typeof setTimeout> | undefined
+
+  createEffect(() => {
+    if (b().status === "running") {
+      setDisplayRunning(true)
+      clearTimeout(minDisplayTimer)
+    } else {
+      // Tool completed — delay the visual transition
+      minDisplayTimer = setTimeout(() => setDisplayRunning(false), MIN_DISPLAY_MS)
+    }
+  })
+  onCleanup(() => clearTimeout(minDisplayTimer))
+
+  // --- Elapsed time for running tools — updates every second ---
+  const [elapsed, setElapsed] = createSignal(0)
+  let elapsedTimer: ReturnType<typeof setInterval> | undefined
+
+  createEffect(() => {
+    if (displayRunning() && b().status === "running") {
+      setElapsed(Math.floor((Date.now() - b().startTime) / 1000))
+      elapsedTimer = setInterval(() => {
+        setElapsed(Math.floor((Date.now() - b().startTime) / 1000))
+      }, 1000)
+    } else {
+      if (elapsedTimer) {
+        clearInterval(elapsedTimer)
+        elapsedTimer = undefined
+      }
+    }
+  })
+  onCleanup(() => { if (elapsedTimer) clearInterval(elapsedTimer) })
+
   const primaryArg = () => {
     const inp = b().input as Record<string, unknown> | null
     if (!inp) return ""
@@ -167,7 +202,10 @@ function CollapsedToolLine(props: { block: Extract<Block, { type: "tool" }> }) {
   }
 
   const hint = () => {
-    if (b().status === "running") return "..."
+    if (displayRunning()) {
+      const secs = elapsed()
+      return secs > 0 ? `... ${secs}s` : "..."
+    }
     if (b().error) {
       return isUserDecline(b().error!) ? " — declined" : " — failed"
     }

@@ -1440,6 +1440,22 @@ describe("ConversationState reducer", () => {
       expect(state.lastTurnInputTokens).toBe(5000)
     })
 
+    it("lastTurnInputTokens excludes cacheWriteTokens (already counted in inputTokens)", () => {
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "turn_start" },
+        { type: "turn_complete", usage: {
+          inputTokens: 15000,        // uncached input (includes the 5K that were written to cache)
+          outputTokens: 2000,
+          cacheReadTokens: 40000,    // read from prompt cache
+          cacheWriteTokens: 5000,    // subset of inputTokens written to cache — NOT additional context
+        }},
+      ])
+      // Context fill = inputTokens + cacheReadTokens = 55000
+      // cacheWriteTokens must NOT be added (it's a subset of inputTokens)
+      expect(state.lastTurnInputTokens).toBe(55000)
+    })
+
     it("turn_complete in ERROR state recovers to IDLE", () => {
       const state = applyEvents([
         { type: "session_init", tools: [], models: [] },

@@ -157,8 +157,11 @@ export function reduce(
         cost,
         streamingOutputTokens: 0,
         activeTasks: prunedTasks,
+        // Context window fill = uncached input tokens + cache-read tokens.
+        // cacheWriteTokens is a subset of inputTokens (tokens the API wrote to
+        // cache this turn), so adding it would double-count.
         lastTurnInputTokens: event.usage && (event.usage.inputTokens > 0 || (event.usage.cacheReadTokens ?? 0) > 0)
-          ? (event.usage.inputTokens + (event.usage.cacheReadTokens ?? 0) + (event.usage.cacheWriteTokens ?? 0))
+          ? (event.usage.inputTokens + (event.usage.cacheReadTokens ?? 0))
           : state.lastTurnInputTokens,
       }
     }

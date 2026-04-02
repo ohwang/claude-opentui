@@ -339,10 +339,13 @@ export function StatusBar(props: { hint?: string | null }) {
     return Math.round((fill / ctxWindow) * 100)
   })
 
-  // -- Context string: "ctx:45%" --
+  // -- Context string: "ctx:45%" — show "<1%" when tokens exist but round to 0% --
   const ctxStr = createMemo(() => {
     const pct = ctxPct()
-    if (pct === 0) return ""
+    if (pct === 0) {
+      // Show "<1%" if we have any tokens (first turn completed) but they round to 0%
+      return state.lastTurnInputTokens > 0 ? "ctx:<1%" : ""
+    }
     return `ctx:${pct}%`
   })
 
@@ -357,8 +360,9 @@ export function StatusBar(props: { hint?: string | null }) {
   // -- Context bar: ▰▰▰▰▱▱▱▱▱▱ (10 segments) --
   const ctxBar = createMemo(() => {
     const pct = ctxPct()
-    if (pct === 0) return ""
-    const filled = Math.round(pct / 10)
+    if (pct === 0 && state.lastTurnInputTokens === 0) return ""
+    // Show at least 1 filled segment when tokens exist
+    const filled = Math.max(pct > 0 ? 1 : (state.lastTurnInputTokens > 0 ? 1 : 0), Math.round(pct / 10))
     const empty = 10 - filled
     return "\u25B0".repeat(filled) + "\u25B1".repeat(empty)
   })

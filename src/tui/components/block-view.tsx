@@ -12,7 +12,7 @@ import { ToolBlockView, isUserDecline } from "./tool-view"
 import { colors } from "../theme/tokens"
 import type { Block } from "../../protocol/types"
 import type { ViewLevel } from "./tool-view"
-import { Divider, getStatusConfig } from "./primitives"
+import { Divider, getStatusConfig, BlinkingDot } from "./primitives"
 import { UserBlock } from "./blocks/user-block"
 import { AssistantBlock } from "./blocks/assistant-block"
 import { SystemBlock, type SystemCategory, categorizeSystemMessage } from "./blocks/system-block"
@@ -151,26 +151,23 @@ function CollapsedToolLine(props: { block: Extract<Block, { type: "tool" }> }) {
     return ""
   }
 
-  /** Status icon config using design system primitives (uses displayRunning for min-display-time) */
-  const statusIcon = () => {
-    if (displayRunning()) return getStatusConfig("running")
+  /** BlinkingDot status for the prefix gutter */
+  const dotStatus = (): "active" | "success" | "error" | "declined" => {
+    if (displayRunning()) return "active"
     if (b().error) {
-      if (isUserDecline(b().error!)) return getStatusConfig("declined")
-      return getStatusConfig("error")
+      if (isUserDecline(b().error!)) return "declined"
+      return "error"
     }
-    return getStatusConfig("success")
+    return "success"
   }
 
   const isError = () => !!(b().error && !isUserDecline(b().error!))
 
   return (
     <box flexDirection="row">
-      <text
-        fg={statusIcon().color}
-        attributes={TextAttributes.DIM}
-      >
-        {statusIcon().icon + " "}
-      </text>
+      <box width={2} flexShrink={0}>
+        <BlinkingDot status={dotStatus()} />
+      </box>
       <text
         fg={isError() ? colors.status.error : colors.text.secondary}
         attributes={TextAttributes.DIM}

@@ -361,7 +361,7 @@ export function InputArea() {
   const MAX_HINT_SHOWS = 5
 
   const placeholder = () => {
-    if (session.sessionState === "INITIALIZING") return "Connecting..."
+    if (session.sessionState === "INITIALIZING") return "Type a message to start..."
     if (session.sessionState === "RUNNING") return "Type to queue a message..."
     if (session.sessionState === "WAITING_FOR_PERM") return ""
     if (session.sessionState === "WAITING_FOR_ELIC") return ""

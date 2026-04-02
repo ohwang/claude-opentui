@@ -57,7 +57,7 @@ export function HeaderBar() {
     const raw = state.currentModel || (model?.name ?? agent.config.model ?? "")
 
     // No model from session or config — genuinely unknown
-    if (!raw) return "Connecting..."
+    if (!raw) return "Ready"
 
     const friendly = friendlyModelName(raw)
 

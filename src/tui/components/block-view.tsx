@@ -150,7 +150,14 @@ export function BlockView(props: { block: Block; viewLevel: ViewLevel; prevType?
   )
 }
 
-/** Collapsed single-line tool summary — avoids destroying/recreating ToolBlockView on view toggle */
+/** Collapsed single-line tool summary — avoids destroying/recreating ToolBlockView on view toggle.
+ *
+ * Each line gets a status icon prefix for instant scannability:
+ *   ✓ = success (green), ✗ = error (red), ⋯ = running (accent), ↳ = declined (dim)
+ *
+ * This matches the visual density of polished terminal UIs where every tool
+ * invocation is instantly identifiable by its outcome without expanding.
+ */
 function CollapsedToolLine(props: { block: Extract<Block, { type: "tool" }> }) {
   const b = () => props.block
 
@@ -218,14 +225,32 @@ function CollapsedToolLine(props: { block: Extract<Block, { type: "tool" }> }) {
     return ""
   }
 
+  /** Status icon and color for the prefix gutter (uses displayRunning for min-display-time) */
+  const statusIcon = () => {
+    if (displayRunning()) return { icon: "\u22EF", color: colors.accent.primary }  // ⋯
+    if (b().error) {
+      if (isUserDecline(b().error!)) return { icon: "\u21B3", color: colors.text.muted }   // ↳
+      return { icon: "\u2717", color: colors.status.error }                                 // ✗
+    }
+    return { icon: "\u2713", color: colors.status.success }                                 // ✓
+  }
+
   const isError = () => !!(b().error && !isUserDecline(b().error!))
 
   return (
-    <text
-      fg={isError() ? colors.status.error : colors.text.secondary}
-      attributes={TextAttributes.DIM}
-    >
-      {b().tool + primaryArg() + hint()}
-    </text>
+    <box flexDirection="row">
+      <text
+        fg={statusIcon().color}
+        attributes={TextAttributes.DIM}
+      >
+        {statusIcon().icon + " "}
+      </text>
+      <text
+        fg={isError() ? colors.status.error : colors.text.secondary}
+        attributes={TextAttributes.DIM}
+      >
+        {b().tool + primaryArg() + hint()}
+      </text>
+    </box>
   )
 }

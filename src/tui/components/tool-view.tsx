@@ -291,7 +291,8 @@ export function ToolSummaryView(props: { tools: ToolBlock[] }) {
   })
   onCleanup(() => { if (tickTimer) clearInterval(tickTimer) })
 
-  /** Build per-tool summary lines: "ToolName arg — hint" or "Running ToolName... (5s)" */
+  /** Build per-tool summary lines with status icon prefix for instant scannability.
+   *  Each line: "✓ ToolName arg — hint" or "⋯ ToolName arg... (5s)" */
   const toolLines = createMemo(() => {
     const now = tick() // subscribe to tick for reactivity
     return props.tools.map(tool => {
@@ -300,25 +301,53 @@ export function ToolSummaryView(props: { tools: ToolBlock[] }) {
 
       if (tool.status === "running") {
         const elapsed = Math.floor((now - tool.startTime) / 1000)
-        return { text: `${tool.tool}${argSuffix}... (${formatElapsed(elapsed)})`, isError: false }
+        return {
+          text: `${tool.tool}${argSuffix}... (${formatElapsed(elapsed)})`,
+          isError: false,
+          icon: "\u22EF",  // ⋯
+          iconColor: colors.accent.primary,
+        }
       }
 
       const hint = collapsedResultHint(tool)
       const isError = tool.status === "error" || (!!tool.error && !isUserDecline(tool.error))
-      const hintSuffix = hint ? ` — ${hint}` : ""
-      return { text: `${tool.tool}${argSuffix}${hintSuffix}`, isError }
+      const isDeclined = !!tool.error && isUserDecline(tool.error)
+      const hintSuffix = hint ? ` \u2014 ${hint}` : ""
+
+      let icon: string
+      let iconColor: string
+      if (isError) {
+        icon = "\u2717"   // ✗
+        iconColor = colors.status.error
+      } else if (isDeclined) {
+        icon = "\u21B3"   // ↳
+        iconColor = colors.text.muted
+      } else {
+        icon = "\u2713"   // ✓
+        iconColor = colors.status.success
+      }
+
+      return { text: `${tool.tool}${argSuffix}${hintSuffix}`, isError, icon, iconColor }
     })
   })
 
   return (
     <box paddingLeft={2} flexDirection="column">
       {toolLines().map(line => (
-        <text
-          fg={line.isError ? colors.status.error : colors.text.secondary}
-          attributes={TextAttributes.DIM}
-        >
-          {line.text}
-        </text>
+        <box flexDirection="row">
+          <text
+            fg={line.iconColor}
+            attributes={TextAttributes.DIM}
+          >
+            {line.icon + " "}
+          </text>
+          <text
+            fg={line.isError ? colors.status.error : colors.text.secondary}
+            attributes={TextAttributes.DIM}
+          >
+            {line.text}
+          </text>
+        </box>
       ))}
     </box>
   )

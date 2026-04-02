@@ -1,50 +1,32 @@
 /**
- * BlockView — dispatches rendering by block type.
+ * BlockView — thin dispatcher that routes each block to its renderer.
  *
- * Routes each block to the appropriate visual treatment:
- * user, assistant, thinking, tool, system, compact, error.
+ * Per-type renderers live in ./blocks/. This file handles the dispatch,
+ * turn separators, and the CollapsedToolLine (which has complex state).
  */
 
 import { Show, createSignal, createEffect, onCleanup } from "solid-js"
 import { TextAttributes } from "@opentui/core"
 import { ThinkingBlock } from "./thinking-block"
 import { ToolBlockView, isUserDecline } from "./tool-view"
-import { syntaxStyle } from "../theme"
 import { colors } from "../theme/tokens"
 import type { Block } from "../../protocol/types"
 import type { ViewLevel } from "./tool-view"
+import { Divider } from "./primitives"
+import { UserBlock } from "./blocks/user-block"
+import { AssistantBlock } from "./blocks/assistant-block"
+import { SystemBlock, type SystemCategory, categorizeSystemMessage } from "./blocks/system-block"
+import { ErrorBlock } from "./blocks/error-block"
+import { CompactBlock } from "./blocks/compact-block"
 
-// ---------------------------------------------------------------------------
-// System message visual categorization
-// ---------------------------------------------------------------------------
-
-export type SystemCategory = "interrupt" | "denial" | "error" | "success" | "info"
-
-export function categorizeSystemMessage(text: string): SystemCategory {
-  const lower = text.toLowerCase()
-  if (lower.includes("interrupted") || lower.includes("interrupt")) return "interrupt"
-  if (lower.includes("denied")) return "denial"
-  if (lower.includes("failed") || lower.includes("error") || lower.includes("cannot")) return "error"
-  if (lower.includes("copied") || lower.includes("switched") || lower.includes("cleared") || lower.includes("connected")) return "success"
-  return "info"
-}
-
-function systemMessageStyle(text: string): { icon: string; color: string; attrs: number } {
-  switch (categorizeSystemMessage(text)) {
-    case "interrupt": return { icon: "\u23BF", color: colors.status.warning, attrs: TextAttributes.BOLD }
-    case "denial":    return { icon: "\u2717", color: colors.status.warning, attrs: TextAttributes.DIM }
-    case "error":     return { icon: "\u2717", color: colors.status.error,   attrs: 0 }
-    case "success":   return { icon: "\u2713", color: colors.status.success, attrs: TextAttributes.DIM }
-    default:          return { icon: "\u00B7", color: colors.text.muted,     attrs: TextAttributes.DIM }
-  }
-}
+// Re-export for consumers that import from block-view
+export type { SystemCategory }
+export { categorizeSystemMessage }
 
 export function BlockView(props: { block: Block; viewLevel: ViewLevel; prevType?: string; showThinking?: boolean }) {
   const b = () => props.block
 
-  // Typed narrowing helpers — each returns the narrowed variant or null.
-  // Used with <Show when={...}>{(val) => ...}</Show> so the callback
-  // receives the non-null typed block, eliminating all `as any` casts.
+  // Typed narrowing helpers
   const userBlock = () => b().type === "user" ? b() as Extract<Block, { type: "user" }> : null
   const assistantBlock = () => b().type === "assistant" ? b() as Extract<Block, { type: "assistant" }> : null
   const thinkingBlock = () => b().type === "thinking" ? b() as Extract<Block, { type: "thinking" }> : null
@@ -57,45 +39,11 @@ export function BlockView(props: { block: Block; viewLevel: ViewLevel; prevType?
     <box flexDirection="column">
       {/* Turn separator — subtle line between turns */}
       <Show when={b().type === "user" && props.prevType && props.prevType !== "user"}>
-        <box height={1} paddingLeft={2} paddingRight={2}>
-          <text fg={colors.border.muted}>{"─".repeat(60)}</text>
-        </box>
+        <Divider width={60} />
       </Show>
 
-      {/* User block */}
-      <Show when={userBlock()}>{(ub) =>
-        <box flexDirection="column" marginTop={1}>
-          <box flexDirection="row" flexGrow={1} bg={colors.bg.surface}>
-            <box width={2} flexShrink={0}>
-              <text fg={colors.text.white} attributes={TextAttributes.BOLD}>{"❯"}</text>
-            </box>
-            <box flexGrow={1}>
-              <text fg={colors.text.white}>{ub().text}</text>
-            </box>
-          </box>
-          <Show when={ub().images && ub().images!.length > 0}>
-            <box paddingLeft={2}>
-              <text fg={colors.accent.primary} attributes={TextAttributes.DIM}>
-                {`📎 ${ub().images!.length} image${ub().images!.length === 1 ? "" : "s"} attached`}
-              </text>
-            </box>
-          </Show>
-        </box>
-      }</Show>
-
-      {/* Assistant text block */}
-      <Show when={assistantBlock()}>{(ab) =>
-        <box flexDirection="column">
-          <box flexDirection="row" marginTop={1}>
-            <box width={2} flexShrink={0}>
-              <text fg={colors.text.white}>{"\u23FA"}</text>
-            </box>
-            <box flexGrow={1}>
-              <markdown content={ab().text} syntaxStyle={syntaxStyle} fg={colors.text.primary} />
-            </box>
-          </box>
-        </box>
-      }</Show>
+      <Show when={userBlock()}>{(ub) => <UserBlock block={ub()} />}</Show>
+      <Show when={assistantBlock()}>{(ab) => <AssistantBlock block={ab()} />}</Show>
 
       {/* Thinking block — hidden in collapsed view or when thinking toggle is off */}
       <Show when={props.showThinking !== false && props.viewLevel !== "collapsed" && thinkingBlock()}>{(tb) =>
@@ -116,43 +64,9 @@ export function BlockView(props: { block: Block; viewLevel: ViewLevel; prevType?
         </box>
       }</Show>
 
-      {/* System block — visually categorized by content */}
-      <Show when={systemBlock()}>{(sb) => {
-        const style = () => systemMessageStyle(sb().text)
-        return (
-          <box paddingLeft={2} marginTop={1}>
-            <text fg={style().color} attributes={style().attrs}>
-              {style().icon + " " + sb().text}
-            </text>
-          </box>
-        )
-      }}</Show>
-
-      {/* Compact block */}
-      <Show when={compactBlock()}>
-        <box paddingTop={1} paddingBottom={1} paddingLeft={2}>
-          <text fg={colors.text.muted} attributes={TextAttributes.DIM}>
-            {"\u2500\u2500 Context compacted \u2500\u2500"}
-          </text>
-        </box>
-      </Show>
-
-      {/* Error block */}
-      <Show when={errorBlock()}>{(eb) => {
-        // Defensive: strip any remaining stack traces and cap length
-        const displayMessage = () => {
-          const msg = eb().message
-          const lines = msg.split("\n").filter((l: string) => !l.match(/^\s+at\s/))
-          const clean = lines.join("\n").trim()
-          return clean.length > 300 ? clean.slice(0, 297) + "..." : clean
-        }
-        return (
-          <box flexDirection="column" paddingTop={1} paddingBottom={1} paddingLeft={2} paddingRight={2} borderStyle="single" borderColor={colors.border.error}>
-            <text fg={colors.status.error} attributes={TextAttributes.BOLD}>Error: {eb().code}</text>
-            <text fg={colors.status.error}>{displayMessage()}</text>
-          </box>
-        )
-      }}</Show>
+      <Show when={systemBlock()}>{(sb) => <SystemBlock block={sb()} />}</Show>
+      <Show when={compactBlock()}>{() => <CompactBlock />}</Show>
+      <Show when={errorBlock()}>{(eb) => <ErrorBlock block={eb()} />}</Show>
     </box>
   )
 }

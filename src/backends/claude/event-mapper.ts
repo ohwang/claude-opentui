@@ -56,15 +56,20 @@ export function mapSDKMessage(msg: any, streamState: ToolStreamState, options?: 
   switch (msg.type) {
     case "system":
       if (msg.subtype === "init") {
-        // Extract context window from bracket suffix if present (e.g. "claude-opus-4-6 [1M context]")
+        // Extract context window from model string suffix.
+        // Formats seen in the wild:
+        //   "claude-opus-4-6 [1M context]"   — SDK display format
+        //   "claude-opus-4-6[1m]"            — claude-code internal format
+        //   "opus[1m]"                       — short alias with suffix
+        //   "claude-opus-4-6 (1M context)"   — parenthetical variant
         let contextWindow: number | undefined
-        const bracketMatch = msg.model?.match(/\[(\d+)([KkMm])\s*(?:context|tokens?)?\]/)
-        if (bracketMatch) {
-          const num = parseInt(bracketMatch[1])
-          const unit = bracketMatch[2].toUpperCase()
+        const ctxMatch = msg.model?.match(/[\[(](\d+)([KkMm])\s*(?:context|tokens?)?[\])]/)
+        if (ctxMatch) {
+          const num = parseInt(ctxMatch[1])
+          const unit = ctxMatch[2].toUpperCase()
           contextWindow = unit === "M" ? num * 1_000_000 : num * 1_000
         }
-        const cleanModel = msg.model?.replace(/\s*\[.*\]$/, "")
+        const cleanModel = msg.model?.replace(/\s*[\[(]\d+[KkMm]\s*(?:context|tokens?)?[\])]\s*$/, "").trim()
         const models: ModelInfo[] = cleanModel
           ? [{ id: cleanModel, name: cleanModel, provider: "anthropic", contextWindow }]
           : []

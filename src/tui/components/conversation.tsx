@@ -51,9 +51,39 @@ export function ConversationView(props: { children?: JSX.Element }) {
   let scrollboxRef: ScrollBoxRenderable | undefined
   const [userScrolledAway, setUserScrolledAway] = createSignal(false)
 
+  // Track how many blocks existed when user scrolled away, to compute "N new messages"
+  const [scrollAwayBlockSnapshot, setScrollAwayBlockSnapshot] = createSignal(0)
+
   // Derived: separate queued vs non-queued blocks
   const nonQueuedBlocks = () => state.blocks.filter(b => !(b.type === "user" && b.queued))
   const queuedBlocks = () => state.blocks.filter(b => b.type === "user" && b.queued) as Array<Extract<Block, { type: "user" }>>
+
+  // Snapshot block count when user scrolls away; derive unseen message count
+  createEffect(() => {
+    if (userScrolledAway()) {
+      // Only snapshot on the transition (when snapshot is still 0 / cleared)
+      if (scrollAwayBlockSnapshot() === 0) {
+        setScrollAwayBlockSnapshot(nonQueuedBlocks().length)
+      }
+    } else {
+      setScrollAwayBlockSnapshot(0)
+    }
+  })
+
+  const newMessageCount = () => {
+    if (!userScrolledAway()) return 0
+    const snapshot = scrollAwayBlockSnapshot()
+    if (snapshot === 0) return 0
+    return Math.max(0, nonQueuedBlocks().length - snapshot)
+  }
+
+  // Show the pill when scrolled away and there's unseen activity (new blocks or active streaming)
+  const hasUnseenContent = () => {
+    if (!userScrolledAway()) return false
+    if (newMessageCount() > 0) return true
+    // Also show when streaming is active (content growing but not yet committed as blocks)
+    return !!(state.streamingText || state.streamingThinking)
+  }
 
   // -- Turn elapsed time for the spinner --
   const [turnStartTime, setTurnStartTime] = createSignal<number | null>(null)
@@ -238,109 +268,124 @@ export function ConversationView(props: { children?: JSX.Element }) {
   onCleanup(() => clearTimeout(scrollbarTimer))
 
   return (
-    <scrollbox ref={(el: ScrollBoxRenderable) => { scrollboxRef = el; registerScrollToBottom(() => { setUserScrolledAway(false); setTimeout(() => el.scrollBy(999999), 50) }) }} flexGrow={1}>
-      <box flexDirection="column" paddingTop={1} paddingRight={1} paddingBottom={1}>
-        {/* Header bar — scrolls with content */}
-        <HeaderBar />
+    <box flexDirection="column" flexGrow={1}>
+      <scrollbox ref={(el: ScrollBoxRenderable) => { scrollboxRef = el; registerScrollToBottom(() => { setUserScrolledAway(false); setTimeout(() => el.scrollBy(999999), 50) }) }} flexGrow={1}>
+        <box flexDirection="column" paddingTop={1} paddingRight={1} paddingBottom={1}>
+          {/* Header bar — scrolls with content */}
+          <HeaderBar />
 
-        {/*
-          IMPORTANT: Every dynamic section (<For>, <Show>) is wrapped in a
-          stable <box> so the parent layout always has a fixed set of children.
-          Without wrappers, SolidJS's reactive primitives dynamically
-          insert/remove direct children and OpenTUI's Zig layout engine can
-          place them at the wrong position (e.g., streaming text above committed
-          blocks instead of below).
-        */}
+          {/*
+            IMPORTANT: Every dynamic section (<For>, <Show>) is wrapped in a
+            stable <box> so the parent layout always has a fixed set of children.
+            Without wrappers, SolidJS's reactive primitives dynamically
+            insert/remove direct children and OpenTUI's Zig layout engine can
+            place them at the wrong position (e.g., streaming text above committed
+            blocks instead of below).
+          */}
 
-        {/* Committed blocks (non-queued) — each block renders itself based on view level */}
-        <box flexDirection="column">
-          <For each={nonQueuedBlocks()}>
-            {(block, index) => {
-              const blocks = nonQueuedBlocks()
-              const prev = index() > 0 ? blocks[index() - 1] : undefined
-              return (
-                <BlockView
-                  block={block}
-                  viewLevel={viewLevel()}
-                  prevType={prev?.type}
-                  showThinking={showThinking()}
-                />
-              )
-            }}
-          </For>
-        </box>
+          {/* Committed blocks (non-queued) — each block renders itself based on view level */}
+          <box flexDirection="column">
+            <For each={nonQueuedBlocks()}>
+              {(block, index) => {
+                const blocks = nonQueuedBlocks()
+                const prev = index() > 0 ? blocks[index() - 1] : undefined
+                return (
+                  <BlockView
+                    block={block}
+                    viewLevel={viewLevel()}
+                    prevType={prev?.type}
+                    showThinking={showThinking()}
+                  />
+                )
+              }}
+            </For>
+          </box>
 
-        {/* Streaming thinking (transient) — hidden in collapsed view, when thinking toggle is off, spinner shows instead */}
-        <box flexDirection="column">
-          <Show when={showThinking() && state.streamingThinking && viewLevel() !== "collapsed"}>
-            <box marginTop={1}>
-              <ThinkingBlock text={state.streamingThinking} collapsed={false} />
-            </box>
-          </Show>
-        </box>
+          {/* Streaming thinking (transient) — hidden in collapsed view, when thinking toggle is off, spinner shows instead */}
+          <box flexDirection="column">
+            <Show when={showThinking() && state.streamingThinking && viewLevel() !== "collapsed"}>
+              <box marginTop={1}>
+                <ThinkingBlock text={state.streamingThinking} collapsed={false} />
+              </box>
+            </Show>
+          </box>
 
-        {/* Streaming text (transient) — styled as assistant with prefix.
-            Uses visible={false} instead of <Show> to avoid destroying/recreating
-            the <markdown> component at flush boundaries (tool_use_start,
-            text_complete, turn_complete). Destroying forces all internal
-            CodeRenderable sub-blocks to re-highlight from scratch, leaving
-            text invisible for 1+ frames while async tree-sitter completes. */}
-        <box flexDirection="column">
-          <box flexDirection="row" marginTop={1} visible={!!state.streamingText}>
-            <box width={2} flexShrink={0}>
-              <text fg={colors.text.white}>{"\u23FA"}</text>
-            </box>
-            <box flexGrow={1}>
-              <markdown content={state.streamingText} syntaxStyle={syntaxStyle} streaming={true} fg={colors.text.primary} />
+          {/* Streaming text (transient) — styled as assistant with prefix.
+              Uses visible={false} instead of <Show> to avoid destroying/recreating
+              the <markdown> component at flush boundaries (tool_use_start,
+              text_complete, turn_complete). Destroying forces all internal
+              CodeRenderable sub-blocks to re-highlight from scratch, leaving
+              text invisible for 1+ frames while async tree-sitter completes. */}
+          <box flexDirection="column">
+            <box flexDirection="row" marginTop={1} visible={!!state.streamingText}>
+              <box width={2} flexShrink={0}>
+                <text fg={colors.text.white}>{"\u23FA"}</text>
+              </box>
+              <box flexGrow={1}>
+                <markdown content={state.streamingText} syntaxStyle={syntaxStyle} streaming={true} fg={colors.text.primary} />
+              </box>
             </box>
           </box>
-        </box>
 
-        {/* Queued user messages (muted, after streaming) */}
-        <box flexDirection="column">
-          <For each={queuedBlocks()}>
-            {(block) => (
-              <box flexDirection="row" paddingLeft={2} marginTop={1}>
-                <text fg={colors.text.muted} attributes={TextAttributes.DIM}>
-                  {"> " + block.text + " (queued)"}
-                </text>
+          {/* Queued user messages (muted, after streaming) */}
+          <box flexDirection="column">
+            <For each={queuedBlocks()}>
+              {(block) => (
+                <box flexDirection="row" paddingLeft={2} marginTop={1}>
+                  <text fg={colors.text.muted} attributes={TextAttributes.DIM}>
+                    {"> " + block.text + " (queued)"}
+                  </text>
+                </box>
+              )}
+            </For>
+          </box>
+
+          {/* Transient view-level hint — replaces itself, auto-clears after 3s */}
+          <box flexDirection="column" paddingLeft={2}>
+            <Show when={viewLevelHint()}>
+              <text fg={colors.text.muted} attributes={TextAttributes.DIM}>{viewLevelHint()}</text>
+            </Show>
+          </box>
+
+          {/* Spinner — visible when RUNNING but no streaming content */}
+          <box flexDirection="column">
+            <Show when={
+              session.sessionState === "RUNNING" &&
+              !state.streamingText &&
+              !state.streamingThinking
+            }>
+              <box marginTop={1} paddingLeft={2}>
+                <StreamingSpinner label={spinnerLabel()} elapsedSeconds={turnElapsed()} outputTokens={state.streamingOutputTokens || session.cost.outputTokens} />
               </box>
-            )}
-          </For>
-        </box>
+            </Show>
+          </box>
 
-        {/* Transient view-level hint — replaces itself, auto-clears after 3s */}
-        <box flexDirection="column" paddingLeft={2}>
-          <Show when={viewLevelHint()}>
-            <text fg={colors.text.muted} attributes={TextAttributes.DIM}>{viewLevelHint()}</text>
-          </Show>
+          {/* Background tasks / subagents */}
+          <box flexDirection="column">
+            <Show when={state.activeTasks.length > 0}>
+              <TaskView tasks={state.activeTasks} />
+            </Show>
+          </box>
         </box>
+      </scrollbox>
 
-        {/* Spinner — visible when RUNNING but no streaming content */}
-        <box flexDirection="column">
-          <Show when={
-            session.sessionState === "RUNNING" &&
-            !state.streamingText &&
-            !state.streamingThinking
-          }>
-            <box marginTop={1} paddingLeft={2}>
-              <StreamingSpinner label={spinnerLabel()} elapsedSeconds={turnElapsed()} outputTokens={state.streamingOutputTokens || session.cost.outputTokens} />
-            </box>
-          </Show>
-        </box>
-
-        {/* Background tasks / subagents */}
-        <box flexDirection="column">
-          <Show when={state.activeTasks.length > 0}>
-            <TaskView tasks={state.activeTasks} />
-          </Show>
-        </box>
+      {/* "N new messages" pill — fixed below scrollbox, visible when scrolled away and unseen content exists */}
+      <box flexDirection="column" flexShrink={0}>
+        <Show when={hasUnseenContent()}>
+          <box justifyContent="center">
+            <text bg={colors.bg.surface} fg={colors.status.info}>
+              {newMessageCount() > 0
+                ? ` \u2193 ${newMessageCount()} new message${newMessageCount() === 1 ? "" : "s"} `
+                : " \u2193 New content below "}
+            </text>
+          </box>
+        </Show>
       </box>
 
-      {/* Input area, status bar, dialogs — rendered inside scrollbox so they flow with content */}
-      <box paddingBottom={1}>
+      {/* Input area, status bar, dialogs — fixed below scrollbox */}
+      <box flexDirection="column" flexShrink={0} paddingBottom={1}>
         {props.children}
       </box>
-    </scrollbox>
+    </box>
   )
 }

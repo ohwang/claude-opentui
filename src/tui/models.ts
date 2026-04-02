@@ -16,7 +16,7 @@ export const MODEL_NAMES: Record<string, string> = {
 
 /** Model context window sizes (in tokens) for context usage calculation */
 export const MODEL_CONTEXT_WINDOWS: Record<string, number> = {
-  "claude-opus-4-6": 200_000,
+  "claude-opus-4-6": 1_000_000,
   "claude-sonnet-4-6": 200_000,
   "claude-haiku-4-5-20251001": 200_000,
   "claude-sonnet-4-5-20250514": 200_000,

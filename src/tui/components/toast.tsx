@@ -32,13 +32,13 @@ const TOAST_COLOR: Record<ToastType, string> = {
 // ---------------------------------------------------------------------------
 
 export function ToastDisplay() {
-  const { toasts } = useToast()
+  const ctx = useToast()
 
   return (
     <box flexDirection="column">
-      <Show when={toasts.length > 0}>
+      <Show when={ctx.toasts.length > 0}>
         <box flexDirection="column" paddingLeft={2}>
-          <For each={toasts}>
+          <For each={ctx.toasts}>
             {(t) => (
               <box height={1}>
                 <text fg={TOAST_COLOR[t.type]}>

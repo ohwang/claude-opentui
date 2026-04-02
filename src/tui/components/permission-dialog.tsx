@@ -22,6 +22,7 @@ import { useAgent } from "../context/agent"
 import { useSession } from "../context/session"
 import { useSync } from "../context/sync"
 import { colors } from "../theme/tokens"
+import { Divider } from "./primitives"
 import type { PermissionRequestEvent, PermissionUpdate } from "../../protocol/types"
 
 // Semantic aliases from design system tokens
@@ -241,11 +242,6 @@ export function PermissionDialog() {
       justActed = false
     }
   })
-
-  const dashedLine = () => {
-    const width = (dims()?.width ?? 120) - 4 // account for padding
-    return "\u254C".repeat(Math.max(width, 40))
-  }
 
   useKeyboard((event) => {
     if (session.sessionState !== "WAITING_FOR_PERM") return
@@ -472,9 +468,7 @@ export function PermissionDialog() {
             <Show when={previewLines()}>
               {(lines) => (
                 <box flexDirection="column">
-                  <box height={1}>
-                    <text fg={ACCENT}>{dashedLine()}</text>
-                  </box>
+                  <Divider char={"\u254C"} color={ACCENT} paddingLeft={4} />
                   <For each={lines()}>
                     {(line, idx) => {
                       const lineColor = () => {
@@ -495,9 +489,7 @@ export function PermissionDialog() {
                       <text fg={MUTED}>{`... ${truncatedCount()} more line${truncatedCount() === 1 ? "" : "s"}`}</text>
                     </box>
                   </Show>
-                  <box height={1}>
-                    <text fg={ACCENT}>{dashedLine()}</text>
-                  </box>
+                  <Divider char={"\u254C"} color={ACCENT} paddingLeft={4} />
                 </box>
               )}
             </Show>

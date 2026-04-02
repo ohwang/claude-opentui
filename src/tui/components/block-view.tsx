@@ -12,7 +12,7 @@ import { ToolBlockView, isUserDecline } from "./tool-view"
 import { colors } from "../theme/tokens"
 import type { Block } from "../../protocol/types"
 import type { ViewLevel } from "./tool-view"
-import { Divider } from "./primitives"
+import { Divider, getStatusConfig } from "./primitives"
 import { UserBlock } from "./blocks/user-block"
 import { AssistantBlock } from "./blocks/assistant-block"
 import { SystemBlock, type SystemCategory, categorizeSystemMessage } from "./blocks/system-block"
@@ -151,14 +151,14 @@ function CollapsedToolLine(props: { block: Extract<Block, { type: "tool" }> }) {
     return ""
   }
 
-  /** Status icon and color for the prefix gutter (uses displayRunning for min-display-time) */
+  /** Status icon config using design system primitives (uses displayRunning for min-display-time) */
   const statusIcon = () => {
-    if (displayRunning()) return { icon: "\u22EF", color: colors.accent.primary }  // ⋯
+    if (displayRunning()) return getStatusConfig("running")
     if (b().error) {
-      if (isUserDecline(b().error!)) return { icon: "\u21B3", color: colors.text.muted }   // ↳
-      return { icon: "\u2717", color: colors.status.error }                                 // ✗
+      if (isUserDecline(b().error!)) return getStatusConfig("declined")
+      return getStatusConfig("error")
     }
-    return { icon: "\u2713", color: colors.status.success }                                 // ✓
+    return getStatusConfig("success")
   }
 
   const isError = () => !!(b().error && !isUserDecline(b().error!))

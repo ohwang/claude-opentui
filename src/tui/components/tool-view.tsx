@@ -10,6 +10,7 @@ import { TextAttributes } from "@opentui/core"
 import type { Block } from "../../protocol/types"
 import { colors } from "../theme/tokens"
 import { syntaxStyle } from "../theme/syntax"
+import { getStatusConfig } from "./primitives"
 
 export type ViewLevel = "collapsed" | "expanded" | "show_all"
 
@@ -300,7 +301,8 @@ export function ToolSummaryView(props: { tools: ToolBlock[] }) {
   onCleanup(() => { if (tickTimer) clearInterval(tickTimer) })
 
   /** Build per-tool summary lines with status icon prefix for instant scannability.
-   *  Each line: "✓ ToolName arg — hint" or "⋯ ToolName arg... (5s)" */
+   *  Each line: "checkmark ToolName arg -- hint" or "ellipsis ToolName arg... (5s)"
+   *  Uses getStatusConfig() from design system primitives for consistent icon/color pairing. */
   const toolLines = createMemo(() => {
     const now = tick() // subscribe to tick for reactivity
     return props.tools.map(tool => {
@@ -309,11 +311,12 @@ export function ToolSummaryView(props: { tools: ToolBlock[] }) {
 
       if (tool.status === "running") {
         const elapsed = Math.floor((now - tool.startTime) / 1000)
+        const cfg = getStatusConfig("running")
         return {
           text: `${tool.tool}${argSuffix}... (${formatElapsed(elapsed)})`,
           isError: false,
-          icon: "\u22EF",  // ⋯
-          iconColor: colors.accent.primary,
+          icon: cfg.icon,
+          iconColor: cfg.color,
         }
       }
 
@@ -322,20 +325,13 @@ export function ToolSummaryView(props: { tools: ToolBlock[] }) {
       const isDeclined = !!tool.error && isUserDecline(tool.error)
       const hintSuffix = hint ? ` \u2014 ${hint}` : ""
 
-      let icon: string
-      let iconColor: string
-      if (isError) {
-        icon = "\u2717"   // ✗
-        iconColor = colors.status.error
-      } else if (isDeclined) {
-        icon = "\u21B3"   // ↳
-        iconColor = colors.text.muted
-      } else {
-        icon = "\u2713"   // ✓
-        iconColor = colors.status.success
-      }
+      const cfg = isError
+        ? getStatusConfig("error")
+        : isDeclined
+          ? getStatusConfig("declined")
+          : getStatusConfig("success")
 
-      return { text: `${tool.tool}${argSuffix}${hintSuffix}`, isError, icon, iconColor }
+      return { text: `${tool.tool}${argSuffix}${hintSuffix}`, isError, icon: cfg.icon, iconColor: cfg.color }
     })
   })
 

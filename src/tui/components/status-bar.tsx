@@ -7,7 +7,7 @@
  * During RUNNING state, shows live cost ticker and tokens-per-second throughput.
  */
 
-import { createSignal, createEffect, createMemo, onCleanup } from "solid-js"
+import { createSignal, createEffect, createMemo, onCleanup, on } from "solid-js"
 import path from "node:path"
 import { TextAttributes } from "@opentui/core"
 import { useKeyboard, useTerminalDimensions } from "@opentui/solid"
@@ -17,6 +17,7 @@ import { log } from "../../utils/logger"
 import { colors } from "../theme/tokens"
 import type { PermissionMode } from "../../protocol/types"
 import { friendlyModelName, MODEL_CONTEXT_WINDOWS, DEFAULT_CONTEXT_WINDOW } from "../models"
+import { toast } from "../context/toast"
 
 // ---------------------------------------------------------------------------
 // Permission mode cycle order
@@ -328,19 +329,51 @@ export function StatusBar(props: { hint?: string | null }) {
     return `${total} tok`
   }
 
-  const ctxStr = createMemo(() => {
-    // Use last turn's input tokens — these represent the actual context window fill
-    // (system prompt + conversation history + current turn input)
+  // -- Context window fill percentage (numeric, 0-100) --
+  const ctxPct = createMemo(() => {
     const fill = state.lastTurnInputTokens
-    if (fill === 0) return ""
+    if (fill === 0) return 0
     const model = state.session?.models?.[0]
     const raw = state.currentModel || (model?.name ?? agent.config.model ?? "")
-    // Prefer dynamic context window from SDK, fall back to hardcoded
     const ctxWindow = model?.contextWindow ?? MODEL_CONTEXT_WINDOWS[raw] ?? DEFAULT_CONTEXT_WINDOW
-    const pct = Math.round((fill / ctxWindow) * 100)
+    return Math.round((fill / ctxWindow) * 100)
+  })
+
+  // -- Context string: "ctx:45%" --
+  const ctxStr = createMemo(() => {
+    const pct = ctxPct()
     if (pct === 0) return ""
     return `ctx:${pct}%`
   })
+
+  // -- Context color: green < 50%, yellow 50-79%, red >= 80% --
+  const ctxColor = createMemo(() => {
+    const pct = ctxPct()
+    if (pct >= 80) return colors.status.error
+    if (pct >= 50) return colors.status.warning
+    return colors.status.success
+  })
+
+  // -- Context bar: ▰▰▰▰▱▱▱▱▱▱ (10 segments) --
+  const ctxBar = createMemo(() => {
+    const pct = ctxPct()
+    if (pct === 0) return ""
+    const filled = Math.round(pct / 10)
+    const empty = 10 - filled
+    return "\u25B0".repeat(filled) + "\u25B1".repeat(empty)
+  })
+
+  // -- Toast warnings when context crosses 80% and 95% thresholds --
+  let lastWarningLevel = 0
+  createEffect(on(ctxPct, (pct) => {
+    if (pct >= 95 && lastWarningLevel < 2) {
+      lastWarningLevel = 2
+      toast.error("Context window 95% full \u2014 /compact recommended")
+    } else if (pct >= 80 && lastWarningLevel < 1) {
+      lastWarningLevel = 1
+      toast.warn("Context window 80% full \u2014 consider using /compact")
+    }
+  }))
 
   const tokPerSecStr = createMemo(() => {
     if (!isRunning()) return ""
@@ -409,7 +442,13 @@ export function StatusBar(props: { hint?: string | null }) {
         {showCtx() && ctxStr() && (
           <box flexDirection="row">
             <text fg={colors.text.muted}>{"  "}</text>
-            <text fg={colors.text.muted}>{ctxStr()}</text>
+            <text fg={ctxColor()}>{ctxStr()}</text>
+            {ctxBar() && (
+              <>
+                <text fg={colors.text.muted}>{" "}</text>
+                <text fg={ctxColor()}>{ctxBar()}</text>
+              </>
+            )}
           </box>
         )}
 

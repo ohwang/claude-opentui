@@ -284,6 +284,24 @@ export function ConversationView(props: { children?: JSX.Element }) {
             blocks instead of below).
           */}
 
+          {/* Quick-start tips — shown when conversation is empty */}
+          <box flexDirection="column">
+            <Show when={nonQueuedBlocks().length === 0 && !state.streamingText}>
+              <box flexDirection="column" paddingLeft={2} paddingTop={1}>
+                <text fg={colors.text.muted} attributes={TextAttributes.DIM}>
+                  {"Tips to get started:"}
+                </text>
+                <box marginTop={1} flexDirection="column">
+                  <text fg={colors.text.secondary}>{"  \u2022  Ask a question or describe a task"}</text>
+                  <text fg={colors.text.secondary}>{"  \u2022  Use @ to reference files: @src/index.ts"}</text>
+                  <text fg={colors.text.secondary}>{"  \u2022  Type / for slash commands"}</text>
+                  <text fg={colors.text.secondary}>{"  \u2022  Ctrl+O to expand tool details"}</text>
+                  <text fg={colors.text.secondary}>{"  \u2022  Ctrl+P to switch models"}</text>
+                </box>
+              </box>
+            </Show>
+          </box>
+
           {/* Committed blocks (non-queued) — each block renders itself based on view level */}
           <box flexDirection="column">
             <For each={nonQueuedBlocks()}>

@@ -249,6 +249,22 @@ function extractPrimaryArg(tool: string, input: unknown): string {
   return ""
 }
 
+/** Present-tense verb for running tools, past-tense for completed */
+function toolVerb(tool: string, isRunning: boolean): string {
+  switch (tool) {
+    case "Read":     return isRunning ? "Reading" : "Read"
+    case "Write":    return isRunning ? "Writing" : "Wrote"
+    case "Edit":     return isRunning ? "Editing" : "Edited"
+    case "Bash":     return isRunning ? "Running" : "Ran"
+    case "Glob":     return isRunning ? "Searching" : "Searched"
+    case "Grep":     return isRunning ? "Searching" : "Searched"
+    case "Agent":    return isRunning ? "Launching" : "Launched"
+    case "WebFetch": return isRunning ? "Fetching" : "Fetched"
+    case "WebSearch": return isRunning ? "Searching" : "Searched"
+    default:         return isRunning ? `Running ${tool}` : tool
+  }
+}
+
 /** Brief inline result for collapsed summary lines */
 function collapsedResultHint(tool: ToolBlock): string {
   if (tool.status === "running") return ""
@@ -309,11 +325,13 @@ export function ToolSummaryView(props: { tools: ToolBlock[] }) {
       const arg = extractPrimaryArg(tool.tool, tool.input)
       const argSuffix = arg ? ` ${arg}` : ""
 
+      const verb = toolVerb(tool.tool, tool.status === "running")
+
       if (tool.status === "running") {
         const elapsed = Math.floor((now - tool.startTime) / 1000)
         const cfg = getStatusConfig("running")
         return {
-          text: `${tool.tool}${argSuffix}... (${formatElapsed(elapsed)})`,
+          text: `${verb}${argSuffix}... (${formatElapsed(elapsed)})`,
           isError: false,
           icon: cfg.icon,
           iconColor: cfg.color,
@@ -331,7 +349,7 @@ export function ToolSummaryView(props: { tools: ToolBlock[] }) {
           ? getStatusConfig("declined")
           : getStatusConfig("success")
 
-      return { text: `${tool.tool}${argSuffix}${hintSuffix}`, isError, icon: cfg.icon, iconColor: cfg.color }
+      return { text: `${verb}${argSuffix}${hintSuffix}`, isError, icon: cfg.icon, iconColor: cfg.color }
     })
   })
 

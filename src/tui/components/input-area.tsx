@@ -301,8 +301,26 @@ export function InputArea() {
     }
   })
 
-  // No placeholder text — Claude Code style shows just "> " prompt with cursor
-  const placeholder = () => ""
+  // Context-aware placeholder hints — stop showing after a few turns
+  let hintShownCount = 0
+  const MAX_HINT_SHOWS = 5
+
+  const placeholder = () => {
+    if (session.sessionState === "INITIALIZING") return "Connecting..."
+    if (session.sessionState === "RUNNING") return "Type to queue a message..."
+    if (session.sessionState === "WAITING_FOR_PERM") return ""
+    if (session.sessionState === "WAITING_FOR_ELIC") return ""
+
+    // IDLE state — show progressive hints (only first few times)
+    if (hintShownCount >= MAX_HINT_SHOWS) return ""
+    hintShownCount++
+
+    const blocks = messagesState.blocks
+    if (blocks.length === 0) {
+      return "Ask Claude anything, or use / for commands"
+    }
+    return ""
+  }
 
   const isDisabled = () =>
     session.sessionState === "WAITING_FOR_PERM" ||

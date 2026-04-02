@@ -23,6 +23,7 @@ import { triggerCleanExit, toggleDiagnostics } from "../app"
 import { colors } from "../theme/tokens"
 import { log } from "../../utils/logger"
 import { readClipboard, readClipboardImage } from "../../utils/clipboard"
+import { toast } from "../context/toast"
 import type { ImageContent } from "../../protocol/types"
 
 const commandRegistry = createCommandRegistry()
@@ -50,11 +51,61 @@ function truncatePath(path: string, maxLen: number = 70): string {
   return "..." + path.slice(-(maxLen - 3))
 }
 
+/**
+ * If text exceeds PASTE_TRUNCATION_THRESHOLD, store the full content in
+ * pasteStore and return a truncated preview with a reference marker.
+ * Otherwise return the text unchanged.
+ */
+function truncatePastedText(text: string): string {
+  if (text.length <= PASTE_TRUNCATION_THRESHOLD) return text
+
+  pasteRefCounter++
+  const refNum = pasteRefCounter
+  pasteStore.set(refNum, text)
+
+  const lineCount = text.split("\n").length
+  const preview = text.slice(0, PASTE_PREVIEW_LENGTH)
+  const truncatedLines = lineCount - preview.split("\n").length
+  const marker = `\n[...Pasted text #${refNum}: +${truncatedLines} more lines, ${text.length.toLocaleString()} chars total...]`
+
+  log.info("Large paste truncated", { refNum, chars: text.length, lines: lineCount })
+  toast.info(`Large paste stored as ref #${refNum} (${text.length.toLocaleString()} chars)`, 4000)
+
+  return preview + marker
+}
+
+/**
+ * Expand paste reference markers in message text back to the full pasted
+ * content before sending to the backend.  Each marker has the form:
+ *   [...Pasted text #N: +M more lines, C chars total...]
+ * The preview text preceding it (first 500 chars of the paste) is kept;
+ * the marker is replaced with the remaining content.
+ */
+function expandPasteRefs(text: string): string {
+  let expanded = text
+  for (const [refNum, fullContent] of pasteStore.entries()) {
+    // The marker regex — match the [...Pasted text #N: ...] block
+    const markerRegex = new RegExp(`\\[\\.\\.\\.Pasted text #${refNum}:[^\\]]*\\]`)
+    if (markerRegex.test(expanded)) {
+      // The preview (first PASTE_PREVIEW_LENGTH chars) is already in the text
+      // before the marker. Replace the marker with the remaining content.
+      expanded = expanded.replace(markerRegex, fullContent.slice(PASTE_PREVIEW_LENGTH))
+    }
+  }
+  return expanded
+}
+
 /** Discriminated union for autocomplete modes */
 type AutocompleteMode = "slash" | "file" | null
 
 /** Maximum number of items visible in the autocomplete dropdown */
 const MAX_VISIBLE_ITEMS = 12
+
+// Smart paste truncation: store full content, show preview + reference in textarea
+const PASTE_TRUNCATION_THRESHOLD = 10_000
+const PASTE_PREVIEW_LENGTH = 500
+const pasteStore = new Map<number, string>()
+let pasteRefCounter = 0
 
 // Input history for Up/Down arrow recall
 const inputHistory: string[] = []
@@ -77,6 +128,7 @@ export function clearInput(): boolean {
   _sharedTextareaRef.clear()
   _resetLineCount?.()
   imageAttachments = []
+  pasteStore.clear()
   return true
 }
 
@@ -292,9 +344,12 @@ export function InputArea() {
     lastPasteText = text
     lastPasteTime = now
 
+    // Smart paste truncation for large pastes
+    const insertText = truncatePastedText(text)
+
     if (textareaRef) {
       isPasting = true
-      textareaRef.insertText(text)
+      textareaRef.insertText(insertText)
       updateLineCount()
       clearTimeout(isPastingTimer)
       isPastingTimer = setTimeout(() => { isPasting = false }, PASTE_GUARD_MS)
@@ -405,7 +460,8 @@ export function InputArea() {
   const submit = async () => {
     if (isDisabled()) return // Don't submit when disabled
     if (!textareaRef) return
-    const text = textareaRef.plainText?.trim()
+    // Expand paste references back to full content before sending
+    let text = expandPasteRefs(textareaRef.plainText?.trim() ?? "")
     if (!text) return
 
     // Dismiss autocomplete on submit
@@ -448,6 +504,7 @@ export function InputArea() {
     textareaRef.clear()
     setLineCount(1)
     imageAttachments = []
+    pasteStore.clear()
   }
 
   const setTextareaContent = (text: string) => {
@@ -493,9 +550,11 @@ export function InputArea() {
         return readClipboard().then((raw) => {
           if (!raw) return
           const text = raw.replace(/\r\n?/g, "\n")
+          // Smart paste truncation for large clipboard content
+          const insertText = truncatePastedText(text)
           if (textareaRef) {
             isPasting = true
-            textareaRef.insertText(text)
+            textareaRef.insertText(insertText)
             updateLineCount()
             clearTimeout(isPastingTimer)
             isPastingTimer = setTimeout(() => { isPasting = false }, PASTE_GUARD_MS)
@@ -539,6 +598,7 @@ export function InputArea() {
         textareaRef?.clear()
         setLineCount(1)
         imageAttachments = []
+        pasteStore.clear()
         historyIndex = -1
         savedInput = ""
       }

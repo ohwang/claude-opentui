@@ -134,6 +134,7 @@ import { hotkeysCommand } from "./builtin/hotkeys"
 import { diagnosticsCommand } from "./builtin/diagnostics"
 import { exitCommand } from "./builtin/exit"
 import { bugCommand, reviewCommand, commitCommand, testCommand } from "./builtin/prompts"
+import { aboutCommand } from "./builtin/about"
 
 /** Create a registry with all built-in commands */
 export function createCommandRegistry(): CommandRegistry {
@@ -156,6 +157,7 @@ export function createCommandRegistry(): CommandRegistry {
   registry.register(reviewCommand)
   registry.register(commitCommand)
   registry.register(testCommand)
+  registry.register(aboutCommand)
 
   return registry
 }

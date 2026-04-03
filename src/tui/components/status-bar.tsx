@@ -377,8 +377,8 @@ export function StatusBar(props: { hint?: string | null }) {
   const ctxBar = createMemo(() => {
     const pct = ctxPct()
     if (pct === 0 && state.lastTurnInputTokens === 0) return ""
-    // Show at least 1 filled segment when tokens exist
-    const filled = Math.max(pct > 0 ? 1 : (state.lastTurnInputTokens > 0 ? 1 : 0), Math.round(pct / 10))
+    // Show at least 1 filled segment when tokens exist, cap at 10
+    const filled = Math.min(10, Math.max(pct > 0 ? 1 : (state.lastTurnInputTokens > 0 ? 1 : 0), Math.round(pct / 10)))
     const empty = 10 - filled
     return "\u25B0".repeat(filled) + "\u25B1".repeat(empty)
   })

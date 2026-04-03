@@ -1,5 +1,5 @@
 /**
- * Stories for block renderers (user, assistant, thinking, system, error, shell, compact).
+ * Stories for block renderers (user, assistant, thinking, system, error, shell, compact, queued).
  */
 
 import type { Story } from "../types"
@@ -9,6 +9,7 @@ import { SystemBlock } from "../../tui/components/blocks/system-block"
 import { ErrorBlock } from "../../tui/components/blocks/error-block"
 import { ShellBlock } from "../../tui/components/blocks/shell-block"
 import { CompactBlock } from "../../tui/components/blocks/compact-block"
+import { QueuedMessage } from "../../tui/components/blocks/queued-message"
 import { ThinkingBlock } from "../../tui/components/thinking-block"
 import {
   userBlock,
@@ -167,6 +168,26 @@ export const blocksStories: Story[] = [
           "Discussed authentication architecture. Decided on JWT with refresh tokens. Updated login.ts, middleware.ts, and session store.",
         )}
       />
+    ),
+  },
+  {
+    id: "queued-message",
+    title: "QueuedMessage",
+    description: "Queued user message (sent while agent is running)",
+    category: "Blocks",
+    render: () => <QueuedMessage block={userBlock("Can you also add rate limiting?")} />,
+  },
+  {
+    id: "queued-messages-multiple",
+    title: "QueuedMessage (multiple)",
+    description: "Multiple queued messages stacked",
+    category: "Blocks",
+    render: () => (
+      <box flexDirection="column">
+        <QueuedMessage block={userBlock("Can you also add rate limiting?")} />
+        <QueuedMessage block={userBlock("And update the tests")} />
+        <QueuedMessage block={userBlock("Actually, skip the tests for now")} />
+      </box>
     ),
   },
 ]

@@ -28,6 +28,7 @@ import { CollapsedToolGroup } from "./collapsed-tool-group"
 import { ToastDisplay } from "./toast"
 import { groupConsecutiveTools, isToolGroup, type GroupedItem } from "../utils/tool-grouping"
 import { TurnSummary } from "./turn-summary"
+import { QueuedMessage } from "./blocks/queued-message"
 
 export type { ViewLevel }
 
@@ -390,13 +391,7 @@ export function ConversationView(props: { children?: JSX.Element }) {
           {/* Queued user messages (muted, after streaming) */}
           <box flexDirection="column">
             <For each={queuedBlocks()}>
-              {(block) => (
-                <box flexDirection="row" paddingLeft={2} marginTop={1}>
-                  <text fg={colors.text.muted} attributes={TextAttributes.DIM}>
-                    {"> " + block.text + " (queued)"}
-                  </text>
-                </box>
-              )}
+              {(block) => <QueuedMessage block={block} />}
             </For>
           </box>
 

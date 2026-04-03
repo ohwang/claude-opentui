@@ -70,8 +70,9 @@ const groups: ShortcutGroup[] = [
   },
 ]
 
-// Fixed width for the key column to ensure alignment
-const KEY_COL_WIDTH = 16
+// Fixed width for the key column to ensure alignment.
+// Keep narrow enough to fit at 100-col terminals (border+padding = ~12 cols overhead).
+const KEY_COL_WIDTH = 12
 
 // ---------------------------------------------------------------------------
 // Sub-components

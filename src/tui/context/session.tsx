@@ -32,7 +32,7 @@ export interface SessionContextValue {
   setState: SetStoreFunction<SessionContextState>
 }
 
-const SessionContext = createContext<SessionContextValue>()
+export const SessionContext = createContext<SessionContextValue>()
 
 export function SessionProvider(props: ParentProps) {
   const [state, setState] = createStore<SessionContextState>({

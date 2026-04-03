@@ -25,7 +25,7 @@ export interface PermissionsContextValue {
   setState: SetStoreFunction<PermissionsState>
 }
 
-const PermissionsContext = createContext<PermissionsContextValue>()
+export const PermissionsContext = createContext<PermissionsContextValue>()
 
 export function PermissionsProvider(props: ParentProps) {
   const [state, setState] = createStore<PermissionsState>({

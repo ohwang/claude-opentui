@@ -32,7 +32,7 @@ export interface MessagesContextValue {
   setState: SetStoreFunction<MessagesState>
 }
 
-const MessagesContext = createContext<MessagesContextValue>()
+export const MessagesContext = createContext<MessagesContextValue>()
 
 export function MessagesProvider(props: ParentProps) {
   const [state, setState] = createStore<MessagesState>({

@@ -6,7 +6,7 @@
  * Bottom: info bar with breadcrumb and description.
  */
 
-import { createSignal, createMemo, Show, For, type Accessor } from "solid-js"
+import { createSignal, createMemo, Show, For } from "solid-js"
 import { useKeyboard, useTerminalDimensions, useRenderer } from "@opentui/solid"
 import { TextAttributes } from "@opentui/core"
 import type { KeyEvent } from "@opentui/core"
@@ -251,16 +251,17 @@ export function StorybookApp() {
         <box flexGrow={1} flexDirection="column" paddingLeft={1}>
           <Show
             when={selectedStory()}
+            keyed
             fallback={
               <box flexGrow={1} justifyContent="center" alignItems="center">
                 <text fg={colors.text.muted}>Select a story to preview</text>
               </box>
             }
           >
-            {(story: Accessor<Story>) => (
-              <StoryContextProvider context={story().context}>
+            {(story: Story) => (
+              <StoryContextProvider context={story.context}>
                 <box flexGrow={1}>
-                  {story().render()}
+                  {story.render()}
                 </box>
               </StoryContextProvider>
             )}
@@ -275,14 +276,14 @@ export function StorybookApp() {
 
       {/* Info bar */}
       <box height={1} flexShrink={0} flexDirection="row" paddingLeft={1}>
-        <Show when={selectedStory()} fallback={<text fg={colors.text.muted}>No story selected</text>}>
-          {(story: Accessor<Story>) => (
+        <Show when={selectedStory()} keyed fallback={<text fg={colors.text.muted}>No story selected</text>}>
+          {(story: Story) => (
             <>
-              <text fg={colors.accent.primary}>{story().category}</text>
+              <text fg={colors.accent.primary}>{story.category}</text>
               <text fg={colors.text.muted}>{" > "}</text>
-              <text fg={colors.text.white}>{story().title}</text>
+              <text fg={colors.text.white}>{story.title}</text>
               <text fg={colors.text.muted}>{" — "}</text>
-              <text fg={colors.text.secondary}>{story().description}</text>
+              <text fg={colors.text.secondary}>{story.description}</text>
             </>
           )}
         </Show>

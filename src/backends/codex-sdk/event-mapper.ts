@@ -55,6 +55,7 @@ export class CodexSdkEventMapper {
       case "thread.started":
         return [{
           type: "session_init",
+          sessionId: crypto.randomUUID(),
           tools: [],
           models: this.modelName
             ? [{ id: this.modelName, name: this.modelName, provider: "openai" }]

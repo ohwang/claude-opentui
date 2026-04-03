@@ -297,6 +297,7 @@ export class GeminiAdapter implements AgentBackend {
       // Model info will be updated when the SDK sends a model_info event.
       this.eventChannel?.push({
         type: "session_init",
+        sessionId: crypto.randomUUID(),
         tools: [],
         models: config.model
           ? [{ id: config.model, name: config.model, provider: "google" }]

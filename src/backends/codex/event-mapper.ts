@@ -63,6 +63,7 @@ export function mapCodexNotification(
       }
       events.push({
         type: "session_init",
+        sessionId: crypto.randomUUID(),
         tools: [],  // Codex doesn't enumerate tools at init; they appear as items
         models,
         account: undefined,

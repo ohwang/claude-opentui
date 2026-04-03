@@ -46,6 +46,7 @@ export class MockAdapter implements AgentBackend {
     // Emit session_init immediately
     yield {
       type: "session_init",
+      sessionId: "mock-" + crypto.randomUUID(),
       tools: [
         { name: "Read" },
         { name: "Write" },

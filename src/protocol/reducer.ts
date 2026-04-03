@@ -512,6 +512,40 @@ export function reduce(
         }],
       }
 
+    // ----- Shell commands -----
+
+    case "shell_start": {
+      return {
+        ...next,
+        blocks: [...state.blocks, {
+          type: "shell" as const,
+          id: event.id,
+          command: event.command,
+          output: "",
+          status: "running" as const,
+          startTime: Date.now(),
+        }],
+      }
+    }
+
+    case "shell_end": {
+      return {
+        ...next,
+        blocks: state.blocks.map(b =>
+          b.type === "shell" && b.id === event.id
+            ? {
+                ...b,
+                status: (event.error ? "error" : "done") as const,
+                output: event.output,
+                error: event.error,
+                exitCode: event.exitCode,
+                duration: Date.now() - b.startTime,
+              }
+            : b
+        ),
+      }
+    }
+
     // ----- Task backgrounding -----
 
     case "task_background":

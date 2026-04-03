@@ -36,6 +36,20 @@ export type ToolUseEndEvent = {
   error?: string
 }
 
+/** Shell command lifecycle (user-initiated ! prefix) */
+export type ShellStartEvent = {
+  type: "shell_start"
+  id: string
+  command: string
+}
+export type ShellEndEvent = {
+  type: "shell_end"
+  id: string
+  output: string
+  error?: string
+  exitCode: number
+}
+
 /** Permission flow */
 export type PermissionRequestEvent = {
   type: "permission_request"
@@ -192,6 +206,8 @@ export type AgentEvent =
   | TaskBackgroundEvent
   | TaskForegroundEvent
   | BackendSpecificEvent
+  | ShellStartEvent
+  | ShellEndEvent
 
 // ---------------------------------------------------------------------------
 // Agent Backend — the unified adapter interface
@@ -274,6 +290,7 @@ export type Block =
   | { type: "tool"; id: string; tool: string; input: unknown; status: ToolStatus; output?: string; error?: string; startTime: number; duration?: number }
   | { type: "system"; text: string; ephemeral?: boolean }
   | { type: "compact"; summary: string }
+  | { type: "shell"; id: string; command: string; output: string; error?: string; exitCode?: number; status: "running" | "done" | "error"; startTime: number; duration?: number }
   | { type: "error"; code: string; message: string }
 
 // ---------------------------------------------------------------------------

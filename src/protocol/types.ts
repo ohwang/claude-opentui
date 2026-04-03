@@ -85,7 +85,7 @@ export type ShutdownEvent = { type: "shutdown" }
 
 /** Turn lifecycle */
 export type TurnStartEvent = { type: "turn_start" }
-export type TurnCompleteEvent = { type: "turn_complete"; usage?: TokenUsage }
+export type TurnCompleteEvent = { type: "turn_complete"; usage?: TokenUsage; sessionId?: string }
 
 /** Session state */
 export type SessionInitEvent = {
@@ -93,6 +93,7 @@ export type SessionInitEvent = {
   tools: ToolInfo[]
   models: ModelInfo[]
   account?: AccountInfo
+  sessionId?: string
 }
 export type SessionStateEvent = {
   type: "session_state"

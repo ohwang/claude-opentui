@@ -141,6 +141,11 @@ function Layout(props: { onExit?: () => void }) {
     const goodbye = GOODBYE_MESSAGES[Math.floor(Math.random() * GOODBYE_MESSAGES.length)]
     renderer.destroy()
     console.log(`\n${goodbye}\n`)
+    // Print session ID to stderr on exit (matches claude-go behavior)
+    const sessionId = session.session?.sessionId
+    if (sessionId) {
+      process.stderr.write(`Session: ${sessionId}\n`)
+    }
     process.exit(0)
   }
 

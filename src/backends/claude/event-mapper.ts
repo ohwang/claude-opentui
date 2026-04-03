@@ -73,14 +73,19 @@ export function mapSDKMessage(msg: any, streamState: ToolStreamState, options?: 
         const models: ModelInfo[] = cleanModel
           ? [{ id: cleanModel, name: cleanModel, provider: "anthropic", contextWindow }]
           : []
-        events.push({
+        const initEvent: AgentEvent = {
           type: "session_init",
           tools: (msg.tools ?? []).map((t: string) => ({
             name: t,
           })),
           models,
           account: msg.account,
-        })
+        }
+        // Extract session ID if present on init message
+        if (msg.session_id) {
+          (initEvent as any).sessionId = msg.session_id
+        }
+        events.push(initEvent)
       } else if (msg.subtype === "status") {
         // "compacting" status is transient — skip it to avoid duplicate
         // compact separators. The definitive compact_boundary event below
@@ -116,10 +121,13 @@ export function mapSDKMessage(msg: any, streamState: ToolStreamState, options?: 
       }
       break
 
-    case "result":
+    case "result": {
+      // Extract session ID from result messages (matches claude-go's ResultMessage.SessionID)
+      const resultSessionId: string | undefined = msg.session_id || undefined
       if (msg.subtype === "success" || !msg.is_error) {
         events.push({
           type: "turn_complete",
+          sessionId: resultSessionId,
           usage: {
             inputTokens: msg.usage?.input_tokens ?? 0,
             outputTokens: msg.usage?.output_tokens ?? 0,
@@ -137,6 +145,7 @@ export function mapSDKMessage(msg: any, streamState: ToolStreamState, options?: 
         })
         events.push({
           type: "turn_complete",
+          sessionId: resultSessionId,
           usage: {
             inputTokens: msg.usage?.input_tokens ?? 0,
             outputTokens: msg.usage?.output_tokens ?? 0,
@@ -145,6 +154,7 @@ export function mapSDKMessage(msg: any, streamState: ToolStreamState, options?: 
         })
       }
       break
+    }
 
     case "tool_progress":
       events.push({

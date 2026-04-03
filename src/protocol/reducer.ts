@@ -88,6 +88,7 @@ export function reduce(
           tools: event.tools,
           models: event.models,
           account: event.account,
+          sessionId: event.sessionId,
         },
         currentModel: event.models?.[0]?.name ?? next.currentModel,
       }
@@ -165,6 +166,14 @@ export function reduce(
         }
       }
 
+      // Update session ID if the result message carries one (matches claude-go behavior:
+      // the session ID is received on every ResultMessage and stored in state)
+      const updatedSession = event.sessionId && flushed.session
+        ? { ...flushed.session, sessionId: event.sessionId }
+        : event.sessionId && !flushed.session
+          ? { tools: [], models: [], sessionId: event.sessionId }
+          : flushed.session
+
       return {
         ...flushed,
         blocks,
@@ -177,6 +186,7 @@ export function reduce(
         streamingOutputTokens: 0,
         backgrounded: false,
         activeTasks: prunedTasks,
+        session: updatedSession,
         // Context window fill = uncached input tokens + cache-read tokens.
         // cacheWriteTokens is a subset of inputTokens (tokens the API wrote to
         // cache this turn), so adding it would double-count.

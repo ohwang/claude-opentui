@@ -9,7 +9,7 @@
  */
 
 import type { JSX } from "solid-js"
-import { createSignal, createEffect, onCleanup, Show, For } from "solid-js"
+import { createSignal, createEffect, onCleanup, Show, For, batch } from "solid-js"
 import { TextAttributes, type ScrollBoxRenderable } from "@opentui/core"
 import { useKeyboard } from "@opentui/solid"
 import { useMessages } from "../context/messages"
@@ -178,11 +178,13 @@ export function ConversationView(props: { children?: JSX.Element }) {
 
   // Auto-scroll to bottom when permission/elicitation dialog appears
   // so the user can see and interact with it immediately.
-  // Deferred by 50ms to avoid scrolling during layout recalculation.
+  // Uses queueMicrotask to defer until after the current reactive pass
+  // completes, avoiding the race between a 50ms setTimeout and layout
+  // recalculation that caused visual jumps.
   createEffect(() => {
     const state = session.sessionState
     if (state === "WAITING_FOR_PERM" || state === "WAITING_FOR_ELIC") {
-      setTimeout(() => scrollboxRef?.scrollBy(999999), 50)
+      queueMicrotask(() => scrollboxRef?.scrollBy(999999))
     }
   })
 
@@ -205,21 +207,29 @@ export function ConversationView(props: { children?: JSX.Element }) {
     if (event.ctrl && event.name === "o") {
       event.preventDefault()
       const next: ViewLevel = viewLevel() === "collapsed" ? "expanded" : "collapsed"
-      setViewLevel(next)
-      showViewLevelHint(next)
+      // Batch both signal updates so the block list and hint re-render
+      // in a single reactive pass, preventing a flash between states.
+      batch(() => {
+        setViewLevel(next)
+        showViewLevelHint(next)
+      })
     }
     if (event.ctrl && event.name === "e") {
       event.preventDefault()
       const next: ViewLevel = viewLevel() === "show_all" ? "collapsed" : "show_all"
-      setViewLevel(next)
-      showViewLevelHint(next)
+      batch(() => {
+        setViewLevel(next)
+        showViewLevelHint(next)
+      })
     }
     if (event.ctrl && event.name === "t") {
       event.preventDefault()
       const next = !showThinking()
-      setShowThinking(next)
-      const text = next ? "Thinking: visible" : "Thinking: hidden"
-      setViewLevelHint(text)
+      batch(() => {
+        setShowThinking(next)
+        const text = next ? "Thinking: visible" : "Thinking: hidden"
+        setViewLevelHint(text)
+      })
       clearTimeout(viewLevelHintTimer)
       viewLevelHintTimer = setTimeout(() => setViewLevelHint(null), 2000)
     }
@@ -270,7 +280,7 @@ export function ConversationView(props: { children?: JSX.Element }) {
 
   return (
     <box flexDirection="column" flexGrow={1}>
-      <scrollbox ref={(el: ScrollBoxRenderable) => { scrollboxRef = el; registerScrollToBottom(() => { setUserScrolledAway(false); setTimeout(() => el.scrollBy(999999), 50) }) }} flexGrow={1}>
+      <scrollbox ref={(el: ScrollBoxRenderable) => { scrollboxRef = el; registerScrollToBottom(() => { setUserScrolledAway(false); queueMicrotask(() => el.scrollBy(999999)) }) }} flexGrow={1}>
         <box flexDirection="column" paddingTop={1} paddingRight={1} paddingBottom={1}>
           {/* Header bar — scrolls with content */}
           <HeaderBar />

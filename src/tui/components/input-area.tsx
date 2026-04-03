@@ -18,6 +18,7 @@ import { useSession } from "../context/session"
 import { useSync } from "../context/sync"
 import { useMessages } from "../context/messages"
 import { createCommandRegistry, type SlashCommand } from "../../commands/registry"
+import { executeShellCommand } from "../../commands/builtin/shell"
 import { searchFiles, findLongestCommonPrefix } from "./file-autocomplete"
 import { triggerCleanExit, toggleDiagnostics } from "../app"
 import { registerOverlay, unregisterOverlay } from "../context/modal"
@@ -526,6 +527,29 @@ export function InputArea() {
 
     // Dismiss autocomplete on submit
     dismissAutocomplete()
+
+    // Shell command: ! prefix runs command in bash
+    if (text.startsWith("!")) {
+      const cmd = text.slice(1).trim()
+      if (cmd) {
+        const cwd = agent.config.cwd ?? process.cwd()
+        // Don't await — let it run async (tool_use_start shows immediately)
+        executeShellCommand(cmd, sync.pushEvent, cwd)
+        // Add to input history
+        if (inputHistory[inputHistory.length - 1] !== text) {
+          inputHistory.push(text)
+        }
+        historyIndex = -1
+        savedInput = ""
+        textareaRef.clear()
+        setLineCount(1)
+        imageAttachments = []
+        imageCounter = 0
+        setAttachedImageCount(0)
+        pasteStore.clear()
+        return
+      }
+    }
 
     // Try slash command first
     const handled = await commandRegistry.tryExecute(text, {

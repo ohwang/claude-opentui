@@ -22,7 +22,7 @@ import { useAgent } from "../context/agent"
 import { useSession } from "../context/session"
 import { useSync } from "../context/sync"
 import { colors } from "../theme/tokens"
-import { Divider } from "./primitives"
+import { Divider, ShortcutBar } from "./primitives"
 import type { PermissionRequestEvent, PermissionUpdate } from "../../protocol/types"
 
 // Semantic aliases from design system tokens
@@ -176,14 +176,66 @@ function questionText(perm: PermissionRequestEvent): string {
   }
 }
 
+/** Detect if a path is within a .claude/ directory */
+function isClaudePath(filePath: string): boolean {
+  return filePath.includes("/.claude/")
+}
+
+/** Detect if a path is within the global ~/.claude/ directory */
+function isGlobalClaudePath(filePath: string): boolean {
+  const home = process.env.HOME ?? ""
+  if (!home) return false
+  return filePath.startsWith(home + "/.claude/")
+}
+
+/** Generate a readable label from a Bash ruleContent pattern.
+ *
+ * Examples:
+ *   "npm*"     -> "npm commands"
+ *   "git*"     -> "git commands"
+ *   "npx *"    -> "npx commands"
+ *   "yarn *"   -> "yarn commands"
+ *   "bun *"    -> "bun commands"
+ *   "cargo *"  -> "cargo commands"
+ *   "make*"    -> "make commands"
+ */
+function bashPatternLabel(ruleContent: string): string | null {
+  // Strip trailing glob wildcards to get the command name
+  const cleaned = ruleContent.replace(/[\s*]+$/, "")
+  if (!cleaned) return null
+  // Only generate labels for simple single-word patterns (avoid complex globs)
+  if (/^[a-zA-Z0-9_-]+$/.test(cleaned)) {
+    return `${cleaned} commands`
+  }
+  return null
+}
+
+/** Generate a readable label from suggestion ruleContent for a tool */
+function suggestionLabel(toolName: string, ruleContent: string): string | null {
+  if (toolName === "Bash" && ruleContent) {
+    return bashPatternLabel(ruleContent)
+  }
+  return null
+}
+
 /** Build option 2 text from SDK suggestions or derive from context.
  *
  * Always uses `perm.tool` as the authoritative tool name — suggestions may
  * reference a different tool (e.g. a parent category), which caused Bug #1
  * where the label showed "Always allow Read" for a Bash tool.
  */
-function option2Text(perm: PermissionRequestEvent): string {
-  // Check if suggestions include an addDirectories entry
+export function option2Text(perm: PermissionRequestEvent): string {
+  // 1. Check for .claude/ path edits — specialized label
+  const inp = perm.input as Record<string, unknown> | null
+  const filePath = typeof inp?.file_path === "string" ? inp.file_path : ""
+  if (filePath && isClaudePath(filePath)) {
+    if (isGlobalClaudePath(filePath)) {
+      return "Always allow editing global Claude settings"
+    }
+    return "Always allow editing Claude settings"
+  }
+
+  // 2. Check if suggestions include an addDirectories entry
   if (perm.suggestions && perm.suggestions.length > 0) {
     for (const s of perm.suggestions) {
       if (s.type === "addDirectories" && s.directories.length > 0 && s.directories[0]) {
@@ -192,7 +244,25 @@ function option2Text(perm: PermissionRequestEvent): string {
       }
     }
   }
-  // Use the actual tool name — never derive from suggestions[].rules[].toolName
+
+  // 3. Check for richer suggestion labels from addRules with ruleContent
+  if (perm.suggestions && perm.suggestions.length > 0) {
+    for (const s of perm.suggestions) {
+      if (s.type === "addRules" || s.type === "replaceRules") {
+        for (const rule of s.rules) {
+          if (rule.ruleContent) {
+            const label = suggestionLabel(rule.toolName, rule.ruleContent)
+            if (label) return `Always allow ${label}`
+          }
+        }
+      }
+    }
+  }
+
+  // 4. Tool-specific fallback labels
+  if (perm.tool === "Read") return "Always allow reading files"
+
+  // 5. Use the actual tool name — never derive from suggestions[].rules[].toolName
   const toolName = perm.tool.length > 30 ? perm.tool.slice(0, 27) + "\u2026" : perm.tool
   return `Always allow ${toolName}`
 }
@@ -442,7 +512,13 @@ export function PermissionDialog() {
         const description = () => perm().description
 
         return (
-          <box flexDirection="column" paddingLeft={1} paddingRight={1}>
+          <box
+            flexDirection="column"
+            borderStyle="single"
+            borderColor={ACCENT}
+            paddingLeft={1}
+            paddingRight={1}
+          >
             {/* Action label */}
             <box height={1} paddingLeft={1}>
               <text fg={ACCENT} attributes={TextAttributes.BOLD}>
@@ -514,17 +590,17 @@ export function PermissionDialog() {
               </Show>
             </box>
 
-            {/* Option 2: Always allow (a) */}
+            {/* Option 2: Always allow (a) — with lock icon */}
             <box height={1} paddingLeft={1}>
               <Show when={selectedOption() === 1}
                 fallback={
                   <text fg={colors.text.white} attributes={TextAttributes.BOLD}>
-                    {"  a. " + opt2()}
+                    {"  a. \uD83D\uDD12 " + opt2()}
                   </text>
                 }
               >
                 <text fg={ACCENT} attributes={TextAttributes.BOLD}>
-                  {"\u276F a. " + opt2()}
+                  {"\u276F a. \uD83D\uDD12 " + opt2()}
                 </text>
               </Show>
             </box>
@@ -552,10 +628,12 @@ export function PermissionDialog() {
             </box>
 
             {/* Footer hints */}
-            <box height={1} paddingLeft={1} marginTop={1}>
-              <text fg={MUTED}>
-                {"\u2191\u2193 navigate \u00B7 y/a/n/d shortcut \u00B7 Enter to confirm"}
-              </text>
+            <box paddingLeft={1} marginTop={1}>
+              <ShortcutBar shortcuts={[
+                { keys: "\u2191\u2193", label: "navigate" },
+                { keys: "y/a/n/d", label: "shortcut" },
+                { keys: "Enter", label: "confirm" },
+              ]} />
             </box>
           </box>
         )

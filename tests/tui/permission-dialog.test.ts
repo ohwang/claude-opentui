@@ -4,7 +4,9 @@ import {
   capLine,
   extractPreviewLines,
   extractPath,
+  option2Text,
 } from "../../src/tui/components/permission-dialog"
+import type { PermissionRequestEvent } from "../../src/protocol/types"
 
 // ---------------------------------------------------------------------------
 // capContent
@@ -266,5 +268,155 @@ describe("extractPath", () => {
       path: `${cwd}/src`,
     })
     expect(result).toBe("**/*.ts in src")
+  })
+})
+
+// ---------------------------------------------------------------------------
+// option2Text
+// ---------------------------------------------------------------------------
+
+/** Helper to build a minimal PermissionRequestEvent for testing */
+function makePerm(overrides: Partial<PermissionRequestEvent>): PermissionRequestEvent {
+  return {
+    type: "permission_request",
+    id: "test-id",
+    tool: "Bash",
+    input: null,
+    ...overrides,
+  }
+}
+
+describe("option2Text", () => {
+  describe(".claude/ path detection", () => {
+    it("shows Claude settings label for project .claude/ paths", () => {
+      const result = option2Text(makePerm({
+        tool: "Edit",
+        input: { file_path: "/home/user/project/.claude/settings.json" },
+      }))
+      expect(result).toBe("Always allow editing Claude settings")
+    })
+
+    it("shows global Claude settings label for ~/.claude/ paths", () => {
+      const home = process.env.HOME ?? ""
+      const result = option2Text(makePerm({
+        tool: "Edit",
+        input: { file_path: `${home}/.claude/CLAUDE.md` },
+      }))
+      expect(result).toBe("Always allow editing global Claude settings")
+    })
+
+    it("does not trigger for paths without .claude/", () => {
+      const result = option2Text(makePerm({
+        tool: "Edit",
+        input: { file_path: "/home/user/project/src/index.ts" },
+      }))
+      expect(result).not.toContain("Claude settings")
+    })
+  })
+
+  describe("addDirectories suggestions", () => {
+    it("shows directory label from addDirectories suggestion", () => {
+      const result = option2Text(makePerm({
+        tool: "Read",
+        suggestions: [{
+          type: "addDirectories",
+          directories: ["/home/user/project/src/"],
+          destination: "session",
+        }],
+      }))
+      expect(result).toBe("Always allow in src/")
+    })
+  })
+
+  describe("richer suggestion labels", () => {
+    it("shows 'npm commands' for Bash npm* pattern", () => {
+      const result = option2Text(makePerm({
+        tool: "Bash",
+        input: { command: "npm install" },
+        suggestions: [{
+          type: "addRules",
+          rules: [{ toolName: "Bash", ruleContent: "npm*" }],
+          behavior: "allow",
+          destination: "session",
+        }],
+      }))
+      expect(result).toBe("Always allow npm commands")
+    })
+
+    it("shows 'git commands' for Bash git* pattern", () => {
+      const result = option2Text(makePerm({
+        tool: "Bash",
+        input: { command: "git status" },
+        suggestions: [{
+          type: "addRules",
+          rules: [{ toolName: "Bash", ruleContent: "git*" }],
+          behavior: "allow",
+          destination: "session",
+        }],
+      }))
+      expect(result).toBe("Always allow git commands")
+    })
+
+    it("shows 'cargo commands' for Bash 'cargo *' pattern", () => {
+      const result = option2Text(makePerm({
+        tool: "Bash",
+        input: { command: "cargo build" },
+        suggestions: [{
+          type: "addRules",
+          rules: [{ toolName: "Bash", ruleContent: "cargo *" }],
+          behavior: "allow",
+          destination: "session",
+        }],
+      }))
+      expect(result).toBe("Always allow cargo commands")
+    })
+
+    it("falls back to tool name for non-Bash ruleContent", () => {
+      const result = option2Text(makePerm({
+        tool: "Edit",
+        input: { file_path: "/tmp/foo.ts" },
+        suggestions: [{
+          type: "addRules",
+          rules: [{ toolName: "Edit", ruleContent: "*.ts" }],
+          behavior: "allow",
+          destination: "session",
+        }],
+      }))
+      expect(result).toBe("Always allow Edit")
+    })
+
+    it("falls back to tool name for complex Bash patterns", () => {
+      const result = option2Text(makePerm({
+        tool: "Bash",
+        input: { command: "find . -name '*.ts'" },
+        suggestions: [{
+          type: "addRules",
+          rules: [{ toolName: "Bash", ruleContent: "find . -name*" }],
+          behavior: "allow",
+          destination: "session",
+        }],
+      }))
+      // Complex pattern with spaces/dots won't match the simple word regex
+      expect(result).toBe("Always allow Bash")
+    })
+  })
+
+  describe("tool-specific fallback labels", () => {
+    it("shows 'reading files' for Read tool", () => {
+      const result = option2Text(makePerm({ tool: "Read" }))
+      expect(result).toBe("Always allow reading files")
+    })
+
+    it("shows tool name for other tools", () => {
+      const result = option2Text(makePerm({ tool: "Write" }))
+      expect(result).toBe("Always allow Write")
+    })
+
+    it("truncates long tool names", () => {
+      const longName = "VeryLongToolNameThatExceedsThirtyCharacters"
+      const result = option2Text(makePerm({ tool: longName }))
+      expect(result).toStartWith("Always allow ")
+      expect(result).toContain("\u2026")
+    })
   })
 })

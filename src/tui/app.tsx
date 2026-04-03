@@ -12,6 +12,8 @@ import type { AgentBackend, SessionConfig } from "../protocol/types"
 import { log } from "../utils/logger"
 import { copyToClipboard } from "../utils/clipboard"
 import { sendTerminalNotification, setTerminalProgress } from "../utils/terminal-notify"
+import { disableFocusReporting } from "../utils/terminal-focus"
+import { useAwaySummary } from "./hooks/useAwaySummary"
 import { AgentProvider, useAgent, type AgentContextValue } from "./context/agent"
 import { MessagesProvider, useMessages } from "./context/messages"
 import { SessionProvider, useSession } from "./context/session"
@@ -76,6 +78,7 @@ function Layout(props: { onExit?: () => void }) {
   const agent = useAgent()
   const sync = useSync()
   const modal = useModal()
+  const messages = useMessages()
   registerModalRef(modal)
   // Counter-based rapid-press exit (matches Claude Code behavior)
   let ctrlDCount = 0
@@ -105,12 +108,32 @@ function Layout(props: { onExit?: () => void }) {
     }
   ))
 
+  // Away summary — show a recap when the user returns after >= 3 minutes
+  useAwaySummary({
+    getBlocksSinceLastActivity: () => {
+      const blocks = messages.state.blocks
+      let toolCount = 0
+      let assistantCount = 0
+      for (let i = blocks.length - 1; i >= 0; i--) {
+        const b = blocks[i]!
+        if (b.type === "user") break
+        if (b.type === "tool") toolCount++
+        if (b.type === "assistant") assistantCount++
+      }
+      return { toolCount, assistantCount }
+    },
+    onShowSummary: (summary) => {
+      toast.info(summary, 6000)
+    },
+  })
+
   const renderer = useRenderer()
 
   const GOODBYE_MESSAGES = ["Goodbye!", "See ya!", "Bye!", "Catch you later!", "Until next time!"]
 
   const cleanExit = (reason: string) => {
     log.info("Clean exit", { reason })
+    disableFocusReporting()
     sync.pushEvent({ type: "shutdown" })
     agent.backend.close()
     props.onExit?.()

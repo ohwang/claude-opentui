@@ -7,7 +7,7 @@
 
 import { render, useKeyboard, useRenderer } from "@opentui/solid"
 import { TextAttributes } from "@opentui/core"
-import { createSignal, createEffect, on, onCleanup, ErrorBoundary } from "solid-js"
+import { createSignal, createEffect, on, onCleanup, ErrorBoundary, Show } from "solid-js"
 import type { AgentBackend, SessionConfig } from "../protocol/types"
 import { log } from "../utils/logger"
 import { copyToClipboard } from "../utils/clipboard"
@@ -17,6 +17,7 @@ import { SessionProvider, useSession } from "./context/session"
 import { PermissionsProvider } from "./context/permissions"
 import { SyncProvider, useSync } from "./context/sync"
 import { ToastProvider, toast } from "./context/toast"
+import { ModalProvider, useModal, registerModalRef } from "./context/modal"
 import { colors } from "./theme/tokens"
 import { ConversationView } from "./components/conversation"
 import { Divider } from "./components/primitives"
@@ -70,6 +71,8 @@ function Layout(props: { onExit?: () => void }) {
   const { state: session } = useSession()
   const agent = useAgent()
   const sync = useSync()
+  const modal = useModal()
+  registerModalRef(modal)
   // Counter-based rapid-press exit (matches Claude Code behavior)
   let ctrlDCount = 0
   let ctrlDTimer: ReturnType<typeof setTimeout> | undefined
@@ -166,6 +169,17 @@ function Layout(props: { onExit?: () => void }) {
 
   // Global keyboard shortcuts
   useKeyboard((event) => {
+    // When modal overlay is active, Escape dismisses it. Block all other keys.
+    if (modal.isActive()) {
+      if (event.name === "escape") {
+        event.preventDefault()
+        modal.dismiss()
+        return
+      }
+      event.preventDefault()
+      return
+    }
+
     // When diagnostics overlay is open, capture ALL keyboard input.
     // Only allow close keys (Esc, q, Ctrl+Shift+D) — block everything
     // else from reaching the textarea or other handlers.
@@ -320,7 +334,8 @@ function Layout(props: { onExit?: () => void }) {
       session.sessionState === "WAITING_FOR_PERM" ||
       session.sessionState === "WAITING_FOR_ELIC" ||
       session.sessionState === "SHUTTING_DOWN" ||
-      showDiagnostics()
+      showDiagnostics() ||
+      modal.isActive()
     if (!typingDisabled) {
       refocusInput()
     }
@@ -336,8 +351,8 @@ function Layout(props: { onExit?: () => void }) {
   return (
     <box flexDirection="column" width="100%" height="100%">
       {/* Keep ConversationView always mounted to preserve textarea state.
-           Hide it via height={0} when diagnostics overlay is open. */}
-      <box flexDirection="column" width="100%" height={showDiagnostics() ? 0 : "100%"} flexGrow={showDiagnostics() ? 0 : 1}>
+           Hide it via height={0} when diagnostics or modal overlay is open. */}
+      <box flexDirection="column" width="100%" height={(showDiagnostics() || modal.isActive()) ? 0 : "100%"} flexGrow={(showDiagnostics() || modal.isActive()) ? 0 : 1}>
         <ConversationView>
           {/* Permission dialog (shown inline when WAITING_FOR_PERM) */}
           <PermissionDialog />
@@ -353,6 +368,15 @@ function Layout(props: { onExit?: () => void }) {
           <StatusBar hint={statusHint()} />
         </ConversationView>
       </box>
+
+      {/* Modal overlay — replaces conversation when active */}
+      <Show when={modal.content()}>
+        {(getComponent) => (
+          <box flexDirection="column" flexGrow={1} width="100%" height="100%">
+            {getComponent()()}
+          </box>
+        )}
+      </Show>
 
       {/* Diagnostics panel — replaces conversation when visible */}
       <DiagnosticsPanel
@@ -387,7 +411,9 @@ export function startApp(options: AppOptions): void {
             <PermissionsProvider>
               <SyncProvider>
                 <ToastProvider>
-                  <Layout onExit={options.onExit} />
+                  <ModalProvider>
+                    <Layout onExit={options.onExit} />
+                  </ModalProvider>
                 </ToastProvider>
               </SyncProvider>
             </PermissionsProvider>

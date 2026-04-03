@@ -18,10 +18,10 @@ import { resolve } from "node:path"
 import type { ImageContent } from "../protocol/types"
 
 const IMAGE_MAX_BASE64_BYTES = 5 * 1024 * 1024
+const IMAGE_MAX_RAW_BYTES = 3.75 * 1024 * 1024 // ~5MB base64
+const IMAGE_MAX_DIMENSION = 2000 // pixels
 const CLIPBOARD_TIMEOUT_MS = 5_000
 const IMAGE_EXTENSION_REGEX = /\.(png|jpe?g|gif|webp)$/i
-
-type ImageMediaType = "image/png" | "image/jpeg" | "image/gif" | "image/webp"
 
 // ---------------------------------------------------------------------------
 // Image format detection from magic bytes
@@ -205,6 +205,8 @@ export async function readClipboard(): Promise<string> {
 
 type ClipboardPlatform = "darwin" | "linux-x11" | "linux-wayland" | "unsupported"
 
+export type ImageMediaType = "image/png" | "image/jpeg" | "image/gif" | "image/webp"
+
 function detectPlatform(): ClipboardPlatform {
   const platform = process.platform
   if (platform === "darwin") return "darwin"
@@ -214,6 +216,104 @@ function detectPlatform(): ClipboardPlatform {
     return "linux-x11"
   }
   return "unsupported"
+}
+
+// ---------------------------------------------------------------------------
+// Image downsampling — uses system tools (sips on macOS, convert on Linux)
+// ---------------------------------------------------------------------------
+
+/**
+ * Attempt to downscale an image buffer using system tools.
+ * Returns the original buffer if resizing isn't possible or not needed.
+ */
+export async function maybeResizeImage(
+  buffer: Buffer,
+  mediaType: ImageMediaType,
+): Promise<{ buffer: Buffer; mediaType: ImageMediaType; resized: boolean }> {
+  // Under size limit — no resize needed
+  if (buffer.length <= IMAGE_MAX_RAW_BYTES) {
+    return { buffer, mediaType, resized: false }
+  }
+
+  const platform = detectPlatform()
+
+  if (platform === "darwin") {
+    return resizeWithSips(buffer, mediaType)
+  }
+
+  if (platform === "linux-x11" || platform === "linux-wayland") {
+    return resizeWithConvert(buffer, mediaType)
+  }
+
+  // Can't resize — return original (will be rejected by size check downstream)
+  return { buffer, mediaType, resized: false }
+}
+
+async function resizeWithSips(
+  buffer: Buffer,
+  mediaType: ImageMediaType,
+): Promise<{ buffer: Buffer; mediaType: ImageMediaType; resized: boolean }> {
+  try {
+    const tmpIn = `/tmp/opentui-resize-in-${Date.now()}.png`
+    const tmpOut = `/tmp/opentui-resize-out-${Date.now()}.jpg`
+
+    await Bun.write(tmpIn, buffer)
+
+    // Resize to max 2000px on longest side, convert to JPEG for compression
+    const proc = Bun.spawn(
+      ["sips", "-Z", String(IMAGE_MAX_DIMENSION), "-s", "format", "jpeg", tmpIn, "--out", tmpOut],
+      { stdout: "pipe", stderr: "pipe" },
+    )
+    await proc.exited
+
+    const resized = await Bun.file(tmpOut).arrayBuffer()
+    const resizedBuf = Buffer.from(resized)
+
+    // Clean up temp files
+    try { await unlink(tmpIn) } catch {}
+    try { await unlink(tmpOut) } catch {}
+
+    if (resizedBuf.length > 0 && resizedBuf.length < buffer.length) {
+      return { buffer: resizedBuf, mediaType: "image/jpeg", resized: true }
+    }
+    return { buffer, mediaType, resized: false }
+  } catch (err) {
+    log.warn("sips resize failed", { error: String(err) })
+    return { buffer, mediaType, resized: false }
+  }
+}
+
+async function resizeWithConvert(
+  buffer: Buffer,
+  mediaType: ImageMediaType,
+): Promise<{ buffer: Buffer; mediaType: ImageMediaType; resized: boolean }> {
+  try {
+    const tmpIn = `/tmp/opentui-resize-in-${Date.now()}.png`
+    const tmpOut = `/tmp/opentui-resize-out-${Date.now()}.jpg`
+
+    await Bun.write(tmpIn, buffer)
+
+    // ImageMagick convert: resize to fit in 2000x2000, JPEG quality 80
+    const proc = Bun.spawn(
+      ["convert", tmpIn, "-resize", `${IMAGE_MAX_DIMENSION}x${IMAGE_MAX_DIMENSION}>`, "-quality", "80", tmpOut],
+      { stdout: "pipe", stderr: "pipe" },
+    )
+    await proc.exited
+
+    const resized = await Bun.file(tmpOut).arrayBuffer()
+    const resizedBuf = Buffer.from(resized)
+
+    try { await unlink(tmpIn) } catch {}
+    try { await unlink(tmpOut) } catch {}
+
+    if (resizedBuf.length > 0 && resizedBuf.length < buffer.length) {
+      return { buffer: resizedBuf, mediaType: "image/jpeg", resized: true }
+    }
+    return { buffer, mediaType, resized: false }
+  } catch (err) {
+    log.warn("convert resize failed", { error: String(err) })
+    return { buffer, mediaType, resized: false }
+  }
 }
 
 /** Spawn a process with a timeout. Returns null if spawn fails or times out. */
@@ -292,15 +392,22 @@ export async function hasClipboardImage(): Promise<boolean> {
   return false
 }
 
+export type ClipboardImageResult =
+  | { ok: true; image: ImageContent; resized: boolean }
+  | { ok: false; reason: "too_large" | "no_image" | "unsupported" | "error" }
+
 /**
  * Read image data from the system clipboard.
- * Returns base64-encoded image content, or null if no image is present
- * or on unsupported platforms.
+ * Returns base64-encoded image content (with resize metadata), or null if
+ * no image is present or on unsupported platforms.
+ *
+ * If the image exceeds the size limit, attempts to downscale using system
+ * tools (sips on macOS, ImageMagick convert on Linux).
  */
-export async function readClipboardImage(): Promise<ImageContent | null> {
+export async function readClipboardImage(): Promise<ClipboardImageResult> {
   const plat = detectPlatform()
 
-  if (plat === "unsupported") return null
+  if (plat === "unsupported") return { ok: false, reason: "unsupported" }
 
   if (plat === "darwin") {
     return readClipboardImageDarwin()
@@ -314,10 +421,10 @@ export async function readClipboardImage(): Promise<ImageContent | null> {
     return readClipboardImageLinuxWayland()
   }
 
-  return null
+  return { ok: false, reason: "unsupported" }
 }
 
-async function readClipboardImageDarwin(): Promise<ImageContent | null> {
+async function readClipboardImageDarwin(): Promise<ClipboardImageResult> {
   const tmpPath = "/tmp/claude-opentui-clip.png"
 
   const result = await spawnWithTimeout(
@@ -336,29 +443,37 @@ async function readClipboardImageDarwin(): Promise<ImageContent | null> {
       const stderr = await new Response(result.stderr).text()
       log.warn("clipboard", `osascript image read failed (exit ${result.exitCode}): ${stderr.trim()}`)
     }
-    return null
+    return { ok: false, reason: "no_image" }
   }
 
   try {
     const arrayBuffer = await Bun.file(tmpPath).arrayBuffer()
-    const base64 = Buffer.from(arrayBuffer).toString("base64")
+    const rawBuffer = Buffer.from(arrayBuffer)
 
-    if (base64.length > IMAGE_MAX_BASE64_BYTES) {
-      log.warn("clipboard", `Clipboard image too large: ${base64.length} bytes base64 (limit ${IMAGE_MAX_BASE64_BYTES})`)
-      return null
+    // Detect actual format from magic bytes, then attempt downscale if oversized
+    const detectedType = detectImageFormatFromBuffer(rawBuffer)
+    const { buffer: finalBuffer, mediaType, resized } = await maybeResizeImage(rawBuffer, detectedType)
+    if (resized) {
+      log.info("clipboard", "Image was downscaled to fit size limit")
     }
 
-    const mediaType = detectImageFormatFromBase64(base64)
-    return { data: base64, mediaType }
+    const base64 = finalBuffer.toString("base64")
+
+    if (base64.length > IMAGE_MAX_BASE64_BYTES) {
+      log.warn("clipboard", `Clipboard image too large after resize: ${base64.length} bytes base64 (limit ${IMAGE_MAX_BASE64_BYTES})`)
+      return { ok: false, reason: "too_large" }
+    }
+
+    return { ok: true, image: { data: base64, mediaType }, resized }
   } catch (err) {
     log.warn("clipboard", `Failed to read temp image file: ${err}`)
-    return null
+    return { ok: false, reason: "error" }
   } finally {
     await unlink(tmpPath).catch(() => {})
   }
 }
 
-async function readClipboardImageLinuxX11(): Promise<ImageContent | null> {
+async function readClipboardImageLinuxX11(): Promise<ClipboardImageResult> {
   const result = await spawnWithTimeout(
     ["xclip", "-selection", "clipboard", "-t", "image/png", "-o"],
     { stdout: "pipe", stderr: "pipe" },
@@ -369,13 +484,13 @@ async function readClipboardImageLinuxX11(): Promise<ImageContent | null> {
       const stderr = await new Response(result.stderr).text()
       log.warn("clipboard", `xclip image read failed (exit ${result.exitCode}): ${stderr.trim()}`)
     }
-    return null
+    return { ok: false, reason: "no_image" }
   }
 
   return binaryStdoutToImageContent(result.stdout)
 }
 
-async function readClipboardImageLinuxWayland(): Promise<ImageContent | null> {
+async function readClipboardImageLinuxWayland(): Promise<ClipboardImageResult> {
   const result = await spawnWithTimeout(
     ["wl-paste", "--type", "image/png"],
     { stdout: "pipe", stderr: "pipe" },
@@ -386,7 +501,7 @@ async function readClipboardImageLinuxWayland(): Promise<ImageContent | null> {
       const stderr = await new Response(result.stderr).text()
       log.warn("clipboard", `wl-paste image read failed (exit ${result.exitCode}): ${stderr.trim()}`)
     }
-    return null
+    return { ok: false, reason: "no_image" }
   }
 
   return binaryStdoutToImageContent(result.stdout)
@@ -394,20 +509,28 @@ async function readClipboardImageLinuxWayland(): Promise<ImageContent | null> {
 
 async function binaryStdoutToImageContent(
   stdout: ReadableStream<Uint8Array>,
-): Promise<ImageContent | null> {
+): Promise<ClipboardImageResult> {
   try {
     const arrayBuffer = await new Response(stdout).arrayBuffer()
-    const base64 = Buffer.from(arrayBuffer).toString("base64")
+    const rawBuffer = Buffer.from(arrayBuffer)
 
-    if (base64.length > IMAGE_MAX_BASE64_BYTES) {
-      log.warn("clipboard", `Clipboard image too large: ${base64.length} bytes base64 (limit ${IMAGE_MAX_BASE64_BYTES})`)
-      return null
+    // Detect actual format from magic bytes, then attempt downscale if oversized
+    const detectedType = detectImageFormatFromBuffer(rawBuffer)
+    const { buffer: finalBuffer, mediaType, resized } = await maybeResizeImage(rawBuffer, detectedType)
+    if (resized) {
+      log.info("clipboard", "Image was downscaled to fit size limit")
     }
 
-    const mediaType = detectImageFormatFromBase64(base64)
-    return { data: base64, mediaType }
+    const base64 = finalBuffer.toString("base64")
+
+    if (base64.length > IMAGE_MAX_BASE64_BYTES) {
+      log.warn("clipboard", `Clipboard image too large after resize: ${base64.length} bytes base64 (limit ${IMAGE_MAX_BASE64_BYTES})`)
+      return { ok: false, reason: "too_large" }
+    }
+
+    return { ok: true, image: { data: base64, mediaType }, resized }
   } catch (err) {
     log.warn("clipboard", `Failed to read image from stdout: ${err}`)
-    return null
+    return { ok: false, reason: "error" }
   }
 }

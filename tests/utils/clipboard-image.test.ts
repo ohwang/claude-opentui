@@ -222,20 +222,22 @@ describe("readClipboardImage", () => {
     delete process.env.WAYLAND_DISPLAY
   })
 
-  it("returns null on unsupported platform (win32)", async () => {
+  it("returns not-ok on unsupported platform (win32)", async () => {
     setPlatform("win32")
     const { readClipboardImage } = await importClipboard()
     const result = await readClipboardImage()
-    expect(result).toBeNull()
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.reason).toBe("unsupported")
     expect(spawnMock).not.toHaveBeenCalled()
   })
 
-  it("returns null on WSL (unsupported for image)", async () => {
+  it("returns not-ok on WSL (unsupported for image)", async () => {
     setPlatform("linux")
     process.env.WSL_DISTRO_NAME = "Ubuntu"
     const { readClipboardImage } = await importClipboard()
     const result = await readClipboardImage()
-    expect(result).toBeNull()
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.reason).toBe("unsupported")
   })
 
   it("returns ImageContent on macOS when osascript succeeds", async () => {
@@ -266,22 +268,26 @@ describe("readClipboardImage", () => {
     const { readClipboardImage } = await importClipboard()
     const result = await readClipboardImage()
 
-    expect(result).not.toBeNull()
-    expect(result!.mediaType).toBe("image/png")
-    expect(result!.data).toBe(expectedBase64)
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.image.mediaType).toBe("image/png")
+      expect(result.image.data).toBe(expectedBase64)
+      expect(result.resized).toBe(false)
+    }
   })
 
-  it("returns null when osascript fails (exit code 1) on macOS", async () => {
+  it("returns not-ok when osascript fails (exit code 1) on macOS", async () => {
     setPlatform("darwin")
     spawnMock.mockReturnValue(
       fakeProc(1, "", "execution error: can't get clipboard") as any,
     )
     const { readClipboardImage } = await importClipboard()
     const result = await readClipboardImage()
-    expect(result).toBeNull()
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.reason).toBe("no_image")
   })
 
-  it("returns null when image exceeds 5MB limit on macOS", async () => {
+  it("returns too_large when image exceeds 5MB limit on macOS", async () => {
     setPlatform("darwin")
 
     // Mock osascript spawn success
@@ -296,7 +302,8 @@ describe("readClipboardImage", () => {
 
     const { readClipboardImage } = await importClipboard()
     const result = await readClipboardImage()
-    expect(result).toBeNull()
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.reason).toBe("too_large")
   })
 
   it("returns ImageContent on Linux X11 via xclip", async () => {
@@ -312,12 +319,14 @@ describe("readClipboardImage", () => {
     const { readClipboardImage } = await importClipboard()
     const result = await readClipboardImage()
 
-    expect(result).not.toBeNull()
-    expect(result!.mediaType).toBe("image/png")
-    expect(result!.data).toBe(Buffer.from(pngBytes).toString("base64"))
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.image.mediaType).toBe("image/png")
+      expect(result.image.data).toBe(Buffer.from(pngBytes).toString("base64"))
+    }
   })
 
-  it("returns null when xclip fails on Linux X11", async () => {
+  it("returns not-ok when xclip fails on Linux X11", async () => {
     setPlatform("linux")
     delete process.env.WSL_DISTRO_NAME
     delete process.env.WAYLAND_DISPLAY
@@ -328,7 +337,8 @@ describe("readClipboardImage", () => {
 
     const { readClipboardImage } = await importClipboard()
     const result = await readClipboardImage()
-    expect(result).toBeNull()
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.reason).toBe("no_image")
   })
 
   it("returns ImageContent on Linux Wayland via wl-paste", async () => {
@@ -343,12 +353,14 @@ describe("readClipboardImage", () => {
     const { readClipboardImage } = await importClipboard()
     const result = await readClipboardImage()
 
-    expect(result).not.toBeNull()
-    expect(result!.mediaType).toBe("image/png")
-    expect(result!.data).toBe(Buffer.from(pngBytes).toString("base64"))
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.image.mediaType).toBe("image/png")
+      expect(result.image.data).toBe(Buffer.from(pngBytes).toString("base64"))
+    }
   })
 
-  it("returns null when wl-paste fails on Wayland", async () => {
+  it("returns not-ok when wl-paste fails on Wayland", async () => {
     setPlatform("linux")
     delete process.env.WSL_DISTRO_NAME
     process.env.WAYLAND_DISPLAY = "wayland-0"
@@ -359,10 +371,11 @@ describe("readClipboardImage", () => {
 
     const { readClipboardImage } = await importClipboard()
     const result = await readClipboardImage()
-    expect(result).toBeNull()
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.reason).toBe("no_image")
   })
 
-  it("returns null when image exceeds 5MB limit via binary stdout (Linux)", async () => {
+  it("returns too_large when image exceeds 5MB limit via binary stdout (Linux)", async () => {
     setPlatform("linux")
     delete process.env.WSL_DISTRO_NAME
     delete process.env.WAYLAND_DISPLAY
@@ -373,10 +386,11 @@ describe("readClipboardImage", () => {
 
     const { readClipboardImage } = await importClipboard()
     const result = await readClipboardImage()
-    expect(result).toBeNull()
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.reason).toBe("too_large")
   })
 
-  it("returns null when spawn throws (command not found)", async () => {
+  it("returns not-ok when spawn throws (command not found)", async () => {
     setPlatform("darwin")
     spawnMock.mockImplementation(() => {
       throw new Error("spawn failed: command not found")
@@ -384,7 +398,8 @@ describe("readClipboardImage", () => {
 
     const { readClipboardImage } = await importClipboard()
     const result = await readClipboardImage()
-    expect(result).toBeNull()
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.reason).toBe("no_image")
   })
 })
 

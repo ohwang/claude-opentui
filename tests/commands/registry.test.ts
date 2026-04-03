@@ -169,16 +169,14 @@ describe("Built-in commands", () => {
     expect(all.length).toBeGreaterThanOrEqual(6)
   })
 
-  it("/help generates command list", async () => {
+  it("/help opens modal (no system_message events)", async () => {
     const registry = createCommandRegistry()
     const ctx = makeCtx()
 
     await registry.tryExecute("/help", ctx)
 
-    expect(ctx.events).toHaveLength(1)
-    expect(ctx.events[0].type).toBe("system_message")
-    expect(ctx.events[0].text).toContain("/help")
-    expect(ctx.events[0].text).toContain("/clear")
+    // /help now uses showModal() instead of pushEvent, so no events are emitted
+    expect(ctx.events).toHaveLength(0)
   })
 
   it("/exit calls process.exit", async () => {

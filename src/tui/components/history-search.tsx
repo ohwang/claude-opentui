@@ -84,9 +84,11 @@ export function HistorySearchModal(props: HistorySearchProps) {
       return true
     }
 
-    // Regular character input (single printable chars, no modifiers)
-    if (event.char && event.char.length === 1 && !event.ctrl && !event.meta) {
-      setQuery((q) => q + event.char)
+    // Regular character input (single printable chars, no modifiers).
+    // OpenTUI's KeyEvent has no `char` property — printable characters
+    // are in `event.name` (e.g. name="t" for the t key).
+    if (event.name && event.name.length === 1 && !event.ctrl && !event.meta) {
+      setQuery((q) => q + event.name)
       setSelectedIndex(0)
       return true
     }

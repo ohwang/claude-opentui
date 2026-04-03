@@ -34,6 +34,7 @@ class Logger {
   private logFile: string
   private level: LogLevel = "info"
   private initialized = false
+  private claudeSessionId: string | null = null
 
   constructor() {
     this.sessionId = generateSessionId()
@@ -65,6 +66,14 @@ class Logger {
 
   getLogDir(): string {
     return LOG_DIR
+  }
+
+  setClaudeSessionId(id: string) {
+    this.claudeSessionId = id
+  }
+
+  getClaudeSessionId(): string | null {
+    return this.claudeSessionId
   }
 
   private write(level: LogLevel, message: string, data?: unknown) {

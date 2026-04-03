@@ -59,9 +59,12 @@ async function main() {
   log.info("Starting claude-opentui", { version: VERSION, backend: flags.backend, debug: flags.debug, cwd: flags.config.cwd })
   log.debug("Session config", flags.config)
 
-  // Print session ID on exit so users can correlate with log files
+  // Print session info on exit so users can correlate with log files
   process.on("exit", () => {
-    process.stdout.write(`\nSession: ${log.getSessionId()} | Log: ${log.getLogFile()}\n`)
+    const claudeId = log.getClaudeSessionId() ?? "not available"
+    process.stdout.write(`Claude Code Session: ${claudeId}\n`)
+    process.stdout.write(`Session: ${log.getSessionId()}\n`)
+    process.stdout.write(`Log: ${log.getLogFile()}\n`)
     if (backendTrace.isEnabled()) {
       process.stdout.write(`Backend trace: ${backendTrace.getFilePath()}\n`)
     }

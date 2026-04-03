@@ -9,6 +9,7 @@ import { createSignal, createEffect, createMemo, onCleanup, Show } from "solid-j
 import { TextAttributes } from "@opentui/core"
 import type { Block } from "../../protocol/types"
 import { colors } from "../theme/tokens"
+import { formatDuration } from "../../utils/format"
 import { syntaxStyle } from "../theme/syntax"
 import { getStatusConfig } from "./primitives"
 import { truncatePathMiddle, truncateToWidth } from "../../utils/truncate"
@@ -163,7 +164,7 @@ export function ToolBlockView(props: { block: Extract<Block, { type: "tool" }>; 
         {/* Duration for completed tools (expanded/show_all views) */}
         <Show when={b().status !== "running" && props.viewLevel !== "collapsed" && b().duration !== undefined && b().duration! >= 1000}>
           <text fg={colors.text.muted} attributes={TextAttributes.DIM}>
-            {" " + (b().duration! < 60000 ? `${Math.round(b().duration! / 1000)}s` : `${Math.floor(b().duration! / 60000)}m ${Math.round((b().duration! % 60000) / 1000)}s`)}
+            {" " + formatDuration(b().duration!, { hideTrailingZeros: true })}
           </text>
         </Show>
       </box>
@@ -307,8 +308,7 @@ function collapsedResultHint(tool: ToolBlock): string {
 
 /** Format elapsed seconds as a human-readable string */
 function formatElapsed(seconds: number): string {
-  if (seconds < 60) return `${seconds}s`
-  return `${Math.floor(seconds / 60)}m ${seconds % 60}s`
+  return formatDuration(seconds * 1000, { hideTrailingZeros: true })
 }
 
 /** Collapsed tool summary view — shows each tool with its primary arg */

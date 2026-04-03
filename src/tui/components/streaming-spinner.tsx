@@ -24,6 +24,7 @@
 import { createSignal, createEffect } from "solid-js"
 import { useAnimationFrame } from "../context/animation"
 import { colors } from "../theme/tokens"
+import { formatDuration, formatTokens } from "../../utils/format"
 
 // ---------------------------------------------------------------------------
 // Braille dot spinner — forward + reverse cycle
@@ -155,17 +156,13 @@ export function StreamingSpinner(props: { label: string; elapsedSeconds?: number
   const timeStr = () => {
     const secs = props.elapsedSeconds ?? 0
     if (secs === 0) return ""
-    if (secs < 60) return `${secs}s`
-    const mins = Math.floor(secs / 60)
-    const remSecs = secs % 60
-    return `${mins}m ${remSecs}s`
+    return formatDuration(secs * 1000, { hideTrailingZeros: true })
   }
 
   const tokenStr = () => {
     const tokens = props.outputTokens ?? 0
     if (tokens === 0) return ""
-    if (tokens >= 1000) return `\u2193 ${(tokens / 1000).toFixed(1)}k tokens`
-    return `\u2193 ${tokens} tokens`
+    return `\u2193 ${formatTokens(tokens)} tokens`
   }
 
   const metaStr = () => {

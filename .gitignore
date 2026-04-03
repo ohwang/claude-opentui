@@ -1,8 +1,41 @@
+# Dependencies
 node_modules/
+
+# Build output
 dist/
-.DS_Store
-*.log
+*.tsbuildinfo
+
+# Environment
 .env
 .env.*
 !.env.example
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Bun
+bun-debug.log
+
+# Claude Code
+.worktrees/
 autoimpl/
+
+# Coverage / test artifacts
+coverage/
+.nyc_output/
+
+# Temporary files
+tmp/
+*.tmp

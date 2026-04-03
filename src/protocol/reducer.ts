@@ -166,13 +166,16 @@ export function reduce(
         }
       }
 
-      // Update session ID if the result message carries one (matches claude-go behavior:
-      // the session ID is received on every ResultMessage and stored in state)
-      const updatedSession = event.sessionId && flushed.session
-        ? { ...flushed.session, sessionId: event.sessionId }
-        : event.sessionId && !flushed.session
-          ? { tools: [], models: [], sessionId: event.sessionId }
+      // Merge sessionId from turn_complete into the existing session if present,
+      // but never clear a sessionId that was already set by session_init.
+      // Priority: existing session preserved; turn_complete's sessionId overlays only if provided.
+      const updatedSession = flushed.session
+        ? event.sessionId
+          ? { ...flushed.session, sessionId: event.sessionId }
           : flushed.session
+        : event.sessionId
+          ? { tools: [], models: [], sessionId: event.sessionId }
+          : null
 
       return {
         ...flushed,

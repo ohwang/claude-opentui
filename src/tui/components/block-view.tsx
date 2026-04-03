@@ -136,6 +136,16 @@ function CollapsedToolLine(props: { block: Extract<Block, { type: "tool" }> }) {
 
   const hint = () => {
     if (displayRunning()) {
+      const out = b().output ?? ""
+      if (out) {
+        const lines = out.split('\n').filter((l: string) => l.trim())
+        const lastLine = lines[lines.length - 1] ?? ""
+        const truncated = lastLine.length > 50 ? lastLine.slice(0, 47) + "..." : lastLine
+        const lineCount = lines.length
+        const secs = elapsed()
+        const timeStr = secs > 0 ? ` (${secs}s)` : ""
+        return `... ${truncated} [${lineCount} line${lineCount === 1 ? "" : "s"}${timeStr}]`
+      }
       const secs = elapsed()
       return secs > 0 ? `... ${secs}s` : "..."
     }

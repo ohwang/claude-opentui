@@ -61,6 +61,13 @@ export const TOOL_CRITICAL_THRESHOLD = 300 // 5 minutes
 
 export type ToolBlock = Extract<Block, { type: "tool" }>
 
+/** Extract the last N non-empty lines from text, prefixed with "..." if truncated */
+function getLastNLines(text: string, n: number): string {
+  const lines = text.split('\n').filter(l => l.trim())
+  if (lines.length <= n) return lines.join('\n')
+  return '...\n' + lines.slice(-n).join('\n')
+}
+
 export function ToolBlockView(props: { block: Extract<Block, { type: "tool" }>; viewLevel: ViewLevel }) {
   const b = () => props.block
 
@@ -173,6 +180,14 @@ export function ToolBlockView(props: { block: Extract<Block, { type: "tool" }>; 
         <box paddingLeft={2}>
           <text fg={colors.status.error} attributes={TextAttributes.DIM}>
             {"\u23BF  Tool may be stuck. Press Ctrl+C to interrupt."}
+          </text>
+        </box>
+      </Show>
+      {/* Progress output — last 5 lines shown while tool is running */}
+      <Show when={props.viewLevel !== "collapsed" && b().status === "running" && b().output}>
+        <box paddingLeft={4} flexDirection="column">
+          <text fg={colors.text.muted} attributes={TextAttributes.DIM}>
+            {getLastNLines(b().output!, 5)}
           </text>
         </box>
       </Show>
@@ -346,8 +361,13 @@ export function ToolSummaryView(props: { tools: ToolBlock[] }) {
       if (tool.status === "running") {
         const elapsed = Math.floor((now - tool.startTime) / 1000)
         const cfg = getStatusConfig("running")
+        const out = tool.output ?? ""
+        const lineCount = out ? out.split('\n').filter(l => l.trim()).length : 0
+        const progressHint = lineCount > 0
+          ? `${lineCount} line${lineCount === 1 ? "" : "s"} (${formatElapsed(elapsed)})`
+          : `(${formatElapsed(elapsed)})`
         return {
-          text: `${verb}${argSuffix}... (${formatElapsed(elapsed)})`,
+          text: `${verb}${argSuffix}... ${progressHint}`,
           isError: false,
           icon: cfg.icon,
           iconColor: cfg.color,

@@ -330,23 +330,23 @@ export function ConversationView(props: { children?: JSX.Element }) {
             </For>
           </box>
 
-          {/* Streaming thinking (transient) — hidden in collapsed view, when thinking toggle is off, spinner shows instead */}
+          {/* Streaming thinking (transient) — hidden when backgrounded, collapsed view, or thinking toggle off */}
           <box flexDirection="column">
-            <Show when={showThinking() && state.streamingThinking && viewLevel() !== "collapsed"}>
+            <Show when={!state.backgrounded && showThinking() && state.streamingThinking && viewLevel() !== "collapsed"}>
               <box marginTop={1}>
                 <ThinkingBlock text={state.streamingThinking} collapsed={false} />
               </box>
             </Show>
           </box>
 
-          {/* Streaming text (transient) — styled as assistant with prefix.
+          {/* Streaming text (transient) — hidden when backgrounded.
               Uses visible={false} instead of <Show> to avoid destroying/recreating
               the <markdown> component at flush boundaries (tool_use_start,
               text_complete, turn_complete). Destroying forces all internal
               CodeRenderable sub-blocks to re-highlight from scratch, leaving
               text invisible for 1+ frames while async tree-sitter completes. */}
           <box flexDirection="column">
-            <box flexDirection="row" marginTop={1} visible={!!state.streamingText}>
+            <box flexDirection="row" marginTop={1} visible={!state.backgrounded && !!state.streamingText}>
               <box width={2} flexShrink={0}>
                 <text fg={colors.text.white}>{"\u23FA"}</text>
               </box>
@@ -376,10 +376,20 @@ export function ConversationView(props: { children?: JSX.Element }) {
             </Show>
           </box>
 
-          {/* Spinner — visible when RUNNING but no streaming content */}
+          {/* Background task indicator — compact single-line when backgrounded */}
+          <box flexDirection="column">
+            <Show when={state.backgrounded && session.sessionState === "RUNNING"}>
+              <box marginTop={1} paddingLeft={2} flexDirection="row">
+                <StreamingSpinner label={"Running in background..."} elapsedSeconds={turnElapsed()} outputTokens={state.streamingOutputTokens || session.cost.outputTokens} />
+              </box>
+            </Show>
+          </box>
+
+          {/* Spinner — visible when RUNNING, not backgrounded, and no streaming content */}
           <box flexDirection="column">
             <Show when={
               session.sessionState === "RUNNING" &&
+              !state.backgrounded &&
               !state.streamingText &&
               !state.streamingThinking
             }>

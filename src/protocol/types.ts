@@ -150,6 +150,10 @@ export type SystemMessageEvent = {
   ephemeral?: boolean
 }
 
+/** Task backgrounding (synthetic, emitted by TUI on Ctrl+B double-press) */
+export type TaskBackgroundEvent = { type: "task_background" }
+export type TaskForegroundEvent = { type: "task_foreground" }
+
 /** Backend escape hatch */
 export type BackendSpecificEvent = {
   type: "backend_specific"
@@ -184,6 +188,8 @@ export type AgentEvent =
   | CostUpdateEvent
   | ModelChangedEvent
   | SystemMessageEvent
+  | TaskBackgroundEvent
+  | TaskForegroundEvent
   | BackendSpecificEvent
 
 // ---------------------------------------------------------------------------
@@ -318,6 +324,9 @@ export interface ConversationState {
 
   /** Output tokens accumulated during streaming (reset on turn boundaries, separate from authoritative cost) */
   streamingOutputTokens: number
+
+  /** Whether the current turn is backgrounded (UI collapsed, input re-enabled) */
+  backgrounded: boolean
 }
 
 // ---------------------------------------------------------------------------
@@ -526,5 +535,6 @@ export function createInitialState(): ConversationState {
     turnNumber: 0,
     lastTurnInputTokens: 0,
     streamingOutputTokens: 0,
+    backgrounded: false,
   }
 }

@@ -12,6 +12,7 @@ import path from "node:path"
 import { TextAttributes } from "@opentui/core"
 import { useKeyboard, useTerminalDimensions } from "@opentui/solid"
 import { useSession } from "../context/session"
+import { useMessages } from "../context/messages"
 import { useAgent } from "../context/agent"
 import { log } from "../../utils/logger"
 import { colors } from "../theme/tokens"
@@ -123,6 +124,7 @@ function permissionModeLabel(mode: PermissionMode | undefined): string {
 
 export function StatusBar(props: { hint?: string | null }) {
   const { state } = useSession()
+  const { state: messagesState } = useMessages()
   const agent = useAgent()
   // -- Permission mode (local signal so it's reactive) --
   const [permMode, setPermMode] = createSignal<PermissionMode>(
@@ -259,6 +261,7 @@ export function StatusBar(props: { hint?: string | null }) {
   }
 
   const stateIcon = () => {
+    if (messagesState.backgrounded) return "\u2B21" // ⬡ hexagon for backgrounded
     switch (state.sessionState) {
       case "INITIALIZING":
         return "\u25CC"
@@ -282,6 +285,7 @@ export function StatusBar(props: { hint?: string | null }) {
   }
 
   const stateColor = () => {
+    if (messagesState.backgrounded) return colors.status.warning
     switch (state.sessionState) {
       case "IDLE":
         return colors.state.idle
@@ -423,9 +427,12 @@ export function StatusBar(props: { hint?: string | null }) {
           {modelName()}
         </text>
 
-        {/* State icon */}
+        {/* State icon + backgrounded label */}
         <text fg={colors.text.muted}>{"  "}</text>
         <text fg={stateColor()}>{stateIcon()}</text>
+        {messagesState.backgrounded && (
+          <text fg={colors.status.warning}>{" Backgrounded"}</text>
+        )}
 
         {/* Cost (hidden below 60 cols) */}
         {showCost() && costStr() && (

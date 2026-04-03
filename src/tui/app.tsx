@@ -12,7 +12,7 @@ import type { AgentBackend, SessionConfig } from "../protocol/types"
 import { log } from "../utils/logger"
 import { copyToClipboard } from "../utils/clipboard"
 import { AgentProvider, useAgent, type AgentContextValue } from "./context/agent"
-import { MessagesProvider } from "./context/messages"
+import { MessagesProvider, useMessages } from "./context/messages"
 import { SessionProvider, useSession } from "./context/session"
 import { PermissionsProvider } from "./context/permissions"
 import { SyncProvider, useSync } from "./context/sync"
@@ -70,6 +70,7 @@ function ErrorFallback(props: { error: Error; reset: () => void }) {
 
 function Layout(props: { onExit?: () => void }) {
   const { state: session } = useSession()
+  const { state: messagesState } = useMessages()
   const agent = useAgent()
   const sync = useSync()
   const modal = useModal()
@@ -79,6 +80,9 @@ function Layout(props: { onExit?: () => void }) {
   let ctrlDTimer: ReturnType<typeof setTimeout> | undefined
   let ctrlCEmptyCount = 0
   let ctrlCTimer: ReturnType<typeof setTimeout> | undefined
+  // Ctrl+B double-press for background/foreground toggle
+  let ctrlBCount = 0
+  let ctrlBTimer: ReturnType<typeof setTimeout> | undefined
   const [statusHint, setStatusHint] = createSignal<string | null>(null)
   const [showDiagnostics, setShowDiagnostics] = createSignal(false)
   let statusHintTimer: ReturnType<typeof setTimeout> | undefined
@@ -133,6 +137,18 @@ function Layout(props: { onExit?: () => void }) {
         clearTimeout(interruptTimeout)
         interruptTimeout = undefined
       }
+    }
+  ))
+
+  // Notify when a backgrounded task completes
+  let wasBackgrounded = false
+  createEffect(on(
+    () => [messagesState.backgrounded, session.sessionState] as const,
+    ([backgrounded, sessionState]) => {
+      if (wasBackgrounded && !backgrounded && sessionState === "IDLE") {
+        toast.success("Background task completed")
+      }
+      wasBackgrounded = backgrounded
     }
   ))
 
@@ -268,6 +284,34 @@ function Layout(props: { onExit?: () => void }) {
       return
     }
 
+    // Ctrl+B: background/foreground toggle (double-press within 800ms)
+    if (event.ctrl && event.name === "b") {
+      if (messagesState.backgrounded) {
+        // Already backgrounded — single press returns to foreground
+        sync.pushEvent({ type: "task_foreground" })
+        toast.info("Returned to foreground")
+        ctrlBCount = 0
+        clearTimeout(ctrlBTimer)
+        return
+      }
+      if (session.sessionState === "RUNNING") {
+        ctrlBCount++
+        clearTimeout(ctrlBTimer)
+        if (ctrlBCount >= 2) {
+          // Second press — background the task
+          ctrlBCount = 0
+          sync.pushEvent({ type: "task_background" })
+          toast.info("Running in background \u00B7 Ctrl+B to return")
+          refocusInput()
+        } else {
+          // First press — show hint
+          showTransientHint("Press Ctrl+B again to run in background", 800)
+          ctrlBTimer = setTimeout(() => { ctrlBCount = 0 }, 800)
+        }
+      }
+      return
+    }
+
     // Meta+C (Cmd+C on macOS): copy selection if available
     if (event.meta && event.name === "c") {
       if (renderer.hasSelection) {
@@ -375,6 +419,7 @@ function Layout(props: { onExit?: () => void }) {
   onCleanup(() => {
     clearTimeout(ctrlDTimer)
     clearTimeout(ctrlCTimer)
+    clearTimeout(ctrlBTimer)
     clearTimeout(statusHintTimer)
     clearTimeout(interruptTimeout)
   })

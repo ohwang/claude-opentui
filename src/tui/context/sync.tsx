@@ -74,6 +74,7 @@ export function SyncProvider(props: ParentProps) {
         streamingText: conversationState.streamingText,
         streamingThinking: conversationState.streamingThinking,
         activeTasks: Array.from(conversationState.activeTasks.entries()),
+        backgrounded: conversationState.backgrounded,
       })
 
       session.setState({
@@ -148,6 +149,7 @@ export function SyncProvider(props: ParentProps) {
         streamingText: "",
         streamingThinking: "",
         activeTasks: [],
+        backgrounded: false,
       })
     })
   }

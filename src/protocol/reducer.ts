@@ -156,6 +156,7 @@ export function reduce(
         pendingElicitation: null,
         cost,
         streamingOutputTokens: 0,
+        backgrounded: false,
         activeTasks: prunedTasks,
         // Context window fill = uncached input tokens + cache-read tokens.
         // cacheWriteTokens is a subset of inputTokens (tokens the API wrote to
@@ -216,6 +217,7 @@ export function reduce(
           sessionState: "INTERRUPTING",
           pendingPermission: null,
           pendingElicitation: null,
+          backgrounded: false,
         }
       }
       return next
@@ -479,6 +481,18 @@ export function reduce(
           ...(event.ephemeral ? { ephemeral: true } : {}),
         }],
       }
+
+    // ----- Task backgrounding -----
+
+    case "task_background":
+      // Only allow backgrounding during RUNNING state
+      if (state.sessionState !== "RUNNING") return next
+      return { ...next, backgrounded: true }
+
+    case "task_foreground":
+      // Only allow foregrounding when backgrounded
+      if (!state.backgrounded) return next
+      return { ...next, backgrounded: false }
 
     // ----- Informational / passthrough -----
 

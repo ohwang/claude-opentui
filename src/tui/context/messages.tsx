@@ -22,6 +22,7 @@ export interface MessagesState {
   streamingText: string
   streamingThinking: string
   activeTasks: [string, TaskInfo][]
+  backgrounded: boolean
 }
 
 export interface MessagesContextValue {
@@ -37,6 +38,7 @@ export function MessagesProvider(props: ParentProps) {
     streamingText: "",
     streamingThinking: "",
     activeTasks: [],
+    backgrounded: false,
   })
 
   return (

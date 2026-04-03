@@ -936,6 +936,88 @@ describe("ConversationState reducer", () => {
   })
 
   // -----------------------------------------------------------------------
+  // Task backgrounding
+  // -----------------------------------------------------------------------
+
+  describe("task_background", () => {
+    it("sets backgrounded to true when RUNNING", () => {
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "turn_start" },
+        { type: "task_background" },
+      ])
+      expect(state.backgrounded).toBe(true)
+      expect(state.sessionState).toBe("RUNNING")
+    })
+
+    it("is ignored when not RUNNING", () => {
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "task_background" },
+      ])
+      expect(state.backgrounded).toBe(false)
+    })
+  })
+
+  describe("task_foreground", () => {
+    it("sets backgrounded to false when backgrounded", () => {
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "turn_start" },
+        { type: "task_background" },
+        { type: "task_foreground" },
+      ])
+      expect(state.backgrounded).toBe(false)
+    })
+
+    it("is ignored when not backgrounded", () => {
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "turn_start" },
+        { type: "task_foreground" },
+      ])
+      expect(state.backgrounded).toBe(false)
+    })
+  })
+
+  describe("backgrounded auto-clear", () => {
+    it("turn_complete clears backgrounded", () => {
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "turn_start" },
+        { type: "task_background" },
+        { type: "turn_complete", usage: { inputTokens: 10, outputTokens: 5 } },
+      ])
+      expect(state.backgrounded).toBe(false)
+      expect(state.sessionState).toBe("IDLE")
+    })
+
+    it("interrupt clears backgrounded", () => {
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "turn_start" },
+        { type: "text_delta", text: "working..." },
+        { type: "task_background" },
+        { type: "interrupt" },
+      ])
+      expect(state.backgrounded).toBe(false)
+      expect(state.sessionState).toBe("INTERRUPTING")
+    })
+
+    it("streaming continues while backgrounded (blocks still accumulate)", () => {
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "turn_start" },
+        { type: "task_background" },
+        { type: "text_delta", text: "Hello " },
+        { type: "text_delta", text: "world" },
+      ])
+      expect(state.backgrounded).toBe(true)
+      expect(state.streamingText).toBe("Hello world")
+    })
+  })
+
+  // -----------------------------------------------------------------------
   // Event log invariant
   // -----------------------------------------------------------------------
 

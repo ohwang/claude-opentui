@@ -537,10 +537,28 @@ export function PermissionDialog() {
               </box>
             </Show>
 
+            {/* Blocked path warning */}
+            <Show when={perm().blockedPath}>
+              <box paddingLeft={1}>
+                <text fg={colors.status.warning} attributes={TextAttributes.DIM}>
+                  {"\u26A0 Blocked path: " + perm().blockedPath}
+                </text>
+              </box>
+            </Show>
+
             {/* Description from SDK */}
             <Show when={description()}>
               <box paddingLeft={1}>
                 <text fg={MUTED}>{description()}</text>
+              </box>
+            </Show>
+
+            {/* Decision reason hint */}
+            <Show when={perm().decisionReason}>
+              <box paddingLeft={1}>
+                <text fg={colors.text.muted} attributes={TextAttributes.DIM}>
+                  {"Reason: " + perm().decisionReason}
+                </text>
               </box>
             </Show>
 

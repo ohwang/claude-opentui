@@ -12,11 +12,122 @@
  */
 
 import { log } from "./logger"
-import { unlink } from "fs/promises"
+import { existsSync } from "node:fs"
+import { readFile, unlink } from "node:fs/promises"
+import { resolve } from "node:path"
 import type { ImageContent } from "../protocol/types"
 
 const IMAGE_MAX_BASE64_BYTES = 5 * 1024 * 1024
 const CLIPBOARD_TIMEOUT_MS = 5_000
+const IMAGE_EXTENSION_REGEX = /\.(png|jpe?g|gif|webp)$/i
+
+type ImageMediaType = "image/png" | "image/jpeg" | "image/gif" | "image/webp"
+
+// ---------------------------------------------------------------------------
+// Image format detection from magic bytes
+// ---------------------------------------------------------------------------
+
+/**
+ * Detect image format from the first bytes of base64 data.
+ * Falls back to image/png if format is unknown.
+ */
+export function detectImageFormatFromBase64(base64Data: string): ImageMediaType {
+  try {
+    const buffer = Buffer.from(base64Data.slice(0, 32), "base64")
+    return detectImageFormatFromBuffer(buffer)
+  } catch {
+    return "image/png"
+  }
+}
+
+function detectImageFormatFromBuffer(buffer: Buffer): ImageMediaType {
+  if (buffer.length < 4) return "image/png"
+
+  // PNG: 89 50 4E 47
+  if (buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47) {
+    return "image/png"
+  }
+  // JPEG: FF D8 FF
+  if (buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
+    return "image/jpeg"
+  }
+  // GIF: 47 49 46 (GIF87a or GIF89a)
+  if (buffer[0] === 0x47 && buffer[1] === 0x49 && buffer[2] === 0x46) {
+    return "image/gif"
+  }
+  // WebP: 52 49 46 46 ... 57 45 42 50
+  if (
+    buffer[0] === 0x52 && buffer[1] === 0x49 && buffer[2] === 0x46 && buffer[3] === 0x46 &&
+    buffer.length >= 12 &&
+    buffer[8] === 0x57 && buffer[9] === 0x45 && buffer[10] === 0x42 && buffer[11] === 0x50
+  ) {
+    return "image/webp"
+  }
+
+  return "image/png"
+}
+
+// ---------------------------------------------------------------------------
+// Image file path detection and reading
+// ---------------------------------------------------------------------------
+
+/**
+ * Check if text looks like a path to an image file.
+ */
+export function isImageFilePath(text: string): boolean {
+  const cleaned = removeOuterQuotes(text.trim())
+  const unescaped = stripBackslashEscapes(cleaned)
+  return IMAGE_EXTENSION_REGEX.test(unescaped)
+}
+
+/**
+ * Read an image file from disk and return as ImageContent.
+ * Returns null if the file doesn't exist, is too large, or can't be read.
+ */
+export async function readImageFile(filePath: string): Promise<ImageContent | null> {
+  try {
+    const cleaned = removeOuterQuotes(filePath.trim())
+    const unescaped = stripBackslashEscapes(cleaned)
+    const resolved = resolve(unescaped)
+
+    if (!existsSync(resolved)) return null
+
+    const buffer = await readFile(resolved)
+
+    // Check size limit (5MB base64 ≈ 3.75MB raw)
+    if (buffer.length > 3.75 * 1024 * 1024) {
+      log.warn("Image file too large", { path: resolved, size: buffer.length })
+      return null
+    }
+
+    const base64 = buffer.toString("base64")
+    const mediaType = detectImageFormatFromBase64(base64)
+    return { data: base64, mediaType }
+  } catch (err) {
+    log.warn("Failed to read image file", { path: filePath, error: String(err) })
+    return null
+  }
+}
+
+export function removeOuterQuotes(text: string): string {
+  if (
+    (text.startsWith('"') && text.endsWith('"')) ||
+    (text.startsWith("'") && text.endsWith("'"))
+  ) {
+    return text.slice(1, -1)
+  }
+  return text
+}
+
+export function stripBackslashEscapes(path: string): string {
+  if (process.platform === "win32") return path
+  // Replace double backslashes with placeholder, remove single backslash escapes, restore
+  const placeholder = "__DBL_BKSLASH__"
+  return path
+    .replace(/\\\\/g, placeholder)
+    .replace(/\\(.)/g, "$1")
+    .replace(new RegExp(placeholder, "g"), "\\")
+}
 
 export function getClipboardCmd(): { cmd: string; args: string[] } | null {
   const platform = process.platform
@@ -237,7 +348,8 @@ async function readClipboardImageDarwin(): Promise<ImageContent | null> {
       return null
     }
 
-    return { data: base64, mediaType: "image/png" }
+    const mediaType = detectImageFormatFromBase64(base64)
+    return { data: base64, mediaType }
   } catch (err) {
     log.warn("clipboard", `Failed to read temp image file: ${err}`)
     return null
@@ -292,7 +404,8 @@ async function binaryStdoutToImageContent(
       return null
     }
 
-    return { data: base64, mediaType: "image/png" }
+    const mediaType = detectImageFormatFromBase64(base64)
+    return { data: base64, mediaType }
   } catch (err) {
     log.warn("clipboard", `Failed to read image from stdout: ${err}`)
     return null

@@ -133,6 +133,12 @@ export function StatusBar(props: { hint?: string | null }) {
     agent.config.permissionMode ?? "default",
   )
 
+  // -- Available permission modes (filtered against backend capabilities) --
+  const availableModes = createMemo(() => {
+    const supported = agent.backend.capabilities().supportedPermissionModes
+    return PERM_MODE_CYCLE.filter(m => supported.includes(m))
+  })
+
   useKeyboard((event) => {
     if (event.shift && event.name === "tab") {
       // Don't cycle permission mode during dialogs
@@ -142,28 +148,19 @@ export function StatusBar(props: { hint?: string | null }) {
       ) {
         return
       }
-      const prevMode = permMode()
-      const startIdx = PERM_MODE_CYCLE.indexOf(prevMode)
+      const modes = availableModes()
+      // Nothing to cycle if only one (or zero) modes are supported
+      if (modes.length <= 1) return
 
-      // Try each subsequent mode; skip modes the backend rejects
-      const tryMode = async (attempt: number): Promise<void> => {
-        if (attempt >= PERM_MODE_CYCLE.length) {
-          // Wrapped all the way around — revert to original
-          setPermMode(prevMode)
-          return
-        }
-        const nextIdx = (startIdx + attempt + 1) % PERM_MODE_CYCLE.length
-        const nextMode = PERM_MODE_CYCLE[nextIdx] ?? "default"
-        setPermMode(nextMode)
-        try {
-          await agent.backend.setPermissionMode(nextMode)
-        } catch (err) {
-          log.warn("Failed to set permission mode, skipping", { mode: nextMode, error: String(err) })
-          await tryMode(attempt + 1)
-        }
-      }
-      tryMode(0).catch((err) => {
-        log.error("Permission mode cycling failed", { error: String(err) })
+      const prevMode = permMode()
+      const startIdx = modes.indexOf(prevMode)
+
+      // Cycle to the next supported mode
+      const nextIdx = (startIdx + 1) % modes.length
+      const nextMode = modes[nextIdx] ?? "default"
+      setPermMode(nextMode)
+      agent.backend.setPermissionMode(nextMode).catch((err) => {
+        log.warn("Failed to set permission mode, reverting", { mode: nextMode, error: String(err) })
         setPermMode(prevMode)
       })
     }

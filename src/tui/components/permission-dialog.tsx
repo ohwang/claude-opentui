@@ -23,6 +23,7 @@ import { useSession } from "../context/session"
 import { useSync } from "../context/sync"
 import { colors } from "../theme/tokens"
 import { Divider, ShortcutBar, ShortcutHint } from "./primitives"
+import { truncatePathMiddle } from "../../utils/truncate"
 import type { PermissionRequestEvent, PermissionUpdate } from "../../protocol/types"
 
 // Semantic aliases from design system tokens
@@ -45,20 +46,23 @@ const MAX_LINE_LENGTH = 200
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** Convert absolute paths to relative (from cwd) for compact display */
+/** Convert absolute paths to relative (from cwd) for compact display,
+ *  then truncate long paths with smart middle-truncation. */
 function relativePath(absPath: string): string {
   const cwd = process.cwd()
+  let rel: string
   if (absPath.startsWith(cwd + "/")) {
-    return absPath.slice(cwd.length + 1)
+    rel = absPath.slice(cwd.length + 1)
+  } else {
+    // For paths outside cwd, compute relative
+    rel = require("node:path").relative(cwd, absPath)
+    // If the relative path is too deep, just show the filename
+    const upCount = (rel.match(/\.\.\//g) || []).length
+    if (upCount > 2) {
+      rel = require("node:path").basename(absPath)
+    }
   }
-  // For paths outside cwd, compute relative
-  const rel = require("node:path").relative(cwd, absPath)
-  // If the relative path is too deep, just show the filename
-  const upCount = (rel.match(/\.\.\//g) || []).length
-  if (upCount > 2) {
-    return require("node:path").basename(absPath)
-  }
-  return rel
+  return truncatePathMiddle(rel, 60)
 }
 
 /** Extract the filename from a path */

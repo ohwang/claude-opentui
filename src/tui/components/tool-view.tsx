@@ -11,6 +11,7 @@ import type { Block } from "../../protocol/types"
 import { colors } from "../theme/tokens"
 import { syntaxStyle } from "../theme/syntax"
 import { getStatusConfig } from "./primitives"
+import { truncatePathMiddle, truncateToWidth } from "../../utils/truncate"
 
 export type ViewLevel = "collapsed" | "expanded" | "show_all"
 
@@ -92,21 +93,19 @@ export function ToolBlockView(props: { block: Extract<Block, { type: "tool" }>; 
     if (inp.file_path) {
       const raw = String(inp.file_path)
       const cwd = process.cwd()
-      return raw.startsWith(cwd + "/") ? raw.slice(cwd.length + 1) : raw
+      const rel = raw.startsWith(cwd + "/") ? raw.slice(cwd.length + 1) : raw
+      return truncatePathMiddle(rel, 60)
     }
     if (inp.command) {
-      const cmd = String(inp.command)
-      return cmd.length > 80 ? cmd.slice(0, 77) + "..." : cmd
+      return truncateToWidth(String(inp.command), 80)
     }
     if (inp.pattern) {
       const p = String(inp.pattern)
       const path = inp.path ? ` in ${inp.path}` : ""
-      const full = p + path
-      return full.length > 80 ? full.slice(0, 77) + "..." : full
+      return truncateToWidth(p + path, 80)
     }
     if (inp.description) {
-      const d = String(inp.description)
-      return d.length > 80 ? d.slice(0, 77) + "..." : d
+      return truncateToWidth(String(inp.description), 80)
     }
     return ""
   })
@@ -256,11 +255,11 @@ function extractPrimaryArg(tool: string, input: unknown): string {
   if (inp.file_path && typeof inp.file_path === "string") {
     const raw = inp.file_path
     const cwd = process.cwd()
-    return raw.startsWith(cwd + "/") ? raw.slice(cwd.length + 1) : raw
+    const rel = raw.startsWith(cwd + "/") ? raw.slice(cwd.length + 1) : raw
+    return truncatePathMiddle(rel, 60)
   }
   if (inp.command && typeof inp.command === "string") {
-    const cmd = inp.command
-    return cmd.length > 60 ? cmd.slice(0, 57) + "..." : cmd
+    return truncateToWidth(inp.command, 60)
   }
   if (inp.pattern && typeof inp.pattern === "string") return inp.pattern
   return ""

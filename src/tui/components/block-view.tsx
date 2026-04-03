@@ -13,6 +13,7 @@ import { colors } from "../theme/tokens"
 import type { Block } from "../../protocol/types"
 import type { ViewLevel } from "./tool-view"
 import { Divider, getStatusConfig, BlinkingDot } from "./primitives"
+import { truncatePathMiddle, truncateToWidth } from "../../utils/truncate"
 import { UserBlock } from "./blocks/user-block"
 import { AssistantBlock } from "./blocks/assistant-block"
 import { SystemBlock, type SystemCategory, categorizeSystemMessage } from "./blocks/system-block"
@@ -123,12 +124,11 @@ function CollapsedToolLine(props: { block: Extract<Block, { type: "tool" }> }) {
     if (inp.file_path) {
       const raw = String(inp.file_path)
       const cwd = process.cwd()
-      const display = raw.startsWith(cwd + "/") ? raw.slice(cwd.length + 1) : raw
-      return ` ${display}`
+      const rel = raw.startsWith(cwd + "/") ? raw.slice(cwd.length + 1) : raw
+      return ` ${truncatePathMiddle(rel, 60)}`
     }
     if (inp.command) {
-      const cmd = String(inp.command)
-      return ` ${cmd.length > 60 ? cmd.slice(0, 57) + "..." : cmd}`
+      return ` ${truncateToWidth(String(inp.command), 60)}`
     }
     if (inp.pattern) return ` ${String(inp.pattern)}`
     return ""

@@ -285,18 +285,14 @@ describe("/cost command", () => {
 })
 
 describe("/hotkeys command", () => {
-  it("includes key bindings in output", async () => {
+  it("opens modal (no system_message events)", async () => {
     const registry = createCommandRegistry()
     const ctx = makeCtx()
 
     await registry.tryExecute("/hotkeys", ctx)
 
-    const msg = ctx.events.find((e) => e.type === "system_message")
-    expect(msg).toBeDefined()
-    expect(msg.text).toContain("Ctrl+V")
-    expect(msg.text).toContain("Ctrl+Z")
-    expect(msg.text).toContain("Ctrl+C")
-    expect(msg.text).toContain("Return")
+    // /hotkeys now uses showModal() instead of pushEvent, so no events are emitted
+    expect(ctx.events).toHaveLength(0)
   })
 
   it("is reachable via aliases", () => {

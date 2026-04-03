@@ -12,6 +12,7 @@ import { useTerminalDimensions } from "@opentui/solid"
 import type { KeyEvent } from "@opentui/core"
 import { colors } from "../theme/tokens"
 import { setModalKeyHandler } from "../context/modal"
+import { ShortcutHint, ShortcutBar } from "./primitives"
 
 /** Maximum number of history entries visible in the list */
 const MAX_VISIBLE = 12
@@ -165,9 +166,11 @@ export function HistorySearchModal(props: HistorySearchProps) {
 
         {/* Footer hints */}
         <box marginTop={1}>
-          <text fg={colors.text.muted} attributes={TextAttributes.DIM}>
-            {"  \u2191/\u2193 navigate  Enter select  Esc cancel"}
-          </text>
+          <ShortcutBar>
+            <ShortcutHint shortcut={"\u2191/\u2193"} action="navigate" />
+            <ShortcutHint shortcut="Enter" action="select" />
+            <ShortcutHint shortcut="Esc" action="cancel" />
+          </ShortcutBar>
         </box>
       </box>
     </box>

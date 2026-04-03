@@ -8,6 +8,7 @@
 import { TextAttributes } from "@opentui/core"
 import { showModal } from "../../tui/context/modal"
 import { colors } from "../../tui/theme/tokens"
+import { ShortcutHint } from "../../tui/components/primitives"
 import type { SlashCommand } from "../registry"
 
 function AboutModal() {
@@ -33,9 +34,7 @@ function AboutModal() {
         </box>
 
         <box marginTop={1}>
-          <text fg={colors.text.muted} attributes={TextAttributes.DIM}>
-            {"  Press Escape to close"}
-          </text>
+          <ShortcutHint shortcut="Esc" action="close" parens />
         </box>
       </box>
     </box>

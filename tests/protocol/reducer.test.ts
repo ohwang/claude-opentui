@@ -1638,4 +1638,113 @@ describe("ConversationState reducer", () => {
       }
     })
   })
+
+  // -----------------------------------------------------------------------
+  // Turn file change tracking
+  // -----------------------------------------------------------------------
+
+  describe("lastTurnFiles", () => {
+    it("extracts file changes from tool blocks on turn_complete", () => {
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "turn_start" },
+        { type: "tool_use_start", id: "t1", tool: "Read", input: { file_path: "/src/foo.ts" } },
+        { type: "tool_use_end", id: "t1", output: "contents" },
+        { type: "tool_use_start", id: "t2", tool: "Edit", input: { file_path: "/src/bar.ts", old_string: "a", new_string: "b" } },
+        { type: "tool_use_end", id: "t2", output: "ok" },
+        { type: "turn_complete" },
+      ])
+      expect(state.lastTurnFiles).toBeDefined()
+      expect(state.lastTurnFiles).toHaveLength(2)
+      expect(state.lastTurnFiles![0]).toMatchObject({ path: "/src/bar.ts", action: "edit", tool: "Edit" })
+      expect(state.lastTurnFiles![1]).toMatchObject({ path: "/src/foo.ts", action: "read", tool: "Read" })
+    })
+
+    it("classifies Write tool as create action", () => {
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "turn_start" },
+        { type: "tool_use_start", id: "t1", tool: "Write", input: { file_path: "/src/new-file.ts", content: "hello" } },
+        { type: "tool_use_end", id: "t1", output: "ok" },
+        { type: "turn_complete" },
+      ])
+      expect(state.lastTurnFiles).toHaveLength(1)
+      expect(state.lastTurnFiles![0]).toMatchObject({ path: "/src/new-file.ts", action: "create", tool: "Write" })
+    })
+
+    it("returns undefined when no file tools used", () => {
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "turn_start" },
+        { type: "text_delta", text: "Hello world" },
+        { type: "turn_complete" },
+      ])
+      expect(state.lastTurnFiles).toBeUndefined()
+    })
+
+    it("ignores tools without file_path input", () => {
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "turn_start" },
+        { type: "tool_use_start", id: "t1", tool: "Bash", input: { command: "ls" } },
+        { type: "tool_use_end", id: "t1", output: "file.txt" },
+        { type: "turn_complete" },
+      ])
+      expect(state.lastTurnFiles).toBeUndefined()
+    })
+
+    it("stops at user block boundary when scanning backwards", () => {
+      // Simulate: turn 1 with Read, turn 2 with Edit — lastTurnFiles should only have turn 2's files
+      let state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "turn_start" },
+        { type: "tool_use_start", id: "t1", tool: "Read", input: { file_path: "/old-file.ts" } },
+        { type: "tool_use_end", id: "t1", output: "contents" },
+        { type: "turn_complete" },
+      ])
+      // Now simulate a second turn
+      state = reduce(state, { type: "user_message", text: "edit the file" })
+      state = reduce(state, { type: "turn_start" })
+      state = reduce(state, { type: "tool_use_start", id: "t2", tool: "Edit", input: { file_path: "/new-file.ts", old_string: "x", new_string: "y" } })
+      state = reduce(state, { type: "tool_use_end", id: "t2", output: "ok" })
+      state = reduce(state, { type: "turn_complete" })
+
+      expect(state.lastTurnFiles).toHaveLength(1)
+      expect(state.lastTurnFiles![0]).toMatchObject({ path: "/new-file.ts", action: "edit" })
+    })
+
+    it("only includes done tools (not running or error)", () => {
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "turn_start" },
+        { type: "tool_use_start", id: "t1", tool: "Edit", input: { file_path: "/good.ts", old_string: "a", new_string: "b" } },
+        { type: "tool_use_end", id: "t1", output: "ok" },
+        { type: "tool_use_start", id: "t2", tool: "Edit", input: { file_path: "/bad.ts", old_string: "c", new_string: "d" } },
+        { type: "tool_use_end", id: "t2", output: "", error: "failed" },
+        { type: "turn_complete" },
+      ])
+      // t1 becomes "done" (closed by turn_complete), t2 becomes "error"
+      // Only "done" tools should be included
+      expect(state.lastTurnFiles).toHaveLength(1)
+      expect(state.lastTurnFiles![0]).toMatchObject({ path: "/good.ts", action: "edit" })
+    })
+
+    it("clears lastTurnFiles when next turn has no file tools", () => {
+      let state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "turn_start" },
+        { type: "tool_use_start", id: "t1", tool: "Edit", input: { file_path: "/file.ts", old_string: "a", new_string: "b" } },
+        { type: "tool_use_end", id: "t1", output: "ok" },
+        { type: "turn_complete" },
+      ])
+      expect(state.lastTurnFiles).toHaveLength(1)
+
+      // Next turn with no file tools
+      state = reduce(state, { type: "user_message", text: "hello" })
+      state = reduce(state, { type: "turn_start" })
+      state = reduce(state, { type: "text_delta", text: "Hi there" })
+      state = reduce(state, { type: "turn_complete" })
+      expect(state.lastTurnFiles).toBeUndefined()
+    })
+  })
 })

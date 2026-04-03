@@ -327,6 +327,9 @@ export interface ConversationState {
 
   /** Whether the current turn is backgrounded (UI collapsed, input re-enabled) */
   backgrounded: boolean
+
+  /** Files modified in the last completed turn */
+  lastTurnFiles?: TurnFileChange[]
 }
 
 // ---------------------------------------------------------------------------
@@ -509,6 +512,16 @@ export type PermissionUpdate =
     }
 
 // ---------------------------------------------------------------------------
+// Turn file change tracking
+// ---------------------------------------------------------------------------
+
+export interface TurnFileChange {
+  path: string
+  action: "read" | "write" | "edit" | "create"
+  tool: string
+}
+
+// ---------------------------------------------------------------------------
 // Initial state factory
 // ---------------------------------------------------------------------------
 
@@ -536,5 +549,6 @@ export function createInitialState(): ConversationState {
     lastTurnInputTokens: 0,
     streamingOutputTokens: 0,
     backgrounded: false,
+    lastTurnFiles: undefined,
   }
 }

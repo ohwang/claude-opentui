@@ -13,6 +13,7 @@ import type {
   Block,
   ConversationState,
   ToolStatus,
+  TurnFileChange,
 } from "./types"
 import { log } from "../utils/logger"
 
@@ -146,6 +147,24 @@ export function reduce(
         }
       }
 
+      // Extract file changes from this turn's tool blocks
+      const turnFiles: TurnFileChange[] = []
+      for (let i = blocks.length - 1; i >= 0; i--) {
+        const block = blocks[i]
+        if (block.type === "user") break // Hit previous user message = end of turn
+        if (block.type === "tool" && block.status === "done") {
+          const input = block.input as Record<string, unknown> | null
+          const filePath = input?.file_path as string | undefined
+          if (filePath) {
+            const action: TurnFileChange["action"] =
+              block.tool === "Write" ? "create"
+              : block.tool === "Edit" ? "edit"
+              : "read"
+            turnFiles.push({ path: filePath, action, tool: block.tool })
+          }
+        }
+      }
+
       return {
         ...flushed,
         blocks,
@@ -164,6 +183,7 @@ export function reduce(
         lastTurnInputTokens: event.usage && (event.usage.inputTokens > 0 || (event.usage.cacheReadTokens ?? 0) > 0)
           ? (event.usage.inputTokens + (event.usage.cacheReadTokens ?? 0))
           : state.lastTurnInputTokens,
+        lastTurnFiles: turnFiles.length > 0 ? turnFiles : undefined,
       }
     }
 

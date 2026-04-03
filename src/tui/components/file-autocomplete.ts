@@ -252,11 +252,22 @@ function needsRefresh(cwd: string): boolean {
 }
 
 /**
- * Get all files (synchronous, returns cached data and triggers async refresh)
+ * Get all files (synchronous, returns cached data and triggers async refresh).
+ * On cold start (empty cache), does a synchronous walkDir fallback so the first
+ * autocomplete invocation has results immediately. The async git refresh upgrades
+ * the cache in the background for subsequent calls.
  */
 export function getFiles(cwd: string): string[] {
   if (needsRefresh(cwd)) {
-    // Fire and forget refresh
+    // If cache is empty (cold start), do a synchronous fallback so the first
+    // autocomplete dropdown isn't empty while git ls-files runs in background
+    if (cachedFiles.length === 0 && cwd !== cachedCwd) {
+      cachedFiles = walkDir(cwd, cwd, 0)
+      cachedDirs = extractDirectories(cachedFiles)
+      cachedCwd = cwd
+      lastRefreshMs = Date.now()
+    }
+    // Fire and forget async refresh (git ls-files will upgrade the cache)
     refreshCache(cwd).catch((err) => {
       log.warn("File cache refresh failed", { error: String(err) })
     })

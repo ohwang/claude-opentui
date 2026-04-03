@@ -616,7 +616,7 @@ export function InputArea() {
     if (e.ctrl && e.name === "u") {
       e.preventDefault()
       textareaRef?.deleteToLineStart()
-      queueMicrotask(() => updateLineCount())
+      queueMicrotask(() => { updateLineCount(); updateAutocomplete(textareaRef?.plainText ?? "") })
       return
     }
 
@@ -624,7 +624,7 @@ export function InputArea() {
     if (e.ctrl && e.name === "k") {
       e.preventDefault()
       textareaRef?.deleteToLineEnd()
-      queueMicrotask(() => updateLineCount())
+      queueMicrotask(() => { updateLineCount(); updateAutocomplete(textareaRef?.plainText ?? "") })
       return
     }
 
@@ -632,7 +632,7 @@ export function InputArea() {
     if (e.ctrl && e.name === "w") {
       e.preventDefault()
       textareaRef?.deleteWordBackward()
-      queueMicrotask(() => updateLineCount())
+      queueMicrotask(() => { updateLineCount(); updateAutocomplete(textareaRef?.plainText ?? "") })
       return
     }
 

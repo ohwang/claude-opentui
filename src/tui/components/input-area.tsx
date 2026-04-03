@@ -117,6 +117,21 @@ let savedInput = ""
 let imageAttachments: ImageContent[] = []
 let imageCounter = 0
 
+/** Module-level setter so exported functions can update the reactive signal */
+let _setAttachedImageCount: ((n: number) => void) | undefined
+
+/** Get the current number of attached images */
+export function getImageAttachmentCount(): number {
+  return imageAttachments.length
+}
+
+/** Clear all image attachments */
+export function clearImageAttachments(): void {
+  imageAttachments = []
+  imageCounter = 0
+  _setAttachedImageCount?.(0)
+}
+
 /**
  * Clear the input area text. Called by the global Ctrl+C handler in Layout
  * when the session is IDLE.
@@ -245,6 +260,10 @@ export function InputArea() {
   const [lineCount, setLineCount] = createSignal(1)
   const textareaHeight = () => Math.min(Math.max(lineCount(), 1), 6)
 
+  // Reactive image attachment count for UI indicator
+  const [attachedImageCount, setAttachedImageCount] = createSignal(0)
+  _setAttachedImageCount = setAttachedImageCount
+
   // Clear paste-guard timer on unmount to prevent leak
   onCleanup(() => clearTimeout(isPastingTimer))
 
@@ -322,10 +341,12 @@ export function InputArea() {
     if (!raw) {
       // Empty paste could mean clipboard has image, not text
       // (macOS terminal behavior — sends empty bracket paste for image clipboard)
-      readClipboardImage().then((img) => {
-        if (img) {
+      readClipboardImage().then((result) => {
+        if (result.ok) {
+          if (result.resized) toast.info("Image resized to fit size limit")
           imageCounter++
-          imageAttachments.push(img)
+          imageAttachments.push(result.image)
+          setAttachedImageCount(imageAttachments.length)
           if (textareaRef) {
             isPasting = true
             textareaRef.insertText(`[Image #${imageCounter}]`)
@@ -333,6 +354,8 @@ export function InputArea() {
             clearTimeout(isPastingTimer)
             isPastingTimer = setTimeout(() => { isPasting = false }, PASTE_GUARD_MS)
           }
+        } else if (result.reason === "too_large") {
+          toast.warn("Image too large (>5MB). Try a smaller screenshot.")
         }
       }).catch((err) => {
         log.warn("Empty paste image check failed", { error: String(err) })
@@ -541,6 +564,8 @@ export function InputArea() {
     textareaRef.clear()
     setLineCount(1)
     imageAttachments = []
+    imageCounter = 0
+    setAttachedImageCount(0)
     pasteStore.clear()
   }
 
@@ -569,11 +594,13 @@ export function InputArea() {
       e.preventDefault()
       lastCtrlVTime = Date.now()
 
-      readClipboardImage().then((img) => {
-        if (img) {
+      readClipboardImage().then((result) => {
+        if (result.ok) {
           // Image found — add as attachment and insert pill
+          if (result.resized) toast.info("Image resized to fit size limit")
           imageCounter++
-          imageAttachments.push(img)
+          imageAttachments.push(result.image)
+          setAttachedImageCount(imageAttachments.length)
           if (textareaRef) {
             isPasting = true
             textareaRef.insertText(`[Image #${imageCounter}]`)
@@ -581,6 +608,10 @@ export function InputArea() {
             clearTimeout(isPastingTimer)
             isPastingTimer = setTimeout(() => { isPasting = false }, PASTE_GUARD_MS)
           }
+          return
+        }
+        if (result.reason === "too_large") {
+          toast.warn("Image too large (>5MB). Try a smaller screenshot.")
           return
         }
         // No image — fall back to text clipboard
@@ -626,6 +657,24 @@ export function InputArea() {
       return
     }
 
+    // Ctrl+Shift+X = clear all image attachments
+    if (e.ctrl && e.shift && e.name === "x") {
+      e.preventDefault()
+      if (imageAttachments.length > 0) {
+        imageAttachments = []
+        imageCounter = 0
+        setAttachedImageCount(0)
+        toast.info("Cleared image attachments")
+        // Remove [Image #N] pills from text
+        const text = textareaRef?.plainText ?? ""
+        const cleaned = text.replace(/\[Image #\d+\]/g, "").trim()
+        textareaRef?.clear()
+        if (cleaned) textareaRef?.insertText(cleaned)
+        updateLineCount()
+      }
+      return
+    }
+
     // Escape = dismiss autocomplete, then completion hint, then clear input
     if (e.name === "escape") {
       e.preventDefault()
@@ -654,6 +703,8 @@ export function InputArea() {
         textareaRef?.clear()
         setLineCount(1)
         imageAttachments = []
+        imageCounter = 0
+        setAttachedImageCount(0)
         pasteStore.clear()
         historyIndex = -1
         savedInput = ""
@@ -860,6 +911,18 @@ export function InputArea() {
 
   return (
     <box flexDirection="column">
+      {/* Image attachment indicator */}
+      <Show when={attachedImageCount() > 0}>
+        <box flexDirection="row" paddingLeft={2}>
+          <text fg={colors.accent.primary}>
+            {"\u{1F4CE} " + attachedImageCount() + " image" + (attachedImageCount() > 1 ? "s" : "") + " attached"}
+          </text>
+          <text fg={colors.text.muted} attributes={TextAttributes.DIM}>
+            {" \u00B7 Ctrl+Shift+X to clear"}
+          </text>
+        </box>
+      </Show>
+
       {/* Input row with > prompt prefix */}
       <box flexDirection="row">
         <box width={2} flexShrink={0}>

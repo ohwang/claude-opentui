@@ -21,7 +21,8 @@ import { ModalProvider, useModal, registerModalRef } from "./context/modal"
 import { colors } from "./theme/tokens"
 import { ConversationView } from "./components/conversation"
 import { Divider } from "./components/primitives"
-import { InputArea, clearInput, hasInputText, refocusInput } from "./components/input-area"
+import { InputArea, clearInput, hasInputText, refocusInput, getInputHistory, setInputText } from "./components/input-area"
+import { HistorySearchModal } from "./components/history-search"
 import { StatusBar } from "./components/status-bar"
 import { PermissionDialog } from "./components/permission-dialog"
 import { ElicitationDialog } from "./components/elicitation"
@@ -169,8 +170,17 @@ function Layout(props: { onExit?: () => void }) {
 
   // Global keyboard shortcuts
   useKeyboard((event) => {
-    // When modal overlay is active, Escape dismisses it. Block all other keys.
+    // When modal overlay is active, delegate to the modal's key handler first,
+    // then fall back to Escape-to-dismiss. Block all other unhandled keys.
     if (modal.isActive()) {
+      const handler = modal.keyHandler()
+      if (handler) {
+        const handled = handler(event)
+        if (handled) {
+          event.preventDefault()
+          return
+        }
+      }
       if (event.name === "escape") {
         event.preventDefault()
         modal.dismiss()
@@ -213,6 +223,27 @@ function Layout(props: { onExit?: () => void }) {
     // Ctrl+P / Shift+Ctrl+P: cycle models forward / backward
     if (event.ctrl && event.name === "p") {
       cycleModel(event.shift ? -1 : 1)
+      return
+    }
+
+    // Ctrl+R: open history search modal
+    if (event.ctrl && event.name === "r") {
+      event.preventDefault()
+      const history = getInputHistory()
+      modal.show(() => (
+        <HistorySearchModal
+          history={history}
+          onSelect={(text) => {
+            modal.dismiss()
+            setInputText(text)
+            refocusInput()
+          }}
+          onCancel={() => {
+            modal.dismiss()
+            refocusInput()
+          }}
+        />
+      ))
       return
     }
 

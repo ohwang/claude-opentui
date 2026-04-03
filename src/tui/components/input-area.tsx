@@ -875,5 +875,23 @@ export function InputArea() {
   )
 }
 
+/**
+ * Get a copy of the input history array (for history search).
+ * Returns entries in chronological order (oldest first).
+ */
+export function getInputHistory(): string[] {
+  return inputHistory.slice()
+}
+
+/**
+ * Set the textarea content programmatically (e.g., from history search selection).
+ * Clears existing text and inserts the new text.
+ */
+export function setInputText(text: string): void {
+  if (!_sharedTextareaRef) return
+  _sharedTextareaRef.clear()
+  if (text) _sharedTextareaRef.insertText(text)
+}
+
 /** Exported for testing */
 export { commandRegistry }

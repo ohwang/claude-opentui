@@ -41,6 +41,7 @@ const actions: ShortcutEntry[] = [
   { key: "Ctrl+V", label: "Paste (text/image)" },
   { key: "Shift+Tab", label: "Cycle perm. mode" },
   { key: "Up/Down", label: "Input history" },
+  { key: "Ctrl+R", label: "History search" },
 ]
 
 // ---------------------------------------------------------------------------

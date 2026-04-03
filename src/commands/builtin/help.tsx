@@ -48,9 +48,9 @@ const actions: ShortcutEntry[] = [
 // Sub-components
 // ---------------------------------------------------------------------------
 
-function ShortcutColumn(props: { title: string; items: ShortcutEntry[] }) {
+function ShortcutColumn(props: { title: string; items: ShortcutEntry[]; width?: number }) {
   return (
-    <box flexDirection="column" flexGrow={1} paddingRight={2}>
+    <box flexDirection="column" width={props.width ?? 30} flexShrink={0}>
       <text
         fg={colors.accent.primary}
         attributes={TextAttributes.BOLD}
@@ -60,9 +60,10 @@ function ShortcutColumn(props: { title: string; items: ShortcutEntry[] }) {
       <box marginTop={1} flexDirection="column">
         <For each={props.items}>
           {(entry) => (
-            <text fg={colors.text.primary}>
-              {`  ${entry.key.padEnd(16)} ${entry.label}`}
-            </text>
+            <box flexDirection="row">
+              <text fg={colors.accent.cyan}>{"  "}{entry.key}</text>
+              <text fg={colors.text.muted}>{" — "}{entry.label}</text>
+            </box>
           )}
         </For>
       </box>
@@ -138,11 +139,11 @@ function HelpModal(props: { commands: SlashCommand[] }) {
           {"Help -- Keyboard Shortcuts & Commands"}
         </text>
 
-        {/* 3-column shortcut layout */}
+        {/* 3-column shortcut layout — fixed widths prevent column bleed */}
         <box flexDirection="row" marginTop={1}>
-          <ShortcutColumn title="Input Modes" items={inputModes} />
-          <ShortcutColumn title="Navigation" items={navigation} />
-          <ShortcutColumn title="Actions" items={actions} />
+          <ShortcutColumn title="Input Modes" items={inputModes} width={28} />
+          <ShortcutColumn title="Navigation" items={navigation} width={32} />
+          <ShortcutColumn title="Actions" items={actions} width={30} />
         </box>
 
         {/* Registered commands */}

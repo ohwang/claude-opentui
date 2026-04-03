@@ -15,27 +15,42 @@ import {
   type JSX,
 } from "solid-js"
 import { createSignal } from "solid-js"
+import type { KeyEvent } from "@opentui/core"
 
 export type ModalComponent = () => JSX.Element
+
+/** Key handler that modal content can register to receive keyboard events.
+ *  Return true if the event was handled, false to fall through to default modal handling. */
+export type ModalKeyHandler = (event: KeyEvent) => boolean
 
 export interface ModalContextValue {
   content: () => ModalComponent | null
   show: (component: ModalComponent) => void
   dismiss: () => void
   isActive: () => boolean
+  /** Current modal key handler (set by modal content, cleared on dismiss) */
+  keyHandler: () => ModalKeyHandler | null
 }
 
 const ModalContext = createContext<ModalContextValue>()
 
 export function ModalProvider(props: ParentProps) {
   const [content, setContent] = createSignal<ModalComponent | null>(null)
+  const [keyHandler, setKeyHandler] = createSignal<ModalKeyHandler | null>(null)
 
   const value: ModalContextValue = {
     content,
     show: (c) => setContent(() => c),
-    dismiss: () => setContent(null),
+    dismiss: () => {
+      setContent(null)
+      setKeyHandler(null)
+    },
     isActive: () => content() !== null,
+    keyHandler,
   }
+
+  // Expose the setter via module-level function so modal content can register handlers
+  _setKeyHandler = (handler: ModalKeyHandler | null) => setKeyHandler(() => handler)
 
   return (
     <ModalContext.Provider value={value}>
@@ -63,4 +78,15 @@ export function showModal(component: ModalComponent): void {
 
 export function dismissModal(): void {
   _modal?.dismiss()
+}
+
+/**
+ * Module-level function to set/clear the modal key handler.
+ * Called by modal content components (e.g. HistorySearchModal) to register
+ * their key handler without needing the ModalContext directly.
+ */
+let _setKeyHandler: ((handler: ModalKeyHandler | null) => void) | undefined
+
+export function setModalKeyHandler(handler: ModalKeyHandler | null): void {
+  _setKeyHandler?.(handler)
 }

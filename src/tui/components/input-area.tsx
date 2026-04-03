@@ -23,7 +23,7 @@ import { triggerCleanExit, toggleDiagnostics } from "../app"
 import { registerOverlay, unregisterOverlay } from "../context/modal"
 import { colors } from "../theme/tokens"
 import { log } from "../../utils/logger"
-import { readClipboard, readClipboardImage } from "../../utils/clipboard"
+import { readClipboard, readClipboardImage, isImageFilePath, readImageFile } from "../../utils/clipboard"
 import { toast } from "../context/toast"
 import type { ImageContent } from "../../protocol/types"
 
@@ -354,15 +354,42 @@ export function InputArea() {
     lastPasteText = text
     lastPasteTime = now
 
-    // Smart paste truncation for large pastes
-    const insertText = truncatePastedText(text)
+    // Check if pasted text is a path to an image file
+    if (isImageFilePath(text)) {
+      readImageFile(text).then((img) => {
+        if (img) {
+          imageCounter++
+          imageAttachments.push(img)
+          if (textareaRef) {
+            isPasting = true
+            textareaRef.insertText(`[Image #${imageCounter}]`)
+            updateLineCount()
+            clearTimeout(isPastingTimer)
+            isPastingTimer = setTimeout(() => { isPasting = false }, PASTE_GUARD_MS)
+          }
+          toast.success(`Attached image: ${text.split("/").pop()}`)
+          return
+        }
+        // File didn't exist or couldn't be read — fall through to text paste
+        insertPastedText(text)
+      }).catch(() => {
+        insertPastedText(text)
+      })
+      return
+    }
 
-    if (textareaRef) {
-      isPasting = true
-      textareaRef.insertText(insertText)
-      updateLineCount()
-      clearTimeout(isPastingTimer)
-      isPastingTimer = setTimeout(() => { isPasting = false }, PASTE_GUARD_MS)
+    insertPastedText(text)
+
+    function insertPastedText(t: string) {
+      // Smart paste truncation for large pastes
+      const truncated = truncatePastedText(t)
+      if (textareaRef) {
+        isPasting = true
+        textareaRef.insertText(truncated)
+        updateLineCount()
+        clearTimeout(isPastingTimer)
+        isPastingTimer = setTimeout(() => { isPasting = false }, PASTE_GUARD_MS)
+      }
     }
   })
 
@@ -557,9 +584,28 @@ export function InputArea() {
           return
         }
         // No image — fall back to text clipboard
-        return readClipboard().then((raw) => {
+        return readClipboard().then(async (raw) => {
           if (!raw) return
           const text = raw.replace(/\r\n?/g, "\n")
+
+          // Check if pasted text is a path to an image file
+          if (isImageFilePath(text)) {
+            const img = await readImageFile(text)
+            if (img) {
+              imageCounter++
+              imageAttachments.push(img)
+              if (textareaRef) {
+                isPasting = true
+                textareaRef.insertText(`[Image #${imageCounter}]`)
+                updateLineCount()
+                clearTimeout(isPastingTimer)
+                isPastingTimer = setTimeout(() => { isPasting = false }, PASTE_GUARD_MS)
+              }
+              toast.success(`Attached image: ${text.split("/").pop()}`)
+              return
+            }
+          }
+
           // Smart paste truncation for large clipboard content
           const insertText = truncatePastedText(text)
           if (textareaRef) {

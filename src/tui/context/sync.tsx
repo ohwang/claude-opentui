@@ -42,7 +42,7 @@ export interface SyncContextValue {
   resetCost: () => void
 }
 
-const SyncContext = createContext<SyncContextValue>()
+export const SyncContext = createContext<SyncContextValue>()
 
 export function SyncProvider(props: ParentProps) {
   const agent = useAgent()

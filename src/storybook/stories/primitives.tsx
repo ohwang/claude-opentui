@@ -1,0 +1,128 @@
+/**
+ * Stories for primitive components.
+ */
+
+import type { Story } from "../types"
+import {
+  Divider,
+  StatusIcon,
+  ProgressBar,
+  BlinkingDot,
+  Byline,
+  ShortcutHint,
+  ShortcutBar,
+  type StatusType,
+} from "../../tui/components/primitives"
+import { colors } from "../../tui/theme/tokens"
+
+export const primitivesStories: Story[] = [
+  {
+    id: "divider-default",
+    title: "Divider",
+    description: "Full-width dash separator (default styling)",
+    category: "Primitives",
+    render: () => <Divider />,
+  },
+  {
+    id: "divider-custom",
+    title: "Divider (custom)",
+    description: "Custom character, color, and width",
+    category: "Primitives",
+    render: () => (
+      <box flexDirection="column">
+        <Divider char="=" color={colors.accent.primary} width={40} />
+        <box height={1} />
+        <Divider char="·" color={colors.status.info} width={30} />
+        <box height={1} />
+        <Divider char="━" color={colors.accent.periwinkle} width={50} />
+      </box>
+    ),
+  },
+  {
+    id: "status-icon-all",
+    title: "StatusIcon (all)",
+    description: "All seven status icon types",
+    category: "Primitives",
+    render: () => (
+      <box flexDirection="column">
+        {(["success", "error", "warning", "info", "running", "declined", "pending"] as StatusType[]).map((s) => (
+          <box flexDirection="row">
+            <StatusIcon status={s} />
+            <text fg={colors.text.secondary}>{s}</text>
+          </box>
+        ))}
+      </box>
+    ),
+  },
+  {
+    id: "progress-bar-states",
+    title: "ProgressBar",
+    description: "Progress bars at various fill levels",
+    category: "Primitives",
+    render: () => (
+      <box flexDirection="column">
+        {[0, 0.25, 0.5, 0.75, 1].map((r) => (
+          <box flexDirection="row">
+            <ProgressBar ratio={r} width={20} />
+            <text fg={colors.text.muted}>{` ${Math.round(r * 100)}%`}</text>
+          </box>
+        ))}
+      </box>
+    ),
+  },
+  {
+    id: "blinking-dot-states",
+    title: "BlinkingDot",
+    description: "All four dot states (active blinks)",
+    category: "Primitives",
+    render: () => (
+      <box flexDirection="column">
+        {(["active", "success", "error", "declined"] as const).map((s) => (
+          <box flexDirection="row">
+            <BlinkingDot status={s} />
+            <text fg={colors.text.secondary}>{` ${s}`}</text>
+          </box>
+        ))}
+      </box>
+    ),
+  },
+  {
+    id: "byline",
+    title: "Byline",
+    description: "Middot-separated inline metadata",
+    category: "Primitives",
+    render: () => (
+      <Byline>
+        <text fg={colors.text.secondary}>3 turns</text>
+        <text fg={colors.text.secondary}>$0.042</text>
+        <text fg={colors.text.secondary}>45k tokens</text>
+      </Byline>
+    ),
+  },
+  {
+    id: "shortcut-hint",
+    title: "ShortcutHint",
+    description: "Keyboard shortcut hints",
+    category: "Primitives",
+    render: () => (
+      <box flexDirection="column">
+        <ShortcutHint shortcut="Enter" action="select" />
+        <ShortcutHint shortcut="Esc" action="cancel" parens />
+        <ShortcutHint shortcut="Ctrl+R" action="search history" />
+      </box>
+    ),
+  },
+  {
+    id: "shortcut-bar",
+    title: "ShortcutBar",
+    description: "Horizontal row of shortcut hints",
+    category: "Primitives",
+    render: () => (
+      <ShortcutBar>
+        <ShortcutHint shortcut="Enter" action="confirm" />
+        <ShortcutHint shortcut="Esc" action="cancel" />
+        <ShortcutHint shortcut="Tab" action="switch" />
+      </ShortcutBar>
+    ),
+  },
+]

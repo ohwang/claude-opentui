@@ -5,12 +5,15 @@
   "license": "MIT",
   "description": "Open-source, drop-in replacement for Claude Code's terminal UI",
   "bin": {
-    "claude-opentui": "./bin/claude-opentui"
+    "claude-opentui": "./bin/claude-opentui",
+    "claude-opentui-storybook": "./bin/claude-opentui-storybook"
   },
   "scripts": {
     "dev": "bun run --conditions=browser ./src/index.ts",
     "dev:mock": "bun run --conditions=browser ./src/index.ts -- --backend mock",
     "test": "bun test --timeout 30000",
+    "storybook": "bun run --conditions=browser ./src/storybook/index.tsx",
+    "dev:storybook": "bun run --conditions=browser --watch ./src/storybook/index.tsx",
     "lint:opentui": "bash scripts/lint-opentui.sh"
   },
   "dependencies": {

@@ -131,6 +131,15 @@ function Layout(props: { onExit?: () => void }) {
     toast.success(`Copied ${chars} chars to clipboard`)
   }
 
+  // Register diagnostics panel as an overlay so escape coordination works
+  createEffect(() => {
+    if (showDiagnostics()) {
+      modal.registerOverlay("diagnostics")
+    } else {
+      modal.unregisterOverlay("diagnostics")
+    }
+  })
+
   // Clear interrupt timeout when state transitions away from INTERRUPTING
   createEffect(on(
     () => session.sessionState,
@@ -382,11 +391,17 @@ function Layout(props: { onExit?: () => void }) {
         }
       }
 
+      // If a non-modal overlay is active (e.g. autocomplete dropdown),
+      // skip interrupt and let Ctrl+C fall through to clear input instead.
+      // This prevents accidentally cancelling a running task when the user
+      // just wants to dismiss an overlay.
       if (
-        session.sessionState === "RUNNING" ||
-        session.sessionState === "WAITING_FOR_PERM" ||
-        session.sessionState === "WAITING_FOR_ELIC" ||
-        session.sessionState === "INTERRUPTING"
+        !modal.isAnyOverlayActive() && (
+          session.sessionState === "RUNNING" ||
+          session.sessionState === "WAITING_FOR_PERM" ||
+          session.sessionState === "WAITING_FOR_ELIC" ||
+          session.sessionState === "INTERRUPTING"
+        )
       ) {
         if (session.sessionState === "INTERRUPTING") {
           // Already interrupting \u2014 show hint about force exit

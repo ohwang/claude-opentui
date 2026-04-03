@@ -30,6 +30,10 @@ export interface ModalContextValue {
   isActive: () => boolean
   /** Current modal key handler (set by modal content, cleared on dismiss) */
   keyHandler: () => ModalKeyHandler | null
+  registerOverlay: (id: string) => void
+  unregisterOverlay: (id: string) => void
+  /** Returns true when any overlay (modal or registered overlay) is active */
+  isAnyOverlayActive: () => boolean
 }
 
 const ModalContext = createContext<ModalContextValue>()
@@ -37,6 +41,23 @@ const ModalContext = createContext<ModalContextValue>()
 export function ModalProvider(props: ParentProps) {
   const [content, setContent] = createSignal<ModalComponent | null>(null)
   const [keyHandler, setKeyHandler] = createSignal<ModalKeyHandler | null>(null)
+  const [activeOverlays, setActiveOverlays] = createSignal<Set<string>>(new Set())
+
+  const registerOverlay = (id: string): void => {
+    setActiveOverlays((prev) => {
+      const next = new Set(prev)
+      next.add(id)
+      return next
+    })
+  }
+
+  const unregisterOverlay = (id: string): void => {
+    setActiveOverlays((prev) => {
+      const next = new Set(prev)
+      next.delete(id)
+      return next
+    })
+  }
 
   const value: ModalContextValue = {
     content,
@@ -47,6 +68,9 @@ export function ModalProvider(props: ParentProps) {
     },
     isActive: () => content() !== null,
     keyHandler,
+    registerOverlay,
+    unregisterOverlay,
+    isAnyOverlayActive: () => activeOverlays().size > 0 || content() !== null,
   }
 
   // Expose the setter via module-level function so modal content can register handlers
@@ -89,4 +113,16 @@ let _setKeyHandler: ((handler: ModalKeyHandler | null) => void) | undefined
 
 export function setModalKeyHandler(handler: ModalKeyHandler | null): void {
   _setKeyHandler?.(handler)
+}
+
+export function registerOverlay(id: string): void {
+  _modal?.registerOverlay(id)
+}
+
+export function unregisterOverlay(id: string): void {
+  _modal?.unregisterOverlay(id)
+}
+
+export function isAnyOverlayActive(): boolean {
+  return _modal?.isAnyOverlayActive() ?? false
 }

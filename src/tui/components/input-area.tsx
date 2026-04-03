@@ -7,7 +7,7 @@
  * '@' anywhere triggers fuzzy file search autocomplete.
  */
 
-import { createSignal, Show, For, onCleanup } from "solid-js"
+import { createSignal, createEffect, Show, For, onCleanup } from "solid-js"
 import { TextAttributes, type TextareaRenderable, type KeyEvent, type CliRenderer, decodePasteBytes } from "@opentui/core"
 import { useRenderer, usePaste, useTerminalDimensions } from "@opentui/solid"
 import { tmpdir } from "os"
@@ -20,6 +20,7 @@ import { useMessages } from "../context/messages"
 import { createCommandRegistry, type SlashCommand } from "../../commands/registry"
 import { searchFiles, findLongestCommonPrefix } from "./file-autocomplete"
 import { triggerCleanExit, toggleDiagnostics } from "../app"
+import { registerOverlay, unregisterOverlay } from "../context/modal"
 import { colors } from "../theme/tokens"
 import { log } from "../../utils/logger"
 import { readClipboard, readClipboardImage } from "../../utils/clipboard"
@@ -263,6 +264,15 @@ export function InputArea() {
   const [autocompleteItems, setAutocompleteItems] = createSignal<{ name: string; description: string; argumentHint?: string; type?: string }[]>([])
   const [selectedIndex, setSelectedIndex] = createSignal(0)
   const [autocompleteMode, setAutocompleteMode] = createSignal<AutocompleteMode>(null)
+
+  // Register autocomplete dropdown as an overlay for escape coordination
+  createEffect(() => {
+    if (showAutocomplete()) {
+      registerOverlay("autocomplete")
+    } else {
+      unregisterOverlay("autocomplete")
+    }
+  })
 
   // Legacy tab completion hint (kept for non-dropdown fallback)
   const [completionHint, setCompletionHint] = createSignal("")

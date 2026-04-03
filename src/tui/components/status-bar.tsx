@@ -317,9 +317,10 @@ export function StatusBar(props: { hint?: string | null }) {
   const costStr = createMemo(() => {
     const c = state.cost.totalCostUsd
     if (c === 0) return ""
-    // 4 decimal places during streaming, 2 when idle
-    const decimals = isRunning() ? 4 : 2
-    return `$${c.toFixed(decimals)}`
+    // Always use 4 decimal places to prevent width changes when
+    // transitioning between RUNNING (was 4) and IDLE (was 2).
+    // This eliminates the layout jump at turn boundaries.
+    return `$${c.toFixed(4)}`
   })
 
   const tokenStr = () => {
@@ -464,12 +465,11 @@ export function StatusBar(props: { hint?: string | null }) {
           <text fg={colors.status.warning}>{props.hint}</text>
         ) : (
           <>
-            {/* Tok/s (only during streaming) */}
-            {tokPerSecStr() && (
-              <box flexDirection="row">
-                <text fg={colors.status.info}>{tokPerSecStr()}</text>
-              </box>
-            )}
+            {/* Tok/s — uses visible={false} instead of conditional rendering
+                to prevent layout jumps when streaming starts/stops */}
+            <box flexDirection="row" visible={!!tokPerSecStr()}>
+              <text fg={colors.status.info}>{tokPerSecStr()}</text>
+            </box>
           </>
         )}
       </box>

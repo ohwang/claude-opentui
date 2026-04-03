@@ -19,7 +19,12 @@ import { colors } from "../../theme/tokens"
 
 export function Byline(props: { children: JSX.Element[] }) {
   // Filter out falsy children
-  const validChildren = () => props.children.filter(Boolean)
+  const validChildren = () => {
+    const c = props.children
+    if (!c) return []
+    const arr = Array.isArray(c) ? c : [c]
+    return arr.filter(Boolean)
+  }
 
   return (
     <>

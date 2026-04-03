@@ -18,6 +18,7 @@ import { PermissionsProvider } from "./context/permissions"
 import { SyncProvider, useSync } from "./context/sync"
 import { ToastProvider, toast } from "./context/toast"
 import { ModalProvider, useModal, registerModalRef } from "./context/modal"
+import { AnimationProvider } from "./context/animation"
 import { colors } from "./theme/tokens"
 import { ConversationView } from "./components/conversation"
 import { Divider } from "./components/primitives"
@@ -486,11 +487,13 @@ export function startApp(options: AppOptions): void {
           <MessagesProvider>
             <PermissionsProvider>
               <SyncProvider>
-                <ToastProvider>
-                  <ModalProvider>
-                    <Layout onExit={options.onExit} />
-                  </ModalProvider>
-                </ToastProvider>
+                <AnimationProvider>
+                  <ToastProvider>
+                    <ModalProvider>
+                      <Layout onExit={options.onExit} />
+                    </ModalProvider>
+                  </ToastProvider>
+                </AnimationProvider>
               </SyncProvider>
             </PermissionsProvider>
           </MessagesProvider>

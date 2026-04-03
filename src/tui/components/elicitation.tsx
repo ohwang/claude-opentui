@@ -47,10 +47,11 @@ function QuestionView(props: {
   const options = () => {
     const opts = props.question.options.map((o) => ({
       label: o.label,
+      description: o.description,
       isOther: false,
     }))
     if (props.question.allowFreeText !== false) {
-      opts.push({ label: "Other (type your answer)", isOther: true })
+      opts.push({ label: "Other (type your answer)", description: undefined, isOther: true })
     }
     return opts
   }
@@ -145,13 +146,20 @@ function QuestionView(props: {
       <Show when={!showFreeText() && !freeTextOnly()}>
         <For each={options()}>
           {(option, index) => (
-            <box flexDirection="row">
-              <text fg={index() === selected() ? colors.border.elicitation : "white"}>
-                {index() === selected() ? " > " : "   "}
-              </text>
-              <text fg={index() === selected() ? colors.border.elicitation : "white"}>
-                {index() + 1}) {truncateLabel(option.label)}
-              </text>
+            <box flexDirection="column">
+              <box flexDirection="row">
+                <text fg={index() === selected() ? colors.border.elicitation : "white"}>
+                  {index() === selected() ? " > " : "   "}
+                </text>
+                <text fg={index() === selected() ? colors.border.elicitation : "white"}>
+                  {index() + 1}) {truncateLabel(option.label)}
+                </text>
+              </box>
+              <Show when={!option.isOther && option.description}>
+                <text fg={colors.text.muted} attributes={TextAttributes.DIM}>
+                  {"      "}{option.description}
+                </text>
+              </Show>
             </box>
           )}
         </For>

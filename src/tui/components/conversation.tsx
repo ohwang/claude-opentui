@@ -27,6 +27,7 @@ import { BlockView } from "./block-view"
 import { CollapsedToolGroup } from "./collapsed-tool-group"
 import { ToastDisplay } from "./toast"
 import { groupConsecutiveTools, isToolGroup, type GroupedItem } from "../utils/tool-grouping"
+import { TurnSummary } from "./turn-summary"
 
 export type { ViewLevel }
 
@@ -351,6 +352,13 @@ export function ConversationView(props: { children?: JSX.Element }) {
                 )
               }}
             </For>
+          </box>
+
+          {/* Turn file change summary — shown when IDLE and files were changed */}
+          <box flexDirection="column">
+            <Show when={session.sessionState === "IDLE" && state.lastTurnFiles}>
+              <TurnSummary files={state.lastTurnFiles!} />
+            </Show>
           </box>
 
           {/* Streaming thinking (transient) — hidden when backgrounded, collapsed view, or thinking toggle off */}

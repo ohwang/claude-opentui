@@ -15,6 +15,7 @@ import { createStore, type SetStoreFunction } from "solid-js/store"
 import type {
   Block,
   TaskInfo,
+  TurnFileChange,
 } from "../../protocol/types"
 
 export interface MessagesState {
@@ -23,6 +24,7 @@ export interface MessagesState {
   streamingThinking: string
   activeTasks: [string, TaskInfo][]
   backgrounded: boolean
+  lastTurnFiles?: TurnFileChange[]
 }
 
 export interface MessagesContextValue {

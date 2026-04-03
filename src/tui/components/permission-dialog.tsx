@@ -22,7 +22,7 @@ import { useAgent } from "../context/agent"
 import { useSession } from "../context/session"
 import { useSync } from "../context/sync"
 import { colors } from "../theme/tokens"
-import { Divider, ShortcutBar } from "./primitives"
+import { Divider, ShortcutBar, ShortcutHint } from "./primitives"
 import type { PermissionRequestEvent, PermissionUpdate } from "../../protocol/types"
 
 // Semantic aliases from design system tokens
@@ -629,11 +629,11 @@ export function PermissionDialog() {
 
             {/* Footer hints */}
             <box paddingLeft={1} marginTop={1}>
-              <ShortcutBar shortcuts={[
-                { keys: "\u2191\u2193", label: "navigate" },
-                { keys: "y/a/n/d", label: "shortcut" },
-                { keys: "Enter", label: "confirm" },
-              ]} />
+              <ShortcutBar>
+                <ShortcutHint shortcut={"\u2191\u2193"} action="navigate" />
+                <ShortcutHint shortcut="y/a/n/d" action="shortcut" />
+                <ShortcutHint shortcut="Enter" action="confirm" />
+              </ShortcutBar>
             </box>
           </box>
         )

@@ -7,7 +7,7 @@
  */
 
 import { createSignal, createMemo, Show, For, type Accessor } from "solid-js"
-import { useKeyboard, useTerminalDimensions } from "@opentui/solid"
+import { useKeyboard, useTerminalDimensions, useRenderer } from "@opentui/solid"
 import { TextAttributes } from "@opentui/core"
 import type { KeyEvent } from "@opentui/core"
 import { StoryContextProvider } from "./context/story-context"
@@ -24,6 +24,12 @@ type SidebarItem =
 
 export function StorybookApp() {
   const dims = useTerminalDimensions()
+  const renderer = useRenderer()
+
+  const cleanExit = () => {
+    renderer.destroy()
+    process.exit(0)
+  }
 
   // Build the sidebar item list (category headers + stories)
   const sidebarItems = createMemo((): SidebarItem[] => {
@@ -116,7 +122,7 @@ export function StorybookApp() {
 
     // Global keys
     if (event.name === "q" || (event.name === "c" && event.ctrl)) {
-      process.exit(0)
+      cleanExit()
     }
 
     if (event.name === "tab") {

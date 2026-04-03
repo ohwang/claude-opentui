@@ -15,6 +15,7 @@ import { useSession } from "../context/session"
 import { useMessages } from "../context/messages"
 import { useAgent } from "../context/agent"
 import { log } from "../../utils/logger"
+import { setTerminalProgress } from "../../utils/terminal-notify"
 import { colors } from "../theme/tokens"
 import type { PermissionMode } from "../../protocol/types"
 import { friendlyModelName, MODEL_CONTEXT_WINDOWS, DEFAULT_CONTEXT_WINDOW } from "../models"
@@ -229,6 +230,16 @@ export function StatusBar(props: { hint?: string | null }) {
           const rate = (newest.totalTokens - oldest.totalTokens) / dtSec
           setTokPerSec(Math.round(rate))
         }
+      }
+
+      // Update terminal progress bar with context window fill percentage
+      const fill = state.lastTurnInputTokens
+      if (fill > 0) {
+        const model = state.session?.models?.[0]
+        const raw = state.currentModel || (model?.name ?? agent.config.model ?? "")
+        const ctxWindow = model?.contextWindow ?? MODEL_CONTEXT_WINDOWS[raw] ?? DEFAULT_CONTEXT_WINDOW
+        const pct = Math.min(100, Math.round((fill / ctxWindow) * 100))
+        setTerminalProgress("running", pct)
       }
     }
   }, TICK_INTERVAL_MS)

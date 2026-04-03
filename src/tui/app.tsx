@@ -11,6 +11,7 @@ import { createSignal, createEffect, on, onCleanup, ErrorBoundary, Show } from "
 import type { AgentBackend, SessionConfig } from "../protocol/types"
 import { log } from "../utils/logger"
 import { copyToClipboard } from "../utils/clipboard"
+import { sendTerminalNotification, setTerminalProgress } from "../utils/terminal-notify"
 import { AgentProvider, useAgent, type AgentContextValue } from "./context/agent"
 import { MessagesProvider, useMessages } from "./context/messages"
 import { SessionProvider, useSession } from "./context/session"
@@ -150,6 +151,34 @@ function Layout(props: { onExit?: () => void }) {
         toast.success("Background task completed")
       }
       wasBackgrounded = backgrounded
+    }
+  ))
+
+  // Terminal progress + desktop notifications on session state transitions
+  let prevNotifyState: string = session.sessionState
+  createEffect(on(
+    () => session.sessionState,
+    (current) => {
+      // IDLE/other -> RUNNING: show progress indicator
+      if (current === "RUNNING" && prevNotifyState !== "RUNNING") {
+        setTerminalProgress("running", 0)
+      }
+
+      // RUNNING/INTERRUPTING -> IDLE: turn completed — clear progress + notify
+      if (current === "IDLE" && (prevNotifyState === "RUNNING" || prevNotifyState === "INTERRUPTING")) {
+        setTerminalProgress("clear")
+        // Only send desktop notification if the terminal is not focused
+        // (i.e., user has tabbed away). We always send it since the terminal
+        // emulator decides whether to show it based on focus state.
+        sendTerminalNotification("Claude", "Task completed")
+      }
+
+      // -> ERROR: show error progress
+      if (current === "ERROR") {
+        setTerminalProgress("error")
+      }
+
+      prevNotifyState = current
     }
   ))
 

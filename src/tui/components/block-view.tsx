@@ -19,6 +19,7 @@ import { AssistantBlock } from "./blocks/assistant-block"
 import { SystemBlock, type SystemCategory, categorizeSystemMessage } from "./blocks/system-block"
 import { ErrorBlock } from "./blocks/error-block"
 import { CompactBlock } from "./blocks/compact-block"
+import { ShellBlock } from "./blocks/shell-block"
 
 // Re-export for consumers that import from block-view
 export type { SystemCategory }
@@ -34,6 +35,7 @@ export function BlockView(props: { block: Block; viewLevel: ViewLevel; prevType?
   const toolBlock = () => b().type === "tool" ? b() as Extract<Block, { type: "tool" }> : null
   const systemBlock = () => b().type === "system" ? b() as Extract<Block, { type: "system" }> : null
   const compactBlock = () => b().type === "compact" ? b() as Extract<Block, { type: "compact" }> : null
+  const shellBlock = () => b().type === "shell" ? b() as Extract<Block, { type: "shell" }> : null
   const errorBlock = () => b().type === "error" ? b() as Extract<Block, { type: "error" }> : null
 
   return (
@@ -66,6 +68,7 @@ export function BlockView(props: { block: Block; viewLevel: ViewLevel; prevType?
       }</Show>
 
       <Show when={systemBlock()}>{(sb) => <SystemBlock block={sb()} />}</Show>
+      <Show when={shellBlock()}>{(sb) => <ShellBlock block={sb()} viewLevel={props.viewLevel} />}</Show>
       <Show when={compactBlock()}>{(cb) => <CompactBlock block={cb()} />}</Show>
       <Show when={errorBlock()}>{(eb) => <ErrorBlock block={eb()} />}</Show>
     </box>

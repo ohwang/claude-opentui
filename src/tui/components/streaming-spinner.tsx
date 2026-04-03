@@ -16,9 +16,13 @@
  * Stall detection: if no new tokens arrive for 3 seconds (and no
  * tools are actively running), the spinner color smoothly
  * interpolates from accent to red over 2 seconds.
+ *
+ * Uses the centralized AnimationContext clock instead of per-component
+ * setInterval timers.
  */
 
-import { createSignal, createEffect, onCleanup } from "solid-js"
+import { createSignal, createEffect } from "solid-js"
+import { useAnimationFrame } from "../context/animation"
 import { colors } from "../theme/tokens"
 
 // ---------------------------------------------------------------------------
@@ -67,6 +71,9 @@ const ACCENT_RGB = parseHexColor(colors.accent.primary)
 // Component
 // ---------------------------------------------------------------------------
 
+// Verb cycle interval (ms)
+const VERB_CYCLE_MS = 3000
+
 export function StreamingSpinner(props: { label: string; elapsedSeconds?: number; outputTokens?: number }) {
   const [frameIndex, setFrameIndex] = createSignal(0)
   const [verbIndex, setVerbIndex] = createSignal(Math.floor(Math.random() * THINKING_VERBS.length))
@@ -93,9 +100,18 @@ export function StreamingSpinner(props: { label: string; elapsedSeconds?: number
   // count stall time in that case.
   const isToolRunning = () => props.label !== "Thinking..." && props.label.startsWith("Running ")
 
-  // -- Spinner frame timer (also updates stall intensity) -------------------
-  const timer = setInterval(() => {
-    setFrameIndex((i) => (i + 1) % SPINNER_FRAMES.length)
+  // -- Accumulated time trackers for animation frame approach ----------------
+  let spinnerAccum = 0
+  let verbAccum = 0
+
+  useAnimationFrame((dt) => {
+    // Spinner frame advance (~80ms)
+    spinnerAccum += dt
+    if (spinnerAccum >= SPINNER_INTERVAL_MS) {
+      const steps = Math.floor(spinnerAccum / SPINNER_INTERVAL_MS)
+      spinnerAccum -= steps * SPINNER_INTERVAL_MS
+      setFrameIndex((i) => (i + steps) % SPINNER_FRAMES.length)
+    }
 
     // Update stall intensity on every frame tick for smooth color transition
     if (isToolRunning()) {
@@ -110,26 +126,23 @@ export function StreamingSpinner(props: { label: string; elapsedSeconds?: number
         setStallIntensity(Math.min((timeSinceToken - STALL_START_MS) / (STALL_FULL_MS - STALL_START_MS), 1))
       }
     }
-  }, SPINNER_INTERVAL_MS)
 
-  // Cycle thinking verbs every 3 seconds (only when label is "Thinking...")
-  // Random selection avoids the predictable sequential feel; re-roll to
-  // prevent showing the same verb twice in a row.
-  const verbTimer = setInterval(() => {
-    if (props.label === "Thinking...") {
-      setVerbIndex((prev) => {
-        let next = Math.floor(Math.random() * THINKING_VERBS.length)
-        while (next === prev) {
-          next = Math.floor(Math.random() * THINKING_VERBS.length)
-        }
-        return next
-      })
+    // Verb cycling (~3s, only during "Thinking...")
+    // Random selection avoids the predictable sequential feel; re-roll to
+    // prevent showing the same verb twice in a row.
+    verbAccum += dt
+    if (verbAccum >= VERB_CYCLE_MS) {
+      verbAccum -= VERB_CYCLE_MS
+      if (props.label === "Thinking...") {
+        setVerbIndex((prev) => {
+          let next = Math.floor(Math.random() * THINKING_VERBS.length)
+          while (next === prev) {
+            next = Math.floor(Math.random() * THINKING_VERBS.length)
+          }
+          return next
+        })
+      }
     }
-  }, 3000)
-
-  onCleanup(() => {
-    clearInterval(timer)
-    clearInterval(verbTimer)
   })
 
   const displayLabel = () => {

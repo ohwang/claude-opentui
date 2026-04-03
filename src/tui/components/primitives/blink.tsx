@@ -1,60 +1,32 @@
 /**
  * Blink primitive -- synchronized blinking for progress indicators.
  *
- * All BlinkingDot instances share a single global clock so they pulse
- * in unison. The clock starts when the first subscriber mounts and
- * stops when the last unmounts (no idle timers).
+ * Uses the centralized AnimationContext clock. All BlinkingDot instances
+ * share the same frame callback so they pulse in unison without needing
+ * their own per-component timers.
  */
 
-import { createSignal, onCleanup } from "solid-js"
+import { createSignal } from "solid-js"
+import { useAnimationFrame } from "../../context/animation"
 import { colors } from "../../theme/tokens"
 
 const BLINK_INTERVAL_MS = 600
 
 // ---------------------------------------------------------------------------
-// Global blink clock — shared across all subscribers
-// ---------------------------------------------------------------------------
-
-let globalBlinkState = true
-let globalBlinkTimer: ReturnType<typeof setInterval> | undefined
-let blinkSubscribers = 0
-
-function subscribeBlink(): () => boolean {
-  if (blinkSubscribers === 0) {
-    globalBlinkTimer = setInterval(() => {
-      globalBlinkState = !globalBlinkState
-    }, BLINK_INTERVAL_MS)
-  }
-  blinkSubscribers++
-
-  return () => globalBlinkState
-}
-
-function unsubscribeBlink(): void {
-  blinkSubscribers--
-  if (blinkSubscribers === 0 && globalBlinkTimer) {
-    clearInterval(globalBlinkTimer)
-    globalBlinkTimer = undefined
-  }
-}
-
-// ---------------------------------------------------------------------------
-// useBlink — reactive hook
+// useBlink — reactive hook powered by AnimationContext
 // ---------------------------------------------------------------------------
 
 /** Hook that returns a reactive blinking signal (true/false at 600ms) */
 export function useBlink(): () => boolean {
-  const getBlink = subscribeBlink()
   const [visible, setVisible] = createSignal(true)
+  let accum = 0
 
-  // Sample faster than the blink interval to stay in sync with the global clock
-  const timer = setInterval(() => {
-    setVisible(getBlink())
-  }, BLINK_INTERVAL_MS / 2)
-
-  onCleanup(() => {
-    clearInterval(timer)
-    unsubscribeBlink()
+  useAnimationFrame((dt) => {
+    accum += dt
+    if (accum >= BLINK_INTERVAL_MS) {
+      accum -= BLINK_INTERVAL_MS
+      setVisible((v) => !v)
+    }
   })
 
   return visible

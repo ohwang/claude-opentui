@@ -18,7 +18,7 @@ import { useSession } from "../context/session"
 import { useSync } from "../context/sync"
 import { useMessages } from "../context/messages"
 import { createCommandRegistry, type SlashCommand } from "../../commands/registry"
-import { searchFiles } from "./file-autocomplete"
+import { searchFiles, findLongestCommonPrefix } from "./file-autocomplete"
 import { triggerCleanExit, toggleDiagnostics } from "../app"
 import { colors } from "../theme/tokens"
 import { log } from "../../utils/logger"
@@ -692,13 +692,29 @@ export function InputArea() {
       // Tab = fill selected item into input (without executing)
       if (e.name === "tab") {
         e.preventDefault()
-        const selected = items[selectedIndex()]
-        if (selected) {
-          if (autocompleteMode() === "file") {
-            selectFile(selected.name)
-          } else {
-            selectCommand(selected)
+        if (autocompleteMode() === "file") {
+          // Tab in file mode: fill common prefix if longer than query, else select item
+          const commonPrefix = findLongestCommonPrefix(items.map((i) => i.name))
+          const text = textareaRef?.plainText ?? ""
+          const atMatch = text.match(/@(\S*)$/)
+          const currentQuery = atMatch?.[1] ?? ""
+
+          if (commonPrefix.length > currentQuery.length) {
+            // Fill common prefix without dismissing autocomplete
+            const beforeAt = text.slice(0, atMatch?.index ?? text.length)
+            setTextareaContent(beforeAt + "@" + commonPrefix)
+            // Re-trigger autocomplete with expanded query
+            queueMicrotask(() =>
+              updateAutocomplete(beforeAt + "@" + commonPrefix),
+            )
+            return
           }
+          // No longer common prefix — select the current item
+          const selected = items[selectedIndex()]
+          if (selected) selectFile(selected.name)
+        } else {
+          const selected = items[selectedIndex()]
+          if (selected) selectCommand(selected)
         }
         return
       }
@@ -821,6 +837,11 @@ export function InputArea() {
           <For each={autocompleteItems().slice(0, MAX_VISIBLE_ITEMS)}>
             {(item, index) => (
               <box flexDirection="row">
+                {autocompleteMode() === "file" && (
+                  <text fg={colors.text.muted}>
+                    {item.name.endsWith("/") ? "\u{1F4C1} " : "\u{1F4C4} "}
+                  </text>
+                )}
                 <text
                   attributes={index() === selectedIndex() ? TextAttributes.BOLD : 0}
                   fg={index() === selectedIndex() ? "cyan" : "white"}

@@ -9,7 +9,7 @@
  */
 
 import type { JSX } from "solid-js"
-import { createSignal, createEffect, onCleanup, Show, For, batch } from "solid-js"
+import { createSignal, createEffect, createMemo, onCleanup, Show, For, batch } from "solid-js"
 import { TextAttributes, type ScrollBoxRenderable } from "@opentui/core"
 import { useKeyboard } from "@opentui/solid"
 import { useMessages } from "../context/messages"
@@ -24,7 +24,9 @@ import { refocusInput, blurInput, registerScrollToBottom } from "./input-area"
 import { StreamingSpinner } from "./streaming-spinner"
 import { type ViewLevel } from "./tool-view"
 import { BlockView } from "./block-view"
+import { CollapsedToolGroup } from "./collapsed-tool-group"
 import { ToastDisplay } from "./toast"
+import { groupConsecutiveTools, isToolGroup, type GroupedItem } from "../utils/tool-grouping"
 
 export type { ViewLevel }
 
@@ -58,6 +60,12 @@ export function ConversationView(props: { children?: JSX.Element }) {
   // Derived: separate queued vs non-queued blocks
   const nonQueuedBlocks = () => state.blocks.filter(b => !(b.type === "user" && b.queued))
   const queuedBlocks = () => state.blocks.filter(b => b.type === "user" && b.queued) as Array<Extract<Block, { type: "user" }>>
+
+  // Group consecutive collapsible tool blocks when in collapsed view
+  const groupedBlocks = createMemo((): GroupedItem[] => {
+    if (viewLevel() !== "collapsed") return nonQueuedBlocks()
+    return groupConsecutiveTools(nonQueuedBlocks())
+  })
 
   // Snapshot block count when user scrolls away; derive unseen message count
   createEffect(() => {
@@ -312,17 +320,32 @@ export function ConversationView(props: { children?: JSX.Element }) {
             </Show>
           </box>
 
-          {/* Committed blocks (non-queued) — each block renders itself based on view level */}
+          {/* Committed blocks (non-queued) — each block renders itself based on view level.
+              In collapsed view, consecutive collapsible tools are merged into
+              a single CollapsedToolGroup summary line. */}
           <box flexDirection="column">
-            <For each={nonQueuedBlocks()}>
-              {(block, index) => {
-                const blocks = nonQueuedBlocks()
-                const prev = index() > 0 ? blocks[index() - 1] : undefined
+            <For each={groupedBlocks()}>
+              {(item, index) => {
+                const items = groupedBlocks()
+                // Determine the type of the previous item for turn-separator logic
+                const prevItem = index() > 0 ? items[index() - 1] : undefined
+                const prevType = prevItem
+                  ? isToolGroup(prevItem) ? "tool" : (prevItem as Block).type
+                  : undefined
+
+                if (isToolGroup(item)) {
+                  return (
+                    <box marginTop={prevType !== "tool" ? 1 : 0}>
+                      <CollapsedToolGroup group={item} />
+                    </box>
+                  )
+                }
+
                 return (
                   <BlockView
-                    block={block}
+                    block={item as Block}
                     viewLevel={viewLevel()}
-                    prevType={prev?.type}
+                    prevType={prevType}
                     showThinking={showThinking()}
                   />
                 )

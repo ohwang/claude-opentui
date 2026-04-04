@@ -12,8 +12,8 @@ type UserBlockType = Extract<Block, { type: "user" }>
 export function UserBlock(props: { block: UserBlockType }) {
   const b = () => props.block
   return (
-    <box flexDirection="column" marginTop={1}>
-      <box flexDirection="row" flexGrow={1} bg={colors.bg.surface}>
+    <box flexDirection="column">
+      <box flexDirection="row" width="100%" bg={colors.bg.surface}>
         <box width={2} flexShrink={0}>
           <text fg={colors.text.white} attributes={TextAttributes.BOLD}>{"\u276F"}</text>
         </box>

@@ -40,12 +40,14 @@ export function BlockView(props: { block: Block; viewLevel: ViewLevel; prevType?
 
   return (
     <box flexDirection="column">
-      {/* Turn separator — subtle line between turns */}
-      <Show when={b().type === "user" && props.prevType && props.prevType !== "user"}>
-        <Divider width={60} />
-      </Show>
-
-      <Show when={userBlock()}>{(ub) => <UserBlock block={ub()} />}</Show>
+      <Show when={userBlock()}>{(ub) =>
+        <box marginTop={1}>
+          <Show when={props.prevType && props.prevType !== "user"}>
+            <Divider width={60} />
+          </Show>
+          <UserBlock block={ub()} />
+        </box>
+      }</Show>
       <Show when={assistantBlock()}>{(ab) => <AssistantBlock block={ab()} />}</Show>
 
       {/* Thinking block — hidden in collapsed view or when thinking toggle is off */}

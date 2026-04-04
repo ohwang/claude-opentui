@@ -258,6 +258,13 @@ export function StorybookApp() {
     }
   })
 
+  // Key that changes on both story and variant switch, forcing re-render
+  const previewKey = createMemo(() => {
+    const story = selectedStory()
+    if (!story) return null
+    return `${story.id}-${variantIdx()}`
+  })
+
   const termWidth = () => dims()?.width ?? 120
 
   // ── Normal layout render ──────────────────────────────────────────
@@ -359,7 +366,7 @@ export function StorybookApp() {
         {/* Preview pane — scrollbox prevents overflow garbling */}
         <scrollbox flexGrow={1} stickyScroll={false}>
           <Show
-            when={selectedStory()}
+            when={previewKey()}
             keyed
             fallback={
               <box flexGrow={1} justifyContent="center" alignItems="center">
@@ -367,8 +374,7 @@ export function StorybookApp() {
               </box>
             }
           >
-            {(_story: Story) => {
-              // Use active context/render which may change with variant
+            {(_key: string) => {
               const renderFn = activeRender()
               const ctx = activeContext()
               if (!renderFn) return null

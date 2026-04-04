@@ -9,6 +9,7 @@
  * // Renders: "██████▌   " (smooth sub-character fill)
  */
 
+import { Show } from "solid-js"
 import { colors } from "../../theme/tokens"
 
 // Sub-character block elements from empty to full
@@ -49,9 +50,9 @@ export function ProgressBar(props: {
 
   return (
     <box flexDirection="row">
-      <text fg={fillColor()}>{bar().filled}</text>
-      <text fg={fillColor()}>{bar().partial}</text>
-      <text fg={emptyColor()}>{bar().empty}</text>
+      <Show when={bar().filled}><text fg={fillColor()}>{bar().filled}</text></Show>
+      <Show when={bar().partial}><text fg={fillColor()}>{bar().partial}</text></Show>
+      <Show when={bar().empty}><text fg={emptyColor()}>{bar().empty}</text></Show>
     </box>
   )
 }

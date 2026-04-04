@@ -64,7 +64,7 @@ export const primitivesStories: Story[] = [
         {[0, 0.25, 0.5, 0.75, 1].map((r) => (
           <box flexDirection="row">
             <ProgressBar ratio={r} width={20} />
-            <text fg={colors.text.muted}>{` ${Math.round(r * 100)}%`}</text>
+            <text fg={colors.text.muted}>{` ${String(Math.round(r * 100)).padStart(3)}%`}</text>
           </box>
         ))}
       </box>

@@ -103,9 +103,9 @@ export const conversationStories: Story[] = [
     title: "ThinkingBlock",
     description: "Claude's reasoning process (collapsed/expanded)",
     category: "Conversation",
-    render: () => <ThinkingBlock text="The user wants to fix an auth bug. Let me check:\n- `login.ts` handles token creation\n- `middleware.ts` validates on each request\n- The expiry field is `exp` in JWT spec\n\nI think the issue is that `Date.now()` returns milliseconds but JWT `exp` is in seconds." />,
+    render: () => <ThinkingBlock text={"The user wants to fix an auth bug. Let me check:\n- `login.ts` handles token creation\n- `middleware.ts` validates on each request\n- The expiry field is `exp` in JWT spec\n\nI think the issue is that `Date.now()` returns milliseconds but JWT `exp` is in seconds."} />,
     variants: [
-      { label: "expanded", render: () => <ThinkingBlock text="The user wants to fix an auth bug. Let me check:\n- `login.ts` handles token creation\n- `middleware.ts` validates on each request\n\nI think the issue is that `Date.now()` returns milliseconds but JWT `exp` is in seconds." /> },
+      { label: "expanded", render: () => <ThinkingBlock text={"The user wants to fix an auth bug. Let me check:\n- `login.ts` handles token creation\n- `middleware.ts` validates on each request\n\nI think the issue is that `Date.now()` returns milliseconds but JWT `exp` is in seconds."} /> },
       { label: "collapsed", render: () => <ThinkingBlock text="Let me analyze the code structure..." collapsed /> },
     ],
   },

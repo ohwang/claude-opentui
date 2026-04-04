@@ -130,7 +130,7 @@ function QuestionView(props: {
     <box
       flexDirection="column"
       borderStyle="single"
-      borderColor={colors.border.elicitation}
+      borderColor={colors.border.accent}
       paddingLeft={1}
       paddingRight={1}
     >
@@ -139,7 +139,7 @@ function QuestionView(props: {
           {props.question.header}
         </text>
       </Show>
-      <text fg={colors.border.elicitation} attributes={TextAttributes.BOLD}>
+      <text fg={colors.border.accent} attributes={TextAttributes.BOLD}>
         {props.question.question}
       </text>
 
@@ -148,10 +148,10 @@ function QuestionView(props: {
           {(option, index) => (
             <box flexDirection="column">
               <box flexDirection="row">
-                <text fg={index() === selected() ? colors.border.elicitation : "white"}>
+                <text fg={index() === selected() ? colors.border.accent : "white"}>
                   {index() === selected() ? " > " : "   "}
                 </text>
-                <text fg={index() === selected() ? colors.border.elicitation : "white"}>
+                <text fg={index() === selected() ? colors.border.accent : "white"}>
                   {index() + 1}) {truncateLabel(option.label)}
                 </text>
               </box>

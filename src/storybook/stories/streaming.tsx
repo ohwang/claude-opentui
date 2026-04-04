@@ -1,57 +1,37 @@
 /**
- * Stories for streaming and animation components.
+ * Stories for Input category — ContextualTips, InputArea.
  */
 
 import type { Story } from "../types"
-import { StreamingSpinner } from "../../tui/components/streaming-spinner"
-import { runningSession } from "../fixtures/state"
+import { ContextualTips } from "../../tui/components/tips"
+import { InputArea } from "../../tui/components/input-area"
+import { idleSession, runningSession } from "../fixtures/state"
 
-export const streamingStories: Story[] = [
+export const inputStories: Story[] = [
   {
-    id: "spinner-thinking",
-    title: "Spinner (thinking)",
-    description: "Braille dot spinner in thinking state",
-    category: "Streaming",
-    context: { session: runningSession() },
-    render: () => <StreamingSpinner label="Thinking" elapsedSeconds={5} />,
+    id: "contextual-tips",
+    title: "ContextualTips",
+    description: "State-aware keyboard hints above input",
+    category: "Input",
+    context: { session: idleSession({ turnNumber: 0 }) },
+    render: () => <ContextualTips />,
+    variants: [
+      { label: "first turn", context: { session: idleSession({ turnNumber: 0 }) } },
+      { label: "later turn", context: { session: idleSession({ turnNumber: 3 }) } },
+      { label: "running", context: { session: runningSession() } },
+    ],
   },
   {
-    id: "spinner-long-running",
-    title: "Spinner (long running)",
-    description: "Spinner with extended elapsed time and token count",
-    category: "Streaming",
-    context: { session: runningSession() },
-    render: () => <StreamingSpinner label="Thinking" elapsedSeconds={349} outputTokens={8500} />,
-  },
-  {
-    id: "spinner-tool",
-    title: "Spinner (tool)",
-    description: "Spinner showing active tool execution",
-    category: "Streaming",
-    context: { session: runningSession() },
-    render: () => <StreamingSpinner label="Running Bash" elapsedSeconds={12} />,
-  },
-  {
-    id: "streaming-text",
-    title: "Streaming text",
-    description: "Simulated streaming text accumulation",
-    category: "Streaming",
-    context: {
-      session: runningSession(),
-      messages: {
-        blocks: [],
-        streamingText: "I'll help you fix the authentication bug. Let me start by reading the relevant files to understand the current implementation...",
-        streamingThinking: "",
-        activeTasks: [],
-        backgrounded: false,
-      },
-    },
-    render: () => (
-      <box flexDirection="column">
-        <text fg="#e4e4e4">{"Streaming text preview (via messages.streamingText):"}</text>
-        <box height={1} />
-        <text fg="#a8a8a8">{"I'll help you fix the authentication bug. Let me start by reading the relevant files to understand the current implementation..."}</text>
-      </box>
-    ),
+    id: "input-area",
+    title: "InputArea",
+    description: "Textarea with message submission, slash commands, file autocomplete",
+    category: "Input",
+    interactive: true,
+    context: { session: idleSession() },
+    render: () => <InputArea />,
+    variants: [
+      { label: "idle", context: { session: idleSession() } },
+      { label: "running", context: { session: runningSession() } },
+    ],
   },
 ]

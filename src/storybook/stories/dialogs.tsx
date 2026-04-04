@@ -1,5 +1,5 @@
 /**
- * Stories for dialog components (permission, elicitation, history search).
+ * Stories for Dialogs category — permission, elicitation, history search.
  */
 
 import type { Story } from "../types"
@@ -28,9 +28,9 @@ const sampleHistory = [
 
 export const dialogsStories: Story[] = [
   {
-    id: "permission-dialog-bash",
-    title: "PermissionDialog (Bash)",
-    description: "Bash command permission request",
+    id: "permission-dialog",
+    title: "PermissionDialog",
+    description: "Inline permission prompt with approve/deny options",
     category: "Dialogs",
     interactive: true,
     context: {
@@ -45,34 +45,45 @@ export const dialogsStories: Story[] = [
       }),
     },
     render: () => <PermissionDialog />,
-  },
-  {
-    id: "permission-dialog-edit",
-    title: "PermissionDialog (Edit)",
-    description: "File edit permission request with diff preview",
-    category: "Dialogs",
-    interactive: true,
-    context: {
-      session: idleSession({ sessionState: "WAITING_FOR_PERM" }),
-      permissions: withPermission({
-        type: "permission_request",
-        id: "perm-2",
-        tool: "Edit",
-        input: {
-          file_path: "/src/auth/login.ts",
-          old_string: "Date.now()",
-          new_string: "Math.floor(Date.now() / 1000)",
+    variants: [
+      {
+        label: "Bash command",
+        context: {
+          session: idleSession({ sessionState: "WAITING_FOR_PERM" }),
+          permissions: withPermission({
+            type: "permission_request",
+            id: "perm-1",
+            tool: "Bash",
+            input: { command: "rm -rf node_modules && npm install" },
+            displayName: "Run command",
+            title: "Claude wants to run a shell command",
+          }),
         },
-        displayName: "Edit file",
-        title: "Claude wants to edit a file",
-      }),
-    },
-    render: () => <PermissionDialog />,
+      },
+      {
+        label: "Edit file",
+        context: {
+          session: idleSession({ sessionState: "WAITING_FOR_PERM" }),
+          permissions: withPermission({
+            type: "permission_request",
+            id: "perm-2",
+            tool: "Edit",
+            input: {
+              file_path: "/src/auth/login.ts",
+              old_string: "Date.now()",
+              new_string: "Math.floor(Date.now() / 1000)",
+            },
+            displayName: "Edit file",
+            title: "Claude wants to edit a file",
+          }),
+        },
+      },
+    ],
   },
   {
     id: "elicitation-dialog",
     title: "ElicitationDialog",
-    description: "Question with predefined options",
+    description: "AskUserQuestion with predefined options",
     category: "Dialogs",
     interactive: true,
     context: {
@@ -80,75 +91,71 @@ export const dialogsStories: Story[] = [
       permissions: withElicitation({
         type: "elicitation_request",
         id: "elic-1",
-        questions: [
-          {
-            question: "Which authentication method should I implement?",
-            options: [
-              { label: "JWT tokens", description: "Stateless, scalable" },
-              { label: "Session cookies", description: "Simple, server-side" },
-              { label: "OAuth 2.0", description: "Third-party auth delegation" },
-            ],
-            allowFreeText: true,
-          },
-        ],
+        questions: [{
+          question: "Which authentication method should I implement?",
+          options: [
+            { label: "JWT tokens", description: "Stateless, scalable" },
+            { label: "Session cookies", description: "Simple, server-side" },
+            { label: "OAuth 2.0", description: "Third-party auth delegation" },
+          ],
+          allowFreeText: true,
+        }],
       }),
     },
     render: () => <ElicitationDialog />,
-  },
-  {
-    id: "elicitation-multi-select",
-    title: "ElicitationDialog (multi)",
-    description: "Multi-select question with many options",
-    category: "Dialogs",
-    interactive: true,
-    context: {
-      session: idleSession({ sessionState: "WAITING_FOR_ELIC" }),
-      permissions: withElicitation({
-        type: "elicitation_request",
-        id: "elic-2",
-        questions: [
-          {
-            question: "Which files should I modify?",
-            header: "Files",
-            options: [
-              { label: "src/auth/login.ts", description: "Login handler" },
-              { label: "src/auth/refresh.ts", description: "Token refresh" },
-              { label: "src/middleware/auth.ts", description: "Auth middleware" },
-              { label: "tests/auth.test.ts", description: "Auth tests" },
-            ],
-            multiSelect: true,
-          },
-        ],
-      }),
-    },
-    render: () => <ElicitationDialog />,
+    variants: [
+      {
+        label: "single select",
+        context: {
+          session: idleSession({ sessionState: "WAITING_FOR_ELIC" }),
+          permissions: withElicitation({
+            type: "elicitation_request",
+            id: "elic-1",
+            questions: [{
+              question: "Which authentication method should I implement?",
+              options: [
+                { label: "JWT tokens", description: "Stateless, scalable" },
+                { label: "Session cookies", description: "Simple, server-side" },
+                { label: "OAuth 2.0", description: "Third-party auth delegation" },
+              ],
+              allowFreeText: true,
+            }],
+          }),
+        },
+      },
+      {
+        label: "multi select",
+        context: {
+          session: idleSession({ sessionState: "WAITING_FOR_ELIC" }),
+          permissions: withElicitation({
+            type: "elicitation_request",
+            id: "elic-2",
+            questions: [{
+              question: "Which files should I modify?",
+              header: "Files",
+              options: [
+                { label: "src/auth/login.ts", description: "Login handler" },
+                { label: "src/auth/refresh.ts", description: "Token refresh" },
+                { label: "src/middleware/auth.ts", description: "Auth middleware" },
+                { label: "tests/auth.test.ts", description: "Auth tests" },
+              ],
+              multiSelect: true,
+            }],
+          }),
+        },
+      },
+    ],
   },
   {
     id: "history-search",
     title: "HistorySearchModal",
-    description: "Ctrl+R fuzzy history search with 15 entries",
+    description: "Ctrl+R fuzzy history search",
     category: "Dialogs",
     interactive: true,
-    render: () => (
-      <HistorySearchModal
-        history={sampleHistory}
-        onSelect={() => {}}
-        onCancel={() => {}}
-      />
-    ),
-  },
-  {
-    id: "history-search-empty",
-    title: "HistorySearch (empty)",
-    description: "History search with no prior entries",
-    category: "Dialogs",
-    interactive: true,
-    render: () => (
-      <HistorySearchModal
-        history={[]}
-        onSelect={() => {}}
-        onCancel={() => {}}
-      />
-    ),
+    render: () => <HistorySearchModal history={sampleHistory} onSelect={() => {}} onCancel={() => {}} />,
+    variants: [
+      { label: "with history", render: () => <HistorySearchModal history={sampleHistory} onSelect={() => {}} onCancel={() => {}} /> },
+      { label: "empty", render: () => <HistorySearchModal history={[]} onSelect={() => {}} onCancel={() => {}} /> },
+    ],
   },
 ]

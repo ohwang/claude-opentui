@@ -1,33 +1,35 @@
 /**
- * Story Registry — explicit imports of all story files.
+ * Story Registry — ordered to match the real app's component tree.
  * No magic discovery. Add new story files here.
  */
 
-import { primitivesStories } from "./stories/primitives"
-import { blocksStories } from "./stories/blocks"
-import { toolViewsStories } from "./stories/tool-views"
-import { streamingStories } from "./stories/streaming"
-import { layoutStories } from "./stories/layout"
+import { headerStories } from "./stories/layout"
+import { conversationStories } from "./stories/blocks"
 import { dialogsStories } from "./stories/dialogs"
-import { compositeStories } from "./stories/composite"
+import { inputStories } from "./stories/streaming"
+import { footerStories } from "./stories/tool-views"
+import { overlaysStories } from "./stories/composite"
+import { primitivesStories } from "./stories/primitives"
 import type { Story, StoryCategory } from "./types"
 
+/** Categories ordered to match the real app's component tree (top → bottom) */
 export const categories: StoryCategory[] = [
-  "Primitives",
-  "Blocks",
-  "Tool Views",
-  "Streaming",
-  "Layout",
+  "Header",
+  "Conversation",
   "Dialogs",
-  "Composite",
+  "Input",
+  "Footer",
+  "Overlays",
+  "Primitives",
 ]
 
+/** All stories in component tree order */
 export const stories: Story[] = [
-  ...primitivesStories,
-  ...blocksStories,
-  ...toolViewsStories,
-  ...streamingStories,
-  ...layoutStories,
+  ...headerStories,
+  ...conversationStories,
   ...dialogsStories,
-  ...compositeStories,
+  ...inputStories,
+  ...footerStories,
+  ...overlaysStories,
+  ...primitivesStories,
 ]

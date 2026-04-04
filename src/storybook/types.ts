@@ -16,14 +16,24 @@ export interface StoryContext {
   agent?: Partial<AgentContextValue>
 }
 
+/** A named state variant for toggling between different component states */
+export interface StoryVariant {
+  /** Display label in the controls bar */
+  label: string
+  /** Override context for this variant (merged over story's base context) */
+  context?: StoryContext
+  /** Override render function for this variant */
+  render?: () => JSX.Element
+}
+
 export interface Story {
   /** Unique ID (kebab-case), used as catalog key */
   id: string
-  /** Human-readable title displayed in sidebar */
+  /** Human-readable title displayed in tree */
   title: string
   /** One-line description shown in the info bar */
   description: string
-  /** Category for grouping in the sidebar */
+  /** Category for grouping in the tree */
   category: StoryCategory
   /** The component to render. Returns JSX. */
   render: () => JSX.Element
@@ -31,13 +41,16 @@ export interface Story {
   context?: StoryContext
   /** Whether this story supports interactive keyboard input (e.g., PermissionDialog) */
   interactive?: boolean
+  /** Named state variants the user can toggle between */
+  variants?: StoryVariant[]
 }
 
+/** Categories ordered to match the real app's component tree */
 export type StoryCategory =
-  | "Primitives"
-  | "Blocks"
-  | "Tool Views"
-  | "Layout"
+  | "Header"
+  | "Conversation"
   | "Dialogs"
-  | "Streaming"
-  | "Composite"
+  | "Input"
+  | "Footer"
+  | "Overlays"
+  | "Primitives"

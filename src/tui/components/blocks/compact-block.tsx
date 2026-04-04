@@ -22,13 +22,13 @@ export function CompactBlock(props: { block?: CompactBlockType }) {
       </text>
       <Show when={summary()}>
         <box paddingLeft={2} marginTop={0}>
-          <text fg={colors.text.muted} attributes={TextAttributes.DIM}>
+          <text fg={colors.text.secondary}>
             {summary()}
           </text>
         </box>
       </Show>
       <box paddingLeft={2}>
-        <text fg={colors.text.muted} attributes={TextAttributes.DIM}>
+        <text fg={colors.text.muted}>
           {"(ctrl+o to expand history)"}
         </text>
       </box>

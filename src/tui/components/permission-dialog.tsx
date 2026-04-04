@@ -566,7 +566,7 @@ export function PermissionDialog() {
             <Show when={previewLines()}>
               {(lines) => (
                 <box flexDirection="column">
-                  <Divider char={"\u254C"} color={ACCENT} paddingLeft={4} />
+                  <Divider char={"\u254C"} color={ACCENT} paddingLeft={0} />
                   <For each={lines()}>
                     {(line, idx) => {
                       const lineColor = () => {
@@ -574,10 +574,9 @@ export function PermissionDialog() {
                         if (line.prefix === "-") return DIFF_REMOVED
                         return "white"
                       }
-                      const prefixChar = () => line.prefix ?? " "
                       return (
-                        <box height={1} paddingLeft={2}>
-                          <text fg={lineColor()}>{`${prefixChar()} ${line.text || " "}`}</text>
+                        <box height={1} paddingLeft={1}>
+                          <text fg={lineColor()}>{line.prefix ? `${line.prefix} ${line.text || " "}` : (line.text || " ")}</text>
                         </box>
                       )
                     }}
@@ -587,7 +586,7 @@ export function PermissionDialog() {
                       <text fg={MUTED}>{`... ${truncatedCount()} more line${truncatedCount() === 1 ? "" : "s"}`}</text>
                     </box>
                   </Show>
-                  <Divider char={"\u254C"} color={ACCENT} paddingLeft={4} />
+                  <Divider char={"\u254C"} color={ACCENT} paddingLeft={0} />
                 </box>
               )}
             </Show>

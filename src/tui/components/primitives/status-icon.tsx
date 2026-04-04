@@ -23,9 +23,11 @@ const STATUS_CONFIG: Record<StatusType, { icon: string; color: string; attrs: nu
 export function StatusIcon(props: { status: StatusType; withSpace?: boolean }) {
   const config = () => STATUS_CONFIG[props.status]
   return (
-    <text fg={config().color} attributes={config().attrs}>
-      {config().icon + (props.withSpace !== false ? " " : "")}
-    </text>
+    <box width={props.withSpace !== false ? 2 : undefined}>
+      <text fg={config().color} attributes={config().attrs}>
+        {config().icon}
+      </text>
+    </box>
   )
 }
 

@@ -9,9 +9,9 @@
  * Supports fullscreen zoom mode (f key) for isolated interaction.
  */
 
-import { createSignal, createMemo, Show, For } from "solid-js"
+import { createSignal, createMemo, createEffect, Show, For } from "solid-js"
 import { useKeyboard, useTerminalDimensions, useRenderer } from "@opentui/solid"
-import { TextAttributes } from "@opentui/core"
+import { TextAttributes, type ScrollBoxRenderable } from "@opentui/core"
 import type { KeyEvent } from "@opentui/core"
 import { StoryContextProvider } from "./context/story-context"
 import { stories, categories } from "./registry"
@@ -213,16 +213,49 @@ export function StorybookApp() {
     return items
   })
 
-  // Compute tree height (number of lines needed)
-  const treeHeight = createMemo(() => {
+  // Compute total tree rows (category headers + individual stories)
+  const totalTreeRows = createMemo(() => {
     let count = 0
     for (const cat of categories) {
       const catStories = stories.filter((s) => s.category === cat)
       if (catStories.length === 0) continue
       count++ // category header
-      count++ // stories row
+      count += catStories.length // one row per story
     }
     return Math.max(count, 2)
+  })
+
+  // Tree viewport height — 1/3 of terminal, clamped
+  const treeViewHeight = createMemo(() => {
+    const h = dims()?.height ?? 40
+    return Math.min(totalTreeRows(), Math.max(8, Math.min(15, Math.floor(h / 3))))
+  })
+
+  // Row offset of the currently selected story in the vertical tree
+  const selectedRow = createMemo(() => {
+    const pos = cursorPos()
+    let row = 0
+    for (const cat of categories) {
+      const catStories = stories.filter((s) => s.category === cat)
+      if (catStories.length === 0) continue
+      row++ // category header
+      for (const story of catStories) {
+        if (stories.indexOf(story) === pos) return row
+        row++
+      }
+    }
+    return 0
+  })
+
+  let treeScrollRef: ScrollBoxRenderable | undefined
+
+  // Auto-scroll tree to keep selection visible
+  createEffect(() => {
+    const row = selectedRow()
+    if (treeScrollRef) {
+      const viewH = treeViewHeight()
+      treeScrollRef.scrollTo(Math.max(0, row - Math.floor(viewH / 2)))
+    }
   })
 
   const termWidth = () => dims()?.width ?? 120
@@ -247,7 +280,7 @@ export function StorybookApp() {
           <text fg={colors.border.muted}>{"─".repeat(termWidth())}</text>
         </box>
 
-        {/* Component tree (horizontal, one category per row) */}
+        {/* Filter bar */}
         <Show when={isFiltering()}>
           <box height={1} flexShrink={0} paddingLeft={1}>
             <text fg={colors.status.info}>{"/ "}</text>
@@ -255,14 +288,21 @@ export function StorybookApp() {
             <text fg={colors.text.muted}>{"_"}</text>
           </box>
         </Show>
-        <box flexDirection="column" flexShrink={0}>
-          <For each={categories}>
-            {(cat) => {
-              const catStories = createMemo(() => stories.filter((s) => s.category === cat))
-              return (
-                <Show when={catStories().length > 0}>
-                  <box flexDirection="row" height={1}>
-                    <box width={12} flexShrink={0} paddingLeft={1}>
+
+        {/* Component tree (vertical, scrollable) */}
+        <scrollbox
+          ref={(el: ScrollBoxRenderable) => { treeScrollRef = el }}
+          height={treeViewHeight()}
+          flexShrink={0}
+          stickyScroll={false}
+        >
+          <box flexDirection="column">
+            <For each={categories}>
+              {(cat) => {
+                const catStories = createMemo(() => stories.filter((s) => s.category === cat))
+                return (
+                  <Show when={catStories().length > 0}>
+                    <box height={1} paddingLeft={1}>
                       <text fg={colors.text.muted} attributes={TextAttributes.DIM}>{cat}</text>
                     </box>
                     <For each={catStories()}>
@@ -271,23 +311,23 @@ export function StorybookApp() {
                         const isSelected = createMemo(() => storyIdx() === cursorPos())
                         const isFocused = createMemo(() => focusPane() === "tree" && isSelected())
                         return (
-                          <box paddingRight={1}>
+                          <box height={1} paddingLeft={3}>
                             <text
                               fg={isFocused() ? colors.accent.primary : isSelected() ? colors.text.white : colors.text.secondary}
                               attributes={isFocused() ? TextAttributes.BOLD : isSelected() ? TextAttributes.BOLD : 0}
                             >
-                              {(isFocused() ? "▸" : isSelected() ? "▸" : " ") + story.title}
+                              {(isFocused() ? "▸" : " ") + story.title}
                             </text>
                           </box>
                         )
                       }}
                     </For>
-                  </box>
-                </Show>
-              )
-            }}
-          </For>
-        </box>
+                  </Show>
+                )
+              }}
+            </For>
+          </box>
+        </scrollbox>
 
         {/* Separator */}
         <box height={1} flexShrink={0}>

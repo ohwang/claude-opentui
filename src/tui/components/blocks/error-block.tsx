@@ -19,7 +19,7 @@ export function ErrorBlock(props: { block: ErrorBlockType }) {
     return clean.length > 300 ? clean.slice(0, 297) + "..." : clean
   }
   return (
-    <box flexDirection="column" marginTop={1} paddingLeft={2}>
+    <box flexDirection="column" paddingLeft={2}>
       <text fg={colors.status.error}>{"\u2717 " + b().code + ": " + displayMessage()}</text>
     </box>
   )

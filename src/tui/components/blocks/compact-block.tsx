@@ -16,7 +16,7 @@ export function CompactBlock(props: { block?: CompactBlockType }) {
   const summary = () => props.block?.summary ?? ""
 
   return (
-    <box flexDirection="column" paddingTop={1} paddingBottom={1} paddingLeft={2}>
+    <box flexDirection="column" paddingBottom={1} paddingLeft={2}>
       <text fg={colors.text.muted} attributes={TextAttributes.BOLD}>
         {"── Summarized conversation ──"}
       </text>

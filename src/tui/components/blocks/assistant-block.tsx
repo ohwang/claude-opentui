@@ -53,7 +53,7 @@ export function AssistantBlock(props: { block: AssistantBlockType }) {
 
   return (
     <box flexDirection="column">
-      <box flexDirection="row" marginTop={1}>
+      <box flexDirection="row">
         <box width={2} flexShrink={0}>
           <text fg={iconColor()}>{"\u23FA"}</text>
         </box>

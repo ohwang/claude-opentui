@@ -48,7 +48,9 @@ export function BlockView(props: { block: Block; viewLevel: ViewLevel; prevType?
           <UserBlock block={ub()} />
         </box>
       }</Show>
-      <Show when={assistantBlock()}>{(ab) => <AssistantBlock block={ab()} />}</Show>
+      <Show when={assistantBlock()}>{(ab) =>
+        <box marginTop={1}><AssistantBlock block={ab()} /></box>
+      }</Show>
 
       {/* Thinking block — hidden in collapsed view or when thinking toggle is off */}
       <Show when={props.showThinking !== false && props.viewLevel !== "collapsed" && thinkingBlock()}>{(tb) =>
@@ -69,10 +71,10 @@ export function BlockView(props: { block: Block; viewLevel: ViewLevel; prevType?
         </box>
       }</Show>
 
-      <Show when={systemBlock()}>{(sb) => <SystemBlock block={sb()} />}</Show>
-      <Show when={shellBlock()}>{(sb) => <ShellBlock block={sb()} viewLevel={props.viewLevel} />}</Show>
-      <Show when={compactBlock()}>{(cb) => <CompactBlock block={cb()} />}</Show>
-      <Show when={errorBlock()}>{(eb) => <ErrorBlock block={eb()} />}</Show>
+      <Show when={systemBlock()}>{(sb) => <box marginTop={1}><SystemBlock block={sb()} /></box>}</Show>
+      <Show when={shellBlock()}>{(sb) => <box marginTop={1}><ShellBlock block={sb()} viewLevel={props.viewLevel} /></box>}</Show>
+      <Show when={compactBlock()}>{(cb) => <box marginTop={1}><CompactBlock block={cb()} /></box>}</Show>
+      <Show when={errorBlock()}>{(eb) => <box marginTop={1}><ErrorBlock block={eb()} /></box>}</Show>
     </box>
   )
 }

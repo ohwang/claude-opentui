@@ -39,7 +39,7 @@ function systemMessageStyle(text: string): { icon: string; color: string; attrs:
 export function SystemBlock(props: { block: SystemBlockType }) {
   const style = () => systemMessageStyle(props.block.text)
   return (
-    <box paddingLeft={2} marginTop={1}>
+    <box paddingLeft={2}>
       <text fg={style().color} attributes={style().attrs}>
         {style().icon + " " + props.block.text}
       </text>

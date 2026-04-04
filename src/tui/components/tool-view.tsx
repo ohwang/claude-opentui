@@ -236,16 +236,14 @@ export function ToolBlockView(props: { block: Extract<Block, { type: "tool" }>; 
           </Show>
         </box>
       </Show>
-      {/* Error display — prominent bordered box so failures are hard to miss */}
+      {/* Error display — compact red text, no border */}
       <Show when={b().error && !isUserDecline(b().error!)}>
-        <box paddingLeft={2} paddingTop={1}>
-          <box flexDirection="row" borderStyle="single" borderColor={colors.border.error} paddingLeft={1} paddingRight={1}>
-            <text fg={colors.status.error} attributes={TextAttributes.BOLD}>
-              {"\u2717 " + (b().error!.split("\n")[0]!.length > 100
-                ? b().error!.split("\n")[0]!.slice(0, 97) + "..."
-                : b().error!.split("\n")[0]!)}
-            </text>
-          </box>
+        <box paddingLeft={2}>
+          <text fg={colors.status.error}>
+            {"\u23BF  \u2717 " + (b().error!.split("\n")[0]!.length > 100
+              ? b().error!.split("\n")[0]!.slice(0, 97) + "..."
+              : b().error!.split("\n")[0]!)}
+          </text>
         </box>
       </Show>
       {/* User-initiated decline — subtle dim text instead of red error box */}

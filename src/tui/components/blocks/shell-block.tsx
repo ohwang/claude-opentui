@@ -59,7 +59,7 @@ export function ShellBlock(props: { block: ShellBlockType; viewLevel: ViewLevel 
   return (
     <box flexDirection="column">
       {/* Command header: ! command -- with highlighted background like user message */}
-      <box flexDirection="row" backgroundColor={colors.bg.surface} paddingRight={1}>
+      <box flexDirection="row" paddingRight={1}>
         <box width={2} flexShrink={0}>
           <text fg={colors.accent.primary} attributes={TextAttributes.BOLD}>{"!"}</text>
         </box>

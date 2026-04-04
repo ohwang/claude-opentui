@@ -356,8 +356,8 @@ export function StorybookApp() {
           </box>
         </Show>
 
-        {/* Preview pane */}
-        <box flexGrow={1} flexDirection="column">
+        {/* Preview pane — scrollbox prevents overflow garbling */}
+        <scrollbox flexGrow={1} stickyScroll={false}>
           <Show
             when={selectedStory()}
             keyed
@@ -381,7 +381,7 @@ export function StorybookApp() {
               )
             }}
           </Show>
-        </box>
+        </scrollbox>
 
         {/* Separator */}
         <box height={1} flexShrink={0}>

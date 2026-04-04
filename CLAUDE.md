@@ -58,6 +58,7 @@ These rules prevent silent rendering failures and Zig FFI crashes:
 6. **No `borderTop`/`borderBottom` on box with textarea** — Causes Zig segfault. Use a `<text>` dash line component instead.
 7. **`scrollBy()` not `scrollToEnd()`** — `ScrollBoxRenderable` has `scrollBy()` and `scrollTo()`, not `scrollToEnd()`.
 8. **Keyed `<Show>` + `&&`: object must be last** — `<Show when={obj() && bool}>{(v) => v().prop}</Show>` crashes because `&&` returns the boolean `true`, not the object. Always put the object-producing expression last: `<Show when={bool && obj()}>`.
+9. **`backgroundColor=` not `bg=` on box** — `<box bg="...">` is silently ignored. Use `<box backgroundColor="...">`. The `bg` prop only works on `<text>` elements.
 
 Run `bun run lint:opentui` to check for violations.
 

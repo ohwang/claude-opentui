@@ -63,7 +63,8 @@ export function TaskView(props: { tasks: [string, TaskInfo][] }) {
                   </Show>
                 </box>
                 <Show when={task.status === "completed" && task.output}>
-                  <box paddingLeft={7}>
+                  <box flexDirection="row" paddingLeft={3}>
+                    <text fg={colors.text.muted}>{isLast() ? "     " : "\u2502    "}</text>
                     <text fg={colors.text.muted} attributes={TextAttributes.DIM}>
                       {task.output!.length > 80
                         ? task.output!.slice(0, 77) + "..."

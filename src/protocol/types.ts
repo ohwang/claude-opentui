@@ -380,6 +380,8 @@ export interface SessionConfig {
   additionalDirectories?: string[]
   /** Initial prompt from CLI (--prompt or positional arg) */
   initialPrompt?: string
+  /** Persist session to disk so it can be resumed later (default: true) */
+  persistSession?: boolean
 }
 
 export interface SessionInfo {

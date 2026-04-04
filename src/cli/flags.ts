@@ -125,6 +125,11 @@ export function parseFlags(argv: string[]): CLIFlags {
         break
       }
 
+      // Session persistence
+      case "--no-session-persistence":
+        flags.config.persistSession = false
+        break
+
       // Working directory
       case "--cwd":
         flags.config.cwd = requireArg("--cwd", args, ++i)
@@ -178,6 +183,7 @@ Options:
   --dangerously-skip-permissions  Shorthand for --permission-mode bypassPermissions
   --max-turns <n>         Maximum turns
   --max-budget <usd>      Maximum budget in USD
+  --no-session-persistence  Disable session persistence to disk
   --cwd <path>            Working directory
   --system-prompt <text>  System prompt
   --debug                 Enable debug output

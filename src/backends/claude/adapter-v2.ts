@@ -548,6 +548,7 @@ export class ClaudeV2Adapter implements AgentBackend {
     const options = {
       model: config.model,
       permissionMode: config.permissionMode,
+      persistSession: config.persistSession ?? true,
       allowedTools: config.allowedTools,
       disallowedTools: config.disallowedTools,
       canUseTool: createCanUseTool(this.bridgeState),

@@ -30,6 +30,7 @@ import { useAgent } from "./agent"
 import { useMessages } from "./messages"
 import { useSession } from "./session"
 import { usePermissions } from "./permissions"
+import { readSessionHistory, findMostRecentSession } from "../../backends/claude/session-reader"
 
 export interface SyncContextValue {
   /** Manually push an event (for slash commands, synthetic events, etc.) */
@@ -177,13 +178,15 @@ export function SyncProvider(props: ParentProps) {
   const startEventLoop = async () => {
     if (aborted) return
 
-    const mode = agent.config.resume ? "resume" : "start"
+    const mode = agent.config.resume ? "resume" : agent.config.continue ? "continue" : "start"
     log.info(`Event loop starting (${mode})`, agent.config.resume ? { sessionId: agent.config.resume } : undefined)
 
     try {
-      const generator = agent.config.resume
-        ? agent.backend.resume(agent.config.resume)
-        : agent.backend.start(agent.config)
+      // Always use start() — it handles resume/continue via config.resume
+      // and config.continue in buildOptions() and createMessageIterable().
+      // The separate resume() method creates a bare config missing cwd,
+      // permissionMode, etc., which causes the SDK subprocess to fail.
+      const generator = agent.backend.start(agent.config)
 
       for await (const event of generator) {
         if (aborted) break
@@ -214,6 +217,27 @@ export function SyncProvider(props: ParentProps) {
   }
 
   onMount(() => {
+    // Pre-populate conversation history for resume/continue.
+    // The SDK's query() API loads context internally but doesn't replay
+    // historical messages, so we read the JSONL file directly.
+    const resumeId = agent.config.resume
+    const continueMode = agent.config.continue
+    if ((resumeId || continueMode) && agent.config.cwd) {
+      const sessionId = resumeId || findMostRecentSession(agent.config.cwd)
+      if (sessionId) {
+        const historyBlocks = readSessionHistory(sessionId, agent.config.cwd)
+        if (historyBlocks.length > 0) {
+          conversationState = {
+            ...conversationState,
+            blocks: historyBlocks,
+          }
+          batch(() => {
+            messages.setState({ blocks: historyBlocks })
+          })
+        }
+      }
+    }
+
     startEventLoop()
 
     // Clear the init timeout once we leave INITIALIZING

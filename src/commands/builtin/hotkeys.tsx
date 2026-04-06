@@ -27,18 +27,39 @@ interface ShortcutGroup {
 
 const groups: ShortcutGroup[] = [
   {
+    title: "Emacs Editing",
+    entries: [
+      { key: "Ctrl+A",     desc: "Beginning of line" },
+      { key: "Ctrl+E",     desc: "End of line" },
+      { key: "Ctrl+F",     desc: "Forward one character" },
+      { key: "Ctrl+B",     desc: "Backward one character" },
+      { key: "Ctrl+N",     desc: "Next line" },
+      { key: "Ctrl+P",     desc: "Previous line" },
+      { key: "Ctrl+D",     desc: "Delete character forward" },
+      { key: "Ctrl+H",     desc: "Delete character backward" },
+      { key: "Ctrl+T",     desc: "Transpose characters" },
+      { key: "Ctrl+K",     desc: "Kill to end of line" },
+      { key: "Ctrl+U",     desc: "Kill to start of line" },
+      { key: "Ctrl+W",     desc: "Kill word backward" },
+      { key: "Ctrl+Y",     desc: "Yank (paste from clipboard)" },
+      { key: "Alt+F",      desc: "Forward one word" },
+      { key: "Alt+B",      desc: "Backward one word" },
+      { key: "Alt+D",      desc: "Delete word forward" },
+    ],
+  },
+  {
     title: "View Controls",
     entries: [
-      { key: "Ctrl+O",    desc: "Toggle collapsed / expanded tool view" },
-      { key: "Ctrl+E",    desc: "Toggle show-all / collapsed view" },
-      { key: "Ctrl+T",    desc: "Toggle thinking blocks" },
+      { key: "Ctrl+O",       desc: "Toggle collapsed / expanded tool view" },
+      { key: "Ctrl+Shift+E", desc: "Toggle show-all / collapsed view" },
+      { key: "Ctrl+Shift+T", desc: "Toggle thinking blocks" },
     ],
   },
   {
     title: "Model & Mode",
     entries: [
-      { key: "Ctrl+P",    desc: "Cycle to next model" },
-      { key: "Shift+Tab", desc: "Cycle permission mode" },
+      { key: "Ctrl+Shift+P", desc: "Cycle to next model" },
+      { key: "Shift+Tab",    desc: "Cycle permission mode" },
     ],
   },
   {
@@ -50,22 +71,20 @@ const groups: ShortcutGroup[] = [
     ],
   },
   {
-    title: "Editing",
+    title: "Other Editing",
     entries: [
-      { key: "Ctrl+G",    desc: "Open external editor ($EDITOR)" },
-      { key: "Ctrl+V",    desc: "Paste from system clipboard" },
-      { key: "Ctrl+A",    desc: "Select all text" },
-      { key: "Ctrl+U",    desc: "Delete to start of line" },
-      { key: "Ctrl+K",    desc: "Delete to end of line" },
-      { key: "Ctrl+W",    desc: "Delete word backward" },
+      { key: "Ctrl+G",         desc: "Open external editor ($EDITOR)" },
+      { key: "Ctrl+V",         desc: "Paste from system clipboard" },
+      { key: "Ctrl+Shift+X",   desc: "Clear image attachments" },
     ],
   },
   {
     title: "Session",
     entries: [
-      { key: "Ctrl+C",    desc: "Interrupt task / clear input" },
-      { key: "Ctrl+D x2", desc: "Exit application (double-press)" },
-      { key: "Ctrl+R",    desc: "History search" },
+      { key: "Ctrl+C",         desc: "Interrupt task / clear input" },
+      { key: "Ctrl+D x2",      desc: "Exit application (double-press)" },
+      { key: "Ctrl+R",         desc: "History search" },
+      { key: "Ctrl+Shift+B",   desc: "Background / foreground toggle" },
     ],
   },
 ]

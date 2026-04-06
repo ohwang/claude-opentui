@@ -129,6 +129,26 @@ function Layout(props: { onExit?: () => void }) {
 
   const renderer = useRenderer()
 
+  /**
+   * Copy text to clipboard, preferring OSC 52 (instant, no subprocess, works
+   * over SSH) and falling back to native tools (pbcopy/xclip).
+   * Both OpenCode and Claude Code use this dual strategy.
+   */
+  const copyText = (text: string) => {
+    if (renderer.isOsc52Supported()) {
+      renderer.copyToClipboardOSC52(text)
+      showCopyConfirmation(text.length)
+      log.info("Copied selection via OSC 52", { chars: text.length })
+    } else {
+      copyToClipboard(text).then(() => {
+        showCopyConfirmation(text.length)
+        log.info("Copied selection via clipboard cmd", { chars: text.length })
+      }).catch((err: unknown) => {
+        log.warn("Failed to copy selection", { error: err instanceof Error ? err.message : String(err) })
+      })
+    }
+  }
+
   const GOODBYE_MESSAGES = ["Goodbye!", "See ya!", "Bye!", "Catch you later!", "Until next time!"]
 
   const cleanExit = (reason: string) => {
@@ -307,9 +327,9 @@ function Layout(props: { onExit?: () => void }) {
       return
     }
 
-    // Ctrl+P / Shift+Ctrl+P: cycle models forward / backward
-    if (event.ctrl && event.name === "p") {
-      cycleModel(event.shift ? -1 : 1)
+    // Ctrl+Shift+P: cycle models (Ctrl+P freed for Emacs previous-line)
+    if (event.ctrl && event.shift && event.name === "p") {
+      cycleModel(1)
       return
     }
 
@@ -355,8 +375,9 @@ function Layout(props: { onExit?: () => void }) {
       return
     }
 
-    // Ctrl+B: background/foreground toggle (double-press within 800ms)
-    if (event.ctrl && event.name === "b") {
+    // Ctrl+Shift+B: background/foreground toggle (double-press within 800ms)
+    // (Ctrl+B freed for Emacs backward-char)
+    if (event.ctrl && event.shift && event.name === "b") {
       if (messagesState.backgrounded) {
         // Already backgrounded — single press returns to foreground
         sync.pushEvent({ type: "task_foreground" })
@@ -383,7 +404,9 @@ function Layout(props: { onExit?: () => void }) {
       return
     }
 
-    // Meta+C (Cmd+C on macOS): copy selection if available
+    // Meta+C (Cmd+C on macOS): copy selection if available.
+    // Requires Kitty keyboard protocol (useKittyKeyboard) so the terminal
+    // forwards Cmd+C as a distinct key event instead of intercepting it.
     if (event.meta && event.name === "c") {
       if (renderer.hasSelection) {
         const sel = renderer.getSelection()
@@ -391,11 +414,7 @@ function Layout(props: { onExit?: () => void }) {
           const text = sel.getSelectedText()
           if (text) {
             event.preventDefault()
-            copyToClipboard(text).then(() => {
-              showCopyConfirmation(text.length)
-            }).catch((err: unknown) => {
-              log.warn("Failed to copy selection", { error: err instanceof Error ? err.message : String(err) })
-            })
+            copyText(text)
             renderer.clearSelection()
           }
         }
@@ -412,11 +431,7 @@ function Layout(props: { onExit?: () => void }) {
           const text = sel.getSelectedText()
           if (text) {
             event.preventDefault()
-            copyToClipboard(text).then(() => {
-              showCopyConfirmation(text.length)
-            }).catch((err: unknown) => {
-              log.warn("Failed to copy selection", { error: err instanceof Error ? err.message : String(err) })
-            })
+            copyText(text)
             renderer.clearSelection()
             return
           }
@@ -582,13 +597,20 @@ export function startApp(options: AppOptions): void {
     targetFps: 60,
     exitOnCtrlC: false,
     useMouse: true,
+    // Enable Kitty keyboard protocol for proper modifier key detection.
+    // Without this, Cmd+C is intercepted by the terminal emulator at the
+    // OS level and never reaches the app. With it, terminals that support
+    // the protocol (Kitty, WezTerm, Ghostty, iTerm2, etc.) send Cmd+C as
+    // a distinct key event with meta=true, making copy-on-selection work.
+    // Matches OpenCode's configuration.
+    useKittyKeyboard: {},
     consoleOptions: {
       onCopySelection: (text: string) => {
         copyToClipboard(text).then(() => {
-          log.info("Copied selection to clipboard", { chars: text.length })
+          log.info("Copied console selection to clipboard", { chars: text.length })
           showCopyConfirmation(text.length)
         }).catch((err: unknown) => {
-          log.warn("Failed to copy selection to clipboard", {
+          log.warn("Failed to copy console selection", {
             error: err instanceof Error ? err.message : String(err),
           })
         })

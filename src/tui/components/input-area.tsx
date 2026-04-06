@@ -736,22 +736,90 @@ export function InputArea() {
       return
     }
 
-    // Ctrl+A = select all text
+    // ── Emacs keybindings ──────────────────────────────────────────────
+    // Standard Emacs/readline cursor movement, editing, and word operations.
+    // These match the keybindings in bash, zsh, and most terminal programs.
+
+    // Ctrl+A = beginning of line (Emacs)
     if (e.ctrl && e.name === "a") {
       e.preventDefault()
-      textareaRef?.selectAll()
+      textareaRef?.gotoLineHome()
       return
     }
 
-    // Ctrl+U = delete to start of line (kill line backward)
-    if (e.ctrl && e.name === "u") {
+    // Ctrl+E = end of line (Emacs)
+    if (e.ctrl && e.name === "e") {
       e.preventDefault()
-      textareaRef?.deleteToLineStart()
+      textareaRef?.gotoLineEnd()
+      return
+    }
+
+    // Ctrl+F = forward one character (Emacs)
+    if (e.ctrl && e.name === "f") {
+      e.preventDefault()
+      textareaRef?.moveCursorRight()
+      return
+    }
+
+    // Ctrl+B = backward one character (Emacs)
+    if (e.ctrl && e.name === "b") {
+      e.preventDefault()
+      textareaRef?.moveCursorLeft()
+      return
+    }
+
+    // Ctrl+N = next line (Emacs)
+    if (e.ctrl && e.name === "n") {
+      e.preventDefault()
+      textareaRef?.moveCursorDown()
+      return
+    }
+
+    // Ctrl+P = previous line (Emacs)
+    if (e.ctrl && e.name === "p") {
+      e.preventDefault()
+      textareaRef?.moveCursorUp()
+      return
+    }
+
+    // Ctrl+D = delete character forward (Emacs)
+    // When the editor is empty, app.tsx handles Ctrl+D for exit (double-press).
+    if (e.ctrl && e.name === "d") {
+      e.preventDefault()
+      textareaRef?.deleteChar()
       queueMicrotask(() => { updateLineCount(); updateAutocomplete(textareaRef?.plainText ?? "") })
       return
     }
 
-    // Ctrl+K = delete to end of line (kill line forward)
+    // Ctrl+H = delete character backward / backspace (Emacs)
+    if (e.ctrl && e.name === "h") {
+      e.preventDefault()
+      textareaRef?.deleteCharBackward()
+      queueMicrotask(() => { updateLineCount(); updateAutocomplete(textareaRef?.plainText ?? "") })
+      return
+    }
+
+    // Ctrl+T = transpose characters (Emacs)
+    if (e.ctrl && e.name === "t") {
+      e.preventDefault()
+      if (!textareaRef) return
+      const text = textareaRef.plainText
+      const pos = textareaRef.cursorOffset
+      if (pos <= 0 || text.length < 2) return
+      // At end of text: swap the two characters before the cursor.
+      // Otherwise: swap char before cursor with char at cursor, advance.
+      const swapPos = pos >= text.length ? pos - 2 : pos - 1
+      const chars = text.split("")
+      const tmp = chars[swapPos]
+      chars[swapPos] = chars[swapPos + 1]
+      chars[swapPos + 1] = tmp
+      textareaRef.replaceText(chars.join(""))
+      textareaRef.cursorOffset = swapPos + 2
+      queueMicrotask(() => { updateLineCount(); updateAutocomplete(textareaRef?.plainText ?? "") })
+      return
+    }
+
+    // Ctrl+K = kill to end of line (Emacs kill-line)
     if (e.ctrl && e.name === "k") {
       e.preventDefault()
       textareaRef?.deleteToLineEnd()
@@ -759,10 +827,54 @@ export function InputArea() {
       return
     }
 
-    // Ctrl+W = delete word backwards
+    // Ctrl+U = kill to start of line (Emacs unix-line-discard)
+    if (e.ctrl && e.name === "u") {
+      e.preventDefault()
+      textareaRef?.deleteToLineStart()
+      queueMicrotask(() => { updateLineCount(); updateAutocomplete(textareaRef?.plainText ?? "") })
+      return
+    }
+
+    // Ctrl+W = kill word backward (Emacs unix-word-rubout)
     if (e.ctrl && e.name === "w") {
       e.preventDefault()
       textareaRef?.deleteWordBackward()
+      queueMicrotask(() => { updateLineCount(); updateAutocomplete(textareaRef?.plainText ?? "") })
+      return
+    }
+
+    // Ctrl+Y = yank / paste from clipboard (Emacs yank)
+    if (e.ctrl && e.name === "y") {
+      e.preventDefault()
+      readClipboard().then((raw) => {
+        if (!raw || !textareaRef) return
+        const text = raw.replace(/\r\n?/g, "\n")
+        textareaRef.insertText(text)
+        updateLineCount()
+      }).catch((err) => {
+        log.warn("Ctrl+Y clipboard read failed", { error: String(err) })
+      })
+      return
+    }
+
+    // Alt+F = forward one word (Emacs)
+    if (e.option && e.name === "f") {
+      e.preventDefault()
+      textareaRef?.moveWordForward()
+      return
+    }
+
+    // Alt+B = backward one word (Emacs)
+    if (e.option && e.name === "b") {
+      e.preventDefault()
+      textareaRef?.moveWordBackward()
+      return
+    }
+
+    // Alt+D = delete word forward (Emacs kill-word)
+    if (e.option && e.name === "d") {
+      e.preventDefault()
+      textareaRef?.deleteWordForward()
       queueMicrotask(() => { updateLineCount(); updateAutocomplete(textareaRef?.plainText ?? "") })
       return
     }

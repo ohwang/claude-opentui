@@ -181,7 +181,8 @@ export function ConversationView(props: { children?: JSX.Element }) {
   }
   onCleanup(() => clearTimeout(viewLevelHintTimer))
 
-  // Ctrl+O toggles collapsed/expanded, Ctrl+E shows all, Ctrl+T toggles thinking
+  // Ctrl+O toggles collapsed/expanded, Ctrl+Shift+E shows all, Ctrl+Shift+T toggles thinking
+  // (Ctrl+E and Ctrl+T freed for Emacs end-of-line and transpose-chars)
   // Ctrl+Up/Down scrolls the conversation
   useKeyboard((event) => {
     if (event.ctrl && event.name === "o") {
@@ -194,7 +195,7 @@ export function ConversationView(props: { children?: JSX.Element }) {
         showViewLevelHint(next)
       })
     }
-    if (event.ctrl && event.name === "e") {
+    if (event.ctrl && event.shift && event.name === "e") {
       event.preventDefault()
       const next: ViewLevel = viewLevel() === "show_all" ? "collapsed" : "show_all"
       batch(() => {
@@ -202,7 +203,7 @@ export function ConversationView(props: { children?: JSX.Element }) {
         showViewLevelHint(next)
       })
     }
-    if (event.ctrl && event.name === "t") {
+    if (event.ctrl && event.shift && event.name === "t") {
       event.preventDefault()
       const next = !showThinking()
       batch(() => {

@@ -34,7 +34,8 @@ class Logger {
   private logFile: string
   private level: LogLevel = "info"
   private initialized = false
-  private claudeSessionId: string | null = null
+  private backendSessionId: string | null = null
+  private backendName: string | null = null
   private _sessionInfoPrinted = false
 
   constructor() {
@@ -69,12 +70,16 @@ class Logger {
     return LOG_DIR
   }
 
-  setClaudeSessionId(id: string) {
-    this.claudeSessionId = id
+  setBackendName(name: string) {
+    this.backendName = name
   }
 
-  getClaudeSessionId(): string | null {
-    return this.claudeSessionId
+  setBackendSessionId(id: string) {
+    this.backendSessionId = id
+  }
+
+  getBackendSessionId(): string | null {
+    return this.backendSessionId
   }
 
   /**
@@ -87,14 +92,35 @@ class Logger {
   printSessionInfo(extras?: string[]) {
     if (this._sessionInfoPrinted) return
     this._sessionInfoPrinted = true
-    const claudeId = this.claudeSessionId ?? "not available"
-    process.stdout.write(`Claude Code Session: ${claudeId}\n`)
+    // Backend-aware session label (e.g. "Claude Code Session", "Codex Session")
+    if (this.backendSessionId || this.backendName) {
+      const label = this.backendSessionLabel()
+      const id = this.backendSessionId ?? "not available"
+      process.stdout.write(`${label}: ${id}\n`)
+    }
     process.stdout.write(`Session: ${this.sessionId}\n`)
     process.stdout.write(`Log: ${this.logFile}\n`)
     if (extras) {
       for (const line of extras) {
         process.stdout.write(`${line}\n`)
       }
+    }
+  }
+
+  /** Derive a human-friendly label from the backend name. */
+  private backendSessionLabel(): string {
+    switch (this.backendName) {
+      case "claude":
+      case "claude-v1":
+      case "claude-v2":
+        return "Claude Code Session"
+      case "codex":
+      case "codex-sdk":
+        return "Codex Session"
+      case "gemini":
+        return "Gemini Session"
+      default:
+        return "Backend Session"
     }
   }
 

@@ -59,19 +59,6 @@ async function main() {
   log.info("Starting claude-opentui", { version: VERSION, backend: flags.backend, debug: flags.debug, cwd: flags.config.cwd })
   log.debug("Session config", flags.config)
 
-  // Print session info on exit so users can correlate with log files.
-  // cleanExit() in app.tsx calls log.printSessionInfo() directly — this
-  // handler is a fallback for non-TUI exit paths (SIGINT safety-net,
-  // SIGTERM, uncaught exceptions, etc.).  The logger's internal flag
-  // prevents duplicate output.
-  process.on("exit", () => {
-    const extras: string[] = []
-    if (backendTrace.isEnabled()) {
-      extras.push(`Backend trace: ${backendTrace.getFilePath()}`)
-    }
-    log.printSessionInfo(extras)
-  })
-
   // Create backend
   let backend: AgentBackend
 
@@ -102,6 +89,22 @@ async function main() {
   }
 
   log.info("Backend created", { backend: flags.backend })
+  log.setBackendName(flags.backend)
+
+  // Print session info on exit so users can correlate with log files.
+  // Registered AFTER backend creation so early exits (unknown backend,
+  // CLI parse errors) don't print session info for a session that never
+  // started.  cleanExit() in app.tsx calls log.printSessionInfo()
+  // directly — this handler is a fallback for non-TUI exit paths
+  // (SIGINT safety-net, SIGTERM, uncaught exceptions, etc.).  The
+  // logger's internal flag prevents duplicate output.
+  process.on("exit", () => {
+    const extras: string[] = []
+    if (backendTrace.isEnabled()) {
+      extras.push(`Backend trace: ${backendTrace.getFilePath()}`)
+    }
+    log.printSessionInfo(extras)
+  })
 
   // Process lifecycle management
   const cleanup = () => {

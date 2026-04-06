@@ -137,10 +137,10 @@ function Layout(props: { onExit?: () => void }) {
     sync.pushEvent({ type: "shutdown" })
     agent.backend.close()
     props.onExit?.()
-    // Capture Claude session ID before destroying renderer
-    const claudeSessionId = session.session?.sessionId
-    if (claudeSessionId) {
-      log.setClaudeSessionId(claudeSessionId)
+    // Capture backend session ID before destroying renderer
+    const backendSessionId = session.session?.sessionId
+    if (backendSessionId) {
+      log.setBackendSessionId(backendSessionId)
     }
     // Show a random goodbye message before exit
     const goodbye = GOODBYE_MESSAGES[Math.floor(Math.random() * GOODBYE_MESSAGES.length)]

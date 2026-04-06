@@ -14,9 +14,7 @@ export function UserBlock(props: { block: UserBlockType }) {
   return (
     <box flexDirection="column">
       <box flexDirection="row" width="100%" backgroundColor={colors.bg.surface}>
-        <box width={2} flexShrink={0}>
-          <text fg={colors.text.white} attributes={TextAttributes.BOLD}>{"\u276F"}</text>
-        </box>
+        <box width={2} flexShrink={0} />
         <box flexGrow={1}>
           <text fg={colors.text.white}>{b().text}</text>
         </box>

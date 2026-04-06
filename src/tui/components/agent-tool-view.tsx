@@ -32,6 +32,14 @@ function extractAgentDescription(input: unknown): string {
   return ""
 }
 
+/** Extract the full subagent prompt from the Agent tool input */
+function extractAgentPrompt(input: unknown): string {
+  const inp = input as Record<string, unknown> | null
+  if (!inp) return ""
+  if (inp.prompt && typeof inp.prompt === "string") return inp.prompt
+  return ""
+}
+
 /** Extract the subagent type from the Agent tool input */
 function extractAgentType(input: unknown): string | undefined {
   const inp = input as Record<string, unknown> | null
@@ -79,6 +87,7 @@ export function AgentToolView(props: {
   onCleanup(() => { if (elapsedTimer) clearInterval(elapsedTimer) })
 
   const description = createMemo(() => extractAgentDescription(b().input))
+  const prompt = createMemo(() => extractAgentPrompt(b().input))
   const agentType = createMemo(() => {
     // Prefer task's taskType (from SDK), fall back to input.subagent_type
     return task()?.taskType ?? extractAgentType(b().input)
@@ -154,6 +163,18 @@ export function AgentToolView(props: {
           </text>
         </Show>
       </box>
+
+      {/* Subagent prompt — the full instructions sent from parent to child agent.
+            Visible in expanded/show_all so users can inspect what the agent was asked to do.
+            This replaces the raw user-message block that would otherwise appear confusingly
+            styled as if the human typed it. */}
+      <Show when={props.viewLevel !== "collapsed" && prompt()}>
+        <box paddingLeft={4} marginTop={0}>
+          <text fg={colors.text.secondary} attributes={TextAttributes.DIM}>
+            {prompt()}
+          </text>
+        </box>
+      </Show>
 
       {/* Activity line: what the subagent is currently doing (running only) */}
       <Show when={b().status === "running" && activityText()}>

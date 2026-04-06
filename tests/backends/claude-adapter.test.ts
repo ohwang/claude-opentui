@@ -409,6 +409,38 @@ describe("ClaudeAdapter", () => {
       expect(events[0].error).toBe("Error on line 1\nError on line 2")
       expect(events[0].output).toBe("Error on line 1\nError on line 2")
     })
+
+    it("maps replayed user message (no parent_tool_use_id) to user_message", () => {
+      const streamState = new ToolStreamState()
+      const events = mapSDKMessage({
+        type: "user",
+        parent_tool_use_id: null,
+        message: {
+          role: "user",
+          content: [{ type: "text", text: "Hello, can you help?" }],
+        },
+      }, streamState)
+
+      expect(events).toHaveLength(1)
+      expect(events[0].type).toBe("user_message")
+      expect(events[0].text).toBe("Hello, can you help?")
+    })
+
+    it("suppresses subagent prompt (parent_tool_use_id is set)", () => {
+      const streamState = new ToolStreamState()
+      const events = mapSDKMessage({
+        type: "user",
+        parent_tool_use_id: "toolu_abc123",
+        message: {
+          role: "user",
+          content: [{ type: "text", text: "I need a very thorough exploration of the codebase..." }],
+        },
+      }, streamState)
+
+      // Subagent prompts should be suppressed — they're already shown
+      // via the AgentToolView attached to the Agent tool block
+      expect(events).toHaveLength(0)
+    })
   })
 
   // -------------------------------------------------------------------------

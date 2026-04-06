@@ -295,10 +295,16 @@ export function mapSDKMessage(msg: any, streamState: ToolStreamState, options?: 
             error: isError ? output : undefined,
           })
         }
-      } else {
+      } else if (!msg.parent_tool_use_id) {
         // Replayed user message (resume/continue) — extract text content.
         // During live operation the SDK doesn't echo user messages back,
         // so this path only fires for historical replay.
+        //
+        // Messages with parent_tool_use_id are subagent prompts (the parent
+        // agent's instructions to a child agent). These are already displayed
+        // by the AgentToolView via the Agent tool block — showing them again
+        // as user messages is redundant and confusing (they look like the
+        // human typed them).
         const content = msg.message?.content
         let text = ""
         if (typeof content === "string") {

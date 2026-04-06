@@ -13,8 +13,14 @@ import { colors } from "../theme/tokens"
 import { syntaxStyle } from "../theme"
 
 export function ThinkingBlock(props: { text: string; collapsed?: boolean }) {
+  const MAX_LINES = 10
   const expanded = () => !props.collapsed
   const text = () => props.text ?? ""
+  const truncatedText = () => {
+    const lines = text().split("\n")
+    if (lines.length <= MAX_LINES) return text()
+    return lines.slice(0, MAX_LINES).join("\n") + `\n… (${lines.length - MAX_LINES} more lines)`
+  }
 
   return (
     <box flexDirection="column" paddingLeft={2}>
@@ -31,7 +37,7 @@ export function ThinkingBlock(props: { text: string; collapsed?: boolean }) {
         </text>
         <box paddingLeft={2}>
           <markdown
-            content={text()}
+            content={truncatedText()}
             syntaxStyle={syntaxStyle}
             fg={colors.text.thinking}
           />

@@ -284,7 +284,7 @@ export function DiagnosticsPanel(props: { visible: boolean; onClose: () => void 
           <text fg={colors.text.white} attributes={TextAttributes.BOLD}>
             {"Diagnostics"}
           </text>
-          <text fg={colors.text.muted} attributes={TextAttributes.DIM}>
+          <text fg={colors.text.secondary} attributes={TextAttributes.DIM}>
             {"  (j/k scroll, d/u page, Esc to close)"}
           </text>
         </box>
@@ -311,7 +311,7 @@ export function DiagnosticsPanel(props: { visible: boolean; onClose: () => void 
                 <For each={section.entries}>
                   {(entry) => (
                     <box flexDirection="row" paddingLeft={4}>
-                      <text fg={colors.text.muted}>{padRight(entry.key, 22)}</text>
+                      <text fg={colors.text.secondary}>{padRight(entry.key, 22)}</text>
                       <text fg={entry.color ?? "white"}>{" " + entry.value}</text>
                     </box>
                   )}
@@ -341,6 +341,6 @@ function stateColor(state: string): string {
     case "WAITING_FOR_ELIC":
     case "INTERRUPTING": return colors.state.waiting
     case "ERROR": return colors.state.error
-    default: return colors.text.muted
+    default: return colors.text.secondary
   }
 }

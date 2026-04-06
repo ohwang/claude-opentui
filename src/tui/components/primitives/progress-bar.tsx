@@ -27,7 +27,7 @@ export function ProgressBar(props: {
 }) {
   const width = () => props.width ?? 10
   const fillColor = () => props.fillColor ?? colors.status.success
-  const emptyColor = () => props.emptyColor ?? colors.text.muted
+  const emptyColor = () => props.emptyColor ?? colors.text.secondary
 
   const bar = () => {
     const ratio = Math.min(1, Math.max(0, props.ratio))

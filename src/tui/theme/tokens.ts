@@ -21,20 +21,24 @@
  *                            timestamps, file paths, cost, token counts.
  *                            Still clearly legible — just less prominent.
  *
- *   text.muted     #505050   Decorative / structural: dash-line dividers,
- *                            table borders, conceal markers, the faintest
- *                            inline hints. NOT for text the user needs to
- *                            read at a glance.
+ *   text.muted     #505050   NON-TEXT decoration ONLY: <Divider> lines,
+ *                            syntax highlight concealment. NEVER use on
+ *                            <text>, <markdown>, or any readable element.
  *
- *   ⚠️  ANTI-PATTERN: text.muted + TextAttributes.DIM
- *       Combining muted (#505050) with DIM produces near-invisible text
- *       on dark backgrounds. If you need dim-but-readable text (shortcut
- *       hints, "shift+tab", collapsed info), use text.secondary instead.
- *       Reserve text.muted for non-text decorations (lines, bullets,
- *       table chrome) where low contrast is intentional.
+ *   text.thinking  #808080   Thinking blocks: subdued but readable gray
+ *                            for Claude's reasoning text. Lighter than
+ *                            muted, dimmer than secondary.
  *
- *       ✗  <text fg={colors.text.muted} attributes={TextAttributes.DIM}>v0.1</text>
- *       ✓  <text fg={colors.text.secondary}>v0.1</text>
+ *   ⚠️  RULE: NEVER use text.muted on <text> elements.
+ *       text.muted (#505050) is invisible on dark backgrounds — especially
+ *       combined with TextAttributes.DIM. Use text.secondary for readable
+ *       metadata, text.thinking for thinking blocks, or border.default for
+ *       structural glyphs (⎿, │, connectors).
+ *
+ *       ✗  <text fg={colors.text.muted}>anything</text>
+ *       ✗  <text fg={colors.text.muted} attributes={TextAttributes.DIM}>anything</text>
+ *       ✓  <text fg={colors.text.secondary}>metadata</text>
+ *       ✓  <text fg={colors.text.thinking}>thinking content</text>
  *
  * ═══════════════════════════════════════════════════════════════════════
  * BACKGROUND TOKENS — when to use what
@@ -84,7 +88,8 @@ export const colors = {
   text: {
     primary: "#ffffff",      // rgb(255,255,255)  -- archive: text
     secondary: "#999999",    // rgb(153,153,153)  -- archive: inactive
-    muted: "#505050",        // rgb(80,80,80)     -- archive: subtle  ⚠️ read docs above
+    muted: "#505050",        // rgb(80,80,80)     -- archive: subtle  ⚠️ NEVER use on <text> elements
+    thinking: "#808080",     // rgb(128,128,128)  -- subdued but readable gray for thinking blocks
     white: "#ffffff",        // Same as primary in dark theme (kept for semantic emphasis)
     link: "#7ab4e8",         // rgb(122,180,232)  -- archive: briefLabelYou
   },

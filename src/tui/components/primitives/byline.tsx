@@ -32,7 +32,7 @@ export function Byline(props: { children: JSX.Element[] }) {
         {(child, index) => (
           <>
             {index() > 0 && (
-              <text fg={colors.text.muted} attributes={TextAttributes.DIM}>{" · "}</text>
+              <text fg={colors.text.secondary} attributes={TextAttributes.DIM}>{" · "}</text>
             )}
             {child}
           </>

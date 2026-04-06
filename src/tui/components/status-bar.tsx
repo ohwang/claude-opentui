@@ -429,14 +429,14 @@ export function StatusBar(props: { hint?: string | null }) {
           {projectName}
         </text>
 
-        <text fg={colors.text.muted}>{"  "}</text>
+        <text fg={colors.text.secondary}>{"  "}</text>
 
         <text fg={colors.text.white} attributes={TextAttributes.BOLD}>
           {modelName()}
         </text>
 
         {/* State icon + backgrounded label */}
-        <text fg={colors.text.muted}>{"  "}</text>
+        <text fg={colors.text.secondary}>{"  "}</text>
         <text fg={stateColor()}>{stateIcon()}</text>
         {messagesState.backgrounded && (
           <text fg={colors.status.warning}>{" Backgrounded"}</text>
@@ -445,7 +445,7 @@ export function StatusBar(props: { hint?: string | null }) {
         {/* Cost (hidden below 60 cols) */}
         {showCost() && costStr() && (
           <box flexDirection="row">
-            <text fg={colors.text.muted}>{"  "}</text>
+            <text fg={colors.text.secondary}>{"  "}</text>
             <text fg={colors.status.success}>{costStr()}</text>
           </box>
         )}
@@ -453,7 +453,7 @@ export function StatusBar(props: { hint?: string | null }) {
         {/* Git branch + status (hidden below 80 cols) */}
         {showGit() && gitStr() && (
           <box flexDirection="row">
-            <text fg={colors.text.muted}>{"  "}</text>
+            <text fg={colors.text.secondary}>{"  "}</text>
             <text fg={colors.status.info}>{gitStr()}</text>
           </box>
         )}
@@ -461,11 +461,11 @@ export function StatusBar(props: { hint?: string | null }) {
         {/* Context window usage (hidden below 100 cols) */}
         {showCtx() && ctxStr() && (
           <box flexDirection="row">
-            <text fg={colors.text.muted}>{"  "}</text>
+            <text fg={colors.text.secondary}>{"  "}</text>
             <text fg={ctxColor()}>{ctxStr()}</text>
             {ctxBar() && (
               <>
-                <text fg={colors.text.muted}>{" "}</text>
+                <text fg={colors.text.secondary}>{" "}</text>
                 <text fg={ctxColor()}>{ctxBar()}</text>
               </>
             )}
@@ -493,7 +493,7 @@ export function StatusBar(props: { hint?: string | null }) {
       <box height={1} flexDirection="row" paddingLeft={2}>
         <text fg={permModeColor()}>{"\u25CF "}</text>
         <text fg={colors.permission.modeLabel}>{permissionModeLabel(permMode())}</text>
-        <text fg={colors.text.muted} attributes={TextAttributes.DIM}>{" \u00B7 shift+tab"}</text>
+        <text fg={colors.text.secondary} attributes={TextAttributes.DIM}>{" \u00B7 shift+tab"}</text>
       </box>
     </box>
   )

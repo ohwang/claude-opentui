@@ -55,7 +55,7 @@ export function showCopyConfirmation(chars: number): void {
 function DashLine() {
   return (
     <box flexShrink={0}>
-      <Divider color={colors.text.muted} />
+      <Divider color={colors.border.default} />
     </box>
   )
 }
@@ -67,7 +67,7 @@ function ErrorFallback(props: { error: Error; reset: () => void }) {
         Fatal Error
       </text>
       <text fg={colors.status.error}>{props.error.message}</text>
-      <text fg={colors.text.muted}>Press Ctrl+D to exit.</text>
+      <text fg={colors.text.secondary}>Press Ctrl+D to exit.</text>
     </box>
   )
 }

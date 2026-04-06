@@ -24,7 +24,7 @@ export function ShortcutHint(props: ShortcutHintProps) {
   }
 
   return (
-    <text fg={colors.text.muted} attributes={TextAttributes.DIM}>
+    <text fg={colors.text.secondary} attributes={TextAttributes.DIM}>
       {text()}
     </text>
   )

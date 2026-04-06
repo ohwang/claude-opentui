@@ -107,6 +107,25 @@ if grep -rn --include="*.tsx" --include="*.ts" -E 'fg="(gray|white|red|green|yel
   errors=1
 fi
 
+# Check for colors.text.muted on <text> elements (invisible on dark backgrounds).
+# Allow muted in syntax.ts (tree-sitter styles) and in comments.
+if grep -rn --include="*.tsx" --include="*.ts" 'colors\.text\.muted' src/tui/ src/commands/ src/storybook/ 2>/dev/null \
+   | grep -v 'syntax\.ts' \
+   | grep -v 'tokens\.ts' \
+   | grep -v '//' \
+   | grep -v ' \* ' \
+   | grep -v '\.test\.' \
+   | grep -q .; then
+  grep -rn --include="*.tsx" --include="*.ts" 'colors\.text\.muted' src/tui/ src/commands/ src/storybook/ 2>/dev/null \
+    | grep -v 'syntax\.ts' \
+    | grep -v 'tokens\.ts' \
+    | grep -v '//' \
+    | grep -v ' \* ' \
+    | grep -v '\.test\.'
+  echo "ERROR: Never use colors.text.muted on <text> elements — use colors.text.secondary instead"
+  errors=1
+fi
+
 if [ $errors -eq 0 ]; then
   echo "OpenTUI prop checks passed"
 fi

@@ -62,7 +62,7 @@ function ShortcutColumn(props: { title: string; items: ShortcutEntry[]; width?: 
           {(entry) => (
             <box flexDirection="row">
               <text fg={colors.accent.cyan}>{"  "}{entry.key}</text>
-              <text fg={colors.text.muted}>{" — "}{entry.label}</text>
+              <text fg={colors.text.secondary}>{" — "}{entry.label}</text>
             </box>
           )}
         </For>
@@ -152,7 +152,7 @@ function HelpModal(props: { commands: SlashCommand[] }) {
         {/* Footer */}
         <box marginTop={1}>
           <text
-            fg={colors.text.muted}
+            fg={colors.text.secondary}
             attributes={TextAttributes.DIM}
           >
             {"  Press Escape to close"}

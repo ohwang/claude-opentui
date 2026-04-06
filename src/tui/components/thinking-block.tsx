@@ -21,19 +21,19 @@ export function ThinkingBlock(props: { text: string; collapsed?: boolean }) {
       <Show
         when={expanded()}
         fallback={
-          <text fg={colors.text.muted} attributes={TextAttributes.DIM | TextAttributes.ITALIC}>
+          <text fg={colors.text.thinking} attributes={TextAttributes.DIM | TextAttributes.ITALIC}>
             {"\u2234 Thinking (ctrl+o to expand)"}
           </text>
         }
       >
-        <text fg={colors.text.muted} attributes={TextAttributes.DIM | TextAttributes.ITALIC}>
+        <text fg={colors.text.thinking} attributes={TextAttributes.DIM | TextAttributes.ITALIC}>
           {"\u2234 Thinking\u2026"}
         </text>
         <box paddingLeft={2}>
           <markdown
             content={text()}
             syntaxStyle={syntaxStyle}
-            fg={colors.text.muted}
+            fg={colors.text.thinking}
           />
         </box>
       </Show>

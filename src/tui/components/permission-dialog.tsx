@@ -556,7 +556,7 @@ export function PermissionDialog() {
             {/* Decision reason hint */}
             <Show when={perm().decisionReason}>
               <box paddingLeft={1}>
-                <text fg={colors.text.muted} attributes={TextAttributes.DIM}>
+                <text fg={colors.text.secondary} attributes={TextAttributes.DIM}>
                   {"Reason: " + perm().decisionReason}
                 </text>
               </box>

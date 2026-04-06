@@ -23,14 +23,14 @@ function AboutModal() {
         </text>
 
         <box marginTop={1} flexDirection="column">
-          <text fg={colors.text.muted}>{"  Version:   v0.0.1"}</text>
-          <text fg={colors.text.muted}>{`  Runtime:   Bun ${typeof Bun !== "undefined" ? Bun.version : "unknown"}`}</text>
-          <text fg={colors.text.muted}>{"  UI:        SolidJS + OpenTUI"}</text>
-          <text fg={colors.text.muted}>{`  Platform:  ${process.platform}/${process.arch}`}</text>
+          <text fg={colors.text.secondary}>{"  Version:   v0.0.1"}</text>
+          <text fg={colors.text.secondary}>{`  Runtime:   Bun ${typeof Bun !== "undefined" ? Bun.version : "unknown"}`}</text>
+          <text fg={colors.text.secondary}>{"  UI:        SolidJS + OpenTUI"}</text>
+          <text fg={colors.text.secondary}>{`  Platform:  ${process.platform}/${process.arch}`}</text>
         </box>
 
         <box marginTop={1}>
-          <text fg={colors.text.muted}>{"  Licensed under MIT"}</text>
+          <text fg={colors.text.secondary}>{"  Licensed under MIT"}</text>
         </box>
 
         <box marginTop={1}>

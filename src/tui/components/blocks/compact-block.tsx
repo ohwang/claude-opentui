@@ -17,7 +17,7 @@ export function CompactBlock(props: { block?: CompactBlockType }) {
 
   return (
     <box flexDirection="column" paddingBottom={1} paddingLeft={2}>
-      <text fg={colors.text.muted} attributes={TextAttributes.BOLD}>
+      <text fg={colors.text.secondary} attributes={TextAttributes.BOLD}>
         {"── Summarized conversation ──"}
       </text>
       <Show when={summary()}>
@@ -28,7 +28,7 @@ export function CompactBlock(props: { block?: CompactBlockType }) {
         </box>
       </Show>
       <box paddingLeft={2}>
-        <text fg={colors.text.muted}>
+        <text fg={colors.text.secondary}>
           {"(ctrl+o to expand history)"}
         </text>
       </box>

@@ -80,6 +80,24 @@
  *              but with its own token so they can diverge later.
  *
  * ═══════════════════════════════════════════════════════════════════════
+ * SHIMMER VARIANTS — animation lighter colors
+ * ═══════════════════════════════════════════════════════════════════════
+ *
+ * For every animated color, a lighter `*Shimmer` variant is available.
+ * These are used for fade-in effects, hover glows, and pulse animations
+ * instead of computing lighter values at runtime.
+ *
+ *   accent.primaryShimmer     lighter claude orange for shimmer effect
+ *   accent.suggestionShimmer  lighter suggestion blue for hover/pulse
+ *   accent.fastModeShimmer    lighter fast mode orange for shimmer
+ *   text.inactiveShimmer      lighter inactive gray for fade-in
+ *   status.warningShimmer     lighter warning amber for pulse
+ *   status.infoShimmer        lighter info blue for pulse
+ *   border.promptShimmer      lighter prompt border for focus effect
+ *
+ * Pattern: lerp FROM base TO shimmer (or vice versa) in animations.
+ *
+ * ═══════════════════════════════════════════════════════════════════════
  * GENERAL RULES
  * ═══════════════════════════════════════════════════════════════════════
  *
@@ -99,10 +117,13 @@ export const colors = {
   // See "TEXT HIERARCHY" above for usage guidance.
   text: {
     primary: "#ffffff",      // rgb(255,255,255)  -- archive: text
+    inverse: "#000000",      // rgb(0,0,0)        -- archive: inverseText — text on colored backgrounds
     inactive: "#999999",     // rgb(153,153,153)  -- archive: inactive — de-emphasized readable text
+    inactiveShimmer: "#c1c1c1", // rgb(193,193,193) -- archive: inactiveShimmer — lighter variant for animations
     subtle: "#505050",       // rgb(80,80,80)     -- archive: subtle  ⚠️ NEVER use on <text> elements
     thinking: "#808080",     // rgb(128,128,128)  -- subdued but readable gray for thinking blocks
     briefLabel: "#7ab4e8",   // rgb(122,180,232)  -- archive: briefLabelYou — "You:" label in brief mode
+    briefLabelClaude: "#d77757", // rgb(215,119,87) -- archive: briefLabelClaude — "Claude:" label
   },
 
   // -- Backgrounds --------------------------------------------------------
@@ -122,15 +143,19 @@ export const colors = {
   // secondary is electric violet used for autoAccept and merged badges.
   accent: {
     primary: "#d77757",      // rgb(215,119,87)   -- archive: claude (brand orange)
+    primaryShimmer: "#eb9f7f", // rgb(235,159,127) -- archive: claudeShimmer — lighter variant for animations
     logo: "#d77757",         // rgb(215,119,87)   -- archive: claude
     suggestion: "#b1b9f9",   // rgb(177,185,249)  -- archive: suggestion — selected state, navigation hints
+    suggestionShimmer: "#cfd7ff", // rgb(207,215,255) -- archive: permissionShimmer — lighter for animations
     permission: "#b1b9f9",   // rgb(177,185,249)  -- archive: permission — same value today, separate intent
+    remember: "#b1b9f9",     // rgb(177,185,249)  -- archive: remember — memory-related UI
     highlight: "#00cccc",    // rgb(0,204,204)    -- archive: background — bright cyan for special highlights
     secondary: "#af87ff",    // rgb(175,135,255)  -- archive: autoAccept (electric violet)
     bash: "#fd5db1",         // rgb(253,93,177)   -- archive: bashBorder (bright pink)
     planMode: "#48968c",     // rgb(72,150,140)   -- archive: planMode (muted sage)
     ide: "#4782c8",          // rgb(71,130,200)   -- archive: ide (muted blue)
     fastMode: "#ff7814",     // rgb(255,120,20)   -- archive: fastMode (electric orange)
+    fastModeShimmer: "#ffa546", // rgb(255,165,70) -- archive: fastModeShimmer — lighter for animations
   },
 
   // -- Status -------------------------------------------------------------
@@ -139,8 +164,10 @@ export const colors = {
   status: {
     success: "#4eba65",      // rgb(78,186,101)   -- archive: success
     warning: "#ffc107",      // rgb(255,193,7)    -- archive: warning
+    warningShimmer: "#ffdf39", // rgb(255,223,57) -- archive: warningShimmer — lighter for animations
     error: "#ff6b80",        // rgb(255,107,128)  -- archive: error
     info: "#93a5ff",         // rgb(147,165,255)  -- archive: claudeBlue
+    infoShimmer: "#b1c3ff",  // rgb(177,195,255)  -- archive: claudeBlueShimmer — lighter for animations
     merged: "#af87ff",       // rgb(175,135,255)  -- archive: merged (electric violet)
   },
 
@@ -154,6 +181,7 @@ export const colors = {
     permission: "#b1b9f9",   // rgb(177,185,249)  -- archive: permission — dialog borders
     elicitation: "#00cccc",  // rgb(0,204,204)    -- archive: background (bright cyan)
     prompt: "#888888",       // rgb(136,136,136)  -- archive: promptBorder
+    promptShimmer: "#a6a6a6", // rgb(166,166,166)  -- archive: promptBorderShimmer — lighter for animations
     bash: "#fd5db1",         // rgb(253,93,177)   -- archive: bashBorder
   },
 

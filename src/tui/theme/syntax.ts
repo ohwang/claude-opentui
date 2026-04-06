@@ -128,7 +128,7 @@ export const syntaxStyle = SyntaxStyle.fromTheme([
   // Punctuation: (), {}, [], ., ,, ;
   {
     scope: ["punctuation", "punctuation.bracket", "punctuation.delimiter"],
-    style: { foreground: "#a8a8a8" },  // subtle gray
+    style: { foreground: colors.text.secondary },
   },
   // Properties / object keys
   {

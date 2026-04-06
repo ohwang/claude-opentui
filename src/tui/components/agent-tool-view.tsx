@@ -40,26 +40,13 @@ function extractAgentType(input: unknown): string | undefined {
   return undefined
 }
 
-/**
- * Find the TaskInfo that corresponds to an Agent tool block.
- * Matches by toolUseId first (SDK correlation), falls back to description matching.
- */
+/** Find the TaskInfo that corresponds to an Agent tool block via toolUseId. */
 function findMatchingTask(
   activeTasks: [string, TaskInfo][],
   block: AgentToolBlock,
 ): TaskInfo | undefined {
-  const blockId = block.id
-  const blockDesc = extractAgentDescription(block.input)
-
-  // Primary: match by toolUseId (SDK sets this on task_started/task_notification)
   for (const [, task] of activeTasks) {
-    if (task.toolUseId === blockId) return task
-  }
-  // Fallback: match by description similarity (for older SDK versions)
-  if (blockDesc) {
-    for (const [, task] of activeTasks) {
-      if (task.description === blockDesc) return task
-    }
+    if (task.toolUseId === block.id) return task
   }
   return undefined
 }

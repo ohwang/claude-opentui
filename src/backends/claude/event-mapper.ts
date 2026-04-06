@@ -183,6 +183,8 @@ export function mapSDKMessage(msg: any, streamState: ToolStreamState, options?: 
         type: "task_start",
         taskId: msg.task_id ?? msg.uuid,
         description: msg.description ?? "Background task",
+        toolUseId: msg.tool_use_id ?? undefined,
+        taskType: msg.task_type ?? undefined,
       })
       break
 
@@ -191,6 +193,8 @@ export function mapSDKMessage(msg: any, streamState: ToolStreamState, options?: 
         type: "task_progress",
         taskId: msg.task_id ?? msg.uuid,
         output: msg.content ?? "",
+        lastToolName: msg.last_tool_name ?? undefined,
+        summary: msg.summary ?? undefined,
       })
       break
 
@@ -199,6 +203,7 @@ export function mapSDKMessage(msg: any, streamState: ToolStreamState, options?: 
         type: "task_complete",
         taskId: msg.task_id ?? msg.uuid,
         output: msg.content ?? msg.result ?? "",
+        toolUseId: msg.tool_use_id ?? undefined,
       })
       break
 

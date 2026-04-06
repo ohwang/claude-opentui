@@ -479,6 +479,8 @@ export function reduce(
         output: "",
         status: "running",
         startTime: Date.now(),
+        toolUseId: event.toolUseId,
+        taskType: event.taskType,
       })
       return { ...next, activeTasks }
     }
@@ -487,7 +489,12 @@ export function reduce(
       const activeTasks = new Map(state.activeTasks)
       const task = activeTasks.get(event.taskId)
       if (task) {
-        activeTasks.set(event.taskId, { ...task, output: event.output })
+        activeTasks.set(event.taskId, {
+          ...task,
+          output: event.output,
+          lastToolName: event.lastToolName ?? task.lastToolName,
+          summary: event.summary ?? task.summary,
+        })
       }
       return { ...next, activeTasks }
     }

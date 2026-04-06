@@ -120,16 +120,26 @@ export type TaskStartEvent = {
   type: "task_start"
   taskId: string
   description: string
+  /** Correlates this task to the Agent ToolUseBlock that spawned it */
+  toolUseId?: string
+  /** Subagent type (e.g., "Explore", "general-purpose") */
+  taskType?: string
 }
 export type TaskProgressEvent = {
   type: "task_progress"
   taskId: string
   output: string
+  /** Name of the most recent tool the subagent used */
+  lastToolName?: string
+  /** AI-generated progress summary (requires agentProgressSummaries option) */
+  summary?: string
 }
 export type TaskCompleteEvent = {
   type: "task_complete"
   taskId: string
   output: string
+  /** Correlates this task completion to the Agent ToolUseBlock that spawned it */
+  toolUseId?: string
 }
 
 /** Errors */
@@ -463,6 +473,14 @@ export interface TaskInfo {
   output: string
   status: "running" | "completed"
   startTime: number
+  /** Correlates this task to the Agent ToolUseBlock that spawned it */
+  toolUseId?: string
+  /** Subagent type (e.g., "Explore", "general-purpose") */
+  taskType?: string
+  /** Name of the most recent tool the subagent used */
+  lastToolName?: string
+  /** AI-generated progress summary */
+  summary?: string
 }
 
 export interface CostTotals {

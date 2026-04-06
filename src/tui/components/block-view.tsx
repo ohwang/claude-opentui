@@ -9,6 +9,7 @@ import { Show, createSignal, createEffect, onCleanup } from "solid-js"
 import { TextAttributes } from "@opentui/core"
 import { ThinkingBlock } from "./thinking-block"
 import { ToolBlockView, isUserDecline } from "./tool-view"
+import { AgentToolView, CollapsedAgentLine } from "./agent-tool-view"
 import { colors } from "../theme/tokens"
 import type { Block } from "../../protocol/types"
 import type { ViewLevel } from "./tool-view"
@@ -59,14 +60,27 @@ export function BlockView(props: { block: Block; viewLevel: ViewLevel; prevType?
         </box>
       }</Show>
 
-      {/* Tool block — tight grouping for consecutive tools */}
+      {/* Tool block — tight grouping for consecutive tools.
+          Agent tools get specialized rendering via AgentToolView. */}
       <Show when={toolBlock()}>{(tb) =>
         <box marginTop={props.prevType !== "tool" ? 1 : 0}>
           <Show
-            when={props.viewLevel !== "collapsed"}
-            fallback={<CollapsedToolLine block={tb()} />}
+            when={tb().tool !== "Agent"}
+            fallback={
+              <Show
+                when={props.viewLevel !== "collapsed"}
+                fallback={<CollapsedAgentLine block={tb()} />}
+              >
+                <AgentToolView block={tb()} viewLevel={props.viewLevel} />
+              </Show>
+            }
           >
-            <ToolBlockView block={tb()} viewLevel={props.viewLevel} />
+            <Show
+              when={props.viewLevel !== "collapsed"}
+              fallback={<CollapsedToolLine block={tb()} />}
+            >
+              <ToolBlockView block={tb()} viewLevel={props.viewLevel} />
+            </Show>
           </Show>
         </box>
       }</Show>

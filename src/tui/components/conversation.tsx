@@ -66,6 +66,25 @@ export function ConversationView(props: { children?: JSX.Element }) {
     return groupConsecutiveTools(nonQueuedBlocks())
   })
 
+  // Tasks that have NO matching Agent tool block — these are "orphan" tasks
+  // that should still be shown in the TaskView (e.g., background tasks started
+  // before the tool block was created, or tasks from other sources).
+  const orphanTasks = createMemo((): [string, import("../../protocol/types").TaskInfo][] => {
+    const tasks = state.activeTasks
+    if (tasks.length === 0) return []
+    // Collect all Agent tool block IDs
+    const agentToolIds = new Set<string>()
+    for (const b of state.blocks) {
+      if (b.type === "tool" && b.tool === "Agent") {
+        agentToolIds.add(b.id)
+      }
+    }
+    return tasks.filter(([, task]) => {
+      if (task.toolUseId && agentToolIds.has(task.toolUseId)) return false
+      return true
+    })
+  })
+
   // -- Turn elapsed time for the spinner --
   const [turnStartTime, setTurnStartTime] = createSignal<number | null>(null)
   const [turnElapsed, setTurnElapsed] = createSignal(0)
@@ -279,7 +298,7 @@ export function ConversationView(props: { children?: JSX.Element }) {
           <box flexDirection="column">
             <Show when={nonQueuedBlocks().length === 0 && !state.streamingText}>
               <box flexDirection="column" paddingLeft={2}>
-                <text fg={colors.text.muted} attributes={TextAttributes.DIM}>
+                <text fg={colors.text.secondary} attributes={TextAttributes.DIM}>
                   {"Tips to get started:"}
                 </text>
                 <box marginTop={1} flexDirection="column">
@@ -369,7 +388,7 @@ export function ConversationView(props: { children?: JSX.Element }) {
           {/* Transient view-level hint — replaces itself, auto-clears after 3s */}
           <box flexDirection="column" paddingLeft={2}>
             <Show when={viewLevelHint()}>
-              <text fg={colors.text.muted} attributes={TextAttributes.DIM}>{viewLevelHint()}</text>
+              <text fg={colors.text.secondary} attributes={TextAttributes.DIM}>{viewLevelHint()}</text>
             </Show>
           </box>
 
@@ -396,10 +415,11 @@ export function ConversationView(props: { children?: JSX.Element }) {
             </Show>
           </box>
 
-          {/* Background tasks / subagents */}
+          {/* Background tasks / subagents — only show tasks NOT already
+              rendered inline by AgentToolView (those with a matching tool block) */}
           <box flexDirection="column">
-            <Show when={state.activeTasks.length > 0}>
-              <TaskView tasks={state.activeTasks} />
+            <Show when={orphanTasks().length > 0}>
+              <TaskView tasks={orphanTasks()} />
             </Show>
           </box>
         </box>

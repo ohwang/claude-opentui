@@ -137,15 +137,19 @@ function Layout(props: { onExit?: () => void }) {
     sync.pushEvent({ type: "shutdown" })
     agent.backend.close()
     props.onExit?.()
-    // Show a random goodbye message before exit
-    const goodbye = GOODBYE_MESSAGES[Math.floor(Math.random() * GOODBYE_MESSAGES.length)]
-    renderer.destroy()
-    console.log(goodbye)
-    // Store Claude session ID so the exit handler in index.ts can print it
+    // Capture Claude session ID before destroying renderer
     const claudeSessionId = session.session?.sessionId
     if (claudeSessionId) {
       log.setClaudeSessionId(claudeSessionId)
     }
+    // Show a random goodbye message before exit
+    const goodbye = GOODBYE_MESSAGES[Math.floor(Math.random() * GOODBYE_MESSAGES.length)]
+    renderer.destroy()
+    console.log(goodbye)
+    // Print session info immediately after goodbye — this is the primary
+    // output path. The process.on("exit") handler in index.ts is a fallback
+    // for non-cleanExit paths (SIGINT safety-net, SIGTERM, etc.).
+    log.printSessionInfo()
     process.exit(0)
   }
 

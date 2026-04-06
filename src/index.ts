@@ -59,15 +59,17 @@ async function main() {
   log.info("Starting claude-opentui", { version: VERSION, backend: flags.backend, debug: flags.debug, cwd: flags.config.cwd })
   log.debug("Session config", flags.config)
 
-  // Print session info on exit so users can correlate with log files
+  // Print session info on exit so users can correlate with log files.
+  // cleanExit() in app.tsx calls log.printSessionInfo() directly — this
+  // handler is a fallback for non-TUI exit paths (SIGINT safety-net,
+  // SIGTERM, uncaught exceptions, etc.).  The logger's internal flag
+  // prevents duplicate output.
   process.on("exit", () => {
-    const claudeId = log.getClaudeSessionId() ?? "not available"
-    process.stdout.write(`Claude Code Session: ${claudeId}\n`)
-    process.stdout.write(`Session: ${log.getSessionId()}\n`)
-    process.stdout.write(`Log: ${log.getLogFile()}\n`)
+    const extras: string[] = []
     if (backendTrace.isEnabled()) {
-      process.stdout.write(`Backend trace: ${backendTrace.getFilePath()}\n`)
+      extras.push(`Backend trace: ${backendTrace.getFilePath()}`)
     }
+    log.printSessionInfo(extras)
   })
 
   // Create backend

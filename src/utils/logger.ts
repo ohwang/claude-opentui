@@ -35,6 +35,7 @@ class Logger {
   private level: LogLevel = "info"
   private initialized = false
   private claudeSessionId: string | null = null
+  private _sessionInfoPrinted = false
 
   constructor() {
     this.sessionId = generateSessionId()
@@ -74,6 +75,27 @@ class Logger {
 
   getClaudeSessionId(): string | null {
     return this.claudeSessionId
+  }
+
+  /**
+   * Print session info to stdout exactly once.
+   *
+   * Safe to call from multiple exit paths (cleanExit, process.on("exit"),
+   * SIGINT safety-net) — the flag ensures output appears only once.
+   * Accepts optional extra lines (e.g. backend trace path).
+   */
+  printSessionInfo(extras?: string[]) {
+    if (this._sessionInfoPrinted) return
+    this._sessionInfoPrinted = true
+    const claudeId = this.claudeSessionId ?? "not available"
+    process.stdout.write(`Claude Code Session: ${claudeId}\n`)
+    process.stdout.write(`Session: ${this.sessionId}\n`)
+    process.stdout.write(`Log: ${this.logFile}\n`)
+    if (extras) {
+      for (const line of extras) {
+        process.stdout.write(`${line}\n`)
+      }
+    }
   }
 
   private write(level: LogLevel, message: string, data?: unknown) {

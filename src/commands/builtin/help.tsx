@@ -61,8 +61,8 @@ function ShortcutColumn(props: { title: string; items: ShortcutEntry[]; width?: 
         <For each={props.items}>
           {(entry) => (
             <box flexDirection="row">
-              <text fg={colors.accent.cyan}>{"  "}{entry.key}</text>
-              <text fg={colors.text.secondary}>{" — "}{entry.label}</text>
+              <text fg={colors.accent.highlight}>{"  "}{entry.key}</text>
+              <text fg={colors.text.inactive}>{" — "}{entry.label}</text>
             </box>
           )}
         </For>
@@ -100,7 +100,7 @@ function CommandList(props: { commands: SlashCommand[] }) {
       <Show when={prompts().length > 0}>
         <box marginTop={1} flexDirection="column">
           <text
-            fg={colors.text.secondary}
+            fg={colors.text.inactive}
             attributes={TextAttributes.DIM}
           >
             {"Prompt shortcuts (sent to model)"}
@@ -152,7 +152,7 @@ function HelpModal(props: { commands: SlashCommand[] }) {
         {/* Footer */}
         <box marginTop={1}>
           <text
-            fg={colors.text.secondary}
+            fg={colors.text.inactive}
             attributes={TextAttributes.DIM}
           >
             {"  Press Escape to close"}

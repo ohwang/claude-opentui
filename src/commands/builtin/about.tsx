@@ -18,19 +18,19 @@ function AboutModal() {
         <text fg={colors.accent.primary} attributes={TextAttributes.BOLD}>
           {"claude-opentui"}
         </text>
-        <text fg={colors.text.secondary}>
+        <text fg={colors.text.inactive}>
           {"Open-source, drop-in replacement for Claude Code's terminal UI"}
         </text>
 
         <box marginTop={1} flexDirection="column">
-          <text fg={colors.text.secondary}>{"  Version:   v0.0.1"}</text>
-          <text fg={colors.text.secondary}>{`  Runtime:   Bun ${typeof Bun !== "undefined" ? Bun.version : "unknown"}`}</text>
-          <text fg={colors.text.secondary}>{"  UI:        SolidJS + OpenTUI"}</text>
-          <text fg={colors.text.secondary}>{`  Platform:  ${process.platform}/${process.arch}`}</text>
+          <text fg={colors.text.inactive}>{"  Version:   v0.0.1"}</text>
+          <text fg={colors.text.inactive}>{`  Runtime:   Bun ${typeof Bun !== "undefined" ? Bun.version : "unknown"}`}</text>
+          <text fg={colors.text.inactive}>{"  UI:        SolidJS + OpenTUI"}</text>
+          <text fg={colors.text.inactive}>{`  Platform:  ${process.platform}/${process.arch}`}</text>
         </box>
 
         <box marginTop={1}>
-          <text fg={colors.text.secondary}>{"  Licensed under MIT"}</text>
+          <text fg={colors.text.inactive}>{"  Licensed under MIT"}</text>
         </box>
 
         <box marginTop={1}>

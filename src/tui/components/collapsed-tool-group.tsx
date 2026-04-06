@@ -31,7 +31,7 @@ export function CollapsedToolGroup(props: { group: ToolGroup }) {
 
   const textColor = () => {
     if (g().status === "error") return colors.status.error
-    return colors.text.secondary
+    return colors.text.inactive
   }
 
   return (

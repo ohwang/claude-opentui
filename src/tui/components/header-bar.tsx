@@ -84,17 +84,17 @@ export function HeaderBar() {
       <box flexDirection="row">
         <text fg={LOGO_COLOR}>{LOGO_LINES[0]}</text>
         <text fg={LOGO_COLOR} attributes={TextAttributes.BOLD}>{"claude-opentui"}</text>
-        <text fg={colors.text.secondary}>{`  v0.0.1 (${backendLabel()})`}</text>
+        <text fg={colors.text.inactive}>{`  v0.0.1 (${backendLabel()})`}</text>
       </box>
       {/* Row 1: body + model info */}
       <box flexDirection="row">
         <text fg={LOGO_COLOR}>{LOGO_LINES[1]}</text>
-        <text fg={colors.text.secondary}>{modelInfo()}</text>
+        <text fg={colors.text.inactive}>{modelInfo()}</text>
       </box>
       {/* Row 2: legs + working directory */}
       <box flexDirection="row">
         <text fg={LOGO_COLOR}>{LOGO_LINES[2]}</text>
-        <text fg={colors.text.secondary}>{projectPath}</text>
+        <text fg={colors.text.inactive}>{projectPath}</text>
       </box>
     </box>
   )

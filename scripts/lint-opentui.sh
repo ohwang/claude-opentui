@@ -103,26 +103,26 @@ if grep -rn --include="*.tsx" --include="*.ts" -E 'fg="(gray|white|red|green|yel
   grep -rn --include="*.tsx" --include="*.ts" -E 'fg="(gray|white|red|green|yellow|blue)"' src/tui/ 2>/dev/null \
     | grep -v '//' \
     | grep -v '\.test\.'
-  echo "ERROR: Use design tokens (colors.text.white, colors.text.muted, etc.) instead of hardcoded named colors"
+  echo "ERROR: Use design tokens (colors.text.primary, colors.text.subtle, etc.) instead of hardcoded named colors"
   errors=1
 fi
 
-# Check for colors.text.muted on <text> elements (invisible on dark backgrounds).
-# Allow muted in syntax.ts (tree-sitter styles) and in comments.
-if grep -rn --include="*.tsx" --include="*.ts" 'colors\.text\.muted' src/tui/ src/commands/ src/storybook/ 2>/dev/null \
+# Check for colors.text.subtle on <text> elements (invisible on dark backgrounds).
+# Allow subtle in syntax.ts (tree-sitter styles) and in comments.
+if grep -rn --include="*.tsx" --include="*.ts" 'colors\.text\.subtle' src/tui/ src/commands/ src/storybook/ 2>/dev/null \
    | grep -v 'syntax\.ts' \
    | grep -v 'tokens\.ts' \
    | grep -v '//' \
    | grep -v ' \* ' \
    | grep -v '\.test\.' \
    | grep -q .; then
-  grep -rn --include="*.tsx" --include="*.ts" 'colors\.text\.muted' src/tui/ src/commands/ src/storybook/ 2>/dev/null \
+  grep -rn --include="*.tsx" --include="*.ts" 'colors\.text\.subtle' src/tui/ src/commands/ src/storybook/ 2>/dev/null \
     | grep -v 'syntax\.ts' \
     | grep -v 'tokens\.ts' \
     | grep -v '//' \
     | grep -v ' \* ' \
     | grep -v '\.test\.'
-  echo "ERROR: Never use colors.text.muted on <text> elements — use colors.text.secondary instead"
+  echo "ERROR: Never use colors.text.subtle on <text> elements — use colors.text.inactive instead"
   errors=1
 fi
 

@@ -139,17 +139,17 @@ export function AgentToolView(props: {
           {typeLabel()}
         </text>
         <Show when={description()}>
-          <text fg={colors.text.secondary}>
+          <text fg={colors.text.inactive}>
             {" " + truncateToWidth(description(), 70)}
           </text>
         </Show>
         <Show when={b().status === "running" && elapsed() > 0}>
-          <text fg={colors.text.secondary}>
+          <text fg={colors.text.inactive}>
             {" " + formatDuration(elapsed() * 1000, { hideTrailingZeros: true })}
           </text>
         </Show>
         <Show when={b().status !== "running" && b().duration !== undefined && b().duration! >= 1000}>
-          <text fg={colors.text.secondary}>
+          <text fg={colors.text.inactive}>
             {" " + formatDuration(b().duration!, { hideTrailingZeros: true })}
           </text>
         </Show>
@@ -158,7 +158,7 @@ export function AgentToolView(props: {
       {/* Activity line: what the subagent is currently doing (running only) */}
       <Show when={b().status === "running" && activityText()}>
         <box flexDirection="row" paddingLeft={4}>
-          <text fg={colors.text.secondary} attributes={TextAttributes.DIM}>
+          <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>
             {activityText()}
           </text>
         </box>
@@ -167,7 +167,7 @@ export function AgentToolView(props: {
       {/* Progress: AI summary or output snippet (expanded/show_all, running only) */}
       <Show when={props.viewLevel !== "collapsed" && b().status === "running" && progressText()}>
         <box paddingLeft={4}>
-          <text fg={colors.text.secondary} attributes={TextAttributes.DIM}>
+          <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>
             {progressText()}
           </text>
         </box>
@@ -176,7 +176,7 @@ export function AgentToolView(props: {
       {/* Completion result (expanded/show_all, done only) */}
       <Show when={props.viewLevel !== "collapsed" && b().status !== "running" && completionSummary()}>
         <box paddingLeft={2}>
-          <text fg={colors.text.secondary} attributes={TextAttributes.DIM}>
+          <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>
             {"\u23BF  " + completionSummary()}
           </text>
         </box>
@@ -185,7 +185,7 @@ export function AgentToolView(props: {
       {/* Full output (show_all mode) */}
       <Show when={props.viewLevel === "show_all" && b().output}>
         <box paddingLeft={4}>
-          <text fg={colors.text.secondary}>
+          <text fg={colors.text.inactive}>
             {b().output}
           </text>
         </box>

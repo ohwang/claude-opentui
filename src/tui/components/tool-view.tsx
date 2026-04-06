@@ -164,13 +164,13 @@ export function ToolBlockView(props: { block: Extract<Block, { type: "tool" }>; 
         <box width={2} flexShrink={0}>
           <text fg={prefixColor()}>{"\u23FA"}</text>
         </box>
-        <text fg={colors.text.white}>{b().tool}</text>
+        <text fg={colors.text.primary}>{b().tool}</text>
         <Show when={primaryArg()}>
-          <text fg={colors.text.secondary}>{"(" + primaryArg() + ")"}</text>
+          <text fg={colors.text.inactive}>{"(" + primaryArg() + ")"}</text>
         </Show>
         {/* Duration for completed tools (expanded/show_all views) */}
         <Show when={b().status !== "running" && props.viewLevel !== "collapsed" && b().duration !== undefined && b().duration! >= 1000}>
-          <text fg={colors.text.secondary} attributes={TextAttributes.DIM}>
+          <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>
             {" " + formatDuration(b().duration!, { hideTrailingZeros: true })}
           </text>
         </Show>
@@ -186,7 +186,7 @@ export function ToolBlockView(props: { block: Extract<Block, { type: "tool" }>; 
       {/* Progress output — last 5 lines shown while tool is running */}
       <Show when={props.viewLevel !== "collapsed" && b().status === "running" && b().output}>
         <box paddingLeft={4} flexDirection="column">
-          <text fg={colors.text.secondary} attributes={TextAttributes.DIM}>
+          <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>
             {getLastNLines(b().output!, 5)}
           </text>
         </box>
@@ -194,7 +194,7 @@ export function ToolBlockView(props: { block: Extract<Block, { type: "tool" }>; 
       {/* Result line: ⎿  summary */}
       <Show when={props.viewLevel !== "collapsed" && resultSummary()}>
         <box paddingLeft={2}>
-          <text fg={colors.text.secondary} attributes={TextAttributes.DIM}>
+          <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>
             {"\u23BF  " + resultSummary()}
           </text>
         </box>
@@ -208,7 +208,7 @@ export function ToolBlockView(props: { block: Extract<Block, { type: "tool" }>; 
               <Show
                 when={isCodeOutput(b().tool)}
                 fallback={
-                  <text fg={colors.text.secondary} attributes={TextAttributes.DIM}>
+                  <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>
                     {b().output}
                   </text>
                 }
@@ -249,7 +249,7 @@ export function ToolBlockView(props: { block: Extract<Block, { type: "tool" }>; 
       {/* User-initiated decline — subtle dim text instead of red error box */}
       <Show when={b().error && isUserDecline(b().error!)}>
         <box paddingLeft={2}>
-          <text fg={colors.text.secondary} attributes={TextAttributes.DIM}>
+          <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>
             {"\u21B3 " + b().error!.split("\n")[0]}
           </text>
         </box>
@@ -398,7 +398,7 @@ export function ToolSummaryView(props: { tools: ToolBlock[] }) {
             {line.icon + " "}
           </text>
           <text
-            fg={line.isError ? colors.status.error : colors.text.secondary}
+            fg={line.isError ? colors.status.error : colors.text.inactive}
             attributes={TextAttributes.DIM}
           >
             {line.text}

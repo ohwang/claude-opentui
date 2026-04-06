@@ -16,7 +16,7 @@ export function UserBlock(props: { block: UserBlockType }) {
       <box flexDirection="row" width="100%" backgroundColor={colors.bg.surface}>
         <box width={2} flexShrink={0} />
         <box flexGrow={1}>
-          <text fg={colors.text.white}>{b().text}</text>
+          <text fg={colors.text.primary}>{b().text}</text>
         </box>
       </box>
       <Show when={b().images && b().images!.length > 0}>

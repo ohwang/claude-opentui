@@ -43,12 +43,12 @@ export const syntaxStyle = SyntaxStyle.fromTheme([
   // Bold -- white with bold attribute
   {
     scope: ["markup.strong"],
-    style: { foreground: colors.text.white, bold: true },
+    style: { foreground: colors.text.primary, bold: true },
   },
   // Italic -- secondary with italic
   {
     scope: ["markup.italic"],
-    style: { foreground: colors.text.secondary, italic: true },
+    style: { foreground: colors.text.inactive, italic: true },
   },
   // Inline code
   {
@@ -58,25 +58,25 @@ export const syntaxStyle = SyntaxStyle.fromTheme([
   // Links
   {
     scope: ["markup.link"],
-    style: { foreground: colors.text.link, underline: true },
+    style: { foreground: colors.text.briefLabel, underline: true },
   },
   {
     scope: ["markup.link.label"],
-    style: { foreground: colors.text.link },
+    style: { foreground: colors.text.briefLabel },
   },
   {
     scope: ["markup.link.url"],
-    style: { foreground: colors.text.muted, underline: true },
+    style: { foreground: colors.text.subtle, underline: true },
   },
   // Strikethrough
   {
     scope: ["markup.strikethrough"],
-    style: { foreground: colors.text.muted, dim: true },
+    style: { foreground: colors.text.subtle, dim: true },
   },
   // Table borders / conceal markers
   {
     scope: ["conceal"],
-    style: { foreground: colors.text.muted },
+    style: { foreground: colors.text.subtle },
   },
 
   // ─── Code scopes (tree-sitter highlights) ──────────────────────────
@@ -140,7 +140,7 @@ export const syntaxStyle = SyntaxStyle.fromTheme([
   // Punctuation: (), {}, [], ., ,, ;
   {
     scope: ["punctuation", "punctuation.bracket", "punctuation.delimiter"],
-    style: { foreground: colors.text.secondary },
+    style: { foreground: colors.text.inactive },
   },
   // Properties / object keys
   {

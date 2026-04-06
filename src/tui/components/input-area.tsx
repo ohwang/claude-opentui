@@ -1053,7 +1053,7 @@ export function InputArea() {
           <text fg={colors.accent.primary}>
             {"\u{1F4CE} " + attachedImageCount() + " image" + (attachedImageCount() > 1 ? "s" : "") + " attached"}
           </text>
-          <text fg={colors.text.secondary} attributes={TextAttributes.DIM}>
+          <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>
             {" \u00B7 Ctrl+Shift+X to clear"}
           </text>
         </box>
@@ -1062,7 +1062,7 @@ export function InputArea() {
       {/* Input row with > prompt prefix */}
       <box flexDirection="row">
         <box width={2} flexShrink={0}>
-          <text fg={isDisabled() ? colors.text.secondary : "white"} attributes={isDisabled() ? TextAttributes.DIM : 0}>{"❯"}</text>
+          <text fg={isDisabled() ? colors.text.inactive : "white"} attributes={isDisabled() ? TextAttributes.DIM : 0}>{"❯"}</text>
         </box>
         <textarea
           ref={(el: TextareaRenderable) => { textareaRef = el; _sharedTextareaRef = el }}
@@ -1080,7 +1080,7 @@ export function InputArea() {
           flexGrow={1}
         />
         {completionHint() ? (
-          <text fg={colors.text.secondary} attributes={TextAttributes.DIM}>
+          <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>
             {completionHint()}
           </text>
         ) : null}
@@ -1093,7 +1093,7 @@ export function InputArea() {
             {(item, index) => (
               <box flexDirection="row">
                 {autocompleteMode() === "file" && (
-                  <text fg={colors.text.secondary}>
+                  <text fg={colors.text.inactive}>
                     {item.name.endsWith("/") ? "\u{1F4C1} " : "\u{1F4C4} "}
                   </text>
                 )}
@@ -1104,23 +1104,23 @@ export function InputArea() {
                   {autocompleteMode() === "file" ? truncatePath(item.name) : `/${item.name}`}
                 </text>
                 {autocompleteMode() === "slash" && item.argumentHint && (
-                  <text fg={colors.text.secondary} attributes={TextAttributes.DIM}>
+                  <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>
                     {` ${item.argumentHint}`}
                   </text>
                 )}
                 {autocompleteMode() === "slash" && item.type === "prompt" && (
-                  <text fg={colors.accent.cyan} attributes={TextAttributes.DIM}>
+                  <text fg={colors.accent.highlight} attributes={TextAttributes.DIM}>
                     {" [prompt]"}
                   </text>
                 )}
-                <text fg={colors.text.secondary} attributes={index() !== selectedIndex() ? TextAttributes.DIM : 0}>
+                <text fg={colors.text.inactive} attributes={index() !== selectedIndex() ? TextAttributes.DIM : 0}>
                   {"  \u2013  "}{item.description}
                 </text>
               </box>
             )}
           </For>
           <Show when={autocompleteItems().length > MAX_VISIBLE_ITEMS}>
-            <text fg={colors.text.secondary} attributes={TextAttributes.DIM}>
+            <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>
               {`  ${autocompleteItems().length - MAX_VISIBLE_ITEMS} more...`}
             </text>
           </Show>

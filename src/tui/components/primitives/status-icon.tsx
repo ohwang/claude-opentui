@@ -16,8 +16,8 @@ const STATUS_CONFIG: Record<StatusType, { icon: string; color: string; attrs: nu
   warning:  { icon: "\u26A0", color: colors.status.warning, attrs: 0 },
   info:     { icon: "\u2139", color: colors.status.info,    attrs: TextAttributes.DIM },
   running:  { icon: "\u22EF", color: colors.accent.primary, attrs: TextAttributes.DIM },
-  declined: { icon: "\u21B3", color: colors.text.secondary,  attrs: TextAttributes.DIM },
-  pending:  { icon: "\u25CB", color: colors.text.secondary,  attrs: TextAttributes.DIM },
+  declined: { icon: "\u21B3", color: colors.text.inactive,  attrs: TextAttributes.DIM },
+  pending:  { icon: "\u25CB", color: colors.text.inactive,  attrs: TextAttributes.DIM },
 }
 
 export function StatusIcon(props: { status: StatusType; withSpace?: boolean }) {

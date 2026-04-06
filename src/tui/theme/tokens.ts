@@ -8,36 +8,48 @@
  * Reference: claude-code-archive/src/utils/theme.ts  darkTheme
  *
  * ═══════════════════════════════════════════════════════════════════════
- * TEXT HIERARCHY — choosing the right gray
+ * TOKEN NAMING — intent over appearance
  * ═══════════════════════════════════════════════════════════════════════
  *
- * The three text grays serve distinct purposes. Picking the wrong one
- * is the #1 source of visual bugs (text too dim or too bright).
+ * Tokens are named after WHAT THEY MEAN, not what they look like.
+ * This matches Claude Code's flat semantic vocabulary (text, inactive,
+ * subtle, suggestion, permission) and ensures the name stays correct
+ * even if the hex value changes for a new theme variant.
+ *
+ *   ✓  colors.text.inactive     (describes intent: "de-emphasized")
+ *   ✗  colors.text.secondary    (describes position: "second tier")
+ *   ✗  colors.accent.periwinkle (describes color: "light blue-purple")
+ *
+ * ═══════════════════════════════════════════════════════════════════════
+ * TEXT HIERARCHY — choosing the right gray
+ * ═══════════════════════════════════════════════════════════════════════
  *
  *   text.primary   #ffffff   Main content: assistant responses, user input,
  *                            tool names, anything the user *reads*.
  *
- *   text.secondary #999999   Readable metadata: version strings, model info,
- *                            timestamps, file paths, cost, token counts.
- *                            Still clearly legible — just less prominent.
+ *   text.inactive  #999999   De-emphasized readable text: version strings,
+ *                            model info, timestamps, file paths, cost,
+ *                            token counts, shortcut hints. Clearly legible
+ *                            — just less prominent than primary.
+ *                            Archive: "inactive"
  *
- *   text.muted     #505050   NON-TEXT decoration ONLY: <Divider> lines,
+ *   text.subtle    #505050   NON-TEXT decoration ONLY: <Divider> lines,
  *                            syntax highlight concealment. NEVER use on
  *                            <text>, <markdown>, or any readable element.
+ *                            Archive: "subtle"
  *
  *   text.thinking  #808080   Thinking blocks: subdued but readable gray
  *                            for Claude's reasoning text. Lighter than
- *                            muted, dimmer than secondary.
+ *                            subtle, dimmer than inactive.
  *
- *   ⚠️  RULE: NEVER use text.muted on <text> elements.
- *       text.muted (#505050) is invisible on dark backgrounds — especially
- *       combined with TextAttributes.DIM. Use text.secondary for readable
+ *   ⚠️  RULE: NEVER use text.subtle on <text> elements.
+ *       text.subtle (#505050) is invisible on dark backgrounds — especially
+ *       combined with TextAttributes.DIM. Use text.inactive for readable
  *       metadata, text.thinking for thinking blocks, or border.default for
  *       structural glyphs (⎿, │, connectors).
  *
- *       ✗  <text fg={colors.text.muted}>anything</text>
- *       ✗  <text fg={colors.text.muted} attributes={TextAttributes.DIM}>anything</text>
- *       ✓  <text fg={colors.text.secondary}>metadata</text>
+ *       ✗  <text fg={colors.text.subtle}>anything</text>
+ *       ✓  <text fg={colors.text.inactive}>metadata</text>
  *       ✓  <text fg={colors.text.thinking}>thinking content</text>
  *
  * ═══════════════════════════════════════════════════════════════════════
@@ -87,11 +99,10 @@ export const colors = {
   // See "TEXT HIERARCHY" above for usage guidance.
   text: {
     primary: "#ffffff",      // rgb(255,255,255)  -- archive: text
-    secondary: "#999999",    // rgb(153,153,153)  -- archive: inactive
-    muted: "#505050",        // rgb(80,80,80)     -- archive: subtle  ⚠️ NEVER use on <text> elements
+    inactive: "#999999",     // rgb(153,153,153)  -- archive: inactive — de-emphasized readable text
+    subtle: "#505050",       // rgb(80,80,80)     -- archive: subtle  ⚠️ NEVER use on <text> elements
     thinking: "#808080",     // rgb(128,128,128)  -- subdued but readable gray for thinking blocks
-    white: "#ffffff",        // Same as primary in dark theme (kept for semantic emphasis)
-    link: "#7ab4e8",         // rgb(122,180,232)  -- archive: briefLabelYou
+    briefLabel: "#7ab4e8",   // rgb(122,180,232)  -- archive: briefLabelYou — "You:" label in brief mode
   },
 
   // -- Backgrounds --------------------------------------------------------
@@ -112,8 +123,9 @@ export const colors = {
   accent: {
     primary: "#d77757",      // rgb(215,119,87)   -- archive: claude (brand orange)
     logo: "#d77757",         // rgb(215,119,87)   -- archive: claude
-    periwinkle: "#b1b9f9",   // rgb(177,185,249)  -- archive: permission / suggestion
-    cyan: "#00cccc",         // rgb(0,204,204)    -- archive: background (bright cyan)
+    suggestion: "#b1b9f9",   // rgb(177,185,249)  -- archive: suggestion — selected state, navigation hints
+    permission: "#b1b9f9",   // rgb(177,185,249)  -- archive: permission — same value today, separate intent
+    highlight: "#00cccc",    // rgb(0,204,204)    -- archive: background — bright cyan for special highlights
     secondary: "#af87ff",    // rgb(175,135,255)  -- archive: autoAccept (electric violet)
     bash: "#fd5db1",         // rgb(253,93,177)   -- archive: bashBorder (bright pink)
     planMode: "#48968c",     // rgb(72,150,140)   -- archive: planMode (muted sage)
@@ -133,13 +145,13 @@ export const colors = {
   },
 
   // -- Borders ------------------------------------------------------------
-  // default/muted are for structural lines; named borders are for specific
+  // default/subtle are for structural lines; named borders are for specific
   // UI areas (permission dialog, input prompt, bash output).
   border: {
     default: "#505050",      // rgb(80,80,80)     -- archive: subtle
     muted: "#373737",        // rgb(55,55,55)     -- subtle dividers
     error: "#ff6b80",        // rgb(255,107,128)  -- archive: error
-    accent: "#b1b9f9",       // rgb(177,185,249)  -- archive: permission
+    permission: "#b1b9f9",   // rgb(177,185,249)  -- archive: permission — dialog borders
     elicitation: "#00cccc",  // rgb(0,204,204)    -- archive: background (bright cyan)
     prompt: "#888888",       // rgb(136,136,136)  -- archive: promptBorder
     bash: "#fd5db1",         // rgb(253,93,177)   -- archive: bashBorder

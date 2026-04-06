@@ -47,7 +47,7 @@ export function ContextualTips() {
   return (
     <Show when={tip()}>
       <box paddingLeft={2}>
-        <text fg={colors.text.secondary} attributes={TextAttributes.DIM}>
+        <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>
           {tip()}
         </text>
       </box>

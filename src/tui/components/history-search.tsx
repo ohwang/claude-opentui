@@ -120,8 +120,8 @@ export function HistorySearchModal(props: HistorySearchProps) {
 
         {/* Search input display */}
         <box marginTop={1} flexDirection="row">
-          <text fg={colors.text.secondary}>{"Search: "}</text>
-          <text fg={colors.text.white} attributes={TextAttributes.BOLD}>
+          <text fg={colors.text.inactive}>{"Search: "}</text>
+          <text fg={colors.text.primary} attributes={TextAttributes.BOLD}>
             {query() || ""}
           </text>
           <text fg={colors.accent.primary} attributes={TextAttributes.BOLD}>{"_"}</text>
@@ -132,7 +132,7 @@ export function HistorySearchModal(props: HistorySearchProps) {
           <Show
             when={filtered().length > 0}
             fallback={
-              <text fg={colors.text.secondary} attributes={TextAttributes.DIM}>
+              <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>
                 {props.history.length === 0 ? "(empty -- no history yet)" : "No matches"}
               </text>
             }
@@ -143,13 +143,13 @@ export function HistorySearchModal(props: HistorySearchProps) {
                 return (
                   <box flexDirection="row" height={1}>
                     <text
-                      fg={isSelected() ? colors.accent.cyan : colors.text.secondary}
+                      fg={isSelected() ? colors.accent.highlight : colors.text.inactive}
                       attributes={isSelected() ? TextAttributes.BOLD : 0}
                     >
                       {isSelected() ? "> " : "  "}
                     </text>
                     <text
-                      fg={isSelected() ? colors.accent.cyan : colors.text.primary}
+                      fg={isSelected() ? colors.accent.highlight : colors.text.primary}
                       attributes={isSelected() ? TextAttributes.BOLD : 0}
                     >
                       {formatEntry(entry, contentWidth())}
@@ -159,7 +159,7 @@ export function HistorySearchModal(props: HistorySearchProps) {
               }}
             </For>
             <Show when={filtered().length > MAX_VISIBLE}>
-              <text fg={colors.text.secondary} attributes={TextAttributes.DIM}>
+              <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>
                 {`  ${filtered().length - MAX_VISIBLE} more...`}
               </text>
             </Show>

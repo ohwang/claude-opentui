@@ -130,16 +130,16 @@ function QuestionView(props: {
     <box
       flexDirection="column"
       borderStyle="single"
-      borderColor={colors.border.accent}
+      borderColor={colors.border.permission}
       paddingLeft={1}
       paddingRight={1}
     >
       <Show when={props.question.header}>
-        <text fg={colors.text.secondary} attributes={TextAttributes.DIM}>
+        <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>
           {props.question.header}
         </text>
       </Show>
-      <text fg={colors.border.accent} attributes={TextAttributes.BOLD}>
+      <text fg={colors.border.permission} attributes={TextAttributes.BOLD}>
         {props.question.question}
       </text>
 
@@ -148,28 +148,28 @@ function QuestionView(props: {
           {(option, index) => (
             <box flexDirection="column">
               <box flexDirection="row">
-                <text fg={index() === selected() ? colors.border.accent : "white"}>
+                <text fg={index() === selected() ? colors.border.permission : "white"}>
                   {index() === selected() ? " > " : "   "}
                 </text>
-                <text fg={index() === selected() ? colors.border.accent : "white"}>
+                <text fg={index() === selected() ? colors.border.permission : "white"}>
                   {index() + 1}) {truncateLabel(option.label)}
                 </text>
               </box>
               <Show when={!option.isOther && option.description}>
-                <text fg={colors.text.secondary} attributes={TextAttributes.DIM}>
+                <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>
                   {"      "}{option.description}
                 </text>
               </Show>
             </box>
           )}
         </For>
-        <text fg={colors.text.secondary}>
+        <text fg={colors.text.inactive}>
           {"  "}Arrow keys to navigate, Enter to select, Esc to cancel
         </text>
       </Show>
 
       <Show when={showFreeText() || freeTextOnly()}>
-        <text fg={colors.text.secondary}>Type your answer · Enter to submit · Shift+Enter for newline · Esc to go back</text>
+        <text fg={colors.text.inactive}>Type your answer · Enter to submit · Shift+Enter for newline · Esc to go back</text>
         <textarea
           ref={(el: TextareaRenderable) => { freeTextRef = el }}
           focused
@@ -239,7 +239,7 @@ export function ElicitationDialog() {
           handleCancel()
           return (
             <box flexDirection="column">
-              <text fg={colors.text.secondary} attributes={TextAttributes.DIM}>
+              <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>
                 {"  No options available"}
               </text>
             </box>
@@ -256,7 +256,7 @@ export function ElicitationDialog() {
           <box flexDirection="column">
             {/* Progress indicator for multi-question elicitations */}
             <Show when={questions.length > 1}>
-              <text fg={colors.text.secondary} attributes={TextAttributes.DIM}>
+              <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>
                 {"  Question " + (Math.min(currentIdx(), questions.length - 1) + 1) + "/" + questions.length}
               </text>
             </Show>

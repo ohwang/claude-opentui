@@ -27,8 +27,8 @@ import { truncatePathMiddle } from "../../utils/truncate"
 import type { PermissionRequestEvent, PermissionUpdate } from "../../protocol/types"
 
 // Semantic aliases from design system tokens
-const ACCENT = colors.border.accent
-const MUTED = colors.text.secondary
+const ACCENT = colors.border.permission
+const MUTED = colors.text.inactive
 const DIFF_ADDED = colors.diff.added
 const DIFF_REMOVED = colors.diff.removed
 
@@ -556,7 +556,7 @@ export function PermissionDialog() {
             {/* Decision reason hint */}
             <Show when={perm().decisionReason}>
               <box paddingLeft={1}>
-                <text fg={colors.text.secondary} attributes={TextAttributes.DIM}>
+                <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>
                   {"Reason: " + perm().decisionReason}
                 </text>
               </box>
@@ -593,7 +593,7 @@ export function PermissionDialog() {
 
             {/* Question prompt */}
             <box height={1} paddingLeft={1} marginTop={previewLines() ? 0 : 1}>
-              <text fg={colors.text.white}>
+              <text fg={colors.text.primary}>
                 {question()}
               </text>
             </box>
@@ -602,7 +602,7 @@ export function PermissionDialog() {
             <box height={1} paddingLeft={1}>
               <Show when={selectedOption() === 0}
                 fallback={
-                  <text fg={colors.text.white}>{"  y. Allow"}</text>
+                  <text fg={colors.text.primary}>{"  y. Allow"}</text>
                 }
               >
                 <text fg={ACCENT}>
@@ -615,7 +615,7 @@ export function PermissionDialog() {
             <box height={1} paddingLeft={1}>
               <Show when={selectedOption() === 1}
                 fallback={
-                  <text fg={colors.text.white} attributes={TextAttributes.BOLD}>
+                  <text fg={colors.text.primary} attributes={TextAttributes.BOLD}>
                     {"  a. \uD83D\uDD12 " + opt2()}
                   </text>
                 }

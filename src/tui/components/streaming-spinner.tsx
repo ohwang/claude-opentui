@@ -177,7 +177,7 @@ export function StreamingSpinner(props: { label: string; elapsedSeconds?: number
     <box flexDirection="row">
       <text fg={spinnerColor()}>{SPINNER_FRAMES[frameIndex()]} </text>
       <text fg={spinnerColor()}>{displayLabel()}</text>
-      <text fg={colors.text.secondary}>{metaStr()}</text>
+      <text fg={colors.text.inactive}>{metaStr()}</text>
     </box>
   )
 }

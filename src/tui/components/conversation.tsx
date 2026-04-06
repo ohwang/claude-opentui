@@ -298,15 +298,15 @@ export function ConversationView(props: { children?: JSX.Element }) {
           <box flexDirection="column">
             <Show when={nonQueuedBlocks().length === 0 && !state.streamingText}>
               <box flexDirection="column" paddingLeft={2}>
-                <text fg={colors.text.secondary} attributes={TextAttributes.DIM}>
+                <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>
                   {"Tips to get started:"}
                 </text>
                 <box marginTop={1} flexDirection="column">
-                  <text fg={colors.text.secondary}>{"  \u2022  Ask a question or describe a task"}</text>
-                  <text fg={colors.text.secondary}>{"  \u2022  Use @ to reference files: @src/index.ts"}</text>
-                  <text fg={colors.text.secondary}>{"  \u2022  Type / for slash commands"}</text>
-                  <text fg={colors.text.secondary}>{"  \u2022  Ctrl+O to expand tool details"}</text>
-                  <text fg={colors.text.secondary}>{"  \u2022  Ctrl+P to switch models"}</text>
+                  <text fg={colors.text.inactive}>{"  \u2022  Ask a question or describe a task"}</text>
+                  <text fg={colors.text.inactive}>{"  \u2022  Use @ to reference files: @src/index.ts"}</text>
+                  <text fg={colors.text.inactive}>{"  \u2022  Type / for slash commands"}</text>
+                  <text fg={colors.text.inactive}>{"  \u2022  Ctrl+O to expand tool details"}</text>
+                  <text fg={colors.text.inactive}>{"  \u2022  Ctrl+P to switch models"}</text>
                 </box>
               </box>
             </Show>
@@ -370,7 +370,7 @@ export function ConversationView(props: { children?: JSX.Element }) {
           <box flexDirection="column">
             <box flexDirection="row" marginTop={1} visible={!state.backgrounded && !!state.streamingText}>
               <box width={2} flexShrink={0}>
-                <text fg={colors.text.white}>{"\u23FA"}</text>
+                <text fg={colors.text.primary}>{"\u23FA"}</text>
               </box>
               <box flexGrow={1}>
                 <markdown content={state.streamingText} syntaxStyle={syntaxStyle} streaming={true} fg={colors.text.primary} />
@@ -388,7 +388,7 @@ export function ConversationView(props: { children?: JSX.Element }) {
           {/* Transient view-level hint — replaces itself, auto-clears after 3s */}
           <box flexDirection="column" paddingLeft={2}>
             <Show when={viewLevelHint()}>
-              <text fg={colors.text.secondary} attributes={TextAttributes.DIM}>{viewLevelHint()}</text>
+              <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>{viewLevelHint()}</text>
             </Show>
           </box>
 

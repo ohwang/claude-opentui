@@ -68,6 +68,15 @@ function getLastNLines(text: string, n: number): string {
   return '...\n' + lines.slice(-n).join('\n')
 }
 
+/** Cap text to the first N lines, appending a truncation indicator if needed */
+function truncateLines(text: string, n: number): string {
+  const lines = text.split("\n")
+  if (lines.length <= n) return text
+  return lines.slice(0, n).join("\n") + `\n… (${lines.length - n} more lines)`
+}
+
+const BASH_MAX_LINES = 10
+
 export function ToolBlockView(props: { block: Extract<Block, { type: "tool" }>; viewLevel: ViewLevel }) {
   const b = () => props.block
 
@@ -209,7 +218,7 @@ export function ToolBlockView(props: { block: Extract<Block, { type: "tool" }>; 
                 when={isCodeOutput(b().tool)}
                 fallback={
                   <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>
-                    {b().output}
+                    {b().tool === "Bash" ? truncateLines(b().output!, BASH_MAX_LINES) : b().output}
                   </text>
                 }
               >

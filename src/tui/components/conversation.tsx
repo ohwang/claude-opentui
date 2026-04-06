@@ -291,7 +291,7 @@ export function ConversationView(props: { children?: JSX.Element }) {
   return (
     <box flexDirection="column" flexGrow={1}>
       <scrollbox ref={(el: ScrollBoxRenderable) => { scrollboxRef = el; registerScrollToBottom(() => { setUserScrolledAway(false); queueMicrotask(() => el.scrollBy(999999)) }) }} flexGrow={1}>
-        <box flexDirection="column" paddingTop={1} paddingRight={1} paddingBottom={1}>
+        <box flexDirection="column" paddingRight={1} paddingBottom={1}>
           {/* Header bar — scrolls with content */}
           <HeaderBar />
 
@@ -307,7 +307,7 @@ export function ConversationView(props: { children?: JSX.Element }) {
           {/* Quick-start tips — shown when conversation is empty */}
           <box flexDirection="column">
             <Show when={nonQueuedBlocks().length === 0 && !state.streamingText}>
-              <box flexDirection="column" paddingLeft={2} paddingTop={1}>
+              <box flexDirection="column" paddingLeft={2}>
                 <text fg={colors.text.muted} attributes={TextAttributes.DIM}>
                   {"Tips to get started:"}
                 </text>

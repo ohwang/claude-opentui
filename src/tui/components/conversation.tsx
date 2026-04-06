@@ -56,9 +56,6 @@ export function ConversationView(props: { children?: JSX.Element }) {
   let scrollboxRef: ScrollBoxRenderable | undefined
   const [userScrolledAway, setUserScrolledAway] = createSignal(false)
 
-  // Track how many blocks existed when user scrolled away, to compute "N new messages"
-  const [scrollAwayBlockSnapshot, setScrollAwayBlockSnapshot] = createSignal(0)
-
   // Derived: separate queued vs non-queued blocks
   const nonQueuedBlocks = () => state.blocks.filter(b => !(b.type === "user" && b.queued))
   const queuedBlocks = () => state.blocks.filter(b => b.type === "user" && b.queued) as Array<Extract<Block, { type: "user" }>>
@@ -68,33 +65,6 @@ export function ConversationView(props: { children?: JSX.Element }) {
     if (viewLevel() !== "collapsed") return nonQueuedBlocks()
     return groupConsecutiveTools(nonQueuedBlocks())
   })
-
-  // Snapshot block count when user scrolls away; derive unseen message count
-  createEffect(() => {
-    if (userScrolledAway()) {
-      // Only snapshot on the transition (when snapshot is still 0 / cleared)
-      if (scrollAwayBlockSnapshot() === 0) {
-        setScrollAwayBlockSnapshot(nonQueuedBlocks().length)
-      }
-    } else {
-      setScrollAwayBlockSnapshot(0)
-    }
-  })
-
-  const newMessageCount = () => {
-    if (!userScrolledAway()) return 0
-    const snapshot = scrollAwayBlockSnapshot()
-    if (snapshot === 0) return 0
-    return Math.max(0, nonQueuedBlocks().length - snapshot)
-  }
-
-  // Show the pill when scrolled away and there's unseen activity (new blocks or active streaming)
-  const hasUnseenContent = () => {
-    if (!userScrolledAway()) return false
-    if (newMessageCount() > 0) return true
-    // Also show when streaming is active (content growing but not yet committed as blocks)
-    return !!(state.streamingText || state.streamingThinking)
-  }
 
   // -- Turn elapsed time for the spinner --
   const [turnStartTime, setTurnStartTime] = createSignal<number | null>(null)
@@ -434,20 +404,7 @@ export function ConversationView(props: { children?: JSX.Element }) {
         </box>
       </scrollbox>
 
-      {/* "N new messages" pill — fixed below scrollbox, visible when scrolled away and unseen content exists */}
-      <box flexDirection="column" flexShrink={0}>
-        <Show when={hasUnseenContent()}>
-          <box justifyContent="center">
-            <text bg={colors.bg.surface} fg={colors.status.info}>
-              {newMessageCount() > 0
-                ? ` \u2193 ${newMessageCount()} new message${newMessageCount() === 1 ? "" : "s"} `
-                : " \u2193 New content below "}
-            </text>
-          </box>
-        </Show>
-      </box>
-
-      {/* Toast notifications — between pill and input area */}
+      {/* Toast notifications — above input area */}
       <box flexDirection="column" flexShrink={0}>
         <ToastDisplay />
       </box>

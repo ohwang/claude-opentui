@@ -1,7 +1,7 @@
 /**
  * Toast Display — Renders active toast notifications
  *
- * Positioned between the unseen-content pill and the input area.
+ * Positioned above the input area.
  * Each toast is a single-line <text> with type-appropriate prefix and color.
  */
 
@@ -37,7 +37,7 @@ export function ToastDisplay() {
   // Uses visible={false} instead of <Show> so the toast container keeps its
   // position in the layout tree. When toasts appear/disappear, the box simply
   // becomes visible rather than being inserted/removed, preventing layout
-  // shifts between the "new messages" pill and the input area.
+  // shifts around the input area.
   return (
     <box flexDirection="column" visible={ctx.toasts.length > 0}>
       <box flexDirection="column" paddingLeft={2}>

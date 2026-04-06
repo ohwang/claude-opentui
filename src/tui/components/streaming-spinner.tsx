@@ -25,6 +25,7 @@ import { createSignal, createEffect } from "solid-js"
 import { useAnimationFrame } from "../context/animation"
 import { colors } from "../theme/tokens"
 import { formatDuration, formatTokens } from "../../utils/format"
+import { THINKING_VERBS } from "./spinner-verbs"
 
 // ---------------------------------------------------------------------------
 // Braille dot spinner — forward + reverse cycle
@@ -33,11 +34,6 @@ import { formatDuration, formatTokens } from "../../utils/format"
 const DEFAULT_CHARS = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
 const SPINNER_FRAMES = [...DEFAULT_CHARS, ...[...DEFAULT_CHARS].reverse()]
 const SPINNER_INTERVAL_MS = 80
-
-const THINKING_VERBS = [
-  "Thinking", "Reasoning", "Analyzing", "Considering", "Processing",
-  "Evaluating", "Reflecting", "Synthesizing", "Formulating", "Exploring",
-]
 
 // ---------------------------------------------------------------------------
 // Stall detection — smooth RGB interpolation

@@ -177,16 +177,11 @@ export function StreamingSpinner(props: { label: string; elapsedSeconds?: number
     return interpolateColor(ACCENT_RGB, ERROR_RED, intensity)
   }
 
-  const stallSuffix = () => {
-    return stallIntensity() >= 1 ? " (may be stalled)" : ""
-  }
-
   return (
     <box flexDirection="row">
       <text fg={spinnerColor()}>{SPINNER_FRAMES[frameIndex()]} </text>
       <text fg={spinnerColor()}>{displayLabel()}</text>
       <text fg={colors.text.secondary}>{metaStr()}</text>
-      <text fg={colors.status.error}>{stallSuffix()}</text>
     </box>
   )
 }

@@ -10,6 +10,18 @@
  *
  * Tree-sitter capture names follow the standard Neovim/Helix convention:
  *   keyword, string, comment, function, variable, type, number, etc.
+ *
+ * ── Two-tier color system ──────────────────────────────────────────
+ *
+ * Markdown scopes (headings, bold, links) reference tokens from
+ * ./tokens.ts so they stay in sync with the rest of the UI.
+ *
+ * Code syntax scopes use hardcoded hex values from a cohesive editor
+ * palette (Material-inspired). This is intentional — code highlighting
+ * colors serve readability inside fenced blocks and are a separate
+ * concern from the application's UI chrome colors. If we later support
+ * user-selectable editor themes, these would move to a dedicated
+ * palette, not into tokens.ts.
  */
 
 import { SyntaxStyle } from "@opentui/core"

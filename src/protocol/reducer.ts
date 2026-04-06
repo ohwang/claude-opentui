@@ -96,13 +96,22 @@ export function reduce(
     // ----- Turn lifecycle -----
 
     case "turn_start": {
-      // Guard: only transition to RUNNING from IDLE or INITIALIZING
-      if (state.sessionState !== "IDLE" && state.sessionState !== "INITIALIZING") {
+      // Guard: allow from IDLE, INITIALIZING, or RUNNING+awaitingTurnStart.
+      // The last case handles user_message transitioning to RUNNING before
+      // the SDK's turn_start arrives — we still need to increment the turn
+      // number and reset buffers. Genuine duplicate turn_starts mid-stream
+      // (RUNNING without awaitingTurnStart) are ignored.
+      if (
+        state.sessionState !== "IDLE" &&
+        state.sessionState !== "INITIALIZING" &&
+        !(state.sessionState === "RUNNING" && state.awaitingTurnStart)
+      ) {
         return next
       }
       return {
         ...next,
         sessionState: "RUNNING",
+        awaitingTurnStart: false,
         turnNumber: state.turnNumber + 1,
         streamingText: "",
         streamingThinking: "",
@@ -188,6 +197,7 @@ export function reduce(
         cost,
         streamingOutputTokens: 0,
         backgrounded: false,
+        awaitingTurnStart: false,
         activeTasks: prunedTasks,
         session: updatedSession,
         // Context window fill = uncached input tokens + cache-read tokens.
@@ -224,10 +234,18 @@ export function reduce(
           blocks: [...state.blocks, { type: "user", text: event.text, images: event.images }],
         }
       }
-      // IDLE: show immediately
+      // IDLE: show immediately + transition to RUNNING so the spinner
+      // appears as soon as the user sends a message (before turn_start
+      // arrives from the SDK). awaitingTurnStart allows the SDK's
+      // turn_start to still process (increment turn, reset buffers).
       return {
         ...next,
+        sessionState: "RUNNING",
+        awaitingTurnStart: true,
         blocks: [...state.blocks, { type: "user", text: event.text, images: event.images }],
+        streamingText: "",
+        streamingThinking: "",
+        streamingOutputTokens: 0,
       }
     }
 

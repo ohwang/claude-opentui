@@ -346,6 +346,13 @@ export interface ConversationState {
   /** Whether the current turn is backgrounded (UI collapsed, input re-enabled) */
   backgrounded: boolean
 
+  /**
+   * True after user_message transitions to RUNNING (before the SDK's turn_start arrives).
+   * Allows turn_start to process when already in RUNNING from a user_message,
+   * while still ignoring genuine duplicate turn_start events mid-stream.
+   */
+  awaitingTurnStart: boolean
+
   /** Files modified in the last completed turn */
   lastTurnFiles?: TurnFileChange[]
 }
@@ -569,6 +576,7 @@ export function createInitialState(): ConversationState {
     lastTurnInputTokens: 0,
     streamingOutputTokens: 0,
     backgrounded: false,
+    awaitingTurnStart: false,
     lastTurnFiles: undefined,
   }
 }

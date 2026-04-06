@@ -381,13 +381,11 @@ export function ConversationView(props: { children?: JSX.Element }) {
             </Show>
           </box>
 
-          {/* Spinner — visible when RUNNING, not backgrounded, and no streaming content */}
+          {/* Spinner — visible throughout the entire RUNNING state (matches Claude Code) */}
           <box flexDirection="column">
             <Show when={
               session.sessionState === "RUNNING" &&
-              !state.backgrounded &&
-              !state.streamingText &&
-              !state.streamingThinking
+              !state.backgrounded
             }>
               <box marginTop={1} paddingLeft={2}>
                 <StreamingSpinner label={spinnerLabel()} elapsedSeconds={turnElapsed()} outputTokens={state.streamingOutputTokens || session.cost.outputTokens} />

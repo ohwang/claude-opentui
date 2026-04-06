@@ -504,8 +504,10 @@ function Layout(props: { onExit?: () => void }) {
   return (
     <box flexDirection="column" width="100%" height="100%">
       {/* Keep ConversationView always mounted to preserve textarea state.
-           Hide it via height={0} when diagnostics or modal overlay is open. */}
-      <box flexDirection="column" width="100%" height={(showDiagnostics() || modal.isActive()) ? 0 : "100%"} flexGrow={(showDiagnostics() || modal.isActive()) ? 0 : 1}>
+           Hide it via height={0} + visible={false} when diagnostics or modal
+           overlay is open.  height={0} alone isn't sufficient — child elements
+           (e.g. StatusBar) can leak through the zero-height parent. */}
+      <box flexDirection="column" width="100%" height={(showDiagnostics() || modal.isActive()) ? 0 : "100%"} flexGrow={(showDiagnostics() || modal.isActive()) ? 0 : 1} visible={!showDiagnostics() && !modal.isActive()}>
         <ConversationView>
           {/* Permission dialog (shown inline when WAITING_FOR_PERM) */}
           <PermissionDialog />

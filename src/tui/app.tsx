@@ -404,13 +404,14 @@ function Layout(props: { onExit?: () => void }) {
       return
     }
 
-    // Meta+C (Cmd+C on macOS): copy selection if available.
-    // Requires Kitty keyboard protocol (useKittyKeyboard) so the terminal
-    // forwards Cmd+C as a distinct key event instead of intercepting it.
-    if (event.meta && event.name === "c") {
+    // Cmd+C (Super+C) on macOS: copy selection if available.
+    // In the Kitty keyboard protocol, Cmd maps to `super` (not `meta`).
+    // Requires the terminal to forward cmd+c to the app instead of
+    // intercepting it — in Kitty, use `map cmd+c copy_or_interrupt`.
+    if ((event.super || event.meta) && event.name === "c") {
       if (renderer.hasSelection) {
         const sel = renderer.getSelection()
-        if (sel && sel.hasSelection()) {
+        if (sel && sel.isActive) {
           const text = sel.getSelectedText()
           if (text) {
             event.preventDefault()
@@ -427,7 +428,7 @@ function Layout(props: { onExit?: () => void }) {
       // Check for active text selection — copy takes priority over interrupt/clear
       if (renderer.hasSelection) {
         const sel = renderer.getSelection()
-        if (sel && sel.hasSelection()) {
+        if (sel && sel.isActive) {
           const text = sel.getSelectedText()
           if (text) {
             event.preventDefault()

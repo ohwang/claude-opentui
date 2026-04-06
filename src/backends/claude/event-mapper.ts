@@ -39,6 +39,9 @@ function cleanErrorMessage(errors: string[] | undefined): string | undefined {
 export class ToolStreamState {
   toolInputJsons = new Map<string, string>()
   currentToolIds = new Map<number, string>()
+  /** Set to true once the first stream_event is received (live streaming mode).
+   *  Before this, assistant messages are treated as replayed history. */
+  hasReceivedStreamEvent = false
 }
 
 // ---------------------------------------------------------------------------
@@ -108,6 +111,7 @@ export function mapSDKMessage(msg: any, streamState: ToolStreamState, options?: 
       break
 
     case "stream_event":
+      streamState.hasReceivedStreamEvent = true
       events.push(...mapStreamEvent(msg.event, msg.parent_tool_use_id, streamState))
       break
 
@@ -115,10 +119,20 @@ export function mapSDKMessage(msg: any, streamState: ToolStreamState, options?: 
       // Full assistant message (contains complete content blocks).
       // V1 uses stream_event for real-time deltas — assistant messages are redundant.
       // V2's stream() yields only assistant messages (no stream_events).
-      // Only map when mapAssistant is true (V2) to avoid double-emit in V1.
       if (options?.mapAssistant) {
+        // V2 live mode — result message handles turn_complete
         events.push(...mapAssistantMessage(msg))
+      } else if (!streamState.hasReceivedStreamEvent) {
+        // Replay mode (resume/continue) — no stream_events yet, so assistant
+        // messages are historical. Map content and add synthetic turn_complete
+        // so the reducer transitions RUNNING → IDLE between replayed turns.
+        events.push(...mapAssistantMessage(msg))
+        events.push({
+          type: "turn_complete",
+          usage: { inputTokens: 0, outputTokens: 0 },
+        })
       }
+      // V1 live mode (hasReceivedStreamEvent=true, !mapAssistant): skip
       break
 
     case "result": {
@@ -275,6 +289,23 @@ export function mapSDKMessage(msg: any, streamState: ToolStreamState, options?: 
             output,
             error: isError ? output : undefined,
           })
+        }
+      } else {
+        // Replayed user message (resume/continue) — extract text content.
+        // During live operation the SDK doesn't echo user messages back,
+        // so this path only fires for historical replay.
+        const content = msg.message?.content
+        let text = ""
+        if (typeof content === "string") {
+          text = content
+        } else if (Array.isArray(content)) {
+          text = content
+            .filter((c: any) => c.type === "text")
+            .map((c: any) => c.text)
+            .join("\n")
+        }
+        if (text) {
+          events.push({ type: "user_message", text })
         }
       }
       break

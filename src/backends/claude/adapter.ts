@@ -125,8 +125,8 @@ export class ClaudeAdapter implements AgentBackend {
     yield* this.iterateQuery()
   }
 
-  async *resume(sessionId: string): AsyncGenerator<AgentEvent> {
-    const config: SessionConfig = { resume: sessionId }
+  async *resume(sessionId: string, baseConfig?: SessionConfig): AsyncGenerator<AgentEvent> {
+    const config: SessionConfig = { ...baseConfig, resume: sessionId }
     yield* this.start(config)
   }
 
@@ -418,7 +418,6 @@ export class ClaudeAdapter implements AgentBackend {
       cwd: config.cwd,
       continue: config.continue,
       resume: config.resume,
-      sessionId: config.resume,
       forkSession: config.forkSession,
       mcpServers: config.mcpServers,
       allowedTools: config.allowedTools,

@@ -476,14 +476,33 @@ describe("ClaudeAdapter", () => {
   })
 
   describe("mapAssistant option", () => {
-    it("V1 (default): assistant messages are ignored", () => {
+    it("V1 live mode: assistant messages are ignored after stream_event received", () => {
       const streamState = new ToolStreamState()
+      // Simulate having received a stream_event (live streaming mode)
+      streamState.hasReceivedStreamEvent = true
       const events = mapSDKMessage({
         type: "assistant",
         message: { content: [{ type: "text", text: "Hello" }] },
       }, streamState)
 
       expect(events).toHaveLength(0)
+    })
+
+    it("V1 replay mode: assistant messages are mapped before first stream_event", () => {
+      const streamState = new ToolStreamState()
+      // Before any stream_event, assistant messages are treated as replayed history
+      const events = mapSDKMessage({
+        type: "assistant",
+        message: { content: [{ type: "text", text: "Hello" }] },
+      }, streamState)
+
+      // Should produce turn_start + text_delta + turn_complete
+      expect(events.length).toBeGreaterThanOrEqual(3)
+      expect(events[0]!.type).toBe("turn_start")
+      const textEvent = events.find(e => e.type === "text_delta")
+      expect(textEvent).toBeTruthy()
+      expect(textEvent!.text).toBe("Hello")
+      expect(events[events.length - 1]!.type).toBe("turn_complete")
     })
 
     it("V2 (mapAssistant: true): assistant messages are mapped", () => {

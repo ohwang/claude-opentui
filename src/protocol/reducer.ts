@@ -596,18 +596,34 @@ export function reduce(
       const data = event.data as Record<string, unknown> | null
       if (data && (data as { type?: string }).type === "rate_limit_event") {
         const info = (data as { rate_limit_info?: Record<string, unknown> }).rate_limit_info
-        if (info && typeof info.rateLimitType === "string" && typeof info.utilization === "number") {
-          const entry = {
-            usedPercentage: info.utilization * 100,
-            resetsAt: typeof info.resetsAt === "number" ? info.resetsAt : undefined,
+        if (info && typeof info.rateLimitType === "string") {
+          // utilization comes as 0-1 from SDK when available
+          // surpassedThreshold is a fallback hint (e.g., 0.8 means 80% threshold crossed)
+          // status "allowed_warning" means approaching limit, "rejected" means at limit
+          let usedPct: number | undefined
+          if (typeof info.utilization === "number") {
+            usedPct = info.utilization * 100
+          } else if (typeof info.surpassedThreshold === "number") {
+            usedPct = info.surpassedThreshold * 100
+          } else if (info.status === "rejected") {
+            usedPct = 100
+          } else if (info.status === "allowed_warning") {
+            usedPct = 80 // conservative estimate
           }
-          const rl = next.rateLimits ? { ...next.rateLimits } : {}
-          if (info.rateLimitType === "five_hour") {
-            rl.fiveHour = entry
-          } else if (info.rateLimitType === "seven_day" || info.rateLimitType === "seven_day_opus" || info.rateLimitType === "seven_day_sonnet") {
-            rl.sevenDay = entry
+
+          if (usedPct !== undefined) {
+            const entry = {
+              usedPercentage: usedPct,
+              resetsAt: typeof info.resetsAt === "number" ? info.resetsAt : undefined,
+            }
+            const rl = next.rateLimits ? { ...next.rateLimits } : {}
+            if (info.rateLimitType === "five_hour") {
+              rl.fiveHour = entry
+            } else if (info.rateLimitType === "seven_day" || info.rateLimitType === "seven_day_opus" || info.rateLimitType === "seven_day_sonnet") {
+              rl.sevenDay = entry
+            }
+            next.rateLimits = rl
           }
-          next.rateLimits = rl
         }
       }
       return next

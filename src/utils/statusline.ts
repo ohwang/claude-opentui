@@ -107,6 +107,16 @@ export interface StatusLineInput {
   }
 }
 
+/** Format model display name with context window abbreviation (e.g., "Opus 4.6 (1M)"). */
+function formatModelDisplayName(rawModel: string, ctxWindow: number): string {
+  const friendly = friendlyModelName(rawModel)
+  if (!friendly) return ""
+  const ctxAbbrev = ctxWindow >= 1_000_000
+    ? `${ctxWindow / 1_000_000}M`
+    : `${ctxWindow / 1_000}K`
+  return `${friendly} (${ctxAbbrev})`
+}
+
 /** Session start timestamp (set once on first build call). */
 let sessionStartMs = 0
 
@@ -125,7 +135,8 @@ export function buildStatusLineInput(
   const rawModel = sessionState.currentModel || (model?.name ?? opts.configModel ?? "")
   const ctxWindow = model?.contextWindow ?? MODEL_CONTEXT_WINDOWS[rawModel] ?? DEFAULT_CONTEXT_WINDOW
 
-  // Context window percentages
+  // Context window percentages — lastTurnInputTokens is the input token count
+  // from the most recent API response, matching Claude Code's used_percentage
   const lastInput = sessionState.lastTurnInputTokens
   let usedPct: number | null = null
   let remainingPct: number | null = null
@@ -153,7 +164,7 @@ export function buildStatusLineInput(
     transcript_path: transcriptPath,
     model: {
       id: rawModel,
-      display_name: friendlyModelName(rawModel),
+      display_name: formatModelDisplayName(rawModel, ctxWindow),
     },
     workspace: {
       current_dir: cwd,

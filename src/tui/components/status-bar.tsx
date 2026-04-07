@@ -10,7 +10,7 @@
 import { createSignal, createEffect, createMemo, onCleanup, on } from "solid-js"
 import path from "node:path"
 import { TextAttributes } from "@opentui/core"
-import type { StyledText } from "@opentui/core"
+import type { StyledText, TextRenderable } from "@opentui/core"
 import { useKeyboard, useTerminalDimensions } from "@opentui/solid"
 import { useSession } from "../context/session"
 import { useMessages } from "../context/messages"
@@ -146,6 +146,7 @@ export function StatusBar(props: { hint?: string | null }) {
   // -- External status line command --
   const statusLineConfig = getStatusLineConfig()
   const [statusLineText, setStatusLineText] = createSignal<StyledText | null>(null)
+  let statusLineRef: TextRenderable | undefined
 
   // -- Available permission modes (filtered against backend capabilities) --
   const availableModes = createMemo(() => {
@@ -180,6 +181,9 @@ export function StatusBar(props: { hint?: string | null }) {
     }
   })
 
+  // -- Terminal dimensions (declared early for status line command) --
+  const dims = useTerminalDimensions()
+
   // -- Status line command execution (debounced + periodic) --
   if (statusLineConfig) {
     let debounceTimer: ReturnType<typeof setTimeout> | undefined
@@ -193,7 +197,12 @@ export function StatusBar(props: { hint?: string | null }) {
       executeStatusLineCommand(statusLineConfig.command, input)
         .then((text) => {
           if (text) {
-            setStatusLineText(ansiToStyledText(text))
+            const styled = ansiToStyledText(text)
+            setStatusLineText(styled)
+            // Imperatively update the TextRenderable content
+            if (statusLineRef) {
+              statusLineRef.content = styled
+            }
           }
         })
         .catch(() => { /* silently ignore errors */ })
@@ -312,7 +321,6 @@ export function StatusBar(props: { hint?: string | null }) {
   const isRunning = createMemo(() => state.sessionState === "RUNNING")
 
   // -- Responsive width-based hiding --
-  const dims = useTerminalDimensions()
   const termWidth = () => dims()?.width ?? 120
 
   const showCtx = () => termWidth() >= 100
@@ -488,7 +496,12 @@ export function StatusBar(props: { hint?: string | null }) {
       {/* Line 1: external command output OR native status bar */}
       {statusLineConfig && statusLineText() ? (
         <box height={1} flexDirection="row" paddingLeft={2 + statusLinePadding} paddingRight={1 + statusLinePadding}>
-          <text content={statusLineText()!} attributes={TextAttributes.DIM} />
+          <text ref={(el: TextRenderable) => {
+            statusLineRef = el
+            // Set initial styled content when ref mounts
+            const styled = statusLineText()
+            if (styled) el.content = styled
+          }}>{" "}</text>
         </box>
       ) : (
         <box height={1} flexDirection="row" paddingLeft={2} paddingRight={1}>

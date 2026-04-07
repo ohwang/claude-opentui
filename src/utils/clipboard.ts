@@ -15,6 +15,7 @@ import { log } from "./logger"
 import { existsSync } from "node:fs"
 import { readFile, unlink } from "node:fs/promises"
 import { resolve } from "node:path"
+import { homedir } from "node:os"
 import type { ImageContent } from "../protocol/types"
 
 const IMAGE_MAX_BASE64_BYTES = 5 * 1024 * 1024
@@ -88,7 +89,10 @@ export async function readImageFile(filePath: string): Promise<ImageContent | nu
   try {
     const cleaned = removeOuterQuotes(filePath.trim())
     const unescaped = stripBackslashEscapes(cleaned)
-    const resolved = resolve(unescaped)
+    const withHomeExpanded = unescaped === "~" || unescaped.startsWith("~/")
+      ? resolve(process.env.HOME || homedir(), unescaped.slice(2))
+      : unescaped
+    const resolved = resolve(withHomeExpanded)
 
     if (!existsSync(resolved)) return null
 

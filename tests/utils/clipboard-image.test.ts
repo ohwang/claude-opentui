@@ -681,4 +681,42 @@ describe("readImageFile", () => {
       try { unlinkSync(tmpPath) } catch {}
     }
   })
+
+
+  it("expands ~/ paths on darwin", async () => {
+    const { mkdirSync, writeFileSync, rmSync } = await import("fs")
+    const prevPlatform = process.platform
+    const prevHome = process.env.HOME
+    const homeDir = `/tmp/clip-home-${Date.now()}`
+    const desktopDir = `${homeDir}/Desktop`
+    const tmpPath = `${desktopDir}/tilde-test.png`
+
+    Object.defineProperty(process, "platform", { value: "darwin", writable: true })
+    process.env.HOME = homeDir
+
+    const pngBytes = new Uint8Array([
+      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+      0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52,
+      0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+      0x08, 0x06, 0x00, 0x00, 0x00, 0x1f, 0x15, 0xc4,
+      0x89, 0x00, 0x00, 0x00, 0x0a, 0x49, 0x44, 0x41,
+      0x54, 0x78, 0x9c, 0x62, 0x00, 0x00, 0x00, 0x02,
+      0x00, 0x01, 0xe5, 0x27, 0xde, 0xfc, 0x00, 0x00,
+      0x00, 0x00, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42,
+      0x60, 0x82,
+    ])
+
+    try {
+      mkdirSync(desktopDir, { recursive: true })
+      writeFileSync(tmpPath, pngBytes)
+      const result = await readImageFile("~/Desktop/tilde-test.png")
+      expect(result).not.toBeNull()
+      expect(result!.mediaType).toBe("image/png")
+    } finally {
+      Object.defineProperty(process, "platform", { value: prevPlatform, writable: true })
+      if (prevHome === undefined) delete process.env.HOME
+      else process.env.HOME = prevHome
+      rmSync(homeDir, { recursive: true, force: true })
+    }
+  })
 })

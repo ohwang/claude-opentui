@@ -295,13 +295,12 @@ export class GeminiAdapter implements AgentBackend {
 
       // Emit synthetic session_init immediately so it arrives before the first turn_start.
       // Model info will be updated when the SDK sends a model_info event.
+      const modelName = config.model || "gemini-2.5-pro"
       this.eventChannel?.push({
         type: "session_init",
         sessionId: crypto.randomUUID(),
         tools: [],
-        models: config.model
-          ? [{ id: config.model, name: config.model, provider: "google" }]
-          : [],
+        models: [{ id: modelName, name: modelName, provider: "google" }],
       })
 
       // 4. If there's an initial prompt, send the first turn

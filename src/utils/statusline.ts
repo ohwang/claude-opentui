@@ -109,8 +109,8 @@ export interface StatusLineInput {
 
 /** Format model display name with context window abbreviation (e.g., "Opus 4.6 (1M)"). */
 function formatModelDisplayName(rawModel: string, ctxWindow: number): string {
+  if (!rawModel) return ""
   const friendly = friendlyModelName(rawModel)
-  if (!friendly) return ""
   const ctxAbbrev = ctxWindow >= 1_000_000
     ? `${ctxWindow / 1_000_000}M`
     : `${ctxWindow / 1_000}K`

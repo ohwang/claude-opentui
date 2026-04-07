@@ -356,6 +356,9 @@ export interface ConversationState {
   /** Whether the current turn is backgrounded (UI collapsed, input re-enabled) */
   backgrounded: boolean
 
+  /** Rate limit utilization (from SDK rate_limit_event) */
+  rateLimits: RateLimits | null
+
   /**
    * True after user_message transitions to RUNNING (before the SDK's turn_start arrives).
    * Allows turn_start to process when already in RUNNING from a user_message,
@@ -491,6 +494,16 @@ export interface CostTotals {
   totalCostUsd: number
 }
 
+export interface RateLimitEntry {
+  usedPercentage: number // 0-100
+  resetsAt?: number      // Unix epoch seconds
+}
+
+export interface RateLimits {
+  fiveHour?: RateLimitEntry
+  sevenDay?: RateLimitEntry
+}
+
 export interface ElicitationQuestion {
   question: string
   /** Short label displayed as a chip/tag (max 12 chars) */
@@ -596,5 +609,6 @@ export function createInitialState(): ConversationState {
     backgrounded: false,
     awaitingTurnStart: false,
     lastTurnFiles: undefined,
+    rateLimits: null,
   }
 }

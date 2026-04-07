@@ -213,13 +213,14 @@ export function StatusBar(props: { hint?: string | null }) {
       debounceTimer = setTimeout(runStatusLineCommand, STATUS_LINE_DEBOUNCE_MS)
     }
 
-    // Re-run on state changes (turn boundaries, cost updates, model changes)
+    // Re-run on state changes (turn boundaries, cost updates, model changes, rate limits)
     createEffect(() => {
       // Access reactive dependencies
       void state.sessionState
       void state.cost.totalCostUsd
       void state.turnNumber
       void state.currentModel
+      void state.rateLimits
       void permMode()
       scheduleUpdate()
     })

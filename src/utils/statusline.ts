@@ -193,6 +193,23 @@ export function buildStatusLineInput(
       } : null,
     },
     exceeds_200k_tokens: lastInput > 200_000,
+    // Rate limits (populated when SDK emits rate_limit_event)
+    ...(sessionState.rateLimits && {
+      rate_limits: {
+        ...(sessionState.rateLimits.fiveHour && {
+          five_hour: {
+            used_percentage: sessionState.rateLimits.fiveHour.usedPercentage,
+            resets_at: sessionState.rateLimits.fiveHour.resetsAt,
+          },
+        }),
+        ...(sessionState.rateLimits.sevenDay && {
+          seven_day: {
+            used_percentage: sessionState.rateLimits.sevenDay.usedPercentage,
+            resets_at: sessionState.rateLimits.sevenDay.resetsAt,
+          },
+        }),
+      },
+    }),
   }
 }
 

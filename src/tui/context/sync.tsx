@@ -87,6 +87,7 @@ export function SyncProvider(props: ParentProps) {
         turnNumber: conversationState.turnNumber,
         lastTurnInputTokens: conversationState.lastTurnInputTokens,
         currentModel: conversationState.currentModel ?? "",
+        rateLimits: conversationState.rateLimits,
       })
 
       permissions.setState({

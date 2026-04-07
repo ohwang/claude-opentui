@@ -15,6 +15,7 @@ import type {
   SessionMetadata,
   CostTotals,
   ErrorEvent,
+  RateLimits,
 } from "../../protocol/types"
 
 export interface SessionContextState {
@@ -25,6 +26,7 @@ export interface SessionContextState {
   turnNumber: number
   lastTurnInputTokens: number
   currentModel: string
+  rateLimits: RateLimits | null
 }
 
 export interface SessionContextValue {
@@ -49,6 +51,7 @@ export function SessionProvider(props: ParentProps) {
     turnNumber: 0,
     lastTurnInputTokens: 0,
     currentModel: "",
+    rateLimits: null,
   })
 
   return (

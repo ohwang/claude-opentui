@@ -589,9 +589,29 @@ export function reduce(
     // ----- Informational / passthrough -----
 
     case "session_state":
-    case "backend_specific":
-      // Informational — don't change reducer state
       return next
+
+    case "backend_specific": {
+      // Extract rate limit data from claude backend rate_limit_event
+      const data = event.data as Record<string, unknown> | null
+      if (data && (data as { type?: string }).type === "rate_limit_event") {
+        const info = (data as { rate_limit_info?: Record<string, unknown> }).rate_limit_info
+        if (info && typeof info.rateLimitType === "string" && typeof info.utilization === "number") {
+          const entry = {
+            usedPercentage: info.utilization * 100,
+            resetsAt: typeof info.resetsAt === "number" ? info.resetsAt : undefined,
+          }
+          const rl = next.rateLimits ? { ...next.rateLimits } : {}
+          if (info.rateLimitType === "five_hour") {
+            rl.fiveHour = entry
+          } else if (info.rateLimitType === "seven_day" || info.rateLimitType === "seven_day_opus" || info.rateLimitType === "seven_day_sonnet") {
+            rl.sevenDay = entry
+          }
+          next.rateLimits = rl
+        }
+      }
+      return next
+    }
 
     default:
       // Unknown event type: record but don't crash

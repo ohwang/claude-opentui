@@ -38,6 +38,14 @@ export default [
       "prefer-const": "warn",
       "no-var": "error",
       eqeqeq: ["error", "always"],
+
+      // Catch variable-used-before-initialization bugs (e.g., dims() before const dims = ...)
+      "@typescript-eslint/no-use-before-define": ["error", {
+        functions: false,  // hoisted function declarations are fine
+        classes: true,
+        variables: true,
+        allowNamedExports: false,
+      }],
     },
   },
   {

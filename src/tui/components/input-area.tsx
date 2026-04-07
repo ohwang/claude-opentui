@@ -47,6 +47,11 @@ export function computeVisualLineCount(text: string, availableWidth: number): nu
   return totalLines
 }
 
+/** Plain Enter submits; Shift+Enter / Cmd+Enter insert a newline instead. */
+export function isSubmitKey(event: Pick<KeyEvent, "name" | "shift" | "meta" | "super">): boolean {
+  return event.name === "return" && !event.shift && !event.meta && !event.super
+}
+
 /** Truncate a file path to fit the terminal, showing the tail end */
 function truncatePath(path: string, maxLen: number = 70): string {
   if (path.length <= maxLen) return path
@@ -970,7 +975,7 @@ export function InputArea() {
       }
 
       // Enter = execute selected command / insert selected file
-      if (e.name === "return" && !e.shift && !e.meta) {
+      if (isSubmitKey(e)) {
         e.preventDefault()
         const selected = items[selectedIndex()]
         if (selected) {
@@ -1025,7 +1030,7 @@ export function InputArea() {
     }
 
     // Enter without shift/meta = submit
-    if (e.name === "return" && !e.shift && !e.meta) {
+    if (isSubmitKey(e)) {
       e.preventDefault()
       submit()
       return

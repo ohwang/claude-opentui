@@ -17,7 +17,7 @@
     "lint:opentui": "bash scripts/lint-opentui.sh"
   },
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "0.2.88",
+    "@anthropic-ai/claude-agent-sdk": "^0.2.92",
     "@google/gemini-cli-sdk": "../gemini-cli/packages/sdk",
     "@openai/codex-sdk": "^0.118.0",
     "@opentui/core": "0.1.93",

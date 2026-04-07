@@ -74,6 +74,9 @@ export function setTerminalProgress(
 ): void {
   if (!process.stdout.isTTY) return
 
+  const term = detectTerminal()
+  if (term !== "iterm2" && term !== "ghostty") return
+
   let sequence: string
 
   if (state === "clear") {

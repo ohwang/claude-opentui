@@ -211,31 +211,36 @@ describe("setTerminalProgress", () => {
     restoreEnv(saved)
   })
 
-  it("writes running state with percent", () => {
+  it("writes running state with percent for iTerm2", () => {
+    process.env.TERM_PROGRAM = "iTerm.app"
     setTerminalProgress("running", 42)
     expect(writtenData).toHaveLength(1)
     expect(writtenData[0]).toBe("\x1b]9;4;1;42\x07")
   })
 
-  it("writes running state with 0 percent when omitted", () => {
+  it("writes running state with 0 percent when omitted for iTerm2", () => {
+    process.env.TERM_PROGRAM = "iTerm.app"
     setTerminalProgress("running")
     expect(writtenData).toHaveLength(1)
     expect(writtenData[0]).toBe("\x1b]9;4;1;0\x07")
   })
 
-  it("writes completed state (code 3)", () => {
+  it("writes completed state (code 3) for iTerm2", () => {
+    process.env.TERM_PROGRAM = "iTerm.app"
     setTerminalProgress("completed", 100)
     expect(writtenData).toHaveLength(1)
     expect(writtenData[0]).toBe("\x1b]9;4;3;100\x07")
   })
 
-  it("writes error state (code 2)", () => {
+  it("writes error state (code 2) for Ghostty", () => {
+    process.env.TERM_PROGRAM = "ghostty"
     setTerminalProgress("error")
     expect(writtenData).toHaveLength(1)
     expect(writtenData[0]).toBe("\x1b]9;4;2;0\x07")
   })
 
-  it("writes clear state (code 0;0)", () => {
+  it("writes clear state (code 0;0) for iTerm2", () => {
+    process.env.TERM_PROGRAM = "iTerm.app"
     setTerminalProgress("clear")
     expect(writtenData).toHaveLength(1)
     expect(writtenData[0]).toBe("\x1b]9;4;0;0\x07")
@@ -248,7 +253,15 @@ describe("setTerminalProgress", () => {
     expect(writtenData).toHaveLength(0)
   })
 
-  it("wraps for tmux when TMUX is set", () => {
+
+  it("does nothing for unsupported terminals such as Apple Terminal", () => {
+    process.env.TERM_PROGRAM = "Apple_Terminal"
+    setTerminalProgress("running", 42)
+    expect(writtenData).toHaveLength(0)
+  })
+
+  it("wraps for tmux when TMUX is set on supported terminals", () => {
+    process.env.TERM_PROGRAM = "iTerm.app"
     process.env.TMUX = "/tmp/tmux-1000/default,12345,0"
     setTerminalProgress("running", 25)
     expect(writtenData).toHaveLength(1)

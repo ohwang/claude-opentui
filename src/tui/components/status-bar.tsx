@@ -10,6 +10,7 @@
 import { createSignal, createEffect, createMemo, onCleanup, on } from "solid-js"
 import path from "node:path"
 import { TextAttributes } from "@opentui/core"
+import type { StyledText } from "@opentui/core"
 import { useKeyboard, useTerminalDimensions } from "@opentui/solid"
 import { useSession } from "../context/session"
 import { useMessages } from "../context/messages"
@@ -21,6 +22,8 @@ import { colors } from "../theme/tokens"
 import type { PermissionMode } from "../../protocol/types"
 import { friendlyModelName, MODEL_CONTEXT_WINDOWS, DEFAULT_CONTEXT_WINDOW } from "../models"
 import { toast } from "../context/toast"
+import { getStatusLineConfig, buildStatusLineInput, executeStatusLineCommand } from "../../utils/statusline"
+import { ansiToStyledText } from "../../utils/ansi-to-styled"
 
 // ---------------------------------------------------------------------------
 // Permission mode cycle order
@@ -124,6 +127,13 @@ function permissionModeLabel(mode: PermissionMode | undefined): string {
 // Component
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Status line command debounce interval
+// ---------------------------------------------------------------------------
+
+const STATUS_LINE_DEBOUNCE_MS = 300
+const STATUS_LINE_REFRESH_MS = 5_000
+
 export function StatusBar(props: { hint?: string | null }) {
   const { state } = useSession()
   const { state: messagesState } = useMessages()
@@ -132,6 +142,10 @@ export function StatusBar(props: { hint?: string | null }) {
   const [permMode, setPermMode] = createSignal<PermissionMode>(
     agent.config.permissionMode ?? "default",
   )
+
+  // -- External status line command --
+  const statusLineConfig = getStatusLineConfig()
+  const [statusLineText, setStatusLineText] = createSignal<StyledText | null>(null)
 
   // -- Available permission modes (filtered against backend capabilities) --
   const availableModes = createMemo(() => {
@@ -165,6 +179,53 @@ export function StatusBar(props: { hint?: string | null }) {
       })
     }
   })
+
+  // -- Status line command execution (debounced + periodic) --
+  if (statusLineConfig) {
+    let debounceTimer: ReturnType<typeof setTimeout> | undefined
+
+    const runStatusLineCommand = () => {
+      const input = buildStatusLineInput(state, {
+        permissionMode: permMode(),
+        configModel: agent.config.model,
+        terminalWidth: dims()?.width,
+      })
+      executeStatusLineCommand(statusLineConfig.command, input)
+        .then((text) => {
+          if (text) {
+            setStatusLineText(ansiToStyledText(text))
+          }
+        })
+        .catch(() => { /* silently ignore errors */ })
+    }
+
+    const scheduleUpdate = () => {
+      if (debounceTimer !== undefined) clearTimeout(debounceTimer)
+      debounceTimer = setTimeout(runStatusLineCommand, STATUS_LINE_DEBOUNCE_MS)
+    }
+
+    // Re-run on state changes (turn boundaries, cost updates, model changes)
+    createEffect(() => {
+      // Access reactive dependencies
+      void state.sessionState
+      void state.cost.totalCostUsd
+      void state.turnNumber
+      void state.currentModel
+      void permMode()
+      scheduleUpdate()
+    })
+
+    // Periodic refresh (every 5s)
+    const periodicTimer = setInterval(runStatusLineCommand, STATUS_LINE_REFRESH_MS)
+
+    // Initial run
+    runStatusLineCommand()
+
+    onCleanup(() => {
+      if (debounceTimer !== undefined) clearTimeout(debounceTimer)
+      clearInterval(periodicTimer)
+    })
+  }
 
   // -- Project name (basename of cwd) --
   const projectName = path.basename(process.cwd())
@@ -420,74 +481,82 @@ export function StatusBar(props: { hint?: string | null }) {
   // Line 2: permission mode indicator (left-aligned)
   // ---------------------------------------------------------------------------
 
+  const statusLinePadding = statusLineConfig?.padding ?? 0
+
   return (
     <box flexDirection="column">
-      {/* Line 1: project, model, state, cost, git, ctx — right side: tok/s or hint */}
-      <box height={1} flexDirection="row" paddingLeft={2} paddingRight={1}>
-        {/* Left: project name + model (always visible) */}
-        <text fg={colors.status.warning} attributes={TextAttributes.BOLD}>
-          {projectName}
-        </text>
+      {/* Line 1: external command output OR native status bar */}
+      {statusLineConfig && statusLineText() ? (
+        <box height={1} flexDirection="row" paddingLeft={2 + statusLinePadding} paddingRight={1 + statusLinePadding}>
+          <text content={statusLineText()!} attributes={TextAttributes.DIM} />
+        </box>
+      ) : (
+        <box height={1} flexDirection="row" paddingLeft={2} paddingRight={1}>
+          {/* Left: project name + model (always visible) */}
+          <text fg={colors.status.warning} attributes={TextAttributes.BOLD}>
+            {projectName}
+          </text>
 
-        <text fg={colors.text.inactive}>{"  "}</text>
+          <text fg={colors.text.inactive}>{"  "}</text>
 
-        <text fg={colors.text.primary} attributes={TextAttributes.BOLD}>
-          {modelName()}
-        </text>
+          <text fg={colors.text.primary} attributes={TextAttributes.BOLD}>
+            {modelName()}
+          </text>
 
-        {/* State icon + backgrounded label */}
-        <text fg={colors.text.inactive}>{"  "}</text>
-        <text fg={stateColor()}>{stateIcon()}</text>
-        {messagesState.backgrounded && (
-          <text fg={colors.status.warning}>{" Backgrounded"}</text>
-        )}
+          {/* State icon + backgrounded label */}
+          <text fg={colors.text.inactive}>{"  "}</text>
+          <text fg={stateColor()}>{stateIcon()}</text>
+          {messagesState.backgrounded && (
+            <text fg={colors.status.warning}>{" Backgrounded"}</text>
+          )}
 
-        {/* Cost (hidden below 60 cols) */}
-        {showCost() && costStr() && (
-          <box flexDirection="row">
-            <text fg={colors.text.inactive}>{"  "}</text>
-            <text fg={colors.status.success}>{costStr()}</text>
-          </box>
-        )}
-
-        {/* Git branch + status (hidden below 80 cols) */}
-        {showGit() && gitStr() && (
-          <box flexDirection="row">
-            <text fg={colors.text.inactive}>{"  "}</text>
-            <text fg={colors.status.info}>{gitStr()}</text>
-          </box>
-        )}
-
-        {/* Context window usage (hidden below 100 cols) */}
-        {showCtx() && ctxStr() && (
-          <box flexDirection="row">
-            <text fg={colors.text.inactive}>{"  "}</text>
-            <text fg={ctxColor()}>{ctxStr()}</text>
-            {ctxBar() && (
-              <>
-                <text fg={colors.text.inactive}>{" "}</text>
-                <text fg={ctxColor()}>{ctxBar()}</text>
-              </>
-            )}
-          </box>
-        )}
-
-        {/* Spacer pushes right-aligned items */}
-        <box flexGrow={1} />
-
-        {/* Right side: exit hint (transient) OR normal right-side info */}
-        {props.hint ? (
-          <text fg={colors.status.warning}>{props.hint}</text>
-        ) : (
-          <>
-            {/* Tok/s — uses visible={false} instead of conditional rendering
-                to prevent layout jumps when streaming starts/stops */}
-            <box flexDirection="row" visible={!!tokPerSecStr()}>
-              <text fg={colors.status.info}>{tokPerSecStr()}</text>
+          {/* Cost (hidden below 60 cols) */}
+          {showCost() && costStr() && (
+            <box flexDirection="row">
+              <text fg={colors.text.inactive}>{"  "}</text>
+              <text fg={colors.status.success}>{costStr()}</text>
             </box>
-          </>
-        )}
-      </box>
+          )}
+
+          {/* Git branch + status (hidden below 80 cols) */}
+          {showGit() && gitStr() && (
+            <box flexDirection="row">
+              <text fg={colors.text.inactive}>{"  "}</text>
+              <text fg={colors.status.info}>{gitStr()}</text>
+            </box>
+          )}
+
+          {/* Context window usage (hidden below 100 cols) */}
+          {showCtx() && ctxStr() && (
+            <box flexDirection="row">
+              <text fg={colors.text.inactive}>{"  "}</text>
+              <text fg={ctxColor()}>{ctxStr()}</text>
+              {ctxBar() && (
+                <>
+                  <text fg={colors.text.inactive}>{" "}</text>
+                  <text fg={ctxColor()}>{ctxBar()}</text>
+                </>
+              )}
+            </box>
+          )}
+
+          {/* Spacer pushes right-aligned items */}
+          <box flexGrow={1} />
+
+          {/* Right side: exit hint (transient) OR normal right-side info */}
+          {props.hint ? (
+            <text fg={colors.status.warning}>{props.hint}</text>
+          ) : (
+            <>
+              {/* Tok/s — uses visible={false} instead of conditional rendering
+                  to prevent layout jumps when streaming starts/stops */}
+              <box flexDirection="row" visible={!!tokPerSecStr()}>
+                <text fg={colors.status.info}>{tokPerSecStr()}</text>
+              </box>
+            </>
+          )}
+        </box>
+      )}
 
       {/* Line 2: permission mode indicator (left-aligned, matches Claude Code) */}
       <box height={1} flexDirection="row" paddingLeft={2}>

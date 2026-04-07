@@ -200,11 +200,10 @@ export function reduce(
         awaitingTurnStart: false,
         activeTasks: prunedTasks,
         session: updatedSession,
-        // Context window fill = uncached input tokens + cache-read tokens.
-        // cacheWriteTokens is a subset of inputTokens (tokens the API wrote to
-        // cache this turn), so adding it would double-count.
+        // Context window fill = input_tokens + cache_read + cache_creation
+        // Matches Claude Code's calculateContextPercentages() which sums all three.
         lastTurnInputTokens: event.usage && (event.usage.inputTokens > 0 || (event.usage.cacheReadTokens ?? 0) > 0)
-          ? (event.usage.inputTokens + (event.usage.cacheReadTokens ?? 0))
+          ? (event.usage.inputTokens + (event.usage.cacheReadTokens ?? 0) + (event.usage.cacheWriteTokens ?? 0))
           : state.lastTurnInputTokens,
         lastTurnFiles: turnFiles.length > 0 ? turnFiles : undefined,
       }

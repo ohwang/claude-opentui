@@ -300,14 +300,17 @@ export function DiagnosticsPanel(props: { visible: boolean; onClose: () => void 
                 {/* Section title */}
                 <box marginTop={1}>
                   <text fg={colors.accent.primary} attributes={TextAttributes.BOLD}>
-                    {"  " + section.title}
+                    {section.title}
                   </text>
                 </box>
+
+                {/* Blank line between subtitle and content */}
+                <box height={1} />
 
                 {/* Key-value entries */}
                 <For each={section.entries}>
                   {(entry) => (
-                    <box flexDirection="row" paddingLeft={4}>
+                    <box flexDirection="row">
                       <text fg={colors.text.inactive}>{padRight(entry.key, 22)}</text>
                       <text fg={entry.color ?? "white"}>{" " + entry.value}</text>
                     </box>

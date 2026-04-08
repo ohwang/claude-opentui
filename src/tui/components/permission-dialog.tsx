@@ -480,30 +480,26 @@ export function PermissionDialog() {
         const label = () => actionLabel(perm().tool, perm().displayName)
         const allPreviewLines = createMemo(() => extractPreviewLines(perm().tool, perm().input))
 
-        // Viewport-aware preview truncation.
-        // Reserve lines for chrome: action label (1) + path (1) + description (1)
-        // + dashed borders (2) + question (1) + 4 options (4) + footer+margin (2)
-        // + padding (2) + truncation indicator (1) = ~15 lines.
-        const CHROME_LINES = 15
-        const maxPreviewLines = () => {
+        // Fixed chrome lines outside the scrollable preview area:
+        // border top/bottom (2) + action label (1) + question (1) + 4 options (4)
+        // + footer with margin (2) + padding (2) + dashed borders (2) = 14 lines.
+        // Additional optional metadata lines (path, description, etc.) add up to ~4.
+        // Use a generous estimate so the preview scrollbox never overflows.
+        const FIXED_CHROME_LINES = 18
+
+        // Max height for the scrollable content preview area.
+        // Ensures the question + options + footer are always visible.
+        const maxPreviewHeight = () => {
           const termHeight = dims()?.height ?? 80
-          const available = termHeight - CHROME_LINES
-          // Always show at least 3 lines of preview, cap at MAX_PREVIEW_LINES
+          const available = termHeight - FIXED_CHROME_LINES
+          // Always allow at least 3 lines, cap at MAX_PREVIEW_LINES
           return Math.max(3, Math.min(available, MAX_PREVIEW_LINES))
         }
 
         const previewLines = () => {
           const all = allPreviewLines()
           if (!all) return null
-          const max = maxPreviewLines()
-          return all.length > max ? all.slice(0, max) : all
-        }
-
-        const truncatedCount = () => {
-          const all = allPreviewLines()
-          if (!all) return 0
-          const max = maxPreviewLines()
-          return Math.max(0, all.length - max)
+          return all
         }
 
         // Don't show path separately for Bash (command is shown in preview)
@@ -562,28 +558,35 @@ export function PermissionDialog() {
               </box>
             </Show>
 
-            {/* Content preview between dashed borders */}
+            {/* Content preview between dashed borders — scrollable to fit small terminals */}
             <Show when={previewLines()}>
               {(lines: Accessor<PreviewLine[]>) => (
                 <box flexDirection="column">
                   <Divider char={"\u254C"} fg={ACCENT} paddingLeft={0} />
-                  <For each={lines()}>
-                    {(line, _idx) => {
-                      const lineColor = () => {
-                        if (line.prefix === "+") return DIFF_ADDED
-                        if (line.prefix === "-") return DIFF_REMOVED
-                        return "white"
-                      }
-                      return (
-                        <box height={1} paddingLeft={1}>
-                          <text fg={lineColor()}>{line.prefix ? `${line.prefix} ${line.text || " "}` : (line.text || " ")}</text>
-                        </box>
-                      )
-                    }}
-                  </For>
-                  <Show when={truncatedCount() > 0}>
+                  <scrollbox
+                    maxHeight={maxPreviewHeight()}
+                    stickyScroll={false}
+                  >
+                    <box flexDirection="column">
+                      <For each={lines()}>
+                        {(line, _idx) => {
+                          const lineColor = () => {
+                            if (line.prefix === "+") return DIFF_ADDED
+                            if (line.prefix === "-") return DIFF_REMOVED
+                            return "white"
+                          }
+                          return (
+                            <box height={1} paddingLeft={1}>
+                              <text fg={lineColor()}>{line.prefix ? `${line.prefix} ${line.text || " "}` : (line.text || " ")}</text>
+                            </box>
+                          )
+                        }}
+                      </For>
+                    </box>
+                  </scrollbox>
+                  <Show when={lines().length > maxPreviewHeight()}>
                     <box height={1} paddingLeft={2}>
-                      <text fg={MUTED}>{`... ${truncatedCount()} more line${truncatedCount() === 1 ? "" : "s"}`}</text>
+                      <text fg={MUTED} attributes={TextAttributes.DIM}>{`... ${lines().length - maxPreviewHeight()} more line${lines().length - maxPreviewHeight() === 1 ? "" : "s"}`}</text>
                     </box>
                   </Show>
                   <Divider char={"\u254C"} fg={ACCENT} paddingLeft={0} />
@@ -591,7 +594,7 @@ export function PermissionDialog() {
               )}
             </Show>
 
-            {/* Question prompt */}
+            {/* Question prompt — always visible */}
             <box height={1} paddingLeft={1} marginTop={previewLines() ? 0 : 1}>
               <text fg={colors.text.primary}>
                 {question()}

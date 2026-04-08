@@ -60,10 +60,7 @@ function ShortcutColumn(props: { title: string; items: ShortcutEntry[]; width?: 
       <box marginTop={1} flexDirection="column">
         <For each={props.items}>
           {(entry) => (
-            <box flexDirection="row">
-              <text fg={colors.accent.highlight}>{"  "}{entry.key}</text>
-              <text fg={colors.text.inactive}>{" — "}{entry.label}</text>
-            </box>
+            <text fg={colors.text.inactive}>{"  "}{entry.key}{" — "}{entry.label}</text>
           )}
         </For>
       </box>

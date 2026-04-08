@@ -5,7 +5,7 @@
  * turn separators, and the CollapsedToolLine (which has complex state).
  */
 
-import { Show, createSignal, createEffect, onCleanup } from "solid-js"
+import { Show, createSignal, createEffect, onCleanup, type Accessor } from "solid-js"
 import { TextAttributes } from "@opentui/core"
 import { ThinkingBlock } from "./thinking-block"
 import { ToolBlockView, isUserDecline } from "./tool-view"
@@ -42,7 +42,7 @@ export function BlockView(props: { block: Block; viewLevel: ViewLevel; prevType?
 
   return (
     <box flexDirection="column">
-      <Show when={userBlock()}>{(ub) =>
+      <Show when={userBlock()}>{(ub: Accessor<Extract<Block, { type: "user" }>>) =>
         <box marginTop={1}>
           <Show when={props.prevType && props.prevType !== "user"}>
             <Divider width={60} />
@@ -50,12 +50,12 @@ export function BlockView(props: { block: Block; viewLevel: ViewLevel; prevType?
           <UserBlock block={ub()} />
         </box>
       }</Show>
-      <Show when={assistantBlock()}>{(ab) =>
+      <Show when={assistantBlock()}>{(ab: Accessor<Extract<Block, { type: "assistant" }>>) =>
         <box marginTop={1}><AssistantBlock block={ab()} /></box>
       }</Show>
 
       {/* Thinking block — hidden in collapsed view or when thinking toggle is off */}
-      <Show when={props.showThinking !== false && props.viewLevel !== "collapsed" && thinkingBlock()}>{(tb) =>
+      <Show when={props.showThinking !== false && props.viewLevel !== "collapsed" && thinkingBlock()}>{(tb: Accessor<Extract<Block, { type: "thinking" }>>) =>
         <box marginTop={1}>
           <ThinkingBlock text={tb().text} collapsed={false} />
         </box>
@@ -63,7 +63,7 @@ export function BlockView(props: { block: Block; viewLevel: ViewLevel; prevType?
 
       {/* Tool block — tight grouping for consecutive tools.
           Agent and Skill tools get specialized rendering. */}
-      <Show when={toolBlock()}>{(tb) =>
+      <Show when={toolBlock()}>{(tb: Accessor<Extract<Block, { type: "tool" }>>) =>
         <box marginTop={props.prevType !== "tool" ? 1 : 0}>
           <Show
             when={tb().tool !== "Agent"}
@@ -98,10 +98,10 @@ export function BlockView(props: { block: Block; viewLevel: ViewLevel; prevType?
         </box>
       }</Show>
 
-      <Show when={systemBlock()}>{(sb) => <box marginTop={1}><SystemBlock block={sb()} /></box>}</Show>
-      <Show when={shellBlock()}>{(sb) => <box marginTop={1}><ShellBlock block={sb()} viewLevel={props.viewLevel} /></box>}</Show>
-      <Show when={compactBlock()}>{(cb) => <box marginTop={1}><CompactBlock block={cb()} /></box>}</Show>
-      <Show when={errorBlock()}>{(eb) => <box marginTop={1}><ErrorBlock block={eb()} /></box>}</Show>
+      <Show when={systemBlock()}>{(sb: Accessor<Extract<Block, { type: "system" }>>) => <box marginTop={1}><SystemBlock block={sb()} /></box>}</Show>
+      <Show when={shellBlock()}>{(sb: Accessor<Extract<Block, { type: "shell" }>>) => <box marginTop={1}><ShellBlock block={sb()} viewLevel={props.viewLevel} /></box>}</Show>
+      <Show when={compactBlock()}>{(cb: Accessor<Extract<Block, { type: "compact" }>>) => <box marginTop={1}><CompactBlock block={cb()} /></box>}</Show>
+      <Show when={errorBlock()}>{(eb: Accessor<Extract<Block, { type: "error" }>>) => <box marginTop={1}><ErrorBlock block={eb()} /></box>}</Show>
     </box>
   )
 }

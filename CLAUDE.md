@@ -45,6 +45,8 @@ The protocol layer is the load-bearing abstraction. All backends implement `Agen
 - **Types as documentation.** `src/protocol/types.ts` IS the spec.
 - **Test contracts, not implementations.** Adapter contract tests validate event ordering and lifecycle rules.
 - **Explicit over clever.** No metaprogramming, no deep inheritance, no magic.
+- **Cleanup must survive deletion.** When removing a variable/timer, grep for ALL references including `onCleanup` callbacks. SolidJS cleanup runs during `renderer.destroy()` — a dangling reference there prevents `process.exit()` and silently breaks exit.
+- **`tsc --noEmit` must pass.** Never commit code that adds new TypeScript errors. The type checker catches undefined variables, missing properties, and type mismatches at compile time.
 
 ## OpenTUI Prop Rules (CRITICAL)
 

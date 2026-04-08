@@ -163,7 +163,14 @@ function Layout(props: { onExit?: () => void }) {
     }
     // Show a random goodbye message before exit
     const goodbye = GOODBYE_MESSAGES[Math.floor(Math.random() * GOODBYE_MESSAGES.length)]
-    renderer.destroy()
+    try {
+      renderer.destroy()
+    } catch (e) {
+      // Destruction errors must never prevent exit — log and continue.
+      // SolidJS onCleanup callbacks run during destroy and may reference
+      // stale variables (e.g., removed timers). This is a safety net.
+      log.error("renderer.destroy() failed", { error: String(e) })
+    }
     console.log(goodbye)
     // Print session info immediately after goodbye — this is the primary
     // output path. The process.on("exit") handler in index.ts is a fallback
@@ -490,7 +497,6 @@ function Layout(props: { onExit?: () => void }) {
     clearTimeout(ctrlCTimer)
     clearTimeout(ctrlBTimer)
     clearTimeout(statusHintTimer)
-    clearTimeout(interruptTimeout)
   })
 
   return (

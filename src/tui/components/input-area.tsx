@@ -1034,7 +1034,7 @@ export function InputArea() {
       }
 
       // Tab = fill selected item into input (without executing)
-      if (e.name === "tab") {
+      if (e.name === "tab" && !e.shift) {
         e.preventDefault()
         if (autocompleteMode() === "file") {
           // Tab in file mode: fill common prefix if longer than query, else select item
@@ -1079,7 +1079,7 @@ export function InputArea() {
     }
 
     // Tab = slash command completion (fallback when dropdown is not showing)
-    if (e.name === "tab") {
+    if (e.name === "tab" && !e.shift) {
       e.preventDefault()
       const text = textareaRef?.plainText ?? ""
       if (text.startsWith("/")) {

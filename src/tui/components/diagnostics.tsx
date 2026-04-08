@@ -24,6 +24,8 @@ import type { Block } from "../../protocol/types"
 // Module-level callbacks — called from app.tsx keyboard handler
 // ---------------------------------------------------------------------------
 let _scrollDiagnostics: ((amount: number) => void) | undefined
+let _scrollDiagnosticsToTop: (() => void) | undefined
+let _scrollDiagnosticsToBottom: (() => void) | undefined
 let _switchDiagnosticsTab: ((tab?: number) => void) | undefined
 
 /**
@@ -32,6 +34,16 @@ let _switchDiagnosticsTab: ((tab?: number) => void) | undefined
  */
 export function scrollDiagnostics(amount: number): void {
   _scrollDiagnostics?.(amount)
+}
+
+/** Scroll the diagnostics panel to the very top (vim `gg`). */
+export function scrollDiagnosticsToTop(): void {
+  _scrollDiagnosticsToTop?.()
+}
+
+/** Scroll the diagnostics panel to the very bottom (vim `G`). */
+export function scrollDiagnosticsToBottom(): void {
+  _scrollDiagnosticsToBottom?.()
 }
 
 /**
@@ -161,11 +173,28 @@ export function DiagnosticsPanel(props: { visible: boolean; onClose: () => void 
         logsScrollRef?.scrollBy(n)
       }
     }
+    _scrollDiagnosticsToTop = () => {
+      if (activeTab() === 0) {
+        infoScrollRef?.scrollTo(0)
+      } else {
+        logsScrollRef?.scrollTo(0)
+      }
+    }
+    _scrollDiagnosticsToBottom = () => {
+      // scrollTo a very large value — the scrollbox clamps to max
+      if (activeTab() === 0) {
+        infoScrollRef?.scrollTo(999_999)
+      } else {
+        logsScrollRef?.scrollTo(999_999)
+      }
+    }
   }
 
   // Clean up module-level refs when component unmounts
   onCleanup(() => {
     _scrollDiagnostics = undefined
+    _scrollDiagnosticsToTop = undefined
+    _scrollDiagnosticsToBottom = undefined
     _switchDiagnosticsTab = undefined
   })
 
@@ -426,7 +455,7 @@ export function DiagnosticsPanel(props: { visible: boolean; onClose: () => void 
         </box>
         <box flexShrink={0}>
           <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>
-            {"j/k scroll, d/u page, 1/2 or Tab switch tab, Esc to close"}
+            {"j/k scroll, d/u page, gg/G top/bottom, 1/2 or Tab switch tab, Esc to close"}
           </text>
         </box>
       </box>

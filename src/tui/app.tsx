@@ -30,7 +30,7 @@ import { HistorySearchModal } from "./components/history-search"
 import { StatusBar } from "./components/status-bar"
 import { PermissionDialog } from "./components/permission-dialog"
 import { ElicitationDialog } from "./components/elicitation"
-import { DiagnosticsPanel, scrollDiagnostics, switchDiagnosticsTab } from "./components/diagnostics"
+import { DiagnosticsPanel, scrollDiagnostics, scrollDiagnosticsToTop, scrollDiagnosticsToBottom, switchDiagnosticsTab } from "./components/diagnostics"
 import { MODEL_NAMES, friendlyModelName } from "./models"
 
 // Module-level exit function so slash commands can trigger clean shutdown
@@ -272,6 +272,9 @@ function Layout(props: { onExit?: () => void }) {
     toast.info(`Switched to ${displayName}`)
   }
 
+  // Track last 'g' keypress for vim-style gg (go to top) in diagnostics
+  let lastGPressTime = 0
+
   // Global keyboard shortcuts
   useKeyboard((event) => {
     // When modal overlay is active, delegate to the modal's key handler first,
@@ -312,11 +315,25 @@ function Layout(props: { onExit?: () => void }) {
       if (event.name === "1") { event.preventDefault(); switchDiagnosticsTab(0); return }
       if (event.name === "2") { event.preventDefault(); switchDiagnosticsTab(1); return }
       if (event.name === "tab") { event.preventDefault(); switchDiagnosticsTab(); return }
-      // Vim-style scrolling: j/k for line, d/u for half-page
+      // Vim-style scrolling: j/k for line, d/u for half-page, gg/G top/bottom
       if (event.name === "j") { event.preventDefault(); scrollDiagnostics(1); return }
       if (event.name === "k") { event.preventDefault(); scrollDiagnostics(-1); return }
       if (event.name === "d") { event.preventDefault(); scrollDiagnostics(10); return }
       if (event.name === "u") { event.preventDefault(); scrollDiagnostics(-10); return }
+      // G (shift+g) → jump to bottom
+      if (event.shift && event.name === "g") { event.preventDefault(); scrollDiagnosticsToBottom(); return }
+      // gg → jump to top (two 'g' presses within 500ms)
+      if (event.name === "g") {
+        event.preventDefault()
+        const now = Date.now()
+        if (now - lastGPressTime < 500) {
+          scrollDiagnosticsToTop()
+          lastGPressTime = 0
+        } else {
+          lastGPressTime = now
+        }
+        return
+      }
       // Block all other keys from reaching the textarea
       event.preventDefault()
       return

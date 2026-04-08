@@ -172,10 +172,10 @@ export function StatusBar(props: { hint?: string | null }) {
       // Cycle to the next supported mode
       const nextIdx = (startIdx + 1) % modes.length
       const nextMode = modes[nextIdx] ?? "default"
-      setPermMode(nextMode)
-      agent.backend.setPermissionMode(nextMode).catch((err) => {
-        log.warn("Failed to set permission mode, reverting", { mode: nextMode, error: String(err) })
-        setPermMode(prevMode)
+      agent.backend.setPermissionMode(nextMode).then(() => {
+        setPermMode(nextMode)
+      }).catch((err) => {
+        log.warn("Failed to set permission mode", { mode: nextMode, error: String(err) })
       })
     }
   })

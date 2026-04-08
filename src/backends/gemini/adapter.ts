@@ -179,11 +179,7 @@ export class GeminiAdapter implements AgentBackend {
   }
 
   async setPermissionMode(_mode: PermissionMode): Promise<void> {
-    log.warn("setPermissionMode() on Gemini adapter — not supported")
-    this.eventChannel?.push({
-      type: "system_message",
-      text: "Permission mode switching is not supported by the Gemini backend.",
-    })
+    throw new Error("Permission mode switching is not supported by the Gemini backend.")
   }
 
   async availableModels(): Promise<ModelInfo[]> {

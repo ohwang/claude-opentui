@@ -1,7 +1,12 @@
 /**
- * Conversation View — Scrollbox with manual scroll management
+ * Conversation View — Single scrollbox containing all content
  *
- * Renders all blocks, streaming content, active tools.
+ * Everything (blocks, streaming content, input area, status bar) lives
+ * inside one scrollbox. When scrolled up, the entire UI — including the
+ * input area and status bar — scrolls off-screen, matching Claude Code.
+ * A flex spacer + minHeight="100%" keeps the footer pinned to the bottom
+ * of the viewport when conversation content is short.
+ *
  * Auto-scrolls during streaming via a 200ms nudge timer, but respects
  * user scroll position — if the user scrolls up, auto-scroll disengages.
  * Re-engages when user scrolls back to bottom or sends a new message.
@@ -281,7 +286,7 @@ export function ConversationView(props: { children?: JSX.Element }) {
   return (
     <box flexDirection="column" flexGrow={1}>
       <scrollbox ref={(el: ScrollBoxRenderable) => { scrollboxRef = el; registerScrollToBottom(() => { setUserScrolledAway(false); queueMicrotask(() => el.scrollBy(999999)) }) }} flexGrow={1}>
-        <box flexDirection="column" paddingRight={1} paddingBottom={1}>
+        <box flexDirection="column" paddingRight={1} minHeight="100%">
           {/* Header bar — scrolls with content */}
           <HeaderBar />
 
@@ -422,18 +427,25 @@ export function ConversationView(props: { children?: JSX.Element }) {
               <TaskView tasks={orphanTasks()} />
             </Show>
           </box>
+
+          {/* Spacer — pushes footer to bottom when content is short.
+              Combined with minHeight="100%" on the parent, this ensures
+              the input area stays at the bottom of the viewport until
+              conversation content pushes it further down — then scrolling
+              up moves everything (including the input) off-screen. */}
+          <box flexGrow={1} />
+
+          {/* Toast notifications — above input area */}
+          <box flexDirection="column" flexShrink={0}>
+            <ToastDisplay />
+          </box>
+
+          {/* Input area, status bar, dialogs — scrolls with content */}
+          <box flexDirection="column" flexShrink={0} paddingBottom={1}>
+            {props.children}
+          </box>
         </box>
       </scrollbox>
-
-      {/* Toast notifications — above input area */}
-      <box flexDirection="column" flexShrink={0}>
-        <ToastDisplay />
-      </box>
-
-      {/* Input area, status bar, dialogs — fixed below scrollbox */}
-      <box flexDirection="column" flexShrink={0} paddingBottom={1}>
-        {props.children}
-      </box>
     </box>
   )
 }

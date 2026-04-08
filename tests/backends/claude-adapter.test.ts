@@ -3,6 +3,10 @@ import { ClaudeAdapter } from "../../src/backends/claude/adapter"
 import { mapSDKMessage, mapStreamEvent, mapAssistantMessage, ToolStreamState } from "../../src/backends/claude/event-mapper"
 import { parseElicitationInput, handlePermission, type PermissionBridgeState, type PendingPermission } from "../../src/backends/claude/permission-bridge"
 import { AsyncQueue } from "../../src/utils/async-queue"
+import type { AgentEvent } from "../../src/protocol/types"
+
+/** Narrow an AgentEvent to a specific union member by its `type` discriminant. */
+type EventOf<T extends AgentEvent["type"]> = Extract<AgentEvent, { type: T }>
 
 describe("ClaudeAdapter", () => {
   describe("capabilities", () => {
@@ -112,13 +116,14 @@ describe("ClaudeAdapter", () => {
       }, streamState)
 
       expect(events).toHaveLength(1)
-      expect(events[0].type).toBe("session_init")
-      expect(events[0].tools).toEqual([
+      const ev = events[0]! as EventOf<"session_init">
+      expect(ev.type).toBe("session_init")
+      expect(ev.tools).toEqual([
         { name: "Read" },
         { name: "Write" },
         { name: "Bash" },
       ])
-      expect(events[0].models).toEqual([
+      expect(ev.models).toEqual([
         { id: "claude-sonnet-4-6", name: "claude-sonnet-4-6", provider: "anthropic" },
       ])
     })
@@ -140,11 +145,12 @@ describe("ClaudeAdapter", () => {
       }, streamState)
 
       expect(events).toHaveLength(1)
-      expect(events[0].type).toBe("turn_complete")
-      expect(events[0].usage.inputTokens).toBe(100)
-      expect(events[0].usage.outputTokens).toBe(50)
-      expect(events[0].usage.cacheReadTokens).toBe(10)
-      expect(events[0].usage.totalCostUsd).toBe(0.005)
+      const ev = events[0]! as EventOf<"turn_complete">
+      expect(ev.type).toBe("turn_complete")
+      expect(ev.usage!.inputTokens).toBe(100)
+      expect(ev.usage!.outputTokens).toBe(50)
+      expect(ev.usage!.cacheReadTokens).toBe(10)
+      expect(ev.usage!.totalCostUsd).toBe(0.005)
     })
 
     it("maps result error to error + turn_complete", () => {
@@ -161,9 +167,10 @@ describe("ClaudeAdapter", () => {
       }, streamState)
 
       expect(events).toHaveLength(2)
-      expect(events[0].type).toBe("error")
-      expect(events[0].code).toBe("error_max_turns")
-      expect(events[1].type).toBe("turn_complete")
+      const errEv = events[0]! as EventOf<"error">
+      expect(errEv.type).toBe("error")
+      expect(errEv.code).toBe("error_max_turns")
+      expect(events[1]!.type).toBe("turn_complete")
     })
 
     it("maps stream_event content_block_delta text_delta", () => {
@@ -215,9 +222,10 @@ describe("ClaudeAdapter", () => {
       )
 
       expect(events).toHaveLength(1)
-      expect(events[0].type).toBe("tool_use_start")
-      expect(events[0].id).toBe("tool_123")
-      expect(events[0].tool).toBe("Read")
+      const ev = events[0]! as EventOf<"tool_use_start">
+      expect(ev.type).toBe("tool_use_start")
+      expect(ev.id).toBe("tool_123")
+      expect(ev.tool).toBe("Read")
     })
 
     it("maps stream_event message_start to turn_start", () => {
@@ -229,7 +237,7 @@ describe("ClaudeAdapter", () => {
       )
 
       expect(events).toHaveLength(1)
-      expect(events[0].type).toBe("turn_start")
+      expect(events[0]!.type).toBe("turn_start")
     })
 
     it("ignores compacting status to prevent duplicate compact separators", () => {
@@ -255,8 +263,9 @@ describe("ClaudeAdapter", () => {
       }, streamState)
 
       expect(events).toHaveLength(1)
-      expect(events[0].type).toBe("error")
-      expect(events[0].severity).toBe("recoverable")
+      const ev = events[0]! as EventOf<"error">
+      expect(ev.type).toBe("error")
+      expect(ev.severity).toBe("recoverable")
     })
 
     it("maps rate_limit_event to backend_specific (informational, not error)", () => {
@@ -269,8 +278,9 @@ describe("ClaudeAdapter", () => {
       }, streamState)
 
       expect(events).toHaveLength(1)
-      expect(events[0].type).toBe("backend_specific")
-      expect(events[0].backend).toBe("claude")
+      const ev = events[0]! as EventOf<"backend_specific">
+      expect(ev.type).toBe("backend_specific")
+      expect(ev.backend).toBe("claude")
     })
 
     it("maps unknown message type to backend_specific", () => {
@@ -283,8 +293,9 @@ describe("ClaudeAdapter", () => {
       }, streamState)
 
       expect(events).toHaveLength(1)
-      expect(events[0].type).toBe("backend_specific")
-      expect(events[0].backend).toBe("claude")
+      const ev = events[0]! as EventOf<"backend_specific">
+      expect(ev.type).toBe("backend_specific")
+      expect(ev.backend).toBe("claude")
     })
 
     it("maps user tool_result with is_error to tool_use_end with error", () => {
@@ -306,9 +317,10 @@ describe("ClaudeAdapter", () => {
       }, streamState)
 
       expect(events).toHaveLength(1)
-      expect(events[0].type).toBe("tool_use_end")
-      expect(events[0].id).toBe("tool_err_1")
-      expect(events[0].error).toBe("File not found: /nonexistent.txt")
+      const ev = events[0]! as EventOf<"tool_use_end">
+      expect(ev.type).toBe("tool_use_end")
+      expect(ev.id).toBe("tool_err_1")
+      expect(ev.error).toBe("File not found: /nonexistent.txt")
     })
 
     it("maps user tool_result with tool_use_id on msg directly", () => {
@@ -321,9 +333,10 @@ describe("ClaudeAdapter", () => {
       }, streamState)
 
       expect(events).toHaveLength(1)
-      expect(events[0].type).toBe("tool_use_end")
-      expect(events[0].id).toBe("tool_fb_1")
-      expect(events[0].output).toBe("some output")
+      const ev = events[0]! as EventOf<"tool_use_end">
+      expect(ev.type).toBe("tool_use_end")
+      expect(ev.id).toBe("tool_fb_1")
+      expect(ev.output).toBe("some output")
     })
 
     it("maps user tool_result with object tool_use_result containing error", () => {
@@ -340,9 +353,10 @@ describe("ClaudeAdapter", () => {
       }, streamState)
 
       expect(events).toHaveLength(1)
-      expect(events[0].type).toBe("tool_use_end")
-      expect(events[0].id).toBe("tool_obj_1")
-      expect(events[0].error).toBe("Permission denied")
+      const ev = events[0]! as EventOf<"tool_use_end">
+      expect(ev.type).toBe("tool_use_end")
+      expect(ev.id).toBe("tool_obj_1")
+      expect(ev.error).toBe("Permission denied")
     })
 
     it("maps user tool_result with msg-level is_error flag", () => {
@@ -364,9 +378,10 @@ describe("ClaudeAdapter", () => {
       }, streamState)
 
       expect(events).toHaveLength(1)
-      expect(events[0].type).toBe("tool_use_end")
-      expect(events[0].id).toBe("tool_flag_1")
-      expect(events[0].error).toBe("Timeout exceeded")
+      const ev = events[0]! as EventOf<"tool_use_end">
+      expect(ev.type).toBe("tool_use_end")
+      expect(ev.id).toBe("tool_flag_1")
+      expect(ev.error).toBe("Timeout exceeded")
     })
 
     it("emits tool_use_end with sentinel when tool_use_id cannot be determined", () => {
@@ -378,8 +393,9 @@ describe("ClaudeAdapter", () => {
       }, streamState)
 
       expect(events).toHaveLength(1)
-      expect(events[0].type).toBe("tool_use_end")
-      expect(events[0].id).toBe("__last_running__")
+      const ev = events[0]! as EventOf<"tool_use_end">
+      expect(ev.type).toBe("tool_use_end")
+      expect(ev.id).toBe("__last_running__")
     })
 
     it("maps user tool_result with array content blocks containing text", () => {
@@ -404,10 +420,11 @@ describe("ClaudeAdapter", () => {
       }, streamState)
 
       expect(events).toHaveLength(1)
-      expect(events[0].type).toBe("tool_use_end")
-      expect(events[0].id).toBe("tool_arr_1")
-      expect(events[0].error).toBe("Error on line 1\nError on line 2")
-      expect(events[0].output).toBe("Error on line 1\nError on line 2")
+      const ev = events[0]! as EventOf<"tool_use_end">
+      expect(ev.type).toBe("tool_use_end")
+      expect(ev.id).toBe("tool_arr_1")
+      expect(ev.error).toBe("Error on line 1\nError on line 2")
+      expect(ev.output).toBe("Error on line 1\nError on line 2")
     })
 
     it("maps replayed user message (no parent_tool_use_id) to user_message", () => {
@@ -422,8 +439,9 @@ describe("ClaudeAdapter", () => {
       }, streamState)
 
       expect(events).toHaveLength(1)
-      expect(events[0].type).toBe("user_message")
-      expect(events[0].text).toBe("Hello, can you help?")
+      const ev = events[0]! as EventOf<"user_message">
+      expect(ev.type).toBe("user_message")
+      expect(ev.text).toBe("Hello, can you help?")
     })
 
     it("suppresses subagent prompt (parent_tool_use_id is set)", () => {
@@ -459,8 +477,8 @@ describe("ClaudeAdapter", () => {
       })
 
       expect(events.length).toBeGreaterThanOrEqual(2)
-      expect(events[0].type).toBe("turn_start")
-      expect(events[1]).toEqual({ type: "text_delta", text: "Four." })
+      expect(events[0]!.type).toBe("turn_start")
+      expect(events[1]!).toEqual({ type: "text_delta", text: "Four." })
     })
 
     it("extracts thinking blocks", () => {
@@ -474,12 +492,12 @@ describe("ClaudeAdapter", () => {
         },
       })
 
-      const thinkingEvents = events.filter(e => e.type === "thinking_delta")
-      const textEvents = events.filter(e => e.type === "text_delta")
+      const thinkingEvents = events.filter((e): e is EventOf<"thinking_delta"> => e.type === "thinking_delta")
+      const textEvents = events.filter((e): e is EventOf<"text_delta"> => e.type === "text_delta")
       expect(thinkingEvents).toHaveLength(1)
-      expect(thinkingEvents[0].text).toBe("Let me think about this...")
+      expect(thinkingEvents[0]!.text).toBe("Let me think about this...")
       expect(textEvents).toHaveLength(1)
-      expect(textEvents[0].text).toBe("The answer is 4.")
+      expect(textEvents[0]!.text).toBe("The answer is 4.")
     })
 
     it("extracts tool_use blocks", () => {
@@ -566,11 +584,12 @@ describe("ClaudeAdapter", () => {
       }, streamState)
 
       expect(events).toHaveLength(1)
-      expect(events[0].type).toBe("session_init")
-      expect(events[0].models).toHaveLength(1)
-      expect(events[0].models[0].id).toBe("claude-opus-4-6")
-      expect(events[0].models[0].name).toBe("claude-opus-4-6")
-      expect(events[0].models[0].contextWindow).toBe(1_000_000)
+      const ev = events[0]! as EventOf<"session_init">
+      expect(ev.type).toBe("session_init")
+      expect(ev.models).toHaveLength(1)
+      expect(ev.models[0]!.id).toBe("claude-opus-4-6")
+      expect(ev.models[0]!.name).toBe("claude-opus-4-6")
+      expect(ev.models[0]!.contextWindow).toBe(1_000_000)
     })
 
     it("parses [200K tokens] -> contextWindow: 200_000", () => {
@@ -583,8 +602,9 @@ describe("ClaudeAdapter", () => {
       }, streamState)
 
       expect(events).toHaveLength(1)
-      expect(events[0].models[0].id).toBe("claude-sonnet-4-6")
-      expect(events[0].models[0].contextWindow).toBe(200_000)
+      const ev = events[0]! as EventOf<"session_init">
+      expect(ev.models[0]!.id).toBe("claude-sonnet-4-6")
+      expect(ev.models[0]!.contextWindow).toBe(200_000)
     })
 
     it("model string without brackets -> no contextWindow, name unchanged", () => {
@@ -597,9 +617,10 @@ describe("ClaudeAdapter", () => {
       }, streamState)
 
       expect(events).toHaveLength(1)
-      expect(events[0].models[0].id).toBe("claude-sonnet-4-6")
-      expect(events[0].models[0].name).toBe("claude-sonnet-4-6")
-      expect(events[0].models[0].contextWindow).toBeUndefined()
+      const ev = events[0]! as EventOf<"session_init">
+      expect(ev.models[0]!.id).toBe("claude-sonnet-4-6")
+      expect(ev.models[0]!.name).toBe("claude-sonnet-4-6")
+      expect(ev.models[0]!.contextWindow).toBeUndefined()
     })
 
     it("parses [8K context] -> contextWindow: 8_000", () => {
@@ -612,8 +633,9 @@ describe("ClaudeAdapter", () => {
       }, streamState)
 
       expect(events).toHaveLength(1)
-      expect(events[0].models[0].id).toBe("gpt-4o-mini")
-      expect(events[0].models[0].contextWindow).toBe(8_000)
+      const ev = events[0]! as EventOf<"session_init">
+      expect(ev.models[0]!.id).toBe("gpt-4o-mini")
+      expect(ev.models[0]!.contextWindow).toBe(8_000)
     })
   })
 
@@ -636,7 +658,7 @@ describe("ClaudeAdapter", () => {
         streamState,
       )
       expect(startEvents).toHaveLength(1)
-      expect(startEvents[0].type).toBe("tool_use_start")
+      expect(startEvents[0]!.type).toBe("tool_use_start")
 
       // Three input_json_delta fragments
       mapStreamEvent(
@@ -663,9 +685,10 @@ describe("ClaudeAdapter", () => {
       )
 
       expect(stopEvents).toHaveLength(1)
-      expect(stopEvents[0].type).toBe("tool_use_progress")
-      expect(stopEvents[0].id).toBe("tool_json_1")
-      expect(stopEvents[0].input).toEqual({ file: "src/index.ts" })
+      const stopEv = stopEvents[0]! as EventOf<"tool_use_progress">
+      expect(stopEv.type).toBe("tool_use_progress")
+      expect(stopEv.id).toBe("tool_json_1")
+      expect(stopEv.input).toEqual({ file: "src/index.ts" })
     })
 
     it("does not crash on invalid JSON — no tool_use_progress emitted with parsed input", () => {
@@ -696,8 +719,9 @@ describe("ClaudeAdapter", () => {
 
       // tool_use_progress emitted with raw JSON string (not parsed) so input is preserved
       expect(stopEvents).toHaveLength(1)
-      expect(stopEvents[0].type).toBe("tool_use_progress")
-      expect(typeof stopEvents[0].input).toBe("string")
+      const stopEv = stopEvents[0]! as EventOf<"tool_use_progress">
+      expect(stopEv.type).toBe("tool_use_progress")
+      expect(typeof stopEv.input).toBe("string")
     })
 
     it("tracks multiple concurrent tools at different event.index values independently", () => {
@@ -752,8 +776,9 @@ describe("ClaudeAdapter", () => {
         streamState,
       )
       expect(stopA).toHaveLength(1)
-      expect(stopA[0].input).toEqual({ a: 1 })
-      expect(stopA[0].id).toBe("tool_a")
+      const evA = stopA[0]! as EventOf<"tool_use_progress">
+      expect(evA.input).toEqual({ a: 1 })
+      expect(evA.id).toBe("tool_a")
 
       // Stop tool_b
       const stopB = mapStreamEvent(
@@ -762,8 +787,9 @@ describe("ClaudeAdapter", () => {
         streamState,
       )
       expect(stopB).toHaveLength(1)
-      expect(stopB[0].input).toEqual({ b: 2 })
-      expect(stopB[0].id).toBe("tool_b")
+      const evB = stopB[0]! as EventOf<"tool_use_progress">
+      expect(evB.input).toEqual({ b: 2 })
+      expect(evB.id).toBe("tool_b")
     })
   })
 
@@ -781,9 +807,10 @@ describe("ClaudeAdapter", () => {
       }, streamState)
 
       expect(events).toHaveLength(1)
-      expect(events[0].type).toBe("task_start")
-      expect(events[0].taskId).toBe("task_1")
-      expect(events[0].description).toBe("Running tests")
+      const ev = events[0]! as EventOf<"task_start">
+      expect(ev.type).toBe("task_start")
+      expect(ev.taskId).toBe("task_1")
+      expect(ev.description).toBe("Running tests")
     })
 
     it("maps task_started falls back to uuid when task_id missing", () => {
@@ -794,9 +821,10 @@ describe("ClaudeAdapter", () => {
       }, streamState)
 
       expect(events).toHaveLength(1)
-      expect(events[0].type).toBe("task_start")
-      expect(events[0].taskId).toBe("uuid_1")
-      expect(events[0].description).toBe("Background task")
+      const ev = events[0]! as EventOf<"task_start">
+      expect(ev.type).toBe("task_start")
+      expect(ev.taskId).toBe("uuid_1")
+      expect(ev.description).toBe("Background task")
     })
 
     it("maps task_progress to task_progress event", () => {
@@ -808,9 +836,10 @@ describe("ClaudeAdapter", () => {
       }, streamState)
 
       expect(events).toHaveLength(1)
-      expect(events[0].type).toBe("task_progress")
-      expect(events[0].taskId).toBe("task_2")
-      expect(events[0].output).toBe("50% complete")
+      const ev = events[0]! as EventOf<"task_progress">
+      expect(ev.type).toBe("task_progress")
+      expect(ev.taskId).toBe("task_2")
+      expect(ev.output).toBe("50% complete")
     })
 
     it("maps task_notification to task_complete event", () => {
@@ -822,9 +851,10 @@ describe("ClaudeAdapter", () => {
       }, streamState)
 
       expect(events).toHaveLength(1)
-      expect(events[0].type).toBe("task_complete")
-      expect(events[0].taskId).toBe("task_3")
-      expect(events[0].output).toBe("All tests passed")
+      const ev = events[0]! as EventOf<"task_complete">
+      expect(ev.type).toBe("task_complete")
+      expect(ev.taskId).toBe("task_3")
+      expect(ev.output).toBe("All tests passed")
     })
 
     it("maps task_notification falls back to result when content missing", () => {
@@ -836,8 +866,9 @@ describe("ClaudeAdapter", () => {
       }, streamState)
 
       expect(events).toHaveLength(1)
-      expect(events[0].type).toBe("task_complete")
-      expect(events[0].output).toBe("Done")
+      const ev = events[0]! as EventOf<"task_complete">
+      expect(ev.type).toBe("task_complete")
+      expect(ev.output).toBe("Done")
     })
   })
 
@@ -1040,7 +1071,7 @@ describe("ClaudeAdapter", () => {
         streamState,
       )
       expect(events).toHaveLength(1)
-      expect(events[0].type).toBe("cost_update")
+      expect(events[0]!.type).toBe("cost_update")
       expect((events[0] as any).outputTokens).toBe(42)
     })
 
@@ -1113,7 +1144,7 @@ describe("ClaudeAdapter", () => {
       )
 
       expect(secondResult.behavior).toBe("deny")
-      expect(secondResult.message).toBe("Denied for session")
+      expect(secondResult.behavior === "deny" && secondResult.message).toBe("Denied for session")
 
       // A different tool should still prompt (not auto-denied)
       const thirdPermPromise = handlePermission(

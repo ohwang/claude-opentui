@@ -13,6 +13,7 @@ import { CompactBlock } from "../../tui/components/blocks/compact-block"
 import { QueuedMessage } from "../../tui/components/blocks/queued-message"
 import { ThinkingBlock } from "../../tui/components/thinking-block"
 import { ToolBlockView } from "../../tui/components/tool-view"
+import { SkillToolView, CollapsedSkillLine } from "../../tui/components/skill-tool-view"
 import { CollapsedToolGroup } from "../../tui/components/collapsed-tool-group"
 import { StreamingSpinner } from "../../tui/components/streaming-spinner"
 import { TaskView } from "../../tui/components/task-view"
@@ -146,6 +147,82 @@ export const conversationStories: Story[] = [
     variants: [
       { label: "done", render: () => <CollapsedToolGroup group={makeToolGroup([toolBlock("Read", { file_path: "/src/auth/login.ts" }, { duration: 45 }), toolBlock("Read", { file_path: "/src/auth/refresh.ts" }, { duration: 30 }), toolBlock("Grep", { pattern: "AuthError" }, { duration: 200 }), toolBlock("Glob", { pattern: "src/**/*.test.ts" }, { duration: 15 })])} /> },
       { label: "running", render: () => <CollapsedToolGroup group={makeToolGroup([toolBlock("Read", { file_path: "/src/auth/login.ts" }, { duration: 45 }), toolBlock("Bash", { command: "npm test" }, { status: "running" })])} /> },
+    ],
+  },
+
+  // ── Skill tool views ──
+  {
+    id: "skill-tool-view",
+    title: "SkillToolView",
+    description: "Skill invocation with name, progress, and result",
+    category: "Conversation",
+    render: () => (
+      <SkillToolView
+        block={toolBlock("Skill", { skill: "commit", args: "-m 'Fix auth bug'" }, { output: "Analyzing staged changes and recent commits...\nCreated commit: Fix auth bug in login flow", duration: 2500 })}
+        viewLevel="expanded"
+      />
+    ),
+    variants: [
+      {
+        label: "completed",
+        render: () => (
+          <SkillToolView
+            block={toolBlock("Skill", { skill: "commit", args: "-m 'Fix auth bug'" }, { output: "Analyzing staged changes and recent commits...\nCreated commit: Fix auth bug in login flow", duration: 2500 })}
+            viewLevel="expanded"
+          />
+        ),
+      },
+      {
+        label: "running",
+        render: () => (
+          <SkillToolView
+            block={toolBlock("Skill", { skill: "ship" }, { status: "running", output: "Running tests...\nChecking diff against main..." })}
+            viewLevel="expanded"
+          />
+        ),
+      },
+      {
+        label: "error",
+        render: () => (
+          <SkillToolView
+            block={toolBlock("Skill", { skill: "review" }, { status: "error", error: "No staged changes found", duration: 200 })}
+            viewLevel="expanded"
+          />
+        ),
+      },
+      {
+        label: "show_all",
+        render: () => (
+          <SkillToolView
+            block={toolBlock("Skill", { skill: "ship" }, { output: "Running tests...\nbun test v1.2.3\n\n 12 pass\n 0 fail\n\nAll tests passed. Creating PR...\nPR #42 created: https://github.com/org/repo/pull/42", duration: 8500 })}
+            viewLevel="show_all"
+          />
+        ),
+      },
+      {
+        label: "collapsed",
+        render: () => (
+          <CollapsedSkillLine
+            block={toolBlock("Skill", { skill: "commit", args: "-m 'Fix auth'" }, { output: "Created commit abc1234", duration: 1200 })}
+          />
+        ),
+      },
+      {
+        label: "collapsed running",
+        render: () => (
+          <CollapsedSkillLine
+            block={toolBlock("Skill", { skill: "ship" }, { status: "running" })}
+          />
+        ),
+      },
+      {
+        label: "collapsed error",
+        render: () => (
+          <CollapsedSkillLine
+            block={toolBlock("Skill", { skill: "review" }, { status: "error", error: "No changes found" })}
+          />
+        ),
+      },
     ],
   },
 

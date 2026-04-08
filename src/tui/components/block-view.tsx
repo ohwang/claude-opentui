@@ -10,6 +10,7 @@ import { TextAttributes } from "@opentui/core"
 import { ThinkingBlock } from "./thinking-block"
 import { ToolBlockView, isUserDecline } from "./tool-view"
 import { AgentToolView, CollapsedAgentLine } from "./agent-tool-view"
+import { SkillToolView, CollapsedSkillLine } from "./skill-tool-view"
 import { colors } from "../theme/tokens"
 import type { Block } from "../../protocol/types"
 import type { ViewLevel } from "./tool-view"
@@ -61,7 +62,7 @@ export function BlockView(props: { block: Block; viewLevel: ViewLevel; prevType?
       }</Show>
 
       {/* Tool block — tight grouping for consecutive tools.
-          Agent tools get specialized rendering via AgentToolView. */}
+          Agent and Skill tools get specialized rendering. */}
       <Show when={toolBlock()}>{(tb) =>
         <box marginTop={props.prevType !== "tool" ? 1 : 0}>
           <Show
@@ -76,10 +77,22 @@ export function BlockView(props: { block: Block; viewLevel: ViewLevel; prevType?
             }
           >
             <Show
-              when={props.viewLevel !== "collapsed"}
-              fallback={<CollapsedToolLine block={tb()} />}
+              when={tb().tool !== "Skill"}
+              fallback={
+                <Show
+                  when={props.viewLevel !== "collapsed"}
+                  fallback={<CollapsedSkillLine block={tb()} />}
+                >
+                  <SkillToolView block={tb()} viewLevel={props.viewLevel} />
+                </Show>
+              }
             >
-              <ToolBlockView block={tb()} viewLevel={props.viewLevel} />
+              <Show
+                when={props.viewLevel !== "collapsed"}
+                fallback={<CollapsedToolLine block={tb()} />}
+              >
+                <ToolBlockView block={tb()} viewLevel={props.viewLevel} />
+              </Show>
             </Show>
           </Show>
         </box>

@@ -16,27 +16,28 @@ import { TextAttributes } from "@opentui/core"
 const SGR_REGEX = /\x1b\[([0-9;]*)m/g
 
 // Standard 4-bit ANSI colors (indices 0-7)
+// Matched to Kitty Snazzy theme palette for native-looking rendering
 const ANSI_COLORS: [number, number, number][] = [
-  [0, 0, 0],       // 0 black
-  [205, 0, 0],     // 1 red
-  [0, 205, 0],     // 2 green
-  [205, 205, 0],   // 3 yellow
-  [0, 0, 238],     // 4 blue
-  [205, 0, 205],   // 5 magenta
-  [0, 205, 205],   // 6 cyan
-  [229, 229, 229], // 7 white
+  [0x2e, 0x30, 0x3e], // 0 black    #2e303e
+  [0xff, 0x5c, 0x57], // 1 red      #FF5C57
+  [0x5a, 0xf7, 0x8e], // 2 green    #5AF78E
+  [0xf3, 0xf9, 0x9d], // 3 yellow   #F3F99D
+  [0x57, 0xc7, 0xff], // 4 blue     #57C7FF
+  [0xff, 0x6a, 0xc1], // 5 magenta  #FF6AC1
+  [0x9a, 0xed, 0xfe], // 6 cyan     #9AEDFE
+  [0xf1, 0xf1, 0xf0], // 7 white    #F1F1F0
 ]
 
 // Bright 4-bit ANSI colors (indices 8-15)
 const ANSI_BRIGHT_COLORS: [number, number, number][] = [
-  [127, 127, 127], // 8  bright black
-  [255, 0, 0],     // 9  bright red
-  [0, 255, 0],     // 10 bright green
-  [255, 255, 0],   // 11 bright yellow
-  [92, 92, 255],   // 12 bright blue
-  [255, 0, 255],   // 13 bright magenta
-  [0, 255, 255],   // 14 bright cyan
-  [255, 255, 255], // 15 bright white
+  [0x78, 0x78, 0x7e], // 8  bright black    #78787e
+  [0xff, 0x7b, 0x76], // 9  bright red      #FF7B76
+  [0x6f, 0xf9, 0xa0], // 10 bright green    #6FF9A0
+  [0xf5, 0xfb, 0xaf], // 11 bright yellow   #F5FBAF
+  [0x6f, 0xd0, 0xff], // 12 bright blue     #6fd0ff
+  [0xff, 0x82, 0xcd], // 13 bright magenta  #FF82CD
+  [0xac, 0xf1, 0xfe], // 14 bright cyan     #acf1fe
+  [0xef, 0xf0, 0xeb], // 15 bright white    #EFF0EB
 ]
 
 /** Convert a 256-color index to RGB. */

@@ -455,14 +455,8 @@ export function ConversationView(props: { children?: JSX.Element; footerHint?: s
             <ToastDisplay />
           </box>
 
-          {/* Ephemeral hint line — always 1 row tall, sits between content and input.
-              Shows transient hints (e.g. "Interrupt pending...") as dimmed text,
-              or a blank spacer line when no hint is active. */}
-          <box height={1} flexShrink={0} paddingLeft={2}>
-            <Show when={props.footerHint}>
-              <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>{props.footerHint}</text>
-            </Show>
-          </box>
+          {/* Ephemeral hint line — always 1 row tall, sits between content and input */}
+          <EphemeralLine message={props.footerHint} />
 
           {/* Input area, status bar, dialogs — scrolls with content */}
           <box flexDirection="column" flexShrink={0} paddingBottom={1}>

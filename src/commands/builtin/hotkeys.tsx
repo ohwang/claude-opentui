@@ -93,6 +93,10 @@ const groups: ShortcutGroup[] = [
 // Keep narrow enough to fit at 100-col terminals (border+padding = ~12 cols overhead).
 const KEY_COL_WIDTH = 12
 
+function padRight(s: string, width: number): string {
+  return s.length >= width ? s : s + " ".repeat(width - s.length)
+}
+
 // ---------------------------------------------------------------------------
 // Sub-components
 // ---------------------------------------------------------------------------
@@ -109,14 +113,7 @@ function ShortcutGroupView(props: { group: ShortcutGroup }) {
       <box marginTop={0} flexDirection="column">
         <For each={props.group.entries}>
           {(entry) => (
-            <box flexDirection="row">
-              <box width={KEY_COL_WIDTH + 4} flexShrink={0}>
-                <text fg={colors.accent.highlight} attributes={TextAttributes.BOLD}>
-                  {"    "}{entry.key}
-                </text>
-              </box>
-              <text fg={colors.text.inactive}>{entry.desc}</text>
-            </box>
+            <text fg={colors.text.inactive}>{"    "}{padRight(entry.key, KEY_COL_WIDTH + 2)}{entry.desc}</text>
           )}
         </For>
       </box>
@@ -146,19 +143,21 @@ function HotkeysModal() {
         </text>
 
         {/* Shortcut groups */}
-        <For each={groups}>
-          {(group) => <ShortcutGroupView group={group} />}
-        </For>
+        <scrollbox flexGrow={1}>
+          <For each={groups}>
+            {(group) => <ShortcutGroupView group={group} />}
+          </For>
 
-        {/* Footer */}
-        <box marginTop={1}>
-          <text
-            fg={colors.text.inactive}
-            attributes={TextAttributes.DIM}
-          >
-            {"  Press Escape to close"}
-          </text>
-        </box>
+          {/* Footer */}
+          <box marginTop={1}>
+            <text
+              fg={colors.text.inactive}
+              attributes={TextAttributes.DIM}
+            >
+              {"  Press Escape to close"}
+            </text>
+          </box>
+        </scrollbox>
       </box>
     </box>
   )

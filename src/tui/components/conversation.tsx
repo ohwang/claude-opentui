@@ -172,10 +172,12 @@ export function ConversationView(props: { children?: JSX.Element }) {
           if (scrollboxRef && lastKnownScrollTop !== undefined) {
             if (scrollboxRef.scrollTop < lastKnownScrollTop) {
               setUserScrolledAway(true)
+              blurInput()
             }
             // Re-engage auto-scroll if user scrolled back to bottom
             if (!userScrolledAway() || isNearBottom(scrollboxRef)) {
               setUserScrolledAway(false)
+              refocusInput()
             }
           }
           if (!userScrolledAway()) {

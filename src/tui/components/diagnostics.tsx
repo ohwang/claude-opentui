@@ -1,14 +1,15 @@
 /**
  * Diagnostics Panel — Ctrl+Shift+D toggle overlay
  *
- * Renders a scrollable diagnostics view inspired by claude-go's DiagDialog.
- * Shows system info, session state, tokens & cost, context window,
- * activity, conversation summary, git info, and config.
+ * Two-tab diagnostics view:
+ *   [1] Info  — system, session, tokens, context, git, backend, config
+ *   [2] Logs  — real-time streaming log viewer (current session)
  *
  * Toggled via Ctrl+Shift+D. Pressing again or Esc/q closes it.
+ * Switch tabs with 1/2 or Tab.
  */
 
-import { createSignal, createMemo, Show, For, onCleanup } from "solid-js"
+import { createSignal, createMemo, Show, For, Index, onCleanup, batch } from "solid-js"
 import { TextAttributes, type ScrollBoxRenderable } from "@opentui/core"
 import { useTerminalDimensions } from "@opentui/solid"
 import { useSession } from "../context/session"
@@ -20,9 +21,10 @@ import { friendlyModelName, MODEL_CONTEXT_WINDOWS, DEFAULT_CONTEXT_WINDOW } from
 import type { Block } from "../../protocol/types"
 
 // ---------------------------------------------------------------------------
-// Module-level scroll callback — called from app.tsx keyboard handler
+// Module-level callbacks — called from app.tsx keyboard handler
 // ---------------------------------------------------------------------------
 let _scrollDiagnostics: ((amount: number) => void) | undefined
+let _switchDiagnosticsTab: ((tab?: number) => void) | undefined
 
 /**
  * Scroll the diagnostics panel by the given amount.
@@ -30,6 +32,14 @@ let _scrollDiagnostics: ((amount: number) => void) | undefined
  */
 export function scrollDiagnostics(amount: number): void {
   _scrollDiagnostics?.(amount)
+}
+
+/**
+ * Switch the diagnostics tab.
+ * If no tab index given, cycles to the next tab.
+ */
+export function switchDiagnosticsTab(tab?: number): void {
+  _switchDiagnosticsTab?.(tab)
 }
 
 // ---------------------------------------------------------------------------
@@ -96,6 +106,9 @@ function getGitDirtyCount(): number {
 // Diagnostics Panel Component
 // ---------------------------------------------------------------------------
 
+const TAB_COUNT = 2
+const TAB_NAMES = ["Info", "Logs"] as const
+
 export function DiagnosticsPanel(props: { visible: boolean; onClose: () => void }) {
   const { state: session } = useSession()
   const agent = useAgent()
@@ -110,8 +123,51 @@ export function DiagnosticsPanel(props: { visible: boolean; onClose: () => void 
   const tickInterval = setInterval(() => setTick(t => t + 1), 1_000)
   onCleanup(() => clearInterval(tickInterval))
 
-  // Clean up module-level scroll ref when component unmounts
-  onCleanup(() => { _scrollDiagnostics = undefined })
+  // ---------------------------------------------------------------------------
+  // Tab state
+  // ---------------------------------------------------------------------------
+  const [activeTab, setActiveTab] = createSignal(0)
+
+  // Expose tab switching to app.tsx keyboard handler
+  _switchDiagnosticsTab = (tab?: number) => {
+    if (tab !== undefined) {
+      setActiveTab(Math.max(0, Math.min(tab, TAB_COUNT - 1)))
+    } else {
+      setActiveTab(prev => (prev + 1) % TAB_COUNT)
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Log lines (real-time)
+  // ---------------------------------------------------------------------------
+  const [logLines, setLogLines] = createSignal<string[]>(log.getLines().slice())
+  const hasLogLines = createMemo(() => logLines().length > 0)
+
+  const unsubscribe = log.subscribe((line: string) => {
+    setLogLines(prev => [...prev, line])
+  })
+  onCleanup(() => unsubscribe())
+
+  // Scroll refs — one per tab, only the active one is connected
+  let infoScrollRef: ScrollBoxRenderable | undefined
+  let logsScrollRef: ScrollBoxRenderable | undefined
+
+  // Update the module-level scroll callbacks to route to the active tab
+  const updateScrollRef = () => {
+    _scrollDiagnostics = (n: number) => {
+      if (activeTab() === 0) {
+        infoScrollRef?.scrollBy(n)
+      } else {
+        logsScrollRef?.scrollBy(n)
+      }
+    }
+  }
+
+  // Clean up module-level refs when component unmounts
+  onCleanup(() => {
+    _scrollDiagnostics = undefined
+    _switchDiagnosticsTab = undefined
+  })
 
   // Collect all diagnostic sections as a reactive memo
   const sections = createMemo((): DiagSection[] => {
@@ -266,6 +322,8 @@ export function DiagnosticsPanel(props: { visible: boolean; onClose: () => void 
     return result
   })
 
+  const separatorWidth = () => dims()?.width ? dims()!.width - 4 : 70
+
   return (
     <Show when={props.visible}>
       {/* Diagnostics panel — fills the entire terminal, replacing the conversation */}
@@ -279,55 +337,96 @@ export function DiagnosticsPanel(props: { visible: boolean; onClose: () => void 
         paddingTop={1}
         paddingBottom={1}
       >
-        {/* Title bar */}
+        {/* Title bar with tabs */}
         <box flexDirection="row" flexShrink={0}>
           <text fg={colors.text.primary} attributes={TextAttributes.BOLD}>
             {"Diagnostics"}
           </text>
+          <text fg={colors.text.inactive}>{"  "}</text>
+          <For each={TAB_NAMES as unknown as string[]}>
+            {(name, i) => (
+              <box flexDirection="row">
+                <text fg={activeTab() === i() ? colors.accent.primary : colors.text.inactive} attributes={activeTab() === i() ? TextAttributes.BOLD : 0}>
+                  {`[${i() + 1}] ${name}`}
+                </text>
+                <text fg={colors.text.inactive}>{i() < TAB_COUNT - 1 ? "  " : ""}</text>
+              </box>
+            )}
+          </For>
         </box>
 
         {/* Separator line */}
         <box height={1} flexShrink={0}>
-          <text fg={colors.border.default}>{"─".repeat(dims()?.width ? dims()!.width - 4 : 70)}</text>
+          <text fg={colors.border.default}>{"─".repeat(separatorWidth())}</text>
         </box>
 
-        {/* Content in a scrollbox so it doesn't overflow */}
-        <scrollbox ref={(el: ScrollBoxRenderable) => { _scrollDiagnostics = (n: number) => el.scrollBy(n) }} flexGrow={1} stickyScroll={false} backgroundColor={colors.bg.overlay}>
-          {/* Sections */}
-          <For each={sections()}>
-            {(section) => (
-              <box flexDirection="column">
-                {/* Section title */}
-                <box marginTop={1}>
-                  <text fg={colors.accent.primary} attributes={TextAttributes.BOLD}>
-                    {section.title}
-                  </text>
+        {/* Tab: Info */}
+        <Show when={activeTab() === 0}>
+          <scrollbox
+            ref={(el: ScrollBoxRenderable) => { infoScrollRef = el; updateScrollRef() }}
+            flexGrow={1}
+            stickyScroll={false}
+            backgroundColor={colors.bg.overlay}
+          >
+            <For each={sections()}>
+              {(section) => (
+                <box flexDirection="column">
+                  <box marginTop={1}>
+                    <text fg={colors.accent.primary} attributes={TextAttributes.BOLD}>
+                      {section.title}
+                    </text>
+                  </box>
+                  <box height={1} />
+                  <For each={section.entries}>
+                    {(entry) => (
+                      <box flexDirection="row">
+                        <text fg={colors.text.inactive}>{padRight(entry.key, 22)}</text>
+                        <text fg={entry.color ?? "white"}>{" " + entry.value}</text>
+                      </box>
+                    )}
+                  </For>
                 </box>
+              )}
+            </For>
+          </scrollbox>
+        </Show>
 
-                {/* Blank line between subtitle and content */}
-                <box height={1} />
-
-                {/* Key-value entries */}
-                <For each={section.entries}>
-                  {(entry) => (
-                    <box flexDirection="row">
-                      <text fg={colors.text.inactive}>{padRight(entry.key, 22)}</text>
-                      <text fg={entry.color ?? "white"}>{" " + entry.value}</text>
-                    </box>
-                  )}
-                </For>
+        {/* Tab: Logs */}
+        <Show when={activeTab() === 1}>
+          <scrollbox
+            ref={(el: ScrollBoxRenderable) => { logsScrollRef = el; updateScrollRef() }}
+            flexGrow={1}
+            stickyScroll={true}
+            backgroundColor={colors.bg.overlay}
+          >
+            <Show when={hasLogLines()} fallback={
+              <box marginTop={1}>
+                <text fg={colors.text.inactive}>{"(no log entries yet)"}</text>
               </box>
-            )}
-          </For>
-        </scrollbox>
+            }>
+              <Index each={logLines()}>
+                {(line) => {
+                  const parsed = createMemo(() => parseLogLine(line()))
+                  return (
+                    <box flexDirection="row">
+                      <text fg={colors.text.inactive}>{parsed().timestamp + " "}</text>
+                      <text fg={logLevelColor(parsed().level)} attributes={TextAttributes.BOLD}>{padRight(parsed().level, 6)}</text>
+                      <text fg={logLevelColor(parsed().level)}>{parsed().message}</text>
+                    </box>
+                  )
+                }}
+              </Index>
+            </Show>
+          </scrollbox>
+        </Show>
 
         {/* Footer — keyboard hints */}
         <box height={1} flexShrink={0}>
-          <text fg={colors.border.default}>{"─".repeat(dims()?.width ? dims()!.width - 4 : 70)}</text>
+          <text fg={colors.border.default}>{"─".repeat(separatorWidth())}</text>
         </box>
         <box flexShrink={0}>
           <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>
-            {"j/k scroll, d/u page, Esc to close"}
+            {"j/k scroll, d/u page, 1/2 or Tab switch tab, Esc to close"}
           </text>
         </box>
       </box>
@@ -352,5 +451,43 @@ function stateColor(state: string): string {
     case "INTERRUPTING": return colors.state.waiting
     case "ERROR": return colors.state.error
     default: return colors.text.inactive
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Log line parsing
+// ---------------------------------------------------------------------------
+
+interface ParsedLogLine {
+  timestamp: string
+  level: string
+  message: string
+}
+
+/**
+ * Parse a structured log line: `[ISO_TIMESTAMP] [LEVEL] message [data]`
+ * Falls back gracefully for malformed lines.
+ */
+function parseLogLine(line: string): ParsedLogLine {
+  // Match: [2026-04-08T10:30:45.123Z] [INFO ] rest of message
+  const match = line.match(/^\[([^\]]+)\]\s+\[([^\]]+)\]\s+(.*)$/)
+  if (match && match[1] && match[2] && match[3]) {
+    const ts = match[1]
+    // Show only HH:MM:SS.mmm for compactness
+    const short = ts.includes("T") ? ts.slice(11, 23) : ts
+    return { timestamp: short, level: match[2].trim(), message: match[3] }
+  }
+  // Unparseable — show raw
+  return { timestamp: "", level: "???", message: line }
+}
+
+/** Map log level to a semantic color. */
+function logLevelColor(level: string): string {
+  switch (level) {
+    case "DEBUG": return colors.text.thinking
+    case "INFO":  return colors.text.primary
+    case "WARN":  return colors.status.warning
+    case "ERROR": return colors.status.error
+    default:      return colors.text.inactive
   }
 }

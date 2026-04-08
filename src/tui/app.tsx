@@ -25,12 +25,12 @@ import { AnimationProvider } from "./context/animation"
 import { colors } from "./theme/tokens"
 import { ConversationView } from "./components/conversation"
 import { Divider } from "./components/primitives"
-import { InputArea, clearInput, hasInputText, refocusInput, getInputHistory, setInputText } from "./components/input-area"
+import { InputArea, clearInput, hasInputText, refocusInput, blurInput, getInputHistory, setInputText } from "./components/input-area"
 import { HistorySearchModal } from "./components/history-search"
 import { StatusBar } from "./components/status-bar"
 import { PermissionDialog } from "./components/permission-dialog"
 import { ElicitationDialog } from "./components/elicitation"
-import { DiagnosticsPanel, scrollDiagnostics } from "./components/diagnostics"
+import { DiagnosticsPanel, scrollDiagnostics, switchDiagnosticsTab } from "./components/diagnostics"
 import { MODEL_NAMES, friendlyModelName } from "./models"
 
 // Module-level exit function so slash commands can trigger clean shutdown
@@ -193,8 +193,10 @@ function Layout(props: { onExit?: () => void }) {
   createEffect(() => {
     if (showDiagnostics()) {
       modal.registerOverlay("diagnostics")
+      blurInput()
     } else {
       modal.unregisterOverlay("diagnostics")
+      refocusInput()
     }
   })
 
@@ -306,6 +308,10 @@ function Layout(props: { onExit?: () => void }) {
         setShowDiagnostics(false)
         return
       }
+      // Tab switching: 1/2 for direct, Tab to cycle
+      if (event.name === "1") { event.preventDefault(); switchDiagnosticsTab(0); return }
+      if (event.name === "2") { event.preventDefault(); switchDiagnosticsTab(1); return }
+      if (event.name === "tab") { event.preventDefault(); switchDiagnosticsTab(); return }
       // Vim-style scrolling: j/k for line, d/u for half-page
       if (event.name === "j") { event.preventDefault(); scrollDiagnostics(1); return }
       if (event.name === "k") { event.preventDefault(); scrollDiagnostics(-1); return }

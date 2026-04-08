@@ -91,7 +91,6 @@ function Layout(props: { onExit?: () => void }) {
   const [statusHint, setStatusHint] = createSignal<string | null>(null)
   const [showDiagnostics, setShowDiagnostics] = createSignal(false)
   let statusHintTimer: ReturnType<typeof setTimeout> | undefined
-  let interruptTimeout: ReturnType<typeof setTimeout> | undefined
 
   // Model cycling state (Ctrl+P / Shift+Ctrl+P)
   const modelIds = Object.keys(MODEL_NAMES)
@@ -191,17 +190,6 @@ function Layout(props: { onExit?: () => void }) {
       modal.unregisterOverlay("diagnostics")
     }
   })
-
-  // Clear interrupt timeout when state transitions away from INTERRUPTING
-  createEffect(on(
-    () => session.sessionState,
-    (state) => {
-      if (state !== "INTERRUPTING" && interruptTimeout) {
-        clearTimeout(interruptTimeout)
-        interruptTimeout = undefined
-      }
-    }
-  ))
 
   // Notify when a backgrounded task completes
   let wasBackgrounded = false
@@ -458,18 +446,6 @@ function Layout(props: { onExit?: () => void }) {
           sync.pushEvent({ type: "interrupt" })
           sync.pushEvent({ type: "system_message", text: "Interrupted \u00B7 What should Claude do instead?", ephemeral: true })
           agent.backend.interrupt()
-
-          // Interrupt timeout \u2014 if the SDK doesn't respond within 10s, force recovery
-          interruptTimeout = setTimeout(() => {
-            if (session.sessionState === "INTERRUPTING") {
-              log.warn("Interrupt timed out after 10s \u2014 forcing recovery")
-              sync.pushEvent({ type: "system_message", text: "Interrupt timed out \u2014 recovering.", ephemeral: true })
-              sync.pushEvent({
-                type: "turn_complete",
-                usage: { inputTokens: 0, outputTokens: 0 },
-              })
-            }
-          }, 10_000)
         }
       } else {
         const hadText = clearInput()

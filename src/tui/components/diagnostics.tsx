@@ -228,6 +228,7 @@ export function DiagnosticsPanel(props: { visible: boolean; onClose: () => void 
         { key: "State:", value: session.sessionState, color: stateColor(session.sessionState) },
         { key: "Uptime:", value: formatDuration(uptime) },
         { key: "Permission mode:", value: agent.config.permissionMode ?? "default" },
+        { key: "Backend:", value: agent.backend.capabilities().name },
       ],
     })
 
@@ -436,11 +437,9 @@ export function DiagnosticsPanel(props: { visible: boolean; onClose: () => void 
                 {(line) => {
                   const parsed = createMemo(() => parseLogLine(line()))
                   return (
-                    <box flexDirection="row">
-                      <text fg={colors.text.inactive}>{parsed().timestamp + " "}</text>
-                      <text fg={logLevelColor(parsed().level)} attributes={TextAttributes.BOLD}>{padRight(parsed().level, 6)}</text>
-                      <text fg={logLevelColor(parsed().level)}>{parsed().message}</text>
-                    </box>
+                    <text fg={logLevelColor(parsed().level)}>
+                      {parsed().timestamp + " " + padRight(parsed().level, 6) + parsed().message}
+                    </text>
                   )
                 }}
               </Index>

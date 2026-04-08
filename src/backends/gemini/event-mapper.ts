@@ -11,7 +11,7 @@
  *   ToolCallResponse → tool_use_end
  *   Finished         → turn_complete (with usage)
  *   Error            → error
- *   ModelInfo        → session_init (model info)
+ *   ModelInfo        → model_changed
  *   ChatCompressed   → compact
  */
 
@@ -214,16 +214,14 @@ function mapGeminiEventStateful(
     }
 
     case GeminiEventType.ModelInfo: {
-      // Model info arrives early in the stream — use it for session_init
+      // Model info arrives after the adapter's synthetic session_init.
+      // Emit model_changed so the model display updates without
+      // overwriting the session (which already has the correct sessionId).
       const modelId = event.value
       log.info("Gemini model info", { model: modelId })
-      events.push({
-        type: "session_init",
-        tools: [], // Gemini doesn't enumerate tools at init
-        models: modelId
-          ? [{ id: modelId, name: modelId, provider: "google" }]
-          : [],
-      })
+      if (modelId) {
+        events.push({ type: "model_changed", model: modelId })
+      }
       break
     }
 

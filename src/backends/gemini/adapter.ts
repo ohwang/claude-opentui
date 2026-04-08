@@ -415,7 +415,7 @@ export class GeminiAdapter implements AgentBackend {
       const modelName = config.model || "gemini-2.5-pro"
       this.eventChannel?.push({
         type: "session_init",
-        sessionId: crypto.randomUUID(),
+        sessionId: this.session.id,
         tools: [],
         models: [{ id: modelName, name: modelName, provider: "google" }],
       })

@@ -193,17 +193,23 @@ describe("Gemini Event Mapper", () => {
   })
 
   describe("model info", () => {
-    it("maps ModelInfo to session_init", () => {
+    it("maps ModelInfo to model_changed", () => {
       const events = mapGeminiEvent({
         type: GeminiEventType.ModelInfo,
         value: "gemini-2.5-pro",
       })
       expect(events).toHaveLength(1)
-      const init = events[0]! as any
-      expect(init.type).toBe("session_init")
-      expect(init.models).toHaveLength(1)
-      expect(init.models[0].id).toBe("gemini-2.5-pro")
-      expect(init.models[0].provider).toBe("google")
+      const changed = events[0]! as any
+      expect(changed.type).toBe("model_changed")
+      expect(changed.model).toBe("gemini-2.5-pro")
+    })
+
+    it("produces no events for empty ModelInfo", () => {
+      const events = mapGeminiEvent({
+        type: GeminiEventType.ModelInfo,
+        value: "",
+      })
+      expect(events).toHaveLength(0)
     })
   })
 

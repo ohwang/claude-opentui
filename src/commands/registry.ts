@@ -8,7 +8,7 @@
  */
 
 import type { CliRenderer } from "@opentui/core"
-import type { AgentBackend, Block, CostTotals, SessionConfig, SessionMetadata } from "../protocol/types"
+import type { AgentBackend, Block, CostTotals, SessionMetadata } from "../protocol/types"
 
 export interface CommandContext {
   backend: AgentBackend

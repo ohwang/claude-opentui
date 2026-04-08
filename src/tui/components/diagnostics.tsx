@@ -9,7 +9,7 @@
  * Switch tabs with 1/2 or Tab.
  */
 
-import { createSignal, createMemo, Show, For, Index, onCleanup, batch } from "solid-js"
+import { createSignal, createMemo, Show, For, Index, onCleanup } from "solid-js"
 import { TextAttributes, type ScrollBoxRenderable } from "@opentui/core"
 import { useTerminalDimensions } from "@opentui/solid"
 import { useSession } from "../context/session"
@@ -18,7 +18,6 @@ import { useMessages } from "../context/messages"
 import { colors } from "../theme/tokens"
 import { log } from "../../utils/logger"
 import { friendlyModelName, MODEL_CONTEXT_WINDOWS, DEFAULT_CONTEXT_WINDOW } from "../models"
-import type { Block } from "../../protocol/types"
 
 // ---------------------------------------------------------------------------
 // Module-level callbacks — called from app.tsx keyboard handler

@@ -32,9 +32,6 @@ const trace = backendTrace.scoped("claude")
 import { mapSDKMessage, ToolStreamState } from "./event-mapper"
 import {
   createCanUseTool,
-  handlePermission,
-  handleElicitation,
-  parseElicitationInput,
   type PendingPermission,
   type PendingElicitation,
   type PermissionResult,
@@ -61,7 +58,6 @@ export class ClaudeAdapter implements AgentBackend {
   private pendingPermissions = new Map<string, PendingPermission>()
   private pendingElicitations = new Map<string, PendingElicitation>()
   private pendingElicitationInputs = new Map<string, Record<string, unknown>>()
-  private childPid: number | null = null
   private eventChannel: EventChannel<AgentEvent> | null = null
   private closed = false
 
@@ -150,7 +146,7 @@ export class ClaudeAdapter implements AgentBackend {
 
     if (this.activeQuery) {
       // Auto-deny any pending permissions (prevent SDK deadlock)
-      for (const [id, pending] of this.pendingPermissions) {
+      for (const [, pending] of this.pendingPermissions) {
         pending.resolve({
           behavior: "deny",
           message: "Interrupted by user",
@@ -160,7 +156,7 @@ export class ClaudeAdapter implements AgentBackend {
       this.pendingPermissions.clear()
 
       // Auto-respond to pending elicitations
-      for (const [id, pending] of this.pendingElicitations) {
+      for (const [, pending] of this.pendingElicitations) {
         pending.resolve({
           behavior: "deny",
           message: "Interrupted by user",
@@ -340,7 +336,8 @@ export class ClaudeAdapter implements AgentBackend {
     // This decouples the SDK's async iterable from the consumer, so
     // canUseTool callbacks can push permission_request events to the
     // same channel without waiting for the SDK to yield next.
-    const sdkLoop = (async () => {
+    // fire-and-forget
+    void (async () => {
       try {
         for await (const msg of this.activeQuery!) {
           if (this.closed || !this.eventChannel) break

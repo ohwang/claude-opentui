@@ -20,7 +20,6 @@ import {
   createSignal,
   onMount,
   onCleanup,
-  createEffect,
   type ParentProps,
 } from "solid-js"
 import { linear } from "../theme/easing"

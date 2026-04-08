@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test"
 import { ClaudeV2Adapter } from "../../src/backends/claude/adapter-v2"
-import { handlePermission, type PermissionBridgeState } from "../../src/backends/claude/permission-bridge"
+import { handlePermission } from "../../src/backends/claude/permission-bridge"
 
 describe("ClaudeV2Adapter", () => {
   describe("capabilities", () => {

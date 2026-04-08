@@ -410,7 +410,7 @@ export function mapAssistantMessage(msg: any): AgentEvent[] {
 
 export function mapStreamEvent(
   event: any,
-  parentToolUseId: string | null,
+  _parentToolUseId: string | null,
   streamState: ToolStreamState,
 ): AgentEvent[] {
   const events: AgentEvent[] = []

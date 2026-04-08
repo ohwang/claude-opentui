@@ -5,7 +5,6 @@
  * powered by the centralized AnimationContext.
  */
 
-import { TextAttributes } from "@opentui/core"
 import { useAnimation, useReducedMotion } from "../../context/animation"
 import { easeOut } from "../../theme/easing"
 import { syntaxStyle } from "../../theme/syntax"

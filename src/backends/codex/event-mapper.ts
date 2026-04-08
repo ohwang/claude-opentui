@@ -26,7 +26,7 @@
  */
 
 import { log } from "../../utils/logger"
-import type { AgentEvent, ModelInfo, ToolInfo } from "../../protocol/types"
+import type { AgentEvent, ModelInfo } from "../../protocol/types"
 
 // ---------------------------------------------------------------------------
 // Codex item types (subset of the full ThreadItem union)

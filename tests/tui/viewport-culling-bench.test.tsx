@@ -16,7 +16,6 @@
 import { describe, it, expect } from "bun:test"
 import { testRender } from "@opentui/solid"
 import { For } from "solid-js"
-import { type ScrollBoxRenderable } from "@opentui/core"
 import type { Block } from "../../src/protocol/types"
 
 // ---------------------------------------------------------------------------
@@ -71,10 +70,9 @@ function generateBlocks(count: number): Block[] {
 // ---------------------------------------------------------------------------
 
 function TestConversation(props: { blocks: Block[] }) {
-  let scrollboxRef: ScrollBoxRenderable | undefined
   return (
     <box flexDirection="column" flexGrow={1}>
-      <scrollbox ref={(el: ScrollBoxRenderable) => { scrollboxRef = el }} flexGrow={1}>
+      <scrollbox flexGrow={1}>
         <box flexDirection="column">
           <For each={props.blocks}>
             {(block) => (

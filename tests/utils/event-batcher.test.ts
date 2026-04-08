@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach, mock } from "bun:test"
+import { describe, expect, it, mock } from "bun:test"
 import { EventBatcher } from "../../src/utils/event-batcher"
 import type { AgentEvent } from "../../src/protocol/types"
 
@@ -151,7 +151,7 @@ describe("EventBatcher", () => {
     it("continues accepting events after handler error", async () => {
       let callCount = 0
       const batcher = new EventBatcher(
-        (events) => {
+        (_events) => {
           callCount++
           if (callCount === 1) throw new Error("first call fails")
         },

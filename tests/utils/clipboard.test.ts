@@ -1,4 +1,4 @@
-import { describe, expect, it, mock, beforeEach, afterEach } from "bun:test"
+import { describe, expect, it, afterEach } from "bun:test"
 import {
   getClipboardCmd,
   getClipboardReadCmd,

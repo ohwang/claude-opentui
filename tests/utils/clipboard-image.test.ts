@@ -1,5 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, mock, spyOn } from "bun:test"
-import type { ImageContent } from "../../src/protocol/types"
+import { describe, it, expect, beforeEach, afterEach, spyOn } from "bun:test"
 import {
   detectImageFormatFromBase64,
   isImageFilePath,
@@ -31,8 +30,6 @@ function restorePlatform() {
 // spawnWithTimeout. We mock Bun.spawn to return a controllable
 // fake process with `.exited`, `.stdout`, and `.stderr`.
 // ---------------------------------------------------------------------------
-const originalSpawn = Bun.spawn
-
 /** Build a ReadableStream<Uint8Array> from a string. */
 function streamOf(text: string): ReadableStream<Uint8Array> {
   return new ReadableStream({

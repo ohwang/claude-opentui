@@ -25,7 +25,7 @@ import { syntaxStyle } from "../theme"
 import { colors } from "../theme/tokens"
 import { HeaderBar } from "./header-bar"
 import type { Block } from "../../protocol/types"
-import { refocusInput, hideCursor, showCursor, registerScrollToBottom } from "./input-area"
+import { hideCursor, showCursor, registerScrollToBottom } from "./input-area"
 import { StreamingSpinner } from "./streaming-spinner"
 import { type ViewLevel } from "./tool-view"
 import { BlockView } from "./block-view"
@@ -83,7 +83,7 @@ export function ConversationView(props: { children?: JSX.Element }) {
   // Read inside <Index> callback for margin logic — safe because it's a
   // separate memo from the list, no dual-update with reconciliation.
   const prevTypes = createMemo(() =>
-    grouped().map((item, i) => {
+    grouped().map((_item, i) => {
       const prev = i > 0 ? grouped()[i - 1] : undefined
       return prev ? (isToolGroup(prev) ? "tool" : (prev as Block).type) : undefined
     })

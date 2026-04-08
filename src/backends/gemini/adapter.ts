@@ -38,7 +38,6 @@ import type {
   IGeminiCliAgent,
   IGeminiCliSession,
   GeminiCliAgentOptions,
-  ServerGeminiStreamEvent,
 } from "./types"
 
 // ---------------------------------------------------------------------------

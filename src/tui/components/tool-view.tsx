@@ -272,7 +272,7 @@ export function ToolBlockView(props: { block: Extract<Block, { type: "tool" }>; 
 // ---------------------------------------------------------------------------
 
 /** Extract the primary argument from a tool block's input */
-function extractPrimaryArg(tool: string, input: unknown): string {
+function extractPrimaryArg(_tool: string, input: unknown): string {
   const inp = input as Record<string, unknown> | null
   if (!inp) return ""
   if (inp.file_path && typeof inp.file_path === "string") {

@@ -9,7 +9,6 @@ import {
   createContext,
   useContext,
   type ParentProps,
-  type Accessor,
 } from "solid-js"
 import { createStore, type SetStoreFunction } from "solid-js/store"
 import type {

@@ -23,7 +23,6 @@ import { reduce } from "../../protocol/reducer"
 import {
   createInitialState,
   type AgentEvent,
-  type ConversationState,
 } from "../../protocol/types"
 import { EventBatcher } from "../../utils/event-batcher"
 import { log } from "../../utils/logger"

@@ -11,7 +11,6 @@ import type {
   AgentBackend,
   AgentEvent,
   BackendCapabilities,
-  ForkOptions,
   ModelInfo,
   PermissionMode,
   SessionConfig,

@@ -15,7 +15,7 @@ import { TextAttributes, type ScrollBoxRenderable } from "@opentui/core"
 import type { KeyEvent } from "@opentui/core"
 import { StoryContextProvider } from "./context/story-context"
 import { stories, categories } from "./registry"
-import type { Story, StoryCategory, StoryContext } from "./types"
+import type { Story, StoryContext } from "./types"
 import { colors } from "../tui/theme/tokens"
 
 export function StorybookApp() {
@@ -192,26 +192,6 @@ export function StorybookApp() {
       </box>
     )
   }
-
-  // ── Tree items (grouped by category) ──────────────────────────────
-  type TreeItem =
-    | { kind: "category"; category: StoryCategory }
-    | { kind: "story"; story: Story; storyIndex: number }
-
-  const treeItems = createMemo((): TreeItem[] => {
-    const items: TreeItem[] = []
-    let storyIdx = 0
-    for (const cat of categories) {
-      const catStories = stories.filter((s) => s.category === cat)
-      if (catStories.length === 0) continue
-      items.push({ kind: "category", category: cat })
-      for (const story of catStories) {
-        items.push({ kind: "story", story, storyIndex: storyIdx })
-        storyIdx++
-      }
-    }
-    return items
-  })
 
   // Compute total tree rows (category headers + individual stories)
   const totalTreeRows = createMemo(() => {

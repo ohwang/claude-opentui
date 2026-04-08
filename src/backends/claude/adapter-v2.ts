@@ -367,7 +367,8 @@ export class ClaudeV2Adapter implements AgentBackend {
     this.eventChannel = new EventChannel<AgentEvent>()
 
     // Run the turn loop in the background, pushing events to the channel
-    const turnLoop = (async () => {
+    // fire-and-forget
+    void (async () => {
       try {
         // If there's an initial prompt, send it to kick off the first turn
         if (config.initialPrompt) {

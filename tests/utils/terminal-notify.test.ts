@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach, afterEach, mock } from "bun:test"
+import { describe, expect, it, beforeEach, afterEach } from "bun:test"
 import {
   detectTerminal,
   sendTerminalNotification,

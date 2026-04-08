@@ -9,7 +9,7 @@
 import { join } from "path"
 import { mkdirSync, writeFileSync } from "fs"
 import { homedir } from "os"
-import { TextAttributes, type CliRenderer } from "@opentui/core"
+import { TextAttributes } from "@opentui/core"
 import type { CapturedLine } from "@opentui/core"
 import type { SlashCommand, CommandContext } from "../registry"
 

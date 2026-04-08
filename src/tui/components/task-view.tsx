@@ -45,7 +45,7 @@ export function TaskView(props: { tasks: [string, TaskInfo][] }) {
           </text>
         </box>
         <For each={props.tasks.slice(0, MAX_VISIBLE_TASKS)}>
-          {([id, task], index) => {
+          {([_id, task], index) => {
             const isLast = () => index() === Math.min(props.tasks.length, MAX_VISIBLE_TASKS) - 1
             const prefix = () => (isLast() ? "\u2514\u2500" : "\u251C\u2500")
             const dotStatus = () => task.status === "running" ? "active" as const : "success" as const

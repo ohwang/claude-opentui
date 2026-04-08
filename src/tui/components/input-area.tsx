@@ -7,7 +7,7 @@
  * '@' anywhere triggers fuzzy file search autocomplete.
  */
 
-import { createSignal, createEffect, Show, For, Index, onCleanup } from "solid-js"
+import { createSignal, createEffect, Show, Index, onCleanup } from "solid-js"
 import { TextAttributes, type TextareaRenderable, type KeyEvent, type CliRenderer, decodePasteBytes } from "@opentui/core"
 import { useRenderer, usePaste, useTerminalDimensions } from "@opentui/solid"
 import { tmpdir } from "os"
@@ -17,7 +17,7 @@ import { useAgent } from "../context/agent"
 import { useSession } from "../context/session"
 import { useSync } from "../context/sync"
 import { useMessages } from "../context/messages"
-import { createCommandRegistry, type SlashCommand } from "../../commands/registry"
+import { createCommandRegistry } from "../../commands/registry"
 import { executeShellCommand } from "../../commands/builtin/shell"
 import { searchFiles, findLongestCommonPrefix } from "./file-autocomplete"
 import { triggerCleanExit, toggleDiagnostics } from "../app"

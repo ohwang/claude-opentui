@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test"
 import { mapGeminiEvent, GeminiEventMapper } from "../../src/backends/gemini/event-mapper"
-import { GeminiEventType, type ServerGeminiStreamEvent } from "../../src/backends/gemini/types"
+import { GeminiEventType } from "../../src/backends/gemini/types"
 
 describe("Gemini Event Mapper", () => {
   describe("content streaming", () => {

@@ -1,6 +1,5 @@
 import { describe, expect, it, beforeEach } from "bun:test"
 import { CodexSdkEventMapper } from "../../src/backends/codex-sdk/event-mapper"
-import type { ThreadEvent } from "../../src/backends/codex-sdk/types"
 
 describe("Codex SDK Event Mapper", () => {
   let mapper: CodexSdkEventMapper

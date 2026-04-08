@@ -95,7 +95,7 @@ function actionLabel(tool: string, displayName?: string): string {
 }
 
 /** Extract path string from tool input */
-export function extractPath(tool: string, input: unknown): string {
+export function extractPath(_tool: string, input: unknown): string {
   const inp = input as Record<string, unknown> | null
   if (!inp) return ""
   if (typeof inp.file_path === "string" && inp.file_path) return relativePath(inp.file_path)
@@ -568,7 +568,7 @@ export function PermissionDialog() {
                 <box flexDirection="column">
                   <Divider char={"\u254C"} fg={ACCENT} paddingLeft={0} />
                   <For each={lines()}>
-                    {(line, idx) => {
+                    {(line, _idx) => {
                       const lineColor = () => {
                         if (line.prefix === "+") return DIFF_ADDED
                         if (line.prefix === "-") return DIFF_REMOVED

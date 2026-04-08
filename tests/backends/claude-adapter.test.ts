@@ -1,7 +1,7 @@
-import { describe, expect, it, mock, beforeEach } from "bun:test"
+import { describe, expect, it } from "bun:test"
 import { ClaudeAdapter } from "../../src/backends/claude/adapter"
 import { mapSDKMessage, mapStreamEvent, mapAssistantMessage, ToolStreamState } from "../../src/backends/claude/event-mapper"
-import { parseElicitationInput, handlePermission, type PermissionBridgeState, type PendingPermission } from "../../src/backends/claude/permission-bridge"
+import { parseElicitationInput, handlePermission } from "../../src/backends/claude/permission-bridge"
 import { AsyncQueue } from "../../src/utils/async-queue"
 import type { AgentEvent } from "../../src/protocol/types"
 

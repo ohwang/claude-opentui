@@ -280,6 +280,27 @@ export class CodexAdapter implements AgentBackend {
     ]
   }
 
+  /**
+   * Find the most recent thread ID using thread/list.
+   * Returns null if no threads exist or the request fails.
+   */
+  private async findMostRecentThread(): Promise<string | null> {
+    if (!this.transport?.isAlive) return null
+    try {
+      const result = (await this.transport.request("thread/list")) as any
+      const threads = result?.threads ?? []
+      if (threads.length === 0) return null
+      // Sort by createdAt descending, pick the first
+      const sorted = [...threads].sort((a: any, b: any) =>
+        (b.createdAt ?? 0) - (a.createdAt ?? 0)
+      )
+      return sorted[0]?.id ?? null
+    } catch (err) {
+      log.warn("Failed to list Codex threads for --continue", { error: String(err) })
+      return null
+    }
+  }
+
   async listSessions(): Promise<SessionInfo[]> {
     if (!this.transport?.isAlive) return []
 
@@ -381,12 +402,32 @@ export class CodexAdapter implements AgentBackend {
 
       // 4. Start or resume thread
       if (resumeSessionId) {
+        // Explicit resume by session ID
         const result = (await this.transport.request("thread/resume", {
           threadId: resumeSessionId,
         })) as any
         this.threadId = result?.thread?.id ?? resumeSessionId
         this.modelName = result?.model ?? result?.modelProvider ?? null
         log.info("Resumed Codex thread", { threadId: this.threadId, model: this.modelName })
+      } else if (config.continue) {
+        // Continue most recent thread — list threads and pick the latest
+        const latestId = await this.findMostRecentThread()
+        if (latestId) {
+          log.info("Continuing most recent Codex thread", { threadId: latestId })
+          const result = (await this.transport.request("thread/resume", {
+            threadId: latestId,
+          })) as any
+          this.threadId = result?.thread?.id ?? latestId
+          this.modelName = result?.model ?? result?.modelProvider ?? null
+          log.info("Resumed Codex thread for --continue", { threadId: this.threadId, model: this.modelName })
+        } else {
+          // No threads found — fall through to starting a new thread
+          log.info("No existing Codex threads found for --continue, starting new thread")
+          const result = (await this.transport.request("thread/start", {})) as any
+          this.threadId = result?.thread?.id
+          this.modelName = result?.model ?? result?.modelProvider ?? null
+          log.info("Started new Codex thread", { threadId: this.threadId, model: this.modelName })
+        }
       } else {
         const result = (await this.transport.request("thread/start", {})) as any
         this.threadId = result?.thread?.id

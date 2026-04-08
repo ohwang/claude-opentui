@@ -45,8 +45,8 @@ if grep -rn --include="*.tsx" --include="*.ts" -E '[ ]+(bold|dimmed|italic)[ >={
 fi
 
 # Check for numeric fg= values (crashes Zig FFI BigInt packing).
-if grep -rn --include="*.tsx" --include="*.ts" -E 'fg=\{[0-9]' src/tui/ 2>/dev/null | grep -q .; then
-  grep -rn --include="*.tsx" --include="*.ts" -E 'fg=\{[0-9]' src/tui/ 2>/dev/null
+if grep -rn --include="*.tsx" --include="*.ts" -E 'fg=\{[0-9]' src/tui/ 2>/dev/null | grep -v '//' | grep -v ' \* ' | grep -q .; then
+  grep -rn --include="*.tsx" --include="*.ts" -E 'fg=\{[0-9]' src/tui/ 2>/dev/null | grep -v '//' | grep -v ' \* '
   echo "ERROR: Use hex strings (fg=\"#d78787\") instead of numeric ANSI codes (fg={174})"
   errors=1
 fi
@@ -123,6 +123,37 @@ if grep -rn --include="*.tsx" --include="*.ts" 'colors\.text\.subtle' src/tui/ s
     | grep -v ' \* ' \
     | grep -v '\.test\.'
   echo "ERROR: Never use colors.text.subtle on <text> elements — use colors.text.inactive instead"
+  errors=1
+fi
+
+# Check for external signal reads inside <For> callbacks.
+# Pattern: <For each={...}> followed by a callback that reads a signal/memo
+# other than the item/index params. We detect the most dangerous pattern:
+# calling the same memo/accessor that provides the <For>'s `each` inside the callback.
+# This is a heuristic — can't catch all cases, but catches the most common one.
+#
+# Matches: <For each={someList()}> ... { ... someList() ... }
+# The grep finds <For blocks where the each= accessor is called again inside the callback body.
+for_signal_reread=$(grep -rn --include="*.tsx" '<For each=' src/tui/ src/commands/ 2>/dev/null \
+  | while IFS=: read -r file line rest; do
+    # Extract the accessor name from each={accessor()}
+    accessor=$(echo "$rest" | sed -n 's/.*<For each={\([a-zA-Z_]*\)()}.*/\1/p')
+    if [ -n "$accessor" ]; then
+      # Check if the same accessor is called again in the next 20 lines (callback body)
+      end=$((line + 20))
+      if sed -n "${line},${end}p" "$file" | grep -q "${accessor}()" 2>/dev/null; then
+        # Exclude lines that are just the <For each= line itself
+        count=$(sed -n "${line},${end}p" "$file" | grep -c "${accessor}()" 2>/dev/null)
+        if [ "$count" -gt 1 ]; then
+          echo "${file}:${line}: re-reads ${accessor}() inside <For> callback"
+        fi
+      fi
+    fi
+  done)
+
+if [ -n "$for_signal_reread" ]; then
+  echo "$for_signal_reread"
+  echo "ERROR: Do not re-read the list accessor inside a <For> callback — pre-compute in a memo or use <Index>"
   errors=1
 fi
 

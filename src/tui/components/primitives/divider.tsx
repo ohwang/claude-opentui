@@ -10,14 +10,14 @@ import { colors } from "../../theme/tokens"
 
 export function Divider(props: {
   char?: string        // default "─"
-  color?: string       // default colors.border.muted
+  fg?: string          // default colors.border.muted
   width?: number       // default terminal width
   paddingLeft?: number // default 0
   paddingRight?: number // default 0
 }) {
   const dims = useTerminalDimensions()
   const char = () => props.char ?? "\u2500"
-  const color = () => props.color ?? colors.border.muted
+  const color = () => props.fg ?? colors.border.muted
   const width = () => {
     if (props.width) return props.width
     const tw = dims()?.width ?? 120

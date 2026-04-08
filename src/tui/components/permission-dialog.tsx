@@ -566,7 +566,7 @@ export function PermissionDialog() {
             <Show when={previewLines()}>
               {(lines: Accessor<PreviewLine[]>) => (
                 <box flexDirection="column">
-                  <Divider char={"\u254C"} color={ACCENT} paddingLeft={0} />
+                  <Divider char={"\u254C"} fg={ACCENT} paddingLeft={0} />
                   <For each={lines()}>
                     {(line, idx) => {
                       const lineColor = () => {
@@ -586,7 +586,7 @@ export function PermissionDialog() {
                       <text fg={MUTED}>{`... ${truncatedCount()} more line${truncatedCount() === 1 ? "" : "s"}`}</text>
                     </box>
                   </Show>
-                  <Divider char={"\u254C"} color={ACCENT} paddingLeft={0} />
+                  <Divider char={"\u254C"} fg={ACCENT} paddingLeft={0} />
                 </box>
               )}
             </Show>

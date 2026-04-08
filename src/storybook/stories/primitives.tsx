@@ -30,11 +30,11 @@ export const primitivesStories: Story[] = [
     category: "Primitives",
     render: () => (
       <box flexDirection="column">
-        <Divider char="=" color={colors.accent.primary} width={40} />
+        <Divider char="=" fg={colors.accent.primary} width={40} />
         <box height={1} />
-        <Divider char="·" color={colors.status.info} width={30} />
+        <Divider char="·" fg={colors.status.info} width={30} />
         <box height={1} />
-        <Divider char="━" color={colors.accent.suggestion} width={50} />
+        <Divider char="━" fg={colors.accent.suggestion} width={50} />
       </box>
     ),
   },

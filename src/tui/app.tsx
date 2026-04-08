@@ -55,7 +55,7 @@ export function showCopyConfirmation(chars: number): void {
 function DashLine() {
   return (
     <box flexShrink={0}>
-      <Divider color={colors.border.default} />
+      <Divider fg={colors.border.default} />
     </box>
   )
 }

@@ -665,6 +665,7 @@ export function InputArea() {
         session: session.session,
       }),
       getBlocks: () => messagesState.blocks,
+      renderer,
     })
 
     if (!handled) {

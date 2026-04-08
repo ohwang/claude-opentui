@@ -7,6 +7,7 @@
  * Supports fuzzy matching for command palette UX.
  */
 
+import type { CliRenderer } from "@opentui/core"
 import type { AgentBackend, Block, CostTotals, SessionConfig, SessionMetadata } from "../protocol/types"
 
 export interface CommandContext {
@@ -20,6 +21,7 @@ export interface CommandContext {
   getSessionState?: () => { cost: CostTotals; turnNumber: number; currentModel: string; session: SessionMetadata | null }
   getBlocks?: () => Block[]
   registry?: CommandRegistry
+  renderer?: CliRenderer
 }
 
 export interface SlashCommand {
@@ -135,6 +137,7 @@ import { diagnosticsCommand } from "./builtin/diagnostics"
 import { exitCommand } from "./builtin/exit"
 import { bugCommand, reviewCommand, commitCommand, testCommand } from "./builtin/prompts"
 import { aboutCommand } from "./builtin/about"
+import { screenshotCommand } from "./builtin/screenshot"
 
 /** Create a registry with all built-in commands */
 export function createCommandRegistry(): CommandRegistry {
@@ -158,6 +161,7 @@ export function createCommandRegistry(): CommandRegistry {
   registry.register(commitCommand)
   registry.register(testCommand)
   registry.register(aboutCommand)
+  registry.register(screenshotCommand)
 
   return registry
 }

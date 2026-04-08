@@ -77,9 +77,11 @@ describe("GeminiAdapter", () => {
       adapter.close()
     })
 
-    it("setPermissionMode does not throw", async () => {
+    it("setPermissionMode throws (not supported by Gemini)", async () => {
       const adapter = new GeminiAdapter()
-      await adapter.setPermissionMode("default")
+      await expect(adapter.setPermissionMode("default")).rejects.toThrow(
+        "not supported",
+      )
       adapter.close()
     })
   })

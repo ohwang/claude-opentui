@@ -84,6 +84,9 @@ export class CodexAdapter implements AgentBackend {
   // Session config for reference
   private config: SessionConfig | null = null
 
+  // Client-side max turns enforcement
+  private turnCount = 0
+
   capabilities(): BackendCapabilities {
     return {
       name: "codex",
@@ -478,6 +481,23 @@ export class CodexAdapter implements AgentBackend {
     images?: { data: string; mediaType: string }[],
   ): Promise<void> {
     if (!this.transport?.isAlive || !this.threadId) return
+
+    this.turnCount++
+
+    if (this.config?.maxTurns && this.turnCount > this.config.maxTurns) {
+      log.info("Max turns reached", { turnCount: this.turnCount, maxTurns: this.config.maxTurns })
+      this.eventChannel?.push({
+        type: "system_message",
+        text: `Maximum turns (${this.config.maxTurns}) reached. No further turns will be processed.`,
+      })
+      this.eventChannel?.push({
+        type: "error",
+        code: "max_turns",
+        message: `Maximum turns (${this.config.maxTurns}) reached`,
+        severity: "fatal",
+      })
+      return
+    }
 
     // Build user input, prepending system prompt on the first turn if provided
     const applySystemPrompt = !this.systemPromptApplied && !!this.config?.systemPrompt

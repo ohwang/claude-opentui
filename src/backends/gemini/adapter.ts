@@ -70,6 +70,9 @@ export class GeminiAdapter implements AgentBackend {
   // Session config for reference
   private config: SessionConfig | null = null
 
+  // Client-side max turns enforcement
+  private turnCount = 0
+
   capabilities(): BackendCapabilities {
     return {
       name: "gemini",
@@ -457,6 +460,23 @@ export class GeminiAdapter implements AgentBackend {
 
   private async runTurn(prompt: string): Promise<void> {
     if (!this.session || this.closed) return
+
+    this.turnCount++
+
+    if (this.config?.maxTurns && this.turnCount > this.config.maxTurns) {
+      log.info("Max turns reached", { turnCount: this.turnCount, maxTurns: this.config.maxTurns })
+      this.eventChannel?.push({
+        type: "system_message",
+        text: `Maximum turns (${this.config.maxTurns}) reached. No further turns will be processed.`,
+      })
+      this.eventChannel?.push({
+        type: "error",
+        code: "max_turns",
+        message: `Maximum turns (${this.config.maxTurns}) reached`,
+        severity: "fatal",
+      })
+      return
+    }
 
     this.abortController = new AbortController()
     this.userInitiatedAbort = false

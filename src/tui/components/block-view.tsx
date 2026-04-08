@@ -200,7 +200,7 @@ function CollapsedToolLine(props: { block: Extract<Block, { type: "tool" }> }) {
         <BlinkingDot status={dotStatus()} />
       </box>
       <text
-        fg={isError() ? colors.status.error : colors.text.secondary}
+        fg={isError() ? colors.status.error : colors.text.inactive}
         attributes={TextAttributes.DIM}
       >
         {b().tool + primaryArg() + hint()}

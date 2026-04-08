@@ -10,7 +10,10 @@ function makeCtx(overrides: Partial<CommandContext> = {}): CommandContext & { ev
   const events: any[] = []
   return {
     events,
-    backend: {} as any,
+    backend: {
+      availableModels: async () => [],
+      capabilities: () => ({ name: "claude" }),
+    } as any,
     pushEvent: (e: any) => events.push(e),
     clearConversation: () => {},
     resetCost: () => {},
@@ -436,6 +439,66 @@ describe("/model command", () => {
     expect(msg).toBeDefined()
     expect(msg.text).toContain("Unknown model: bad-model")
     expect(msg.text).toContain("Available models")
+  })
+
+  it("lists backend-specific models for /model list", async () => {
+    const registry = createCommandRegistry()
+    const ctx = makeCtx({
+      backend: {
+        availableModels: async () => [
+          { id: "gemini-2.5-pro", name: "Gemini 2.5 Pro", provider: "google" },
+          { id: "gemini-2.5-flash", name: "Gemini 2.5 Flash", provider: "google" },
+        ],
+        capabilities: () => ({ name: "gemini" }),
+      } as any,
+      getSessionState: () => ({
+        cost: { inputTokens: 100, outputTokens: 50, cacheReadTokens: 0, cacheWriteTokens: 0, totalCostUsd: 0.01 },
+        turnNumber: 3,
+        currentModel: "gemini-2.5-pro",
+        session: {
+          tools: [],
+          models: [{ id: "gemini-2.5-pro", name: "gemini-2.5-pro", provider: "google" }],
+        },
+      }),
+    })
+
+    await registry.tryExecute("/model list", ctx)
+
+    const msg = ctx.events.find((e) => e.type === "system_message")
+    expect(msg).toBeDefined()
+    expect(msg.text).toContain("gemini-2.5-pro")
+    expect(msg.text).toContain("gemini-2.5-flash")
+    expect(msg.text).not.toContain("claude-opus-4-6")
+  })
+
+  it("validates against backend-specific models instead of static Claude models", async () => {
+    const registry = createCommandRegistry()
+    const setModelFn = mock(async () => {})
+    const ctx = makeCtx({
+      setModel: setModelFn,
+      backend: {
+        availableModels: async () => [
+          { id: "o3", name: "o3", provider: "openai" },
+          { id: "o4-mini", name: "o4-mini", provider: "openai" },
+        ],
+        capabilities: () => ({ name: "codex" }),
+      } as any,
+      getSessionState: () => ({
+        cost: { inputTokens: 100, outputTokens: 50, cacheReadTokens: 0, cacheWriteTokens: 0, totalCostUsd: 0.01 },
+        turnNumber: 3,
+        currentModel: "o3",
+        session: {
+          tools: [],
+          models: [{ id: "o3", name: "o3", provider: "openai" }],
+        },
+      }),
+    })
+
+    await registry.tryExecute("/model o3", ctx)
+
+    expect(setModelFn).toHaveBeenCalledWith("o3")
+    const msg = ctx.events.find((e) => e.type === "system_message")
+    expect(msg?.text ?? "").not.toContain("Unknown model")
   })
 
   it("reports error when setModel throws for a valid model", async () => {

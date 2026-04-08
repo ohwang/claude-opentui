@@ -160,6 +160,12 @@ function mapGeminiEventStateful(
     case GeminiEventType.Finished: {
       const value = event.value
       const usage = value?.usageMetadata
+      log.info("Gemini Finished event", {
+        hasUsage: !!usage,
+        promptTokens: usage?.promptTokenCount,
+        candidateTokens: usage?.candidatesTokenCount,
+        rawKeys: usage ? Object.keys(usage) : "no usage",
+      })
 
       // Emit text_complete with accumulated text before cost/turn events
       const fullText = mapper.consumeAccumulatedText()
@@ -221,6 +227,11 @@ function mapGeminiEventStateful(
       log.info("Gemini model info", { model: modelId })
       if (modelId) {
         events.push({ type: "model_changed", model: modelId })
+        events.push({
+          type: "system_message",
+          text: `Model switched to ${modelId}`,
+          ephemeral: true,
+        })
       }
       break
     }

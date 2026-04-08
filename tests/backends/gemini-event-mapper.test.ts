@@ -193,15 +193,20 @@ describe("Gemini Event Mapper", () => {
   })
 
   describe("model info", () => {
-    it("maps ModelInfo to model_changed", () => {
+    it("maps ModelInfo to model_changed + system_message", () => {
       const events = mapGeminiEvent({
         type: GeminiEventType.ModelInfo,
         value: "gemini-2.5-pro",
       })
-      expect(events).toHaveLength(1)
+      expect(events).toHaveLength(2)
       const changed = events[0]! as any
       expect(changed.type).toBe("model_changed")
       expect(changed.model).toBe("gemini-2.5-pro")
+
+      const sysMsg = events[1]! as any
+      expect(sysMsg.type).toBe("system_message")
+      expect(sysMsg.text).toBe("Model switched to gemini-2.5-pro")
+      expect(sysMsg.ephemeral).toBe(true)
     })
 
     it("produces no events for empty ModelInfo", () => {

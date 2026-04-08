@@ -1526,20 +1526,20 @@ describe("ConversationState reducer", () => {
       expect(state.lastTurnInputTokens).toBe(5000)
     })
 
-    it("lastTurnInputTokens excludes cacheWriteTokens (already counted in inputTokens)", () => {
+    it("lastTurnInputTokens sums all three disjoint token categories", () => {
       const state = applyEvents([
         { type: "session_init", tools: [], models: [] },
         { type: "turn_start" },
         { type: "turn_complete", usage: {
-          inputTokens: 15000,        // uncached input (includes the 5K that were written to cache)
+          inputTokens: 15000,        // uncached input tokens (disjoint from cache categories)
           outputTokens: 2000,
-          cacheReadTokens: 40000,    // read from prompt cache
-          cacheWriteTokens: 5000,    // subset of inputTokens written to cache — NOT additional context
+          cacheReadTokens: 40000,    // tokens read from prompt cache
+          cacheWriteTokens: 5000,    // tokens newly written to cache (disjoint from inputTokens)
         }},
       ])
-      // Context fill = inputTokens + cacheReadTokens = 55000
-      // cacheWriteTokens must NOT be added (it's a subset of inputTokens)
-      expect(state.lastTurnInputTokens).toBe(55000)
+      // Context fill = inputTokens + cacheReadTokens + cacheWriteTokens = 60000
+      // All three are disjoint in the Anthropic API, matching Claude Code's calculateContextPercentages()
+      expect(state.lastTurnInputTokens).toBe(60000)
     })
 
     it("turn_complete in ERROR state recovers to IDLE", () => {

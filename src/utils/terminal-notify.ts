@@ -4,11 +4,17 @@
  * Sends desktop notifications via terminal escape sequences.
  * Supports iTerm2 (OSC 9), Kitty (OSC 99), Ghostty (OSC 777), and basic bell.
  *
- * Also provides terminal progress indicators (iTerm2/Ghostty OSC 9;4)
+ * Also provides terminal progress indicators (iTerm2/Ghostty/WezTerm OSC 9;4)
  * and tmux passthrough wrapping.
  */
 
-export type TerminalEmulator = "iterm2" | "kitty" | "ghostty" | "unknown"
+export type TerminalEmulator = "iterm2" | "kitty" | "ghostty" | "wezterm" | "unknown"
+
+/** Terminals that support OSC 9;4 progress indicators */
+const SUPPORTS_PROGRESS: ReadonlySet<TerminalEmulator> = new Set(["iterm2", "ghostty", "wezterm"])
+
+/** Terminals that use OSC 9 for notifications (iTerm2-style) */
+const SUPPORTS_OSC9_NOTIFY: ReadonlySet<TerminalEmulator> = new Set(["iterm2", "wezterm"])
 
 /**
  * Detect the current terminal emulator from environment variables.
@@ -19,6 +25,7 @@ export function detectTerminal(): TerminalEmulator {
 
   if (termProgram === "iTerm.app" || process.env.ITERM_SESSION_ID) return "iterm2"
   if (termProgram === "ghostty" || terminalEmulator === "ghostty") return "ghostty"
+  if (termProgram === "WezTerm") return "wezterm"
   if (process.env.KITTY_PID || process.env.KITTY_WINDOW_ID) return "kitty"
 
   return "unknown"
@@ -27,7 +34,7 @@ export function detectTerminal(): TerminalEmulator {
 /**
  * Send a desktop notification via terminal escape sequences.
  *
- * Supports iTerm2 (OSC 9), Kitty (OSC 99), Ghostty (OSC 777), and basic bell.
+ * Supports iTerm2/WezTerm (OSC 9), Kitty (OSC 99), Ghostty (OSC 777), and basic bell.
  * Only writes when stdout is a TTY to avoid corrupting piped output.
  */
 export function sendTerminalNotification(title: string, message: string): void {
@@ -36,32 +43,27 @@ export function sendTerminalNotification(title: string, message: string): void {
   const term = detectTerminal()
   let sequence: string
 
-  switch (term) {
-    case "iterm2":
-      // iTerm2: OSC 9 ; message ST
-      sequence = `\x1b]9;${title}: ${message}\x07`
-      break
-    case "kitty":
-      // Kitty: OSC 99 ; i=1:d=0:p=title ; title ST + OSC 99 ; i=1:p=body ; body ST
-      sequence =
-        `\x1b]99;i=1:d=0:p=title;${title}\x1b\\` +
-        `\x1b]99;i=1:p=body;${message}\x1b\\`
-      break
-    case "ghostty":
-      // Ghostty: OSC 777 ; notify ; title ; message ST
-      sequence = `\x1b]777;notify;${title};${message}\x1b\\`
-      break
-    default:
-      // Basic bell as fallback (lights up terminal in tmux, etc.)
-      sequence = "\x07"
-      break
+  if (SUPPORTS_OSC9_NOTIFY.has(term)) {
+    // iTerm2 / WezTerm: OSC 9 ; message ST
+    sequence = `\x1b]9;${title}: ${message}\x07`
+  } else if (term === "kitty") {
+    // Kitty: OSC 99 ; i=1:d=0:p=title ; title ST + OSC 99 ; i=1:p=body ; body ST
+    sequence =
+      `\x1b]99;i=1:d=0:p=title;${title}\x1b\\` +
+      `\x1b]99;i=1:p=body;${message}\x1b\\`
+  } else if (term === "ghostty") {
+    // Ghostty: OSC 777 ; notify ; title ; message ST
+    sequence = `\x1b]777;notify;${title};${message}\x1b\\`
+  } else {
+    // Basic bell as fallback (lights up terminal in tmux, etc.)
+    sequence = "\x07"
   }
 
   process.stdout.write(wrapForTmux(sequence))
 }
 
 /**
- * Set terminal progress indicator (iTerm2, Ghostty).
+ * Set terminal progress indicator (iTerm2, Ghostty, WezTerm).
  *
  * state: 'running' | 'completed' | 'error' | 'clear'
  *
@@ -75,7 +77,7 @@ export function setTerminalProgress(
   if (!process.stdout.isTTY) return
 
   const term = detectTerminal()
-  if (term !== "iterm2" && term !== "ghostty") return
+  if (!SUPPORTS_PROGRESS.has(term)) return
 
   let sequence: string
 

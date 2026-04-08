@@ -120,6 +120,11 @@ describe("detectTerminal", () => {
     expect(detectTerminal()).toBe("kitty")
   })
 
+  it("detects WezTerm via TERM_PROGRAM", () => {
+    process.env.TERM_PROGRAM = "WezTerm"
+    expect(detectTerminal()).toBe("wezterm")
+  })
+
   it("returns unknown when no terminal env vars are set", () => {
     expect(detectTerminal()).toBe("unknown")
   })
@@ -171,6 +176,13 @@ describe("sendTerminalNotification", () => {
     sendTerminalNotification("Claude", "Done")
     expect(writtenData).toHaveLength(1)
     expect(writtenData[0]).toBe("\x1b]777;notify;Claude;Done\x1b\\")
+  })
+
+  it("sends OSC 9 for WezTerm", () => {
+    process.env.TERM_PROGRAM = "WezTerm"
+    sendTerminalNotification("Claude", "Done")
+    expect(writtenData).toHaveLength(1)
+    expect(writtenData[0]).toBe("\x1b]9;Claude: Done\x07")
   })
 
   it("sends BEL for unknown terminals", () => {
@@ -254,8 +266,21 @@ describe("setTerminalProgress", () => {
   })
 
 
+  it("writes progress for WezTerm", () => {
+    process.env.TERM_PROGRAM = "WezTerm"
+    setTerminalProgress("running", 75)
+    expect(writtenData).toHaveLength(1)
+    expect(writtenData[0]).toBe("\x1b]9;4;1;75\x07")
+  })
+
   it("does nothing for unsupported terminals such as Apple Terminal", () => {
     process.env.TERM_PROGRAM = "Apple_Terminal"
+    setTerminalProgress("running", 42)
+    expect(writtenData).toHaveLength(0)
+  })
+
+  it("does nothing for Kitty (no OSC 9;4 support)", () => {
+    process.env.KITTY_PID = "12345"
     setTerminalProgress("running", 42)
     expect(writtenData).toHaveLength(0)
   })

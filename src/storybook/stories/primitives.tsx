@@ -13,6 +13,7 @@ import {
   ShortcutBar,
   type StatusType,
 } from "../../tui/components/primitives"
+import { EphemeralLine } from "../../tui/components/ephemeral-line"
 import { colors } from "../../tui/theme/tokens"
 
 export const primitivesStories: Story[] = [
@@ -124,5 +125,18 @@ export const primitivesStories: Story[] = [
         <ShortcutHint shortcut="Tab" action="switch" />
       </ShortcutBar>
     ),
+  },
+  {
+    id: "ephemeral-line",
+    title: "EphemeralLine",
+    description: "1-line ephemeral message area between content and input",
+    category: "Primitives",
+    render: () => <EphemeralLine message="Interrupt pending... Press Ctrl+D\u00d72 to force exit" />,
+    variants: [
+      { label: "with message", render: () => <EphemeralLine message="Interrupt pending... Press Ctrl+D\u00d72 to force exit" /> },
+      { label: "blank", render: () => <EphemeralLine /> },
+      { label: "away notice", render: () => <EphemeralLine message="You were away \u00b7 3 events while you were gone" /> },
+      { label: "ctrl+c hint", render: () => <EphemeralLine message="Press Ctrl+C again to exit" /> },
+    ],
   },
 ]

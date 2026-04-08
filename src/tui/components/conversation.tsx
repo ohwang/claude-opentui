@@ -30,6 +30,7 @@ import { StreamingSpinner } from "./streaming-spinner"
 import { type ViewLevel } from "./tool-view"
 import { BlockView } from "./block-view"
 import { CollapsedToolGroup } from "./collapsed-tool-group"
+import { EphemeralLine } from "./ephemeral-line"
 import { ToastDisplay } from "./toast"
 import { groupConsecutiveTools, isToolGroup, type GroupedItem, type ToolGroup } from "../utils/tool-grouping"
 import { TurnSummary } from "./turn-summary"
@@ -409,11 +410,7 @@ export function ConversationView(props: { children?: JSX.Element; footerHint?: s
           </box>
 
           {/* Transient view-level hint — replaces itself, auto-clears after 3s */}
-          <box flexDirection="column" paddingLeft={2}>
-            <Show when={viewLevelHint()}>
-              <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>{viewLevelHint()}</text>
-            </Show>
-          </box>
+          <EphemeralLine message={viewLevelHint()} />
 
           {/* Background task indicator — compact single-line when backgrounded */}
           <box flexDirection="column">

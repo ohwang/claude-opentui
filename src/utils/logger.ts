@@ -37,6 +37,8 @@ class Logger {
   private backendSessionId: string | null = null
   private backendName: string | null = null
   private _sessionInfoPrinted = false
+  private _lines: string[] = []
+  private _subscribers: Set<(line: string) => void> = new Set()
 
   constructor() {
     this.sessionId = generateSessionId()
@@ -141,6 +143,13 @@ class Logger {
     }
     line += "\n"
 
+    // Buffer the line (without trailing newline) for in-memory subscribers
+    const trimmed = line.trimEnd()
+    this._lines.push(trimmed)
+    for (const cb of this._subscribers) {
+      try { cb(trimmed) } catch { /* never crash for observers */ }
+    }
+
     try {
       appendFileSync(this.logFile, line)
     } catch {
@@ -159,6 +168,24 @@ class Logger {
   }
   error(message: string, data?: unknown) {
     this.write("error", message, data)
+  }
+
+  // ---------------------------------------------------------------------------
+  // In-memory line buffer + subscriber API (for real-time log viewer)
+  // ---------------------------------------------------------------------------
+
+  /** Return all log lines written so far in this session. */
+  getLines(): string[] {
+    return this._lines
+  }
+
+  /**
+   * Subscribe to new log lines as they are written.
+   * Returns an unsubscribe function.
+   */
+  subscribe(callback: (line: string) => void): () => void {
+    this._subscribers.add(callback)
+    return () => { this._subscribers.delete(callback) }
   }
 }
 

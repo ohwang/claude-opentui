@@ -23,6 +23,7 @@ const IMAGE_MAX_RAW_BYTES = 3.75 * 1024 * 1024 // ~5MB base64
 const IMAGE_MAX_DIMENSION = 2000 // pixels
 const CLIPBOARD_TIMEOUT_MS = 5_000
 const IMAGE_EXTENSION_REGEX = /\.(png|jpe?g|gif|webp)$/i
+const MACOS_CLIPBOARD_IMAGE_CLASS_REGEX = /«class (?:PNGf|TIFF|JPEG|GIFf|8BPS)»/
 
 // ---------------------------------------------------------------------------
 // Image format detection from magic bytes
@@ -370,7 +371,7 @@ export async function hasClipboardImage(): Promise<boolean> {
     )
     if (!result || result.exitCode !== 0) return false
     const output = await new Response(result.stdout).text()
-    return output.includes("«class PNGf»")
+    return MACOS_CLIPBOARD_IMAGE_CLASS_REGEX.test(output)
   }
 
   if (plat === "linux-x11") {
@@ -428,8 +429,13 @@ export async function readClipboardImage(): Promise<ClipboardImageResult> {
   return { ok: false, reason: "unsupported" }
 }
 
+function makeDarwinClipboardTempPath(): string {
+  const unique = `${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+  return `/tmp/claude-opentui-clip-${unique}.png`
+}
+
 async function readClipboardImageDarwin(): Promise<ClipboardImageResult> {
-  const tmpPath = "/tmp/claude-opentui-clip.png"
+  const tmpPath = makeDarwinClipboardTempPath()
 
   const result = await spawnWithTimeout(
     [

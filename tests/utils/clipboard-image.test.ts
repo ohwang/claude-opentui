@@ -127,6 +127,16 @@ describe("hasClipboardImage", () => {
     expect(result).toBe(true)
   })
 
+  it("returns true when osascript reports JPEG on macOS", async () => {
+    setPlatform("darwin")
+    spawnMock.mockReturnValue(
+      fakeProc(0, "«class JPEG», 42\n") as any,
+    )
+    const { hasClipboardImage } = await importClipboard()
+    const result = await hasClipboardImage()
+    expect(result).toBe(true)
+  })
+
   it("returns false when osascript reports no PNGf on macOS", async () => {
     setPlatform("darwin")
     spawnMock.mockReturnValue(
@@ -323,6 +333,57 @@ describe("readClipboardImage", () => {
     if (result.ok) {
       expect(result.image.mediaType).toBe("image/png")
       expect(result.image.data).toBe(Buffer.from(pngBytes).toString("base64"))
+    }
+  })
+
+  it("uses distinct temp files for concurrent macOS clipboard reads", async () => {
+    setPlatform("darwin")
+
+    const pngA = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x01])
+    const pngB = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x02])
+    const expectedA = Buffer.from(pngA).toString("base64")
+    const expectedB = Buffer.from(pngB).toString("base64")
+
+    const files = new Map<string, Uint8Array>()
+    let spawnCount = 0
+    let releaseReads: (() => void) | undefined
+    const readsReady = new Promise<void>((resolve) => {
+      releaseReads = resolve
+    })
+
+    spawnMock.mockImplementation((cmd: string[]) => {
+      const script = cmd.find((part) => part.includes('open for access POSIX file "')) ?? ""
+      const match = script.match(/POSIX file "([^\"]+)"/)
+      const tmpPath = match?.[1]
+      if (!tmpPath) throw new Error("tmp path not found in osascript command")
+
+      files.set(tmpPath, spawnCount === 0 ? pngA : pngB)
+      spawnCount++
+      if (spawnCount === 2) releaseReads?.()
+
+      return fakeProc(0, "") as any
+    })
+
+    fileMock = spyOn(Bun, "file").mockImplementation((path: string) => ({
+      arrayBuffer: async () => {
+        await readsReady
+        const bytes = files.get(path)
+        if (!bytes) throw new Error(`missing mocked file for ${path}`)
+        return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength)
+      },
+    }) as any)
+
+    const { readClipboardImage } = await importClipboard()
+    const [first, second] = await Promise.all([
+      readClipboardImage(),
+      readClipboardImage(),
+    ])
+
+    expect(first.ok).toBe(true)
+    expect(second.ok).toBe(true)
+    if (first.ok && second.ok) {
+      expect(first.image.data).toBe(expectedA)
+      expect(second.image.data).toBe(expectedB)
     }
   })
 

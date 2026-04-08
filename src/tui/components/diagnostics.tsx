@@ -284,9 +284,6 @@ export function DiagnosticsPanel(props: { visible: boolean; onClose: () => void 
           <text fg={colors.text.primary} attributes={TextAttributes.BOLD}>
             {"Diagnostics"}
           </text>
-          <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>
-            {"  (j/k scroll, d/u page, Esc to close)"}
-          </text>
         </box>
 
         {/* Separator line */}
@@ -320,6 +317,16 @@ export function DiagnosticsPanel(props: { visible: boolean; onClose: () => void 
             )}
           </For>
         </scrollbox>
+
+        {/* Footer — keyboard hints */}
+        <box height={1} flexShrink={0}>
+          <text fg={colors.border.default}>{"─".repeat(dims()?.width ? dims()!.width - 4 : 70)}</text>
+        </box>
+        <box flexShrink={0}>
+          <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>
+            {"j/k scroll, d/u page, Esc to close"}
+          </text>
+        </box>
       </box>
     </Show>
   )

@@ -78,6 +78,9 @@ export class CodexAdapter implements AgentBackend {
     { rpcId: number | string; method: string; params: any }
   >()
 
+  // Whether the system prompt has been prepended to the first turn
+  private systemPromptApplied = false
+
   // Session config for reference
   private config: SessionConfig | null = null
 
@@ -437,8 +440,15 @@ export class CodexAdapter implements AgentBackend {
   ): Promise<void> {
     if (!this.transport?.isAlive || !this.threadId) return
 
-    // Build user input
-    const input: any[] = [{ type: "text", text }]
+    // Build user input, prepending system prompt on the first turn if provided
+    const applySystemPrompt = !this.systemPromptApplied && !!this.config?.systemPrompt
+    const input: any[] = []
+    if (applySystemPrompt) {
+      input.push({ type: "text", text: `[System Prompt]\n${this.config!.systemPrompt}\n\n[User Message]\n${text}` })
+      this.systemPromptApplied = true
+    } else {
+      input.push({ type: "text", text })
+    }
     if (images) {
       for (const img of images) {
         input.push({
@@ -452,6 +462,11 @@ export class CodexAdapter implements AgentBackend {
       threadId: this.threadId,
       input,
       approvalPolicy: toCodexApprovalPolicy(this.config?.permissionMode),
+    }
+
+    // Also pass system prompt as instructions if the server supports it
+    if (applySystemPrompt) {
+      turnParams.instructions = this.config!.systemPrompt
     }
 
     if (this.config?.model) {

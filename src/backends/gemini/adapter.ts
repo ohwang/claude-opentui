@@ -362,6 +362,7 @@ export class GeminiAdapter implements AgentBackend {
       const agentOptions: GeminiCliAgentOptions = {
         cwd: config.cwd ?? process.cwd(),
         model: config.model,
+        ...(config.systemPrompt ? { instructions: config.systemPrompt } : {}),
       }
       log.info("Creating Gemini agent", {
         model: agentOptions.model,

@@ -85,6 +85,9 @@ export class CodexSdkAdapter implements AgentBackend {
   private abortController: AbortController | null = null
   private userInitiatedAbort = false
 
+  // Whether the system prompt has been prepended to the first turn
+  private systemPromptApplied = false
+
   private config: SessionConfig | null = null
 
   capabilities(): BackendCapabilities {
@@ -331,14 +334,22 @@ export class CodexSdkAdapter implements AgentBackend {
     this.abortController = new AbortController()
     this.userInitiatedAbort = false
     this.eventMapper.reset()
-    log.info("Starting Codex SDK turn", { promptLength: prompt.length })
+
+    // Prepend system prompt on the first turn if provided
+    let effectivePrompt = prompt
+    if (!this.systemPromptApplied && this.config?.systemPrompt) {
+      effectivePrompt = `[System Prompt]\n${this.config.systemPrompt}\n\n[User Message]\n${prompt}`
+      this.systemPromptApplied = true
+    }
+
+    log.info("Starting Codex SDK turn", { promptLength: effectivePrompt.length })
 
     // Emit synthetic turn_start before the stream begins
     trace.write({
       dir: "internal",
       stage: "adapter_event",
       type: "turn_start",
-      payload: { prompt },
+      payload: { prompt: effectivePrompt },
     })
     this.eventChannel?.push({ type: "turn_start" })
 
@@ -347,9 +358,9 @@ export class CodexSdkAdapter implements AgentBackend {
         dir: "out",
         stage: "sdk_call",
         type: "runStreamed",
-        payload: { prompt },
+        payload: { prompt: effectivePrompt },
       })
-      const { events } = await this.thread.runStreamed(prompt, {
+      const { events } = await this.thread.runStreamed(effectivePrompt, {
         signal: this.abortController.signal,
       })
 

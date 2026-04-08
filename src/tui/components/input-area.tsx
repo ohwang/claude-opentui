@@ -161,9 +161,13 @@ export function clearInput(): boolean {
  * In native Claude Code the textarea always captures keyboard input —
  * the user can scroll up to read history, then just start typing.
  * This function ensures the same behavior by reclaiming focus.
+ *
+ * Only reclaims focus when the cursor is not intentionally hidden.
  */
 export function refocusInput(): void {
-  _sharedTextareaRef?.focus()
+  if (!_cursorHidden) {
+    _sharedTextareaRef?.focus()
+  }
 }
 
 /**
@@ -172,6 +176,41 @@ export function refocusInput(): void {
  */
 export function blurInput(): void {
   _sharedTextareaRef?.blur()
+}
+
+// ---------------------------------------------------------------------------
+// Cursor visibility — single source of truth
+// ---------------------------------------------------------------------------
+// The textarea shows a cursor whenever it has focus. Rather than fighting
+// between the reactive `focused` prop and imperative `.blur()`/`.focus()`
+// calls, we track intent via a module-level flag that the `focused` prop
+// reads. `hideCursor()` / `showCursor()` toggle this flag AND immediately
+// call `.blur()`/`.focus()` for instant effect.
+// ---------------------------------------------------------------------------
+let _cursorHidden = false
+
+/**
+ * Hide the textarea cursor. The textarea remains mounted but loses focus
+ * so the terminal cursor disappears. Keyboard events still reach
+ * useKeyboard() handlers — only text insertion is paused.
+ */
+export function hideCursor(): void {
+  _cursorHidden = true
+  _sharedTextareaRef?.blur()
+}
+
+/**
+ * Show the textarea cursor. Restores focus so text insertion and the
+ * terminal cursor both work again.
+ */
+export function showCursor(): void {
+  _cursorHidden = false
+  _sharedTextareaRef?.focus()
+}
+
+/** Whether the cursor is intentionally hidden. */
+export function isCursorHidden(): boolean {
+  return _cursorHidden
 }
 
 /**
@@ -1127,7 +1166,7 @@ export function InputArea() {
         </box>
         <textarea
           ref={(el: TextareaRenderable) => { textareaRef = el; _sharedTextareaRef = el }}
-          focused={!isDisabled()}
+          focused={!isDisabled() && !_cursorHidden}
           height={textareaHeight()}
           placeholder={placeholder()}
           cursorStyle={{ style: "block", blinking: false }}

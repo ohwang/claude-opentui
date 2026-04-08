@@ -25,7 +25,7 @@ import { AnimationProvider } from "./context/animation"
 import { colors } from "./theme/tokens"
 import { ConversationView } from "./components/conversation"
 import { Divider } from "./components/primitives"
-import { InputArea, clearInput, hasInputText, refocusInput, blurInput, getInputHistory, setInputText } from "./components/input-area"
+import { InputArea, clearInput, hasInputText, refocusInput, hideCursor, showCursor, isCursorHidden, getInputHistory, setInputText } from "./components/input-area"
 import { HistorySearchModal } from "./components/history-search"
 import { StatusBar } from "./components/status-bar"
 import { PermissionDialog } from "./components/permission-dialog"
@@ -193,10 +193,10 @@ function Layout(props: { onExit?: () => void }) {
   createEffect(() => {
     if (showDiagnostics()) {
       modal.registerOverlay("diagnostics")
-      blurInput()
+      hideCursor()
     } else {
       modal.unregisterOverlay("diagnostics")
-      refocusInput()
+      showCursor()
     }
   })
 
@@ -502,14 +502,15 @@ function Layout(props: { onExit?: () => void }) {
     // model can shift focus to the scrollbox (e.g. on mouse click or
     // scroll interaction). Re-focusing on every keypress ensures the
     // textarea immediately reclaims input regardless of what stole focus.
-    // Skip refocusing when the diagnostics overlay is open so it doesn't
-    // steal focus back from the overlay.
+    // Skip refocusing when the diagnostics overlay is open, or when the
+    // user has scrolled away from the input area, so cursor stays hidden.
     const typingDisabled =
       session.sessionState === "WAITING_FOR_PERM" ||
       session.sessionState === "WAITING_FOR_ELIC" ||
       session.sessionState === "SHUTTING_DOWN" ||
       showDiagnostics() ||
-      modal.isActive()
+      modal.isActive() ||
+      isCursorHidden()
     if (!typingDisabled) {
       refocusInput()
     }

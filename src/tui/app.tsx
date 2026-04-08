@@ -347,6 +347,7 @@ function Layout(props: { onExit?: () => void }) {
 
     // Ctrl+Shift+P: cycle models (Ctrl+P freed for Emacs previous-line)
     if (event.ctrl && event.shift && event.name === "p") {
+      event.preventDefault()
       cycleModel(1)
       return
     }

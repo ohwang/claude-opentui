@@ -861,7 +861,7 @@ export function InputArea() {
     }
 
     // Ctrl+B = backward one character (Emacs)
-    if (e.ctrl && e.name === "b") {
+    if (e.ctrl && !e.shift && e.name === "b") {
       e.preventDefault()
       textareaRef?.moveCursorLeft()
       return
@@ -875,7 +875,7 @@ export function InputArea() {
     }
 
     // Ctrl+P = previous line (Emacs)
-    if (e.ctrl && e.name === "p") {
+    if (e.ctrl && !e.shift && e.name === "p") {
       e.preventDefault()
       textareaRef?.moveCursorUp()
       return
@@ -883,7 +883,7 @@ export function InputArea() {
 
     // Ctrl+D = delete character forward (Emacs)
     // When the editor is empty, app.tsx handles Ctrl+D for exit (double-press).
-    if (e.ctrl && e.name === "d") {
+    if (e.ctrl && !e.shift && e.name === "d") {
       e.preventDefault()
       textareaRef?.deleteChar()
       queueMicrotask(() => { updateLineCount(); updateAutocomplete(textareaRef?.plainText ?? "") })

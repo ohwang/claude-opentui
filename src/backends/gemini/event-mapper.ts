@@ -20,15 +20,54 @@ import type { AgentEvent } from "../../protocol/types"
 import { GeminiEventType, type ServerGeminiStreamEvent } from "./types"
 
 // ---------------------------------------------------------------------------
-// Event mapping
+// Stateful event mapper
 // ---------------------------------------------------------------------------
 
-export function mapGeminiEvent(event: ServerGeminiStreamEvent): AgentEvent[] {
+/**
+ * Stateful mapper that accumulates text across Content events and emits
+ * a `text_complete` event when the turn finishes. Create one per session;
+ * call `reset()` at the start of each turn.
+ */
+export class GeminiEventMapper {
+  private accumulatedText = ""
+
+  /** Map a single SDK event to zero or more AgentEvents. */
+  map(event: ServerGeminiStreamEvent): AgentEvent[] {
+    return mapGeminiEventStateful(event, this)
+  }
+
+  /** Append text (called internally by the Content handler). */
+  appendText(text: string): void {
+    this.accumulatedText += text
+  }
+
+  /** Consume and return accumulated text, then clear it. */
+  consumeAccumulatedText(): string {
+    const text = this.accumulatedText
+    this.accumulatedText = ""
+    return text
+  }
+
+  /** Reset state between turns. */
+  reset(): void {
+    this.accumulatedText = ""
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Event mapping (stateful — receives mapper instance for text accumulation)
+// ---------------------------------------------------------------------------
+
+function mapGeminiEventStateful(
+  event: ServerGeminiStreamEvent,
+  mapper: GeminiEventMapper,
+): AgentEvent[] {
   const events: AgentEvent[] = []
 
   switch (event.type) {
     case GeminiEventType.Content: {
       if (event.value) {
+        mapper.appendText(event.value)
         events.push({ type: "text_delta", text: event.value })
       }
       break
@@ -121,6 +160,12 @@ export function mapGeminiEvent(event: ServerGeminiStreamEvent): AgentEvent[] {
     case GeminiEventType.Finished: {
       const value = event.value
       const usage = value?.usageMetadata
+
+      // Emit text_complete with accumulated text before cost/turn events
+      const fullText = mapper.consumeAccumulatedText()
+      if (fullText) {
+        events.push({ type: "text_complete", text: fullText })
+      }
 
       // Emit cost_update before turn_complete so running token totals accumulate
       if (usage) {
@@ -290,4 +335,21 @@ export function mapGeminiEvent(event: ServerGeminiStreamEvent): AgentEvent[] {
   }
 
   return events
+}
+
+// ---------------------------------------------------------------------------
+// Stateless convenience wrapper (backward-compatible, used by tests)
+// ---------------------------------------------------------------------------
+
+/**
+ * Stateless convenience wrapper — maps a single event without cross-event
+ * text accumulation. Resets internal state on each call so it never leaks
+ * between independent invocations. Prefer `GeminiEventMapper` for production
+ * use where `text_complete` emission matters.
+ */
+const _defaultMapper = new GeminiEventMapper()
+
+export function mapGeminiEvent(event: ServerGeminiStreamEvent): AgentEvent[] {
+  _defaultMapper.reset()
+  return _defaultMapper.map(event)
 }

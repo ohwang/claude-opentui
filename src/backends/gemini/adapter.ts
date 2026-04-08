@@ -33,7 +33,7 @@ import { backendTrace } from "../../utils/backend-trace"
 
 const trace = backendTrace.scoped("gemini")
 
-import { mapGeminiEvent } from "./event-mapper"
+import { GeminiEventMapper } from "./event-mapper"
 import type {
   IGeminiCliAgent,
   IGeminiCliSession,
@@ -59,6 +59,9 @@ export class GeminiAdapter implements AgentBackend {
   private messageQueue = new AsyncQueue<UserMessage>()
   private eventChannel: EventChannel<AgentEvent> | null = null
   private closed = false
+
+  // Stateful event mapper (accumulates text for text_complete)
+  private eventMapper = new GeminiEventMapper()
 
   // Interrupt via AbortController
   private abortController: AbortController | null = null
@@ -458,6 +461,7 @@ export class GeminiAdapter implements AgentBackend {
 
     this.abortController = new AbortController()
     this.userInitiatedAbort = false
+    this.eventMapper.reset()
     log.info("Starting Gemini turn", { promptLength: prompt.length })
 
     // Emit turn_start
@@ -509,7 +513,7 @@ export class GeminiAdapter implements AgentBackend {
             payload: event,
           })
 
-          const mapped = mapGeminiEvent(event)
+          const mapped = this.eventMapper.map(event)
           if (mapped.length === 0) {
             log.debug("Gemini event produced no mapped events", { type: event.type })
           }

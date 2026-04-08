@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test"
-import { mapGeminiEvent } from "../../src/backends/gemini/event-mapper"
+import { mapGeminiEvent, GeminiEventMapper } from "../../src/backends/gemini/event-mapper"
 import { GeminiEventType, type ServerGeminiStreamEvent } from "../../src/backends/gemini/types"
 
 describe("Gemini Event Mapper", () => {
@@ -315,6 +315,89 @@ describe("Gemini Event Mapper", () => {
         type: GeminiEventType.Retry,
       })
       expect(events).toHaveLength(0)
+    })
+  })
+
+  describe("text_complete (stateful mapper)", () => {
+    it("emits text_complete with accumulated text on Finished", () => {
+      const mapper = new GeminiEventMapper()
+
+      // Simulate two Content events
+      mapper.map({ type: GeminiEventType.Content, value: "Hello, " })
+      mapper.map({ type: GeminiEventType.Content, value: "world!" })
+
+      // Finished should emit text_complete -> cost_update -> turn_complete
+      const events = mapper.map({
+        type: GeminiEventType.Finished,
+        value: {
+          reason: "STOP",
+          usageMetadata: {
+            promptTokenCount: 10,
+            candidatesTokenCount: 5,
+            cachedContentTokenCount: 0,
+          },
+        },
+      })
+
+      expect(events).toHaveLength(3)
+      expect(events[0]!).toEqual({ type: "text_complete", text: "Hello, world!" })
+      expect(events[1]!.type).toBe("cost_update")
+      expect(events[2]!.type).toBe("turn_complete")
+    })
+
+    it("does not emit text_complete when no text was accumulated", () => {
+      const mapper = new GeminiEventMapper()
+
+      const events = mapper.map({
+        type: GeminiEventType.Finished,
+        value: { reason: "STOP", usageMetadata: undefined },
+      })
+
+      expect(events).toHaveLength(1)
+      expect(events[0]!.type).toBe("turn_complete")
+    })
+
+    it("resets accumulated text between turns", () => {
+      const mapper = new GeminiEventMapper()
+
+      // First turn
+      mapper.map({ type: GeminiEventType.Content, value: "First turn text" })
+      const firstFinish = mapper.map({
+        type: GeminiEventType.Finished,
+        value: { reason: "STOP", usageMetadata: undefined },
+      })
+      expect(firstFinish[0]!).toEqual({ type: "text_complete", text: "First turn text" })
+
+      // Reset for second turn
+      mapper.reset()
+
+      // Second turn
+      mapper.map({ type: GeminiEventType.Content, value: "Second turn" })
+      const secondFinish = mapper.map({
+        type: GeminiEventType.Finished,
+        value: { reason: "STOP", usageMetadata: undefined },
+      })
+      expect(secondFinish[0]!).toEqual({ type: "text_complete", text: "Second turn" })
+    })
+
+    it("emits text_complete before cost_update and turn_complete", () => {
+      const mapper = new GeminiEventMapper()
+
+      mapper.map({ type: GeminiEventType.Content, value: "Some response" })
+      const events = mapper.map({
+        type: GeminiEventType.Finished,
+        value: {
+          reason: "STOP",
+          usageMetadata: {
+            promptTokenCount: 100,
+            candidatesTokenCount: 50,
+            cachedContentTokenCount: 10,
+          },
+        },
+      })
+
+      const types = events.map((e) => e.type)
+      expect(types).toEqual(["text_complete", "cost_update", "turn_complete"])
     })
   })
 })

@@ -152,6 +152,8 @@ export function SyncProvider(props: ParentProps) {
       messages.setState("activeTasks", reconcile([]))
       messages.setState("backgrounded", false)
       messages.setState("streamingOutputTokens", 0)
+      messages.setState("lastTurnFiles", undefined)
+      session.setState("lastTurnInputTokens", 0)
     })
   }
 

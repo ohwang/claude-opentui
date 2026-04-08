@@ -272,7 +272,7 @@ export function DiagnosticsPanel(props: { visible: boolean; onClose: () => void 
       <box
         flexGrow={1}
         width="100%"
-        bg={colors.bg.overlay}
+        backgroundColor={colors.bg.overlay}
         flexDirection="column"
         paddingLeft={2}
         paddingRight={2}
@@ -295,7 +295,7 @@ export function DiagnosticsPanel(props: { visible: boolean; onClose: () => void 
         </box>
 
         {/* Content in a scrollbox so it doesn't overflow */}
-        <scrollbox ref={(el: ScrollBoxRenderable) => { _scrollDiagnostics = (n: number) => el.scrollBy(n) }} flexGrow={1} stickyScroll={false} bg={colors.bg.overlay}>
+        <scrollbox ref={(el: ScrollBoxRenderable) => { _scrollDiagnostics = (n: number) => el.scrollBy(n) }} flexGrow={1} stickyScroll={false} backgroundColor={colors.bg.overlay}>
           {/* Sections */}
           <For each={sections()}>
             {(section) => (

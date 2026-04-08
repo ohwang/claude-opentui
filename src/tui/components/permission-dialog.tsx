@@ -14,7 +14,7 @@
  * - "Deny for session" tracks tool name in adapter for auto-deny on future calls
  */
 
-import { createSignal, createEffect, createMemo, Show, For, onCleanup } from "solid-js"
+import { createSignal, createEffect, createMemo, Show, For, onCleanup, type Accessor } from "solid-js"
 import { TextAttributes } from "@opentui/core"
 import { useKeyboard, useTerminalDimensions } from "@opentui/solid"
 import { usePermissions } from "../context/permissions"
@@ -476,7 +476,7 @@ export function PermissionDialog() {
 
   return (
     <Show when={state.pendingPermission}>
-      {(perm) => {
+      {(perm: Accessor<PermissionRequestEvent>) => {
         const label = () => actionLabel(perm().tool, perm().displayName)
         const allPreviewLines = createMemo(() => extractPreviewLines(perm().tool, perm().input))
 
@@ -564,7 +564,7 @@ export function PermissionDialog() {
 
             {/* Content preview between dashed borders */}
             <Show when={previewLines()}>
-              {(lines) => (
+              {(lines: Accessor<PreviewLine[]>) => (
                 <box flexDirection="column">
                   <Divider char={"\u254C"} color={ACCENT} paddingLeft={0} />
                   <For each={lines()}>

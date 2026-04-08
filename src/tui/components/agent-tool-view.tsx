@@ -170,7 +170,7 @@ export function AgentToolView(props: {
             styled as if the human typed it. */}
       <Show when={props.viewLevel !== "collapsed" && prompt()}>
         <box paddingLeft={4} marginTop={0}>
-          <text fg={colors.text.secondary} attributes={TextAttributes.DIM}>
+          <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>
             {prompt()}
           </text>
         </box>

@@ -515,7 +515,7 @@ export function InputArea() {
     // Check for @file trigger: "@" followed by non-whitespace at any position
     const atMatch = text.match(/@(\S*)$/)
     if (atMatch) {
-      const query = atMatch[1]
+      const query = atMatch[1] ?? ""
       const cwd = agent.config.cwd ?? process.cwd()
       // Debounce file search — it's expensive (fuzzy match over directory tree).
       // Slash command search below is cheap, so only file search is debounced.
@@ -869,9 +869,11 @@ export function InputArea() {
       // Otherwise: swap char before cursor with char at cursor, advance.
       const swapPos = pos >= text.length ? pos - 2 : pos - 1
       const chars = text.split("")
-      const tmp = chars[swapPos]
-      chars[swapPos] = chars[swapPos + 1]
-      chars[swapPos + 1] = tmp
+      const a = chars[swapPos]
+      const b = chars[swapPos + 1]
+      if (a === undefined || b === undefined) return
+      chars[swapPos] = b
+      chars[swapPos + 1] = a
       textareaRef.replaceText(chars.join(""))
       textareaRef.cursorOffset = swapPos + 2
       queueMicrotask(() => { updateLineCount(); updateAutocomplete(textareaRef?.plainText ?? "") })
@@ -1041,7 +1043,7 @@ export function InputArea() {
       e.preventDefault()
       const text = textareaRef?.plainText ?? ""
       if (text.startsWith("/")) {
-        const query = text.slice(1).split(/\s/)[0]
+        const query = text.slice(1).split(/\s/)[0] ?? ""
 
         // If this is the first Tab press or text changed, refresh matches
         if (lastTabText !== text || tabMatches.length === 0) {
@@ -1077,7 +1079,7 @@ export function InputArea() {
       } else if (historyIndex > 0) {
         historyIndex--
       }
-      setTextareaContent(inputHistory[historyIndex])
+      setTextareaContent(inputHistory[historyIndex] ?? "")
       return
     }
 
@@ -1086,7 +1088,7 @@ export function InputArea() {
       e.preventDefault()
       if (historyIndex < inputHistory.length - 1) {
         historyIndex++
-        setTextareaContent(inputHistory[historyIndex])
+        setTextareaContent(inputHistory[historyIndex] ?? "")
       } else {
         // Past the end = restore saved input
         historyIndex = -1

@@ -124,7 +124,7 @@ export function ConversationView(props: { children?: JSX.Element }) {
     const blocks = state.blocks
     for (let i = blocks.length - 1; i >= 0; i--) {
       const b = blocks[i]
-      if (b.type === "tool" && b.status === "running") {
+      if (b !== undefined && b.type === "tool" && b.status === "running") {
         return `Running ${b.tool}...`
       }
     }

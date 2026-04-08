@@ -24,6 +24,7 @@ export interface MessagesState {
   streamingThinking: string
   activeTasks: [string, TaskInfo][]
   backgrounded: boolean
+  streamingOutputTokens: number
   lastTurnFiles?: TurnFileChange[]
 }
 
@@ -41,6 +42,7 @@ export function MessagesProvider(props: ParentProps) {
     streamingThinking: "",
     activeTasks: [],
     backgrounded: false,
+    streamingOutputTokens: 0,
   })
 
   return (

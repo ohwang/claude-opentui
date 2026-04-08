@@ -294,10 +294,12 @@ export function StatusBar(props: { hint?: string | null }) {
       if (tokenSamples.length >= 2) {
         const oldest = tokenSamples[0]
         const newest = tokenSamples[tokenSamples.length - 1]
-        const dtSec = (newest.timestamp - oldest.timestamp) / 1000
-        if (dtSec > 0) {
-          const rate = (newest.totalTokens - oldest.totalTokens) / dtSec
-          setTokPerSec(Math.round(rate))
+        if (oldest && newest) {
+          const dtSec = (newest.timestamp - oldest.timestamp) / 1000
+          if (dtSec > 0) {
+            const rate = (newest.totalTokens - oldest.totalTokens) / dtSec
+            setTokPerSec(Math.round(rate))
+          }
         }
       }
 

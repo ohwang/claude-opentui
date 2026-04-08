@@ -20,7 +20,7 @@ import { SessionProvider, useSession } from "./context/session"
 import { PermissionsProvider } from "./context/permissions"
 import { SyncProvider, useSync } from "./context/sync"
 import { ToastProvider, toast } from "./context/toast"
-import { ModalProvider, useModal, registerModalRef } from "./context/modal"
+import { ModalProvider, useModal, registerModalRef, type ModalComponent } from "./context/modal"
 import { AnimationProvider } from "./context/animation"
 import { colors } from "./theme/tokens"
 import { ConversationView } from "./components/conversation"
@@ -524,7 +524,7 @@ function Layout(props: { onExit?: () => void }) {
 
       {/* Modal overlay — replaces conversation when active */}
       <Show when={modal.content()}>
-        {(getComponent) => (
+        {(getComponent: () => ModalComponent) => (
           <box flexDirection="column" flexGrow={1} width="100%" height="100%">
             {getComponent()()}
           </box>
@@ -554,7 +554,7 @@ export function startApp(options: AppOptions): void {
 
   render(() => (
     <ErrorBoundary
-      fallback={(error, reset) => (
+      fallback={(error: Error, reset: () => void) => (
         <ErrorFallback error={error} reset={reset} />
       )}
     >

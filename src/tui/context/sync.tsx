@@ -76,6 +76,7 @@ export function SyncProvider(props: ParentProps) {
         streamingThinking: conversationState.streamingThinking,
         activeTasks: Array.from(conversationState.activeTasks.entries()),
         backgrounded: conversationState.backgrounded,
+        streamingOutputTokens: conversationState.streamingOutputTokens,
         lastTurnFiles: conversationState.lastTurnFiles,
       })
 
@@ -153,6 +154,7 @@ export function SyncProvider(props: ParentProps) {
         streamingThinking: "",
         activeTasks: [],
         backgrounded: false,
+        streamingOutputTokens: 0,
       })
     })
   }

@@ -13,14 +13,14 @@
  * NOT a modal overlay. Renders inline in the conversation flow.
  */
 
-import { createSignal, For, Show } from "solid-js"
+import { createSignal, For, Show, type Accessor } from "solid-js"
 import { TextAttributes, type TextareaRenderable } from "@opentui/core"
 import { useKeyboard } from "@opentui/solid"
 import { usePermissions } from "../context/permissions"
 import { useAgent } from "../context/agent"
 import { useSession } from "../context/session"
 import { colors } from "../theme/tokens"
-import type { ElicitationQuestion } from "../../protocol/types"
+import type { ElicitationQuestion, ElicitationRequestEvent } from "../../protocol/types"
 
 /** Truncate long option labels to prevent terminal overflow */
 function truncateLabel(label: string, maxLen: number = 60): string {
@@ -231,7 +231,7 @@ export function ElicitationDialog() {
 
   return (
     <Show when={session.sessionState === "WAITING_FOR_ELIC" && state.pendingElicitation}>
-      {(elicitation) => {
+      {(elicitation: Accessor<ElicitationRequestEvent>) => {
         const questions = elicitation().questions
 
         // Guard: empty questions array — auto-cancel since there's nothing to answer
@@ -247,9 +247,14 @@ export function ElicitationDialog() {
         }
 
         // Clamp currentIdx to valid range to prevent undefined access
-        const question = () => {
+        const question = (): ElicitationQuestion => {
           const idx = Math.min(currentIdx(), questions.length - 1)
-          return questions[idx]
+          const q = questions[idx]
+          if (!q) {
+            // Shouldn't happen due to empty-guard above, but satisfy TS
+            return questions[0] ?? { question: "", options: [] }
+          }
+          return q
         }
 
         return (

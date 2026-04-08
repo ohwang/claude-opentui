@@ -46,12 +46,14 @@ const DEFAULT_SESSION: SessionContextState = {
   turnNumber: 0,
   lastTurnInputTokens: 0,
   currentModel: "",
+  rateLimits: null,
 }
 
 const DEFAULT_MESSAGES: MessagesState = {
   blocks: [],
   streamingText: "",
   streamingThinking: "",
+  streamingOutputTokens: 0,
   activeTasks: [],
   backgrounded: false,
 }

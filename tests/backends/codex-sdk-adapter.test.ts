@@ -97,7 +97,7 @@ describe("CodexSdkAdapter", () => {
       const adapter = new CodexSdkAdapter()
       const models = await adapter.availableModels()
       expect(models.length).toBeGreaterThan(0)
-      expect(models[0].provider).toBe("openai")
+      expect(models[0]!.provider).toBe("openai")
       expect(models.map(m => m.id)).toContain("o3")
       adapter.close()
     })

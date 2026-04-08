@@ -183,8 +183,8 @@ describe("extractPreviewLines", () => {
       expect(lines).not.toBeNull()
       expect(lines!.length).toBe(1)
       // The line itself gets capLine'd to 200 chars
-      expect(lines![0].text.length).toBe(200)
-      expect(lines![0].prefix).toBe("+")
+      expect(lines![0]!.text.length).toBe(200)
+      expect(lines![0]!.prefix).toBe("+")
     })
 
     it("caps content before splitting for Edit tool", () => {
@@ -195,8 +195,8 @@ describe("extractPreviewLines", () => {
       })
       expect(lines).not.toBeNull()
       // First line is the capped old_string (single line), then the new_string
-      expect(lines![0].prefix).toBe("-")
-      expect(lines![0].text.length).toBe(200) // capLine truncation
+      expect(lines![0]!.prefix).toBe("-")
+      expect(lines![0]!.text.length).toBe(200) // capLine truncation
       expect(lines![lines!.length - 1]).toEqual({ text: "short", prefix: "+" })
     })
 
@@ -205,7 +205,7 @@ describe("extractPreviewLines", () => {
       const lines = extractPreviewLines("Bash", { command: bigCmd })
       expect(lines).not.toBeNull()
       expect(lines!.length).toBe(1)
-      expect(lines![0].text.length).toBe(200) // capLine truncation
+      expect(lines![0]!.text.length).toBe(200) // capLine truncation
     })
   })
 
@@ -216,10 +216,10 @@ describe("extractPreviewLines", () => {
         content: `short\n${longLine}\nshort2`,
       })
       expect(lines).not.toBeNull()
-      expect(lines![0].text).toBe("short")
-      expect(lines![1].text.length).toBe(200)
-      expect(lines![1].text.endsWith("...")).toBe(true)
-      expect(lines![2].text).toBe("short2")
+      expect(lines![0]!.text).toBe("short")
+      expect(lines![1]!.text.length).toBe(200)
+      expect(lines![1]!.text.endsWith("...")).toBe(true)
+      expect(lines![2]!.text).toBe("short2")
     })
   })
 })

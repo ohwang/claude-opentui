@@ -35,7 +35,7 @@ export function validateEventSequence(events: AgentEvent[]): ContractViolation[]
   const closed = false
 
   for (let i = 0; i < events.length; i++) {
-    const event = events[i]
+    const event = events[i]!
 
     // Rule: No events after close
     if (closed) {

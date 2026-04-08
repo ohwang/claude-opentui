@@ -364,14 +364,14 @@ describe("readClipboardImage", () => {
       return fakeProc(0, "") as any
     })
 
-    fileMock = spyOn(Bun, "file").mockImplementation((path: string) => ({
+    fileMock = spyOn(Bun, "file").mockImplementation(((path: string | URL | ArrayBufferLike | Uint8Array | number) => ({
       arrayBuffer: async () => {
         await readsReady
-        const bytes = files.get(path)
+        const bytes = files.get(path as string)
         if (!bytes) throw new Error(`missing mocked file for ${path}`)
         return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength)
       },
-    }) as any)
+    })) as any)
 
     const { readClipboardImage } = await importClipboard()
     const [first, second] = await Promise.all([

@@ -76,7 +76,7 @@ describe("State Machine Transitions", () => {
         questions: [
           {
             question: "Pick one",
-            options: [{ label: "A", value: "a" }],
+            options: [{ label: "A" }],
           },
         ],
       },
@@ -95,7 +95,7 @@ describe("State Machine Transitions", () => {
         questions: [
           {
             question: "Pick one",
-            options: [{ label: "A", value: "a" }],
+            options: [{ label: "A" }],
           },
         ],
       },

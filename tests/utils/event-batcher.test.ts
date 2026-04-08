@@ -11,7 +11,7 @@ describe("EventBatcher", () => {
 
     // Should flush immediately since lastFlush is 0
     expect(handler).toHaveBeenCalledTimes(1)
-    expect(handler.mock.calls[0][0]).toEqual([
+    expect(handler.mock.calls[0]![0]).toEqual([
       { type: "text_delta", text: "hello" },
     ])
 
@@ -38,7 +38,7 @@ describe("EventBatcher", () => {
 
     // Now should have flushed the batch
     expect(handler).toHaveBeenCalledTimes(2)
-    expect(handler.mock.calls[1][0]).toEqual([
+    expect(handler.mock.calls[1]![0]).toEqual([
       { type: "text_delta", text: "b" },
       { type: "text_delta", text: "c" },
     ])
@@ -61,7 +61,7 @@ describe("EventBatcher", () => {
     batcher.flush()
 
     expect(handler).toHaveBeenCalledTimes(2)
-    expect(handler.mock.calls[1][0]).toHaveLength(2)
+    expect(handler.mock.calls[1]![0]).toHaveLength(2)
 
     batcher.destroy()
   })

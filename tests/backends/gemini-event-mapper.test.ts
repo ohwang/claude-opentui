@@ -10,7 +10,7 @@ describe("Gemini Event Mapper", () => {
         value: "Hello, ",
       })
       expect(events).toHaveLength(1)
-      expect(events[0]).toEqual({ type: "text_delta", text: "Hello, " })
+      expect(events[0]!).toEqual({ type: "text_delta", text: "Hello, " })
     })
 
     it("skips empty content", () => {
@@ -29,7 +29,7 @@ describe("Gemini Event Mapper", () => {
         value: { thought: "Let me analyze this..." },
       })
       expect(events).toHaveLength(1)
-      expect(events[0]).toEqual({
+      expect(events[0]!).toEqual({
         type: "thinking_delta",
         text: "Let me analyze this...",
       })
@@ -55,7 +55,7 @@ describe("Gemini Event Mapper", () => {
         },
       })
       expect(events).toHaveLength(1)
-      const start = events[0] as any
+      const start = events[0]! as any
       expect(start.type).toBe("tool_use_start")
       expect(start.id).toBe("call-1")
       expect(start.tool).toBe("shell")
@@ -74,7 +74,7 @@ describe("Gemini Event Mapper", () => {
         },
       })
       expect(events).toHaveLength(1)
-      const end = events[0] as any
+      const end = events[0]! as any
       expect(end.type).toBe("tool_use_end")
       expect(end.id).toBe("call-1")
       expect(end.output).toBe("file1.ts\nfile2.ts\n")
@@ -93,7 +93,7 @@ describe("Gemini Event Mapper", () => {
         },
       })
       expect(events).toHaveLength(1)
-      const end = events[0] as any
+      const end = events[0]! as any
       expect(end.type).toBe("tool_use_end")
       expect(end.error).toBe("Command not found")
     })
@@ -111,7 +111,7 @@ describe("Gemini Event Mapper", () => {
         },
       })
       expect(events).toHaveLength(1)
-      const end = events[0] as any
+      const end = events[0]! as any
       expect(end.output).toBe('{"result":"some data"}')
     })
 
@@ -126,8 +126,8 @@ describe("Gemini Event Mapper", () => {
         },
       })
       expect(events).toHaveLength(1)
-      expect(events[0].type).toBe("backend_specific")
-      expect((events[0] as any).backend).toBe("gemini")
+      expect(events[0]!.type).toBe("backend_specific")
+      expect((events[0]! as any).backend).toBe("gemini")
     })
   })
 
@@ -146,13 +146,13 @@ describe("Gemini Event Mapper", () => {
       })
       expect(events).toHaveLength(2)
       // First event: cost_update for running token totals
-      const costUpdate = events[0] as any
+      const costUpdate = events[0]! as any
       expect(costUpdate.type).toBe("cost_update")
       expect(costUpdate.inputTokens).toBe(100)
       expect(costUpdate.outputTokens).toBe(50)
       expect(costUpdate.cacheReadTokens).toBe(10)
       // Second event: turn_complete with authoritative usage
-      const complete = events[1] as any
+      const complete = events[1]! as any
       expect(complete.type).toBe("turn_complete")
       expect(complete.usage.inputTokens).toBe(100)
       expect(complete.usage.outputTokens).toBe(50)
@@ -165,7 +165,7 @@ describe("Gemini Event Mapper", () => {
         value: { reason: "STOP", usageMetadata: undefined },
       })
       expect(events).toHaveLength(1)
-      expect((events[0] as any).usage).toBeUndefined()
+      expect((events[0]! as any).usage).toBeUndefined()
     })
   })
 
@@ -176,7 +176,7 @@ describe("Gemini Event Mapper", () => {
         value: { error: new Error("API rate limit") },
       })
       expect(events).toHaveLength(1)
-      const err = events[0] as any
+      const err = events[0]! as any
       expect(err.type).toBe("error")
       expect(err.code).toBe("gemini_error")
       expect(err.message).toBe("API rate limit")
@@ -188,7 +188,7 @@ describe("Gemini Event Mapper", () => {
         value: { error: "Something went wrong" },
       })
       expect(events).toHaveLength(1)
-      expect((events[0] as any).message).toBe("Something went wrong")
+      expect((events[0]! as any).message).toBe("Something went wrong")
     })
   })
 
@@ -199,7 +199,7 @@ describe("Gemini Event Mapper", () => {
         value: "gemini-2.5-pro",
       })
       expect(events).toHaveLength(1)
-      const init = events[0] as any
+      const init = events[0]! as any
       expect(init.type).toBe("session_init")
       expect(init.models).toHaveLength(1)
       expect(init.models[0].id).toBe("gemini-2.5-pro")
@@ -214,7 +214,7 @@ describe("Gemini Event Mapper", () => {
         value: null,
       })
       expect(events).toHaveLength(1)
-      expect(events[0].type).toBe("compact")
+      expect(events[0]!.type).toBe("compact")
     })
   })
 
@@ -224,7 +224,7 @@ describe("Gemini Event Mapper", () => {
         type: GeminiEventType.MaxSessionTurns,
       })
       expect(events).toHaveLength(1)
-      const err = events[0] as any
+      const err = events[0]! as any
       expect(err.type).toBe("error")
       expect(err.code).toBe("max_turns")
       expect(err.severity).toBe("fatal")
@@ -235,7 +235,7 @@ describe("Gemini Event Mapper", () => {
         type: GeminiEventType.LoopDetected,
       })
       expect(events).toHaveLength(1)
-      const err = events[0] as any
+      const err = events[0]! as any
       expect(err.type).toBe("error")
       expect(err.code).toBe("loop_detected")
       expect(err.severity).toBe("recoverable")
@@ -246,7 +246,7 @@ describe("Gemini Event Mapper", () => {
         type: GeminiEventType.InvalidStream,
       })
       expect(events).toHaveLength(1)
-      expect((events[0] as any).code).toBe("invalid_stream")
+      expect((events[0]! as any).code).toBe("invalid_stream")
     })
   })
 
@@ -260,10 +260,10 @@ describe("Gemini Event Mapper", () => {
         },
       })
       expect(events).toHaveLength(2)
-      expect(events[0].type).toBe("system_message")
-      expect((events[0] as any).text).toBe("Content was filtered for safety.")
-      expect(events[1].type).toBe("error")
-      expect((events[1] as any).code).toBe("execution_stopped")
+      expect(events[0]!.type).toBe("system_message")
+      expect((events[0]! as any).text).toBe("Content was filtered for safety.")
+      expect(events[1]!.type).toBe("error")
+      expect((events[1]! as any).code).toBe("execution_stopped")
     })
 
     it("maps AgentExecutionBlocked to system_message + error", () => {
@@ -274,8 +274,8 @@ describe("Gemini Event Mapper", () => {
         },
       })
       expect(events).toHaveLength(1) // no systemMessage
-      expect(events[0].type).toBe("error")
-      expect((events[0] as any).code).toBe("execution_blocked")
+      expect(events[0]!.type).toBe("error")
+      expect((events[0]! as any).code).toBe("execution_blocked")
     })
   })
 
@@ -286,8 +286,8 @@ describe("Gemini Event Mapper", () => {
         value: "Source: https://example.com",
       })
       expect(events).toHaveLength(1)
-      expect(events[0].type).toBe("system_message")
-      expect((events[0] as any).text).toBe("Source: https://example.com")
+      expect(events[0]!.type).toBe("system_message")
+      expect((events[0]! as any).text).toBe("Source: https://example.com")
     })
 
     it("maps ContextWindowWillOverflow as backend_specific", () => {
@@ -299,8 +299,8 @@ describe("Gemini Event Mapper", () => {
         },
       })
       expect(events).toHaveLength(1)
-      expect(events[0].type).toBe("backend_specific")
-      expect((events[0] as any).backend).toBe("gemini")
+      expect(events[0]!.type).toBe("backend_specific")
+      expect((events[0]! as any).backend).toBe("gemini")
     })
 
     it("UserCancelled produces no events", () => {

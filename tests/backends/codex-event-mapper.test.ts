@@ -15,8 +15,8 @@ describe("Codex Event Mapper", () => {
       })
 
       expect(events).toHaveLength(1)
-      expect(events[0].type).toBe("session_init")
-      const init = events[0] as any
+      expect(events[0]!.type).toBe("session_init")
+      const init = events[0]! as any
       expect(init.models).toHaveLength(1)
       expect(init.models[0].provider).toBe("openai")
     })
@@ -42,8 +42,8 @@ describe("Codex Event Mapper", () => {
       })
 
       expect(events).toHaveLength(1)
-      expect(events[0].type).toBe("cost_update")
-      const cost = events[0] as any
+      expect(events[0]!.type).toBe("cost_update")
+      const cost = events[0]! as any
       // Should prefer .last over .total
       expect(cost.inputTokens).toBe(100)
       expect(cost.outputTokens).toBe(50)
@@ -53,7 +53,7 @@ describe("Codex Event Mapper", () => {
     it("maps thread/compacted to compact", () => {
       const events = mapCodexNotification("thread/compacted", {})
       expect(events).toHaveLength(1)
-      expect(events[0].type).toBe("compact")
+      expect(events[0]!.type).toBe("compact")
     })
   })
 
@@ -65,7 +65,7 @@ describe("Codex Event Mapper", () => {
       })
 
       expect(events).toHaveLength(1)
-      expect(events[0].type).toBe("turn_start")
+      expect(events[0]!.type).toBe("turn_start")
     })
 
     it("maps turn/completed to turn_complete", () => {
@@ -74,7 +74,7 @@ describe("Codex Event Mapper", () => {
       })
 
       expect(events).toHaveLength(1)
-      expect(events[0].type).toBe("turn_complete")
+      expect(events[0]!.type).toBe("turn_complete")
     })
 
     it("maps turn/completed with failure to error + turn_complete", () => {
@@ -87,9 +87,9 @@ describe("Codex Event Mapper", () => {
       })
 
       expect(events).toHaveLength(2)
-      expect(events[0].type).toBe("turn_complete")
-      expect(events[1].type).toBe("error")
-      const err = events[1] as any
+      expect(events[0]!.type).toBe("turn_complete")
+      expect(events[1]!.type).toBe("error")
+      const err = events[1]! as any
       expect(err.code).toBe("internalServerError")
       expect(err.message).toBe("Something went wrong")
     })
@@ -100,7 +100,7 @@ describe("Codex Event Mapper", () => {
       })
 
       expect(events).toHaveLength(1)
-      expect(events[0].type).toBe("turn_complete")
+      expect(events[0]!.type).toBe("turn_complete")
     })
   })
 
@@ -111,7 +111,7 @@ describe("Codex Event Mapper", () => {
       })
 
       expect(events).toHaveLength(1)
-      expect(events[0]).toEqual({ type: "text_delta", text: "Hello, " })
+      expect(events[0]!).toEqual({ type: "text_delta", text: "Hello, " })
     })
 
     it("maps item/reasoning/summaryTextDelta to thinking_delta", () => {
@@ -120,7 +120,7 @@ describe("Codex Event Mapper", () => {
       })
 
       expect(events).toHaveLength(1)
-      expect(events[0]).toEqual({ type: "thinking_delta", text: "Analyzing..." })
+      expect(events[0]!).toEqual({ type: "thinking_delta", text: "Analyzing..." })
     })
 
     it("maps item/reasoning/textDelta to thinking_delta", () => {
@@ -129,7 +129,7 @@ describe("Codex Event Mapper", () => {
       })
 
       expect(events).toHaveLength(1)
-      expect(events[0]).toEqual({ type: "thinking_delta", text: "raw reasoning" })
+      expect(events[0]!).toEqual({ type: "thinking_delta", text: "raw reasoning" })
     })
 
     it("maps item/commandExecution/outputDelta to tool_use_progress", () => {
@@ -139,7 +139,7 @@ describe("Codex Event Mapper", () => {
       })
 
       expect(events).toHaveLength(1)
-      expect(events[0]).toEqual({
+      expect(events[0]!).toEqual({
         type: "tool_use_progress",
         id: "item-1",
         output: "$ npm test\n",
@@ -153,7 +153,7 @@ describe("Codex Event Mapper", () => {
       })
 
       expect(events).toHaveLength(1)
-      expect(events[0]).toEqual({
+      expect(events[0]!).toEqual({
         type: "tool_use_progress",
         id: "item-2",
         output: "+new line\n",
@@ -166,7 +166,7 @@ describe("Codex Event Mapper", () => {
       })
 
       expect(events).toHaveLength(1)
-      expect(events[0]).toEqual({ type: "thinking_delta", text: "Step 1: " })
+      expect(events[0]!).toEqual({ type: "thinking_delta", text: "Step 1: " })
     })
 
     it("ignores deltas with missing data", () => {
@@ -191,8 +191,8 @@ describe("Codex Event Mapper", () => {
       })
 
       expect(events).toHaveLength(1)
-      expect(events[0].type).toBe("tool_use_start")
-      const start = events[0] as any
+      expect(events[0]!.type).toBe("tool_use_start")
+      const start = events[0]! as any
       expect(start.id).toBe("cmd-1")
       expect(start.tool).toBe("Bash")
       expect(start.input.command).toBe("npm test")
@@ -208,8 +208,8 @@ describe("Codex Event Mapper", () => {
       })
 
       expect(events).toHaveLength(1)
-      expect(events[0].type).toBe("tool_use_start")
-      const start = events[0] as any
+      expect(events[0]!.type).toBe("tool_use_start")
+      const start = events[0]! as any
       expect(start.id).toBe("fc-1")
       expect(start.tool).toBe("Edit")
     })
@@ -226,7 +226,7 @@ describe("Codex Event Mapper", () => {
       })
 
       expect(events).toHaveLength(1)
-      const start = events[0] as any
+      const start = events[0]! as any
       expect(start.type).toBe("tool_use_start")
       expect(start.tool).toBe("mcp:my-server/search")
       expect(start.input).toEqual({ query: "test" })
@@ -242,7 +242,7 @@ describe("Codex Event Mapper", () => {
       })
 
       expect(events).toHaveLength(1)
-      const start = events[0] as any
+      const start = events[0]! as any
       expect(start.tool).toBe("WebSearch")
       expect(start.input).toEqual({ query: "typescript generics" })
     })
@@ -266,7 +266,7 @@ describe("Codex Event Mapper", () => {
         item: { type: "contextCompaction", id: "cc-1" },
       })
       expect(events).toHaveLength(1)
-      expect(events[0].type).toBe("compact")
+      expect(events[0]!.type).toBe("compact")
     })
   })
 
@@ -281,7 +281,7 @@ describe("Codex Event Mapper", () => {
       })
 
       expect(events).toHaveLength(1)
-      expect(events[0]).toEqual({
+      expect(events[0]!).toEqual({
         type: "text_complete",
         text: "The answer is 42.",
       })
@@ -299,7 +299,7 @@ describe("Codex Event Mapper", () => {
       })
 
       expect(events).toHaveLength(1)
-      const end = events[0] as any
+      const end = events[0]! as any
       expect(end.type).toBe("tool_use_end")
       expect(end.id).toBe("cmd-1")
       expect(end.output).toBe("All tests passed\n")
@@ -318,7 +318,7 @@ describe("Codex Event Mapper", () => {
       })
 
       expect(events).toHaveLength(1)
-      const end = events[0] as any
+      const end = events[0]! as any
       expect(end.type).toBe("tool_use_end")
       expect(end.error).toBe("Error: file not found")
     })
@@ -337,7 +337,7 @@ describe("Codex Event Mapper", () => {
       })
 
       expect(events).toHaveLength(1)
-      const end = events[0] as any
+      const end = events[0]! as any
       expect(end.type).toBe("tool_use_end")
       expect(end.output).toContain("update: src/a.ts")
       expect(end.output).toContain("add: src/b.ts")
@@ -356,7 +356,7 @@ describe("Codex Event Mapper", () => {
       })
 
       expect(events).toHaveLength(1)
-      const end = events[0] as any
+      const end = events[0]! as any
       expect(end.type).toBe("tool_use_end")
       expect(end.output).toBe("Result data")
     })
@@ -372,7 +372,7 @@ describe("Codex Event Mapper", () => {
       })
 
       expect(events).toHaveLength(1)
-      const end = events[0] as any
+      const end = events[0]! as any
       expect(end.error).toBe("Server unavailable")
     })
 
@@ -382,7 +382,7 @@ describe("Codex Event Mapper", () => {
       })
 
       expect(events).toHaveLength(1)
-      const end = events[0] as any
+      const end = events[0]! as any
       expect(end.type).toBe("tool_use_end")
       expect(end.output).toBe("Web search completed")
     })
@@ -396,7 +396,7 @@ describe("Codex Event Mapper", () => {
       })
 
       expect(events).toHaveLength(1)
-      expect(events[0]).toEqual({
+      expect(events[0]!).toEqual({
         type: "error",
         code: "rate_limit",
         message: "Too many requests",
@@ -409,14 +409,14 @@ describe("Codex Event Mapper", () => {
     it("passes turn/diff/updated as backend_specific", () => {
       const events = mapCodexNotification("turn/diff/updated", { diff: "..." })
       expect(events).toHaveLength(1)
-      expect(events[0].type).toBe("backend_specific")
-      expect((events[0] as any).backend).toBe("codex")
+      expect(events[0]!.type).toBe("backend_specific")
+      expect((events[0]! as any).backend).toBe("codex")
     })
 
     it("passes unknown methods as backend_specific", () => {
       const events = mapCodexNotification("some/future/event", { data: 1 })
       expect(events).toHaveLength(1)
-      expect(events[0].type).toBe("backend_specific")
+      expect(events[0]!.type).toBe("backend_specific")
     })
 
     it("ignores serverRequest/resolved", () => {
@@ -455,7 +455,7 @@ describe("Codex Event Mapper", () => {
         thread: { id: "t1", status: "active" },
       })
       expect(events).toHaveLength(1)
-      expect((events[0] as any).models).toHaveLength(0)
+      expect((events[0]! as any).models).toHaveLength(0)
     })
   })
 })

@@ -84,7 +84,7 @@ describe("CommandRegistry", () => {
     })
 
     expect(registry.search("hel")).toHaveLength(1)
-    expect(registry.search("hel")[0].name).toBe("help")
+    expect(registry.search("hel")[0]!.name).toBe("help")
   })
 
   it("search prefers prefix matches", () => {
@@ -101,7 +101,7 @@ describe("CommandRegistry", () => {
     })
 
     const results = registry.search("model")
-    expect(results[0].name).toBe("model")
+    expect(results[0]!.name).toBe("model")
   })
 
   it("tryExecute dispatches slash commands", async () => {
@@ -116,8 +116,8 @@ describe("CommandRegistry", () => {
     const ctx = {
       backend: {} as any,
       pushEvent: () => {},
-      clearMessages: () => {},
       clearConversation: () => {},
+      resetCost: () => {},
       setModel: async () => {},
     }
 
@@ -131,8 +131,8 @@ describe("CommandRegistry", () => {
     const ctx = {
       backend: {} as any,
       pushEvent: () => {},
-      clearMessages: () => {},
       clearConversation: () => {},
+      resetCost: () => {},
       setModel: async () => {},
     }
 
@@ -144,8 +144,8 @@ describe("CommandRegistry", () => {
     const ctx = {
       backend: {} as any,
       pushEvent: () => {},
-      clearMessages: () => {},
       clearConversation: () => {},
+      resetCost: () => {},
       setModel: async () => {},
     }
 

@@ -3,6 +3,7 @@ import { reduce } from "../../src/protocol/reducer"
 import {
   createInitialState,
   type AgentEvent,
+  type Block,
   type ConversationState,
   type ImageContent,
 } from "../../src/protocol/types"
@@ -153,8 +154,8 @@ describe("ConversationState reducer", () => {
         { type: "turn_complete" },
       ])
       expect(state.blocks).toHaveLength(1)
-      expect(state.blocks[0].type).toBe("assistant")
-      expect(state.blocks[0]).toMatchObject({ type: "assistant", text: "Hello world" })
+      expect(state.blocks[0]!.type).toBe("assistant")
+      expect(state.blocks[0]!).toMatchObject({ type: "assistant", text: "Hello world" })
     })
 
     it("produces chronological blocks: text then tool", () => {
@@ -174,14 +175,15 @@ describe("ConversationState reducer", () => {
       ])
       // text_complete flushes text, tool_use_start flushes before appending tool
       expect(state.blocks).toHaveLength(2)
-      expect(state.blocks[0]).toMatchObject({
+      expect(state.blocks[0]!).toMatchObject({
         type: "assistant",
         text: "Let me read that file.",
       })
-      expect(state.blocks[1].type).toBe("tool")
-      if (state.blocks[1].type === "tool") {
-        expect(state.blocks[1].status).toBe("done")
-        expect(state.blocks[1].output).toBe("file contents")
+      const toolBlock1 = state.blocks[1]!
+      expect(toolBlock1.type).toBe("tool")
+      if (toolBlock1.type === "tool") {
+        expect(toolBlock1.status).toBe("done")
+        expect(toolBlock1.output).toBe("file contents")
       }
     })
 
@@ -202,17 +204,18 @@ describe("ConversationState reducer", () => {
         { type: "turn_complete" },
       ])
       expect(state.blocks).toHaveLength(3)
-      expect(state.blocks[0]).toMatchObject({
+      expect(state.blocks[0]!).toMatchObject({
         type: "thinking",
         text: "I should read the file.",
       })
-      expect(state.blocks[1]).toMatchObject({
+      expect(state.blocks[1]!).toMatchObject({
         type: "assistant",
         text: "Reading the file now.",
       })
-      expect(state.blocks[2].type).toBe("tool")
-      if (state.blocks[2].type === "tool") {
-        expect(state.blocks[2].id).toBe("t1")
+      const toolBlock2 = state.blocks[2]!
+      expect(toolBlock2.type).toBe("tool")
+      if (toolBlock2.type === "tool") {
+        expect(toolBlock2.id).toBe("t1")
       }
     })
 
@@ -230,10 +233,11 @@ describe("ConversationState reducer", () => {
         { type: "turn_complete" },
       ])
       expect(state.blocks).toHaveLength(1)
-      expect(state.blocks[0].type).toBe("tool")
-      if (state.blocks[0].type === "tool") {
-        expect(state.blocks[0].status).toBe("done")
-        expect(state.blocks[0].output).toBe("file1\nfile2")
+      const toolBlock0 = state.blocks[0]!
+      expect(toolBlock0.type).toBe("tool")
+      if (toolBlock0.type === "tool") {
+        expect(toolBlock0.status).toBe("done")
+        expect(toolBlock0.output).toBe("file1\nfile2")
       }
     })
 
@@ -260,7 +264,7 @@ describe("ConversationState reducer", () => {
         { type: "user_message", text: "Hello, world!" },
       ])
       expect(state.blocks).toHaveLength(1)
-      expect(state.blocks[0]).toMatchObject({
+      expect(state.blocks[0]!).toMatchObject({
         type: "user",
         text: "Hello, world!",
       })
@@ -276,9 +280,9 @@ describe("ConversationState reducer", () => {
         { type: "user_message", text: "Second" },
       ])
       expect(state.blocks).toHaveLength(3)
-      expect(state.blocks[0]).toMatchObject({ type: "user", text: "First" })
-      expect(state.blocks[1]).toMatchObject({ type: "assistant", text: "Response" })
-      expect(state.blocks[2]).toMatchObject({ type: "user", text: "Second" })
+      expect(state.blocks[0]!).toMatchObject({ type: "user", text: "First" })
+      expect(state.blocks[1]!).toMatchObject({ type: "assistant", text: "Response" })
+      expect(state.blocks[2]!).toMatchObject({ type: "user", text: "Second" })
     })
   })
 
@@ -316,7 +320,7 @@ describe("ConversationState reducer", () => {
         { type: "system_message", text: "Command output here" },
       ])
       expect(state.blocks).toHaveLength(1)
-      expect(state.blocks[0]).toMatchObject({
+      expect(state.blocks[0]!).toMatchObject({
         type: "system",
         text: "Command output here",
       })
@@ -376,7 +380,7 @@ describe("ConversationState reducer", () => {
       ])
       // text_complete flushes the finalized text as a block
       expect(state.blocks).toHaveLength(1)
-      expect(state.blocks[0]).toMatchObject({ type: "assistant", text: "Hello world" })
+      expect(state.blocks[0]!).toMatchObject({ type: "assistant", text: "Hello world" })
       expect(state.streamingText).toBe("")
     })
 
@@ -388,7 +392,7 @@ describe("ConversationState reducer", () => {
         { type: "text_complete", text: "full text" },
       ])
       expect(state.blocks).toHaveLength(1)
-      expect(state.blocks[0]).toMatchObject({ type: "assistant", text: "full text" })
+      expect(state.blocks[0]!).toMatchObject({ type: "assistant", text: "full text" })
       expect(state.streamingText).toBe("")
     })
   })
@@ -611,8 +615,8 @@ describe("ConversationState reducer", () => {
             {
               question: "Which option?",
               options: [
-                { label: "A", value: "a" },
-                { label: "B", value: "b" },
+                { label: "A" },
+                { label: "B" },
               ],
             },
           ],
@@ -634,7 +638,7 @@ describe("ConversationState reducer", () => {
           questions: [
             {
               question: "Which?",
-              options: [{ label: "A", value: "a" }],
+              options: [{ label: "A" }],
             },
           ],
         },
@@ -668,7 +672,7 @@ describe("ConversationState reducer", () => {
         {
           type: "permission_response",
           id: "perm1",
-          approved: true,
+          behavior: "allow",
         },
       ])
       // Interrupt should NOT be overridden by the late permission_response
@@ -687,7 +691,7 @@ describe("ConversationState reducer", () => {
           questions: [
             {
               question: "Which?",
-              options: [{ label: "A", value: "a" }],
+              options: [{ label: "A" }],
             },
           ],
         },
@@ -736,7 +740,7 @@ describe("ConversationState reducer", () => {
         },
       ])
       expect(state.blocks).toHaveLength(1)
-      expect(state.blocks[0]).toMatchObject({
+      expect(state.blocks[0]!).toMatchObject({
         type: "error",
         code: "error_max_turns",
         message: "Too many turns",
@@ -1092,7 +1096,7 @@ describe("ConversationState reducer", () => {
       ])
       const userBlock = state.blocks.find(
         b => b.type === "user" && b.text === "msg2"
-      )
+      ) as Extract<Block, { type: "user" }> | undefined
       expect(userBlock).toBeDefined()
       expect(userBlock!.queued).toBe(true)
     })
@@ -1107,11 +1111,11 @@ describe("ConversationState reducer", () => {
         { type: "turn_complete" },
       ])
       expect(state.blocks).toHaveLength(3)
-      expect(state.blocks[0]).toMatchObject({ type: "user", text: "msg1" })
-      expect(state.blocks[1]).toMatchObject({ type: "assistant", text: "response" })
-      expect(state.blocks[2]).toMatchObject({ type: "user", text: "msg2" })
+      expect(state.blocks[0]!).toMatchObject({ type: "user", text: "msg1" })
+      expect(state.blocks[1]!).toMatchObject({ type: "assistant", text: "response" })
+      expect(state.blocks[2]!).toMatchObject({ type: "user", text: "msg2" })
       // msg2 should be unqueued after turn_complete
-      expect(state.blocks[2].queued).toBeUndefined()
+      expect((state.blocks[2]! as Extract<Block, { type: "user" }>).queued).toBeUndefined()
     })
 
     it("multiple queued messages maintain order", () => {
@@ -1125,13 +1129,13 @@ describe("ConversationState reducer", () => {
         { type: "turn_complete" },
       ])
       expect(state.blocks).toHaveLength(4)
-      expect(state.blocks[0]).toMatchObject({ type: "user", text: "msg1" })
-      expect(state.blocks[1]).toMatchObject({ type: "assistant", text: "resp" })
-      expect(state.blocks[2]).toMatchObject({ type: "user", text: "msg2" })
-      expect(state.blocks[3]).toMatchObject({ type: "user", text: "msg3" })
+      expect(state.blocks[0]!).toMatchObject({ type: "user", text: "msg1" })
+      expect(state.blocks[1]!).toMatchObject({ type: "assistant", text: "resp" })
+      expect(state.blocks[2]!).toMatchObject({ type: "user", text: "msg2" })
+      expect(state.blocks[3]!).toMatchObject({ type: "user", text: "msg3" })
       // Both should be unqueued
-      expect(state.blocks[2].queued).toBeUndefined()
-      expect(state.blocks[3].queued).toBeUndefined()
+      expect((state.blocks[2]! as Extract<Block, { type: "user" }>).queued).toBeUndefined()
+      expect((state.blocks[3]! as Extract<Block, { type: "user" }>).queued).toBeUndefined()
     })
 
     it("user_message in IDLE still adds immediately", () => {
@@ -1140,8 +1144,8 @@ describe("ConversationState reducer", () => {
         { type: "user_message", text: "msg1" },
       ])
       expect(state.blocks).toHaveLength(1)
-      expect(state.blocks[0]).toMatchObject({ type: "user", text: "msg1" })
-      expect(state.blocks[0].queued).toBeUndefined()
+      expect(state.blocks[0]!).toMatchObject({ type: "user", text: "msg1" })
+      expect((state.blocks[0]! as Extract<Block, { type: "user" }>).queued).toBeUndefined()
     })
 
     it("user_message during WAITING_FOR_PERM queues", () => {
@@ -1158,7 +1162,7 @@ describe("ConversationState reducer", () => {
       ])
       const userBlock = state.blocks.find(
         b => b.type === "user" && b.text === "queued"
-      )
+      ) as Extract<Block, { type: "user" }> | undefined
       expect(userBlock).toBeDefined()
       expect(userBlock!.queued).toBe(true)
     })
@@ -1179,9 +1183,9 @@ describe("ConversationState reducer", () => {
       ])
       // Thinking and text should be committed BEFORE the tool
       expect(state.blocks).toHaveLength(3)
-      expect(state.blocks[0].type).toBe("thinking")
-      expect(state.blocks[1].type).toBe("assistant")
-      expect(state.blocks[2].type).toBe("tool")
+      expect(state.blocks[0]!.type).toBe("thinking")
+      expect(state.blocks[1]!.type).toBe("assistant")
+      expect(state.blocks[2]!.type).toBe("tool")
     })
 
     it("multi-turn tool loop produces continuous block sequence", () => {
@@ -1207,12 +1211,12 @@ describe("ConversationState reducer", () => {
       ])
       // Should be: user, text, tool, text, tool, text -- continuous, no gaps
       expect(state.blocks).toHaveLength(6)
-      expect(state.blocks[0]).toMatchObject({ type: "user", text: "Fix the bug" })
-      expect(state.blocks[1]).toMatchObject({ type: "assistant", text: "I'll read first" })
-      expect(state.blocks[2]).toMatchObject({ type: "tool", tool: "Read", status: "done" })
-      expect(state.blocks[3]).toMatchObject({ type: "assistant", text: "Now I'll edit" })
-      expect(state.blocks[4]).toMatchObject({ type: "tool", tool: "Edit", status: "done" })
-      expect(state.blocks[5]).toMatchObject({ type: "assistant", text: "Done!" })
+      expect(state.blocks[0]!).toMatchObject({ type: "user", text: "Fix the bug" })
+      expect(state.blocks[1]!).toMatchObject({ type: "assistant", text: "I'll read first" })
+      expect(state.blocks[2]!).toMatchObject({ type: "tool", tool: "Read", status: "done" })
+      expect(state.blocks[3]!).toMatchObject({ type: "assistant", text: "Now I'll edit" })
+      expect(state.blocks[4]!).toMatchObject({ type: "tool", tool: "Edit", status: "done" })
+      expect(state.blocks[5]!).toMatchObject({ type: "assistant", text: "Done!" })
     })
 
     it("text_complete commits text as assistant block", () => {
@@ -1224,7 +1228,7 @@ describe("ConversationState reducer", () => {
       ])
       // text_complete should flush the finalized text as a block
       expect(state.blocks).toHaveLength(1)
-      expect(state.blocks[0]).toMatchObject({ type: "assistant", text: "full text" })
+      expect(state.blocks[0]!).toMatchObject({ type: "assistant", text: "full text" })
       expect(state.streamingText).toBe("")
     })
 
@@ -1237,7 +1241,7 @@ describe("ConversationState reducer", () => {
       ])
       expect(state.sessionState).toBe("INTERRUPTING")
       expect(state.blocks).toHaveLength(1)
-      expect(state.blocks[0]).toMatchObject({ type: "assistant", text: "partial response" })
+      expect(state.blocks[0]!).toMatchObject({ type: "assistant", text: "partial response" })
       expect(state.streamingText).toBe("")
     })
 
@@ -1249,7 +1253,7 @@ describe("ConversationState reducer", () => {
         { type: "user_message", text: "queued msg" },
         { type: "turn_complete" },
       ])
-      const userBlock = state.blocks.find(b => b.type === "user" && b.text === "queued msg")
+      const userBlock = state.blocks.find(b => b.type === "user" && b.text === "queued msg") as Extract<Block, { type: "user" }> | undefined
       expect(userBlock).toBeDefined()
       expect(userBlock!.queued).toBeUndefined() // unqueued after turn_complete
     })
@@ -1302,7 +1306,7 @@ describe("ConversationState reducer", () => {
       ])
       expect(state.streamingText).toBe("")
       expect(state.blocks).toHaveLength(1)
-      expect(state.blocks[0]).toMatchObject({ type: "assistant", text: "partial response" })
+      expect(state.blocks[0]!).toMatchObject({ type: "assistant", text: "partial response" })
     })
 
     it("flushes streaming thinking buffer as thinking block", () => {
@@ -1315,7 +1319,7 @@ describe("ConversationState reducer", () => {
       ])
       expect(state.streamingThinking).toBe("")
       expect(state.blocks).toHaveLength(1)
-      expect(state.blocks[0]).toMatchObject({ type: "thinking", text: "deep thought" })
+      expect(state.blocks[0]!).toMatchObject({ type: "thinking", text: "deep thought" })
     })
 
     it("cancels running tool blocks with status and duration", () => {
@@ -1468,7 +1472,7 @@ describe("ConversationState reducer", () => {
         { type: "compact", summary: "Previous discussion about file handling" },
       ])
       expect(state.blocks).toHaveLength(1)
-      expect(state.blocks[0]).toMatchObject({
+      expect(state.blocks[0]!).toMatchObject({
         type: "compact",
         summary: "Previous discussion about file handling",
       })
@@ -1484,9 +1488,9 @@ describe("ConversationState reducer", () => {
         { type: "compact", summary: "User greeted assistant" },
       ])
       expect(state.blocks).toHaveLength(3)
-      expect(state.blocks[0]).toMatchObject({ type: "user", text: "Hello" })
-      expect(state.blocks[1]).toMatchObject({ type: "assistant", text: "Hi there" })
-      expect(state.blocks[2]).toMatchObject({
+      expect(state.blocks[0]!).toMatchObject({ type: "user", text: "Hello" })
+      expect(state.blocks[1]!).toMatchObject({ type: "assistant", text: "Hi there" })
+      expect(state.blocks[2]!).toMatchObject({
         type: "compact",
         summary: "User greeted assistant",
       })
@@ -1606,7 +1610,7 @@ describe("ConversationState reducer", () => {
       state = reduce(state, { type: "turn_start" })
       // During RUNNING, messages are queued
       state = reduce(state, { type: "user_message", text: "see this [Image #1]", images: [sampleImage] })
-      const queuedBlock = state.blocks.find(b => b.type === "user" && b.queued)
+      const queuedBlock = state.blocks.find(b => b.type === "user" && (b as Extract<Block, { type: "user" }>).queued) as Extract<Block, { type: "user" }> | undefined
       expect(queuedBlock).toBeDefined()
       if (queuedBlock!.type === "user") {
         expect(queuedBlock!.images).toEqual([sampleImage])
@@ -1633,8 +1637,8 @@ describe("ConversationState reducer", () => {
       const userBlock = state.blocks.find(b => b.type === "user")
       if (userBlock!.type === "user") {
         expect(userBlock!.images).toHaveLength(2)
-        expect(userBlock!.images![0].mediaType).toBe("image/png")
-        expect(userBlock!.images![1].mediaType).toBe("image/jpeg")
+        expect(userBlock!.images![0]!.mediaType).toBe("image/png")
+        expect(userBlock!.images![1]!.mediaType).toBe("image/jpeg")
       }
     })
   })

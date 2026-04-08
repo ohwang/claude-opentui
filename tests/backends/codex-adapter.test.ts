@@ -90,7 +90,7 @@ describe("CodexAdapter", () => {
       const adapter = new CodexAdapter()
       const models = await adapter.availableModels()
       expect(models.length).toBeGreaterThan(0)
-      expect(models[0].provider).toBe("openai")
+      expect(models[0]!.provider).toBe("openai")
       adapter.close()
     })
   })

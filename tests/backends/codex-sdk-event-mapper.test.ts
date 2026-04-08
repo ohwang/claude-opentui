@@ -16,7 +16,7 @@ describe("Codex SDK Event Mapper", () => {
         thread_id: "thread-123",
       })
       expect(events).toHaveLength(1)
-      expect(events[0].type).toBe("session_init")
+      expect(events[0]!.type).toBe("session_init")
     })
 
     it("suppresses turn.started (adapter emits synthetic)", () => {
@@ -35,13 +35,13 @@ describe("Codex SDK Event Mapper", () => {
       })
       expect(events).toHaveLength(2)
       // First event: cost_update for running token totals
-      const costUpdate = events[0] as any
+      const costUpdate = events[0]! as any
       expect(costUpdate.type).toBe("cost_update")
       expect(costUpdate.inputTokens).toBe(100)
       expect(costUpdate.outputTokens).toBe(50)
       expect(costUpdate.cacheReadTokens).toBe(20)
       // Second event: turn_complete with authoritative usage
-      const complete = events[1] as any
+      const complete = events[1]! as any
       expect(complete.type).toBe("turn_complete")
       expect(complete.usage.inputTokens).toBe(100)
       expect(complete.usage.outputTokens).toBe(50)
@@ -54,10 +54,10 @@ describe("Codex SDK Event Mapper", () => {
         error: { message: "API error" },
       })
       expect(events).toHaveLength(2)
-      expect(events[0].type).toBe("error")
-      expect((events[0] as any).message).toBe("API error")
-      expect((events[0] as any).severity).toBe("recoverable")
-      expect(events[1].type).toBe("turn_complete")
+      expect(events[0]!.type).toBe("error")
+      expect((events[0]! as any).message).toBe("API error")
+      expect((events[0]! as any).severity).toBe("recoverable")
+      expect(events[1]!.type).toBe("turn_complete")
     })
 
     it("maps stream error to fatal error", () => {
@@ -66,7 +66,7 @@ describe("Codex SDK Event Mapper", () => {
         message: "Connection lost",
       })
       expect(events).toHaveLength(1)
-      const err = events[0] as any
+      const err = events[0]! as any
       expect(err.type).toBe("error")
       expect(err.severity).toBe("fatal")
       expect(err.message).toBe("Connection lost")
@@ -81,7 +81,7 @@ describe("Codex SDK Event Mapper", () => {
         item: { id: "msg-1", type: "agent_message", text: "Hello " },
       })
       expect(events).toHaveLength(1)
-      expect(events[0]).toEqual({ type: "text_delta", text: "Hello " })
+      expect(events[0]!).toEqual({ type: "text_delta", text: "Hello " })
 
       // Second update — only the new text
       events = mapper.map({
@@ -89,7 +89,7 @@ describe("Codex SDK Event Mapper", () => {
         item: { id: "msg-1", type: "agent_message", text: "Hello world" },
       })
       expect(events).toHaveLength(1)
-      expect(events[0]).toEqual({ type: "text_delta", text: "world" })
+      expect(events[0]!).toEqual({ type: "text_delta", text: "world" })
     })
 
     it("skips empty delta when text unchanged", () => {
@@ -118,7 +118,7 @@ describe("Codex SDK Event Mapper", () => {
         item: { id: "msg-1", type: "agent_message", text: "Final answer" },
       })
       expect(events).toHaveLength(1)
-      expect(events[0]).toEqual({ type: "text_complete", text: "Final answer" })
+      expect(events[0]!).toEqual({ type: "text_complete", text: "Final answer" })
     })
   })
 
@@ -129,14 +129,14 @@ describe("Codex SDK Event Mapper", () => {
         item: { id: "r-1", type: "reasoning", text: "Let me " },
       })
       expect(events).toHaveLength(1)
-      expect(events[0]).toEqual({ type: "thinking_delta", text: "Let me " })
+      expect(events[0]!).toEqual({ type: "thinking_delta", text: "Let me " })
 
       events = mapper.map({
         type: "item.updated",
         item: { id: "r-1", type: "reasoning", text: "Let me think..." },
       })
       expect(events).toHaveLength(1)
-      expect(events[0]).toEqual({ type: "thinking_delta", text: "think..." })
+      expect(events[0]!).toEqual({ type: "thinking_delta", text: "think..." })
     })
 
     it("no event for item.completed reasoning", () => {
@@ -161,7 +161,7 @@ describe("Codex SDK Event Mapper", () => {
         },
       })
       expect(events).toHaveLength(1)
-      const start = events[0] as any
+      const start = events[0]! as any
       expect(start.type).toBe("tool_use_start")
       expect(start.id).toBe("cmd-1")
       expect(start.tool).toBe("Bash")
@@ -180,7 +180,7 @@ describe("Codex SDK Event Mapper", () => {
         },
       })
       expect(events).toHaveLength(1)
-      expect(events[0]).toEqual({
+      expect(events[0]!).toEqual({
         type: "tool_use_progress",
         id: "cmd-1",
         output: "file1.ts\nfile2.ts\n",
@@ -200,7 +200,7 @@ describe("Codex SDK Event Mapper", () => {
         },
       })
       expect(events).toHaveLength(1)
-      const end = events[0] as any
+      const end = events[0]! as any
       expect(end.type).toBe("tool_use_end")
       expect(end.id).toBe("cmd-1")
       expect(end.output).toBe("file1.ts\n")
@@ -220,7 +220,7 @@ describe("Codex SDK Event Mapper", () => {
         },
       })
       expect(events).toHaveLength(1)
-      const end = events[0] as any
+      const end = events[0]! as any
       expect(end.type).toBe("tool_use_end")
       expect(end.error).toBe("command not found")
     })
@@ -238,7 +238,7 @@ describe("Codex SDK Event Mapper", () => {
         },
       })
       expect(events).toHaveLength(1)
-      const start = events[0] as any
+      const start = events[0]! as any
       expect(start.type).toBe("tool_use_start")
       expect(start.tool).toBe("Edit")
       expect(start.input.changes).toHaveLength(1)
@@ -258,7 +258,7 @@ describe("Codex SDK Event Mapper", () => {
         },
       })
       expect(events).toHaveLength(1)
-      const end = events[0] as any
+      const end = events[0]! as any
       expect(end.type).toBe("tool_use_end")
       expect(end.output).toContain("update: src/a.ts")
       expect(end.output).toContain("add: src/b.ts")
@@ -276,7 +276,7 @@ describe("Codex SDK Event Mapper", () => {
         },
       })
       expect(events).toHaveLength(1)
-      expect((events[0] as any).error).toBe("File change failed")
+      expect((events[0]! as any).error).toBe("File change failed")
     })
   })
 
@@ -294,7 +294,7 @@ describe("Codex SDK Event Mapper", () => {
         },
       })
       expect(events).toHaveLength(1)
-      const start = events[0] as any
+      const start = events[0]! as any
       expect(start.type).toBe("tool_use_start")
       expect(start.tool).toBe("mcp:my-server/search")
       expect(start.input).toEqual({ query: "test" })
@@ -317,7 +317,7 @@ describe("Codex SDK Event Mapper", () => {
         },
       })
       expect(events).toHaveLength(1)
-      const end = events[0] as any
+      const end = events[0]! as any
       expect(end.type).toBe("tool_use_end")
       expect(end.output).toBe("search results")
       expect(end.error).toBeUndefined()
@@ -337,7 +337,7 @@ describe("Codex SDK Event Mapper", () => {
         },
       })
       expect(events).toHaveLength(1)
-      expect((events[0] as any).error).toBe("Connection refused")
+      expect((events[0]! as any).error).toBe("Connection refused")
     })
   })
 
@@ -348,7 +348,7 @@ describe("Codex SDK Event Mapper", () => {
         item: { id: "ws-1", type: "web_search", query: "TypeScript generics" },
       })
       expect(events).toHaveLength(1)
-      const start = events[0] as any
+      const start = events[0]! as any
       expect(start.type).toBe("tool_use_start")
       expect(start.tool).toBe("WebSearch")
       expect(start.input).toEqual({ query: "TypeScript generics" })
@@ -360,7 +360,7 @@ describe("Codex SDK Event Mapper", () => {
         item: { id: "ws-1", type: "web_search", query: "TypeScript generics" },
       })
       expect(events).toHaveLength(1)
-      expect((events[0] as any).output).toBe("Web search completed")
+      expect((events[0]! as any).output).toBe("Web search completed")
     })
   })
 
@@ -375,8 +375,8 @@ describe("Codex SDK Event Mapper", () => {
         },
       })
       expect(events).toHaveLength(1)
-      expect(events[0].type).toBe("backend_specific")
-      expect((events[0] as any).backend).toBe("codex-sdk")
+      expect(events[0]!.type).toBe("backend_specific")
+      expect((events[0]! as any).backend).toBe("codex-sdk")
     })
   })
 
@@ -387,7 +387,7 @@ describe("Codex SDK Event Mapper", () => {
         item: { id: "err-1", type: "error", message: "Rate limited" },
       })
       expect(events).toHaveLength(1)
-      const err = events[0] as any
+      const err = events[0]! as any
       expect(err.type).toBe("error")
       expect(err.code).toBe("codex_item_error")
       expect(err.message).toBe("Rate limited")
@@ -402,20 +402,20 @@ describe("Codex SDK Event Mapper", () => {
         type: "item.updated",
         item: { id: "msg-1", type: "agent_message", text: "Hello" },
       })
-      expect(events[0]).toEqual({ type: "text_delta", text: "Hello" })
+      expect(events[0]!).toEqual({ type: "text_delta", text: "Hello" })
 
       events = mapper.map({
         type: "item.updated",
         item: { id: "r-1", type: "reasoning", text: "Think" },
       })
-      expect(events[0]).toEqual({ type: "thinking_delta", text: "Think" })
+      expect(events[0]!).toEqual({ type: "thinking_delta", text: "Think" })
 
       // Continue msg-1 — offset tracked independently
       events = mapper.map({
         type: "item.updated",
         item: { id: "msg-1", type: "agent_message", text: "Hello world" },
       })
-      expect(events[0]).toEqual({ type: "text_delta", text: " world" })
+      expect(events[0]!).toEqual({ type: "text_delta", text: " world" })
     })
 
     it("reset() clears all tracking state", () => {
@@ -432,7 +432,7 @@ describe("Codex SDK Event Mapper", () => {
         item: { id: "msg-1", type: "agent_message", text: "Hello" },
       })
       expect(events).toHaveLength(1)
-      expect(events[0]).toEqual({ type: "text_delta", text: "Hello" })
+      expect(events[0]!).toEqual({ type: "text_delta", text: "Hello" })
     })
   })
 })

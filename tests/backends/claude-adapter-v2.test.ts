@@ -186,7 +186,7 @@ describe("ClaudeV2Adapter", () => {
         (adapter as any).bridgeState,
       )
       expect(result2.behavior).toBe("deny")
-      expect(result2.message).toBe("Denied for session")
+      expect(result2.behavior === "deny" && result2.message).toBe("Denied for session")
 
       adapter.close()
     })

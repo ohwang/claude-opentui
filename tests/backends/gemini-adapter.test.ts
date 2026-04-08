@@ -89,7 +89,7 @@ describe("GeminiAdapter", () => {
       const adapter = new GeminiAdapter()
       const models = await adapter.availableModels()
       expect(models.length).toBeGreaterThan(0)
-      expect(models[0].provider).toBe("google")
+      expect(models[0]!.provider).toBe("google")
       adapter.close()
     })
   })

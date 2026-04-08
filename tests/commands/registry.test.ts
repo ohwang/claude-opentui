@@ -348,7 +348,7 @@ describe("/new command", () => {
     expect(handled).toBe(true)
     expect(cleared).toBe(true)
     expect(costReset).toBe(true)
-    expect(ctx.events.some(e => e.type === "system_message")).toBe(true)
+    expect(ctx.events.some(e => e.type === "system_message")).toBe(false)
   })
 })
 

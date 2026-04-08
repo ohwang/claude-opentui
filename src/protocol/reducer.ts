@@ -25,6 +25,11 @@ function stripImagePlaceholders(text: string): string {
     .trim()
 }
 
+/** Strip raw XML tags emitted by the SDK for local command output (e.g. /compact responses) */
+function stripSDKXmlTags(text: string): string {
+  return text.replace(/<\/?local-command-\w+>/g, "")
+}
+
 /**
  * Commit streaming buffers to blocks. Called on tool_use_start, text_complete,
  * turn_complete, and interrupt to ensure chronological ordering.
@@ -40,7 +45,7 @@ function flushBuffers(state: ConversationState): ConversationState {
     streamingThinking = ""
   }
   if (streamingText) {
-    flushed.push({ type: "assistant", text: stripImagePlaceholders(streamingText), timestamp: Date.now(), model: state.currentModel ?? undefined })
+    flushed.push({ type: "assistant", text: stripImagePlaceholders(stripSDKXmlTags(streamingText)), timestamp: Date.now(), model: state.currentModel ?? undefined })
     streamingText = ""
   }
 
@@ -308,7 +313,7 @@ export function reduce(
 
     case "text_complete": {
       // Flush buffers with the finalized text — commits as an assistant block
-      const withFinalText = { ...next, streamingText: stripImagePlaceholders(event.text) }
+      const withFinalText = { ...next, streamingText: stripImagePlaceholders(stripSDKXmlTags(event.text)) }
       return flushBuffers(withFinalText)
     }
 
@@ -517,7 +522,7 @@ export function reduce(
     case "compact":
       return {
         ...next,
-        blocks: [...state.blocks, { type: "compact", summary: event.summary }],
+        blocks: [...state.blocks, { type: "compact", summary: stripSDKXmlTags(event.summary) }],
       }
 
     // ----- Model changed -----

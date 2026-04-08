@@ -62,6 +62,8 @@ These rules prevent silent rendering failures and Zig FFI crashes:
 8. **Keyed `<Show>` + `&&`: object must be last** — `<Show when={obj() && bool}>{(v) => v().prop}</Show>` crashes because `&&` returns the boolean `true`, not the object. Always put the object-producing expression last: `<Show when={bool && obj()}>`.
 9. **`backgroundColor=` not `bg=` on box** — `<box bg="...">` is silently ignored. Use `<box backgroundColor="...">`. The `bg` prop only works on `<text>` elements.
 
+10. **Render callbacks must be pure functions of their item** — Never read the list source, store, or unrelated signals inside a `<For>`/`<Index>` callback. OpenTUI's Zig engine sorts children by cached position — stale positions from re-created elements cause visual reordering (unlike DOM, which is idempotent). **Pattern:** derive all view state in a `createMemo` chain *before* it reaches the list (`filtered → grouped → flat → render-ready`). For selection highlighting, use a per-item `createMemo` inside the callback that reads a *scalar* signal (e.g. `selected()`), not the list itself. Use `<For>` for stable object lists, `<Index>` for lists that recompute on every update (search/filter).
+
 Run `bun run lint:opentui` to check for violations.
 
 ## Project Structure

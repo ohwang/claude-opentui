@@ -13,7 +13,7 @@
  * NOT a modal overlay. Renders inline in the conversation flow.
  */
 
-import { createSignal, For, Show, type Accessor } from "solid-js"
+import { createSignal, Index, Show, type Accessor } from "solid-js"
 import { TextAttributes, type TextareaRenderable } from "@opentui/core"
 import { useKeyboard } from "@opentui/solid"
 import { usePermissions } from "../context/permissions"
@@ -144,25 +144,25 @@ function QuestionView(props: {
       </text>
 
       <Show when={!showFreeText() && !freeTextOnly()}>
-        <For each={options()}>
+        <Index each={options()}>
           {(option, index) => (
             <box flexDirection="column">
               <box flexDirection="row">
-                <text fg={index() === selected() ? colors.border.permission : "white"}>
-                  {index() === selected() ? " > " : "   "}
+                <text fg={index === selected() ? colors.border.permission : "white"}>
+                  {index === selected() ? " > " : "   "}
                 </text>
-                <text fg={index() === selected() ? colors.border.permission : "white"}>
-                  {index() + 1}) {truncateLabel(option.label)}
+                <text fg={index === selected() ? colors.border.permission : "white"}>
+                  {index + 1}) {truncateLabel(option().label)}
                 </text>
               </box>
-              <Show when={!option.isOther && option.description}>
+              <Show when={!option().isOther && option().description}>
                 <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>
-                  {"      "}{option.description}
+                  {"      "}{option().description}
                 </text>
               </Show>
             </box>
           )}
-        </For>
+        </Index>
         <text fg={colors.text.inactive}>
           {"  "}Arrow keys to navigate, Enter to select, Esc to cancel
         </text>

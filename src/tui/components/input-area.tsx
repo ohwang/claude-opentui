@@ -7,7 +7,7 @@
  * '@' anywhere triggers fuzzy file search autocomplete.
  */
 
-import { createSignal, createEffect, Show, For, onCleanup } from "solid-js"
+import { createSignal, createEffect, Show, For, Index, onCleanup } from "solid-js"
 import { TextAttributes, type TextareaRenderable, type KeyEvent, type CliRenderer, decodePasteBytes } from "@opentui/core"
 import { useRenderer, usePaste, useTerminalDimensions } from "@opentui/solid"
 import { tmpdir } from "os"
@@ -1150,36 +1150,36 @@ export function InputArea() {
       {/* Autocomplete dropdown — rendered below input, no border (matches Claude Code) */}
       <Show when={showAutocomplete() && autocompleteItems().length > 0}>
         <box flexDirection="column" paddingLeft={2}>
-          <For each={autocompleteItems().slice(0, MAX_VISIBLE_ITEMS)}>
+          <Index each={autocompleteItems().slice(0, MAX_VISIBLE_ITEMS)}>
             {(item, index) => (
               <box flexDirection="row">
                 {autocompleteMode() === "file" && (
                   <text fg={colors.text.inactive}>
-                    {item.name.endsWith("/") ? "\u{1F4C1} " : "\u{1F4C4} "}
+                    {item().name.endsWith("/") ? "\u{1F4C1} " : "\u{1F4C4} "}
                   </text>
                 )}
                 <text
-                  attributes={index() === selectedIndex() ? TextAttributes.BOLD : 0}
-                  fg={index() === selectedIndex() ? "cyan" : "white"}
+                  attributes={index === selectedIndex() ? TextAttributes.BOLD : 0}
+                  fg={index === selectedIndex() ? "cyan" : "white"}
                 >
-                  {autocompleteMode() === "file" ? truncatePath(item.name) : `/${item.name}`}
+                  {autocompleteMode() === "file" ? truncatePath(item().name) : `/${item().name}`}
                 </text>
-                {autocompleteMode() === "slash" && item.argumentHint && (
+                {autocompleteMode() === "slash" && item().argumentHint && (
                   <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>
-                    {` ${item.argumentHint}`}
+                    {` ${item().argumentHint}`}
                   </text>
                 )}
-                {autocompleteMode() === "slash" && item.type === "prompt" && (
+                {autocompleteMode() === "slash" && item().type === "prompt" && (
                   <text fg={colors.accent.highlight} attributes={TextAttributes.DIM}>
                     {" [prompt]"}
                   </text>
                 )}
-                <text fg={colors.text.inactive} attributes={index() !== selectedIndex() ? TextAttributes.DIM : 0}>
-                  {"  \u2013  "}{item.description}
+                <text fg={colors.text.inactive} attributes={index !== selectedIndex() ? TextAttributes.DIM : 0}>
+                  {"  \u2013  "}{item().description}
                 </text>
               </box>
             )}
-          </For>
+          </Index>
           <Show when={autocompleteItems().length > MAX_VISIBLE_ITEMS}>
             <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>
               {`  ${autocompleteItems().length - MAX_VISIBLE_ITEMS} more...`}

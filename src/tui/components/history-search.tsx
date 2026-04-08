@@ -6,7 +6,7 @@
  * Up/Down navigation, Enter to select, Escape to cancel.
  */
 
-import { createSignal, createMemo, Show, For, onCleanup } from "solid-js"
+import { createSignal, createMemo, Show, Index, onCleanup } from "solid-js"
 import { TextAttributes } from "@opentui/core"
 import { useTerminalDimensions } from "@opentui/solid"
 import type { KeyEvent } from "@opentui/core"
@@ -137,9 +137,9 @@ export function HistorySearchModal(props: HistorySearchProps) {
               </text>
             }
           >
-            <For each={filtered().slice(0, MAX_VISIBLE)}>
+            <Index each={filtered().slice(0, MAX_VISIBLE)}>
               {(entry, index) => {
-                const isSelected = () => index() === selectedIndex()
+                const isSelected = () => index === selectedIndex()
                 return (
                   <box flexDirection="row" height={1}>
                     <text
@@ -152,12 +152,12 @@ export function HistorySearchModal(props: HistorySearchProps) {
                       fg={isSelected() ? colors.accent.highlight : colors.text.primary}
                       attributes={isSelected() ? TextAttributes.BOLD : 0}
                     >
-                      {formatEntry(entry, contentWidth())}
+                      {formatEntry(entry(), contentWidth())}
                     </text>
                   </box>
                 )
               }}
-            </For>
+            </Index>
             <Show when={filtered().length > MAX_VISIBLE}>
               <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>
                 {`  ${filtered().length - MAX_VISIBLE} more...`}

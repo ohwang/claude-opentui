@@ -14,7 +14,7 @@
  */
 
 import type { JSX } from "solid-js"
-import { createSignal, createEffect, createMemo, onCleanup, Show, For, batch } from "solid-js"
+import { createSignal, createEffect, createMemo, onCleanup, Show, For, Index, batch } from "solid-js"
 import { TextAttributes, type ScrollBoxRenderable } from "@opentui/core"
 import { useKeyboard } from "@opentui/solid"
 import { useMessages } from "../context/messages"
@@ -31,7 +31,7 @@ import { type ViewLevel } from "./tool-view"
 import { BlockView } from "./block-view"
 import { CollapsedToolGroup } from "./collapsed-tool-group"
 import { ToastDisplay } from "./toast"
-import { groupConsecutiveTools, isToolGroup, type GroupedItem } from "../utils/tool-grouping"
+import { groupConsecutiveTools, isToolGroup, type GroupedItem, type ToolGroup } from "../utils/tool-grouping"
 import { TurnSummary } from "./turn-summary"
 import { QueuedMessage } from "./blocks/queued-message"
 
@@ -61,15 +61,33 @@ export function ConversationView(props: { children?: JSX.Element }) {
   let scrollboxRef: ScrollBoxRenderable | undefined
   const [userScrolledAway, setUserScrolledAway] = createSignal(false)
 
-  // Derived: separate queued vs non-queued blocks
-  const nonQueuedBlocks = () => state.blocks.filter(b => !(b.type === "user" && b.queued))
-  const queuedBlocks = () => state.blocks.filter(b => b.type === "user" && b.queued) as Array<Extract<Block, { type: "user" }>>
+  // --- Memo chain: store → committed → grouped → prevTypes ---
+  // Each stage is a separate memo. Items are never wrapped in new objects —
+  // store proxies pass through with stable identity (via reconcile() in sync).
+  // Matches OpenCode's filtered → grouped → flat → selected pattern.
 
-  // Group consecutive collapsible tool blocks when in collapsed view
-  const groupedBlocks = createMemo((): GroupedItem[] => {
-    if (viewLevel() !== "collapsed") return nonQueuedBlocks()
-    return groupConsecutiveTools(nonQueuedBlocks())
-  })
+  // Stage 1: Filter out queued user blocks
+  const committed = createMemo(() =>
+    state.blocks.filter(b => !(b.type === "user" && b.queued))
+  )
+  const queuedBlocks = createMemo(() =>
+    state.blocks.filter(b => b.type === "user" && b.queued) as Array<Extract<Block, { type: "user" }>>
+  )
+
+  // Stage 2: Group consecutive collapsible tools (collapsed view only)
+  const grouped = createMemo((): GroupedItem[] =>
+    viewLevel() !== "collapsed" ? committed() : groupConsecutiveTools(committed())
+  )
+
+  // Stage 3: Pre-compute prevType for each position (separate parallel array).
+  // Read inside <Index> callback for margin logic — safe because it's a
+  // separate memo from the list, no dual-update with reconciliation.
+  const prevTypes = createMemo(() =>
+    grouped().map((item, i) => {
+      const prev = i > 0 ? grouped()[i - 1] : undefined
+      return prev ? (isToolGroup(prev) ? "tool" : (prev as Block).type) : undefined
+    })
+  )
 
   // Tasks that have NO matching Agent tool block — these are "orphan" tasks
   // that should still be shown in the TaskView (e.g., background tasks started
@@ -301,7 +319,7 @@ export function ConversationView(props: { children?: JSX.Element }) {
 
           {/* Quick-start tips — shown when conversation is empty */}
           <box flexDirection="column">
-            <Show when={nonQueuedBlocks().length === 0 && !state.streamingText}>
+            <Show when={committed().length === 0 && !state.streamingText}>
               <box flexDirection="column" paddingLeft={2}>
                 <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>
                   {"Tips to get started:"}
@@ -321,33 +339,31 @@ export function ConversationView(props: { children?: JSX.Element }) {
               In collapsed view, consecutive collapsible tools are merged into
               a single CollapsedToolGroup summary line. */}
           <box flexDirection="column">
-            <For each={groupedBlocks()}>
+            <Index each={grouped()}>
               {(item, index) => {
-                const items = groupedBlocks()
-                // Determine the type of the previous item for turn-separator logic
-                const prevItem = index() > 0 ? items[index() - 1] : undefined
-                const prevType = prevItem
-                  ? isToolGroup(prevItem) ? "tool" : (prevItem as Block).type
-                  : undefined
-
-                if (isToolGroup(item)) {
-                  return (
-                    <box marginTop={prevType !== "tool" ? 1 : 0}>
-                      <CollapsedToolGroup group={item} />
-                    </box>
-                  )
-                }
-
+                // <Index> tracks by position. Items are unwrapped store proxies
+                // (stable via reconcile()). prevTypes is a separate parallel memo
+                // — no reactive coupling with the list reconciliation.
+                const pt = () => prevTypes()[index]
                 return (
-                  <BlockView
-                    block={item as Block}
-                    viewLevel={viewLevel()}
-                    prevType={prevType}
-                    showThinking={showThinking()}
-                  />
+                  <Show
+                    when={!isToolGroup(item()) && item()}
+                    fallback={
+                      <box marginTop={pt() !== "tool" ? 1 : 0}>
+                        <CollapsedToolGroup group={item() as ToolGroup} />
+                      </box>
+                    }
+                  >
+                    <BlockView
+                      block={item() as Block}
+                      viewLevel={viewLevel()}
+                      prevType={pt()}
+                      showThinking={showThinking()}
+                    />
+                  </Show>
                 )
               }}
-            </For>
+            </Index>
           </box>
 
           {/* Turn file change summary — shown when IDLE and files were changed */}

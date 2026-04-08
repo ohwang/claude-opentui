@@ -215,7 +215,7 @@ export class MockAdapter implements AgentBackend {
         yield {
           type: "cost_update",
           inputTokens: 0,
-          outputTokens: words[i].length * 5,
+          outputTokens: (words[i]?.length ?? 0) * 5,
           cost: 0.0001,
         }
       }

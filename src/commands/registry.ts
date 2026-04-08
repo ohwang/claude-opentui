@@ -50,7 +50,7 @@ export function createPromptCommand(opts: {
     execute: (args, ctx) => {
       const text = typeof opts.prompt === "function" ? opts.prompt(args) : (args ? `${opts.prompt} ${args}` : opts.prompt)
       ctx.pushEvent({ type: "user_message", text })
-      ctx.backend.sendMessage(text)
+      ctx.backend.sendMessage({ text })
     },
   }
 }
@@ -109,7 +109,7 @@ export class CommandRegistry {
     if (!input.startsWith("/")) return false
 
     const parts = input.slice(1).split(/\s+/)
-    const name = parts[0]
+    const name = parts[0] ?? ""
     const args = parts.slice(1).join(" ")
 
     const command = this.get(name)

@@ -177,8 +177,9 @@ export function findMostRecentSession(cwd: string): string | null {
       }))
       .sort((a: any, b: any) => b.mtime - a.mtime)
 
-    if (jsonlFiles.length === 0) return null
-    return jsonlFiles[0].name.replace(".jsonl", "")
+    const mostRecent = jsonlFiles[0]
+    if (!mostRecent) return null
+    return mostRecent.name.replace(".jsonl", "")
   } catch {
     return null
   }

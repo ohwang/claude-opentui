@@ -161,6 +161,7 @@ export function reduce(
       const turnFiles: TurnFileChange[] = []
       for (let i = blocks.length - 1; i >= 0; i--) {
         const block = blocks[i]
+        if (block === undefined) continue
         if (block.type === "user") break // Hit previous user message = end of turn
         if (block.type === "tool" && block.status === "done") {
           const input = block.input as Record<string, unknown> | null
@@ -351,7 +352,7 @@ export function reduce(
       if (targetId === "__last_running__") {
         for (let i = state.blocks.length - 1; i >= 0; i--) {
           const b = state.blocks[i]
-          if (b.type === "tool" && b.status === "running") {
+          if (b !== undefined && b.type === "tool" && b.status === "running") {
             targetId = b.id
             break
           }
@@ -562,7 +563,7 @@ export function reduce(
           b.type === "shell" && b.id === event.id
             ? {
                 ...b,
-                status: (event.error ? "error" : "done") as const,
+                status: event.error ? "error" as const : "done" as const,
                 output: event.output,
                 error: event.error,
                 exitCode: event.exitCode,

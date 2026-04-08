@@ -36,7 +36,6 @@ import type {
 } from "../../protocol/types"
 import { EventChannel } from "../../utils/event-channel"
 import { AsyncQueue } from "../../utils/async-queue"
-import { backendTrace } from "../../utils/backend-trace"
 
 const trace = backendTrace.scoped("claude-v2")
 

@@ -51,7 +51,7 @@ function isNearBottom(ref: ScrollBoxRenderable, threshold = 3): boolean {
 // ConversationView — main export
 // ---------------------------------------------------------------------------
 
-export function ConversationView(props: { children?: JSX.Element }) {
+export function ConversationView(props: { children?: JSX.Element; footerHint?: string | null }) {
   const { state } = useMessages()
   const { state: session } = useSession()
   const [viewLevel, setViewLevel] = createSignal<ViewLevel>("collapsed")
@@ -456,6 +456,15 @@ export function ConversationView(props: { children?: JSX.Element }) {
           {/* Toast notifications — above input area */}
           <box flexDirection="column" flexShrink={0}>
             <ToastDisplay />
+          </box>
+
+          {/* Ephemeral hint line — always 1 row tall, sits between content and input.
+              Shows transient hints (e.g. "Interrupt pending...") as dimmed text,
+              or a blank spacer line when no hint is active. */}
+          <box height={1} flexShrink={0} paddingLeft={2}>
+            <Show when={props.footerHint}>
+              <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>{props.footerHint}</text>
+            </Show>
           </box>
 
           {/* Input area, status bar, dialogs — scrolls with content */}

@@ -531,7 +531,7 @@ function Layout(props: { onExit?: () => void }) {
            overlay is open.  height={0} alone isn't sufficient — child elements
            (e.g. StatusBar) can leak through the zero-height parent. */}
       <box flexDirection="column" width="100%" height={(showDiagnostics() || modal.isActive()) ? 0 : "100%"} flexGrow={(showDiagnostics() || modal.isActive()) ? 0 : 1} visible={!showDiagnostics() && !modal.isActive()}>
-        <ConversationView>
+        <ConversationView footerHint={statusHint()}>
           {/* Permission dialog (shown inline when WAITING_FOR_PERM) */}
           <PermissionDialog />
 
@@ -543,7 +543,7 @@ function Layout(props: { onExit?: () => void }) {
           <DashLine />
 
           {/* Status bar */}
-          <StatusBar hint={statusHint()} />
+          <StatusBar />
         </ConversationView>
       </box>
 

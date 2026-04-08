@@ -259,6 +259,10 @@ export function mapCodexNotification(
     }
 
     case "account/updated":
+    case "account/rateLimits/updated":
+      events.push(...mapCodexRateLimitEvents(params))
+      break
+
     case "skills/changed":
     case "mcpServer/startupStatus/updated":
       events.push({
@@ -286,6 +290,57 @@ export function mapCodexNotification(
         backend: "codex",
         data: { method, params },
       })
+  }
+
+  return events
+}
+
+function mapCodexRateLimitEvents(params: any): AgentEvent[] {
+  const rateLimits = params?.rateLimits
+  if (!rateLimits || typeof rateLimits !== "object") {
+    return [{
+      type: "backend_specific",
+      backend: "codex",
+      data: { method: "account/rateLimits/updated", params },
+    }]
+  }
+
+  const events: AgentEvent[] = []
+
+  const pushRateLimitEvent = (
+    bucket: unknown,
+    rateLimitType: "five_hour" | "seven_day",
+  ) => {
+    if (!bucket || typeof bucket !== "object") return
+
+    const usedPercent = (bucket as { usedPercent?: unknown }).usedPercent
+    const resetsAt = (bucket as { resetsAt?: unknown }).resetsAt
+
+    if (typeof usedPercent !== "number") return
+
+    events.push({
+      type: "backend_specific",
+      backend: "codex",
+      data: {
+        type: "rate_limit_event",
+        rate_limit_info: {
+          rateLimitType: rateLimitType,
+          utilization: usedPercent / 100,
+          resetsAt: typeof resetsAt === "number" ? resetsAt : undefined,
+        },
+      },
+    })
+  }
+
+  pushRateLimitEvent(rateLimits.primary, "five_hour")
+  pushRateLimitEvent(rateLimits.secondary, "seven_day")
+
+  if (events.length === 0) {
+    events.push({
+      type: "backend_specific",
+      backend: "codex",
+      data: { method: "account/rateLimits/updated", params },
+    })
   }
 
   return events

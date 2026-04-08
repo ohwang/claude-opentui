@@ -937,6 +937,47 @@ describe("ConversationState reducer", () => {
       ])
       expect(state.sessionState).toBe("IDLE")
     })
+
+    it("stores normalized rate-limit info for status bar consumers", () => {
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        {
+          type: "backend_specific",
+          backend: "codex",
+          data: {
+            type: "rate_limit_event",
+            rate_limit_info: {
+              rateLimitType: "five_hour",
+              utilization: 0.12,
+              resetsAt: 1775019636,
+            },
+          },
+        },
+        {
+          type: "backend_specific",
+          backend: "codex",
+          data: {
+            type: "rate_limit_event",
+            rate_limit_info: {
+              rateLimitType: "seven_day",
+              utilization: 0.08,
+              resetsAt: 1775206513,
+            },
+          },
+        },
+      ])
+
+      expect(state.rateLimits).toEqual({
+        fiveHour: {
+          usedPercentage: 12,
+          resetsAt: 1775019636,
+        },
+        sevenDay: {
+          usedPercentage: 8,
+          resetsAt: 1775206513,
+        },
+      })
+    })
   })
 
   // -----------------------------------------------------------------------

@@ -406,6 +406,50 @@ describe("Codex Event Mapper", () => {
   })
 
   describe("passthrough events", () => {
+    it("maps account/rateLimits/updated to normalized rate-limit backend_specific events", () => {
+      const events = mapCodexNotification("account/rateLimits/updated", {
+        rateLimits: {
+          limitId: "codex",
+          primary: {
+            usedPercent: 12,
+            windowDurationMins: 300,
+            resetsAt: 1775019636,
+          },
+          secondary: {
+            usedPercent: 8,
+            windowDurationMins: 10080,
+            resetsAt: 1775206513,
+          },
+        },
+      })
+
+      expect(events).toHaveLength(2)
+      expect(events[0]).toEqual({
+        type: "backend_specific",
+        backend: "codex",
+        data: {
+          type: "rate_limit_event",
+          rate_limit_info: {
+            rateLimitType: "five_hour",
+            utilization: 0.12,
+            resetsAt: 1775019636,
+          },
+        },
+      })
+      expect(events[1]).toEqual({
+        type: "backend_specific",
+        backend: "codex",
+        data: {
+          type: "rate_limit_event",
+          rate_limit_info: {
+            rateLimitType: "seven_day",
+            utilization: 0.08,
+            resetsAt: 1775206513,
+          },
+        },
+      })
+    })
+
     it("passes turn/diff/updated as backend_specific", () => {
       const events = mapCodexNotification("turn/diff/updated", { diff: "..." })
       expect(events).toHaveLength(1)

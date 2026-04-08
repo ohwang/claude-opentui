@@ -14,7 +14,7 @@ import { SkillToolView, CollapsedSkillLine } from "./skill-tool-view"
 import { colors } from "../theme/tokens"
 import type { Block } from "../../protocol/types"
 import type { ViewLevel } from "./tool-view"
-import { Divider, getStatusConfig, BlinkingDot } from "./primitives"
+import { getStatusConfig, BlinkingDot } from "./primitives"
 import { truncatePathMiddle, truncateToWidth } from "../../utils/truncate"
 import { UserBlock } from "./blocks/user-block"
 import { AssistantBlock } from "./blocks/assistant-block"
@@ -44,9 +44,6 @@ export function BlockView(props: { block: Block; viewLevel: ViewLevel; prevType?
     <box flexDirection="column">
       <Show when={userBlock()}>{(ub: Accessor<Extract<Block, { type: "user" }>>) =>
         <box marginTop={1}>
-          <Show when={props.prevType && props.prevType !== "user"}>
-            <Divider width={60} />
-          </Show>
           <UserBlock block={ub()} />
         </box>
       }</Show>

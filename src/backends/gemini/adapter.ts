@@ -182,11 +182,126 @@ export class GeminiAdapter implements AgentBackend {
   }
 
   async availableModels(): Promise<ModelInfo[]> {
-    return [
-      { id: "gemini-2.5-pro", name: "Gemini 2.5 Pro", provider: "google" },
-      { id: "gemini-2.5-flash", name: "Gemini 2.5 Flash", provider: "google" },
-      { id: "gemini-2.0-flash", name: "Gemini 2.0 Flash", provider: "google" },
-    ]
+    try {
+      const auth = await this.resolveAuth()
+      if (!auth) {
+        log.warn("No Gemini credentials found — cannot fetch available models")
+        return []
+      }
+
+      const url = auth.type === "api_key"
+        ? `https://generativelanguage.googleapis.com/v1beta/models?key=${auth.token}&pageSize=1000`
+        : `https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000`
+      const headers: Record<string, string> = auth.type === "bearer"
+        ? { Authorization: `Bearer ${auth.token}` }
+        : {}
+
+      const resp = await fetch(url, { headers })
+      if (!resp.ok) {
+        log.warn("Failed to fetch Gemini models", { status: resp.status })
+        return []
+      }
+
+      const data = (await resp.json()) as {
+        models?: Array<{
+          name: string
+          displayName: string
+          supportedGenerationMethods?: string[]
+        }>
+      }
+
+      return (data.models ?? [])
+        .filter((m) => m.supportedGenerationMethods?.includes("generateContent"))
+        .map((m) => ({
+          id: m.name.replace(/^models\//, ""),
+          name: m.displayName,
+          provider: "google",
+        }))
+    } catch (err) {
+      log.warn("Error fetching Gemini models", {
+        error: err instanceof Error ? err.message : String(err),
+      })
+      return []
+    }
+  }
+
+  // -----------------------------------------------------------------------
+  // Private: Auth resolution for model listing
+  // -----------------------------------------------------------------------
+
+  /**
+   * Resolve auth credentials in priority order:
+   * 1. GEMINI_API_KEY env var → API key auth
+   * 2. ~/.gemini/oauth_creds.json → OAuth refresh → Bearer token
+   */
+  private async resolveAuth(): Promise<{ type: "api_key" | "bearer"; token: string } | null> {
+    const apiKey = process.env["GEMINI_API_KEY"]
+    if (apiKey) return { type: "api_key", token: apiKey }
+
+    // Try OAuth credentials from Gemini CLI's stored tokens
+    const homedir = await import("node:os").then((os) => os.homedir())
+    const fs = await import("node:fs/promises")
+    const path = await import("node:path")
+
+    const credsPath = path.join(homedir, ".gemini", "oauth_creds.json")
+    try {
+      const raw = await fs.readFile(credsPath, "utf-8")
+      const creds = JSON.parse(raw) as {
+        client_id?: string
+        client_secret?: string
+        refresh_token?: string
+      }
+      if (!creds.refresh_token) return null
+
+      // Client credentials come from the creds file or env vars
+      const clientId = creds.client_id ?? process.env["GEMINI_OAUTH_CLIENT_ID"]
+      const clientSecret = creds.client_secret ?? process.env["GEMINI_OAUTH_CLIENT_SECRET"]
+      if (!clientId || !clientSecret) {
+        log.warn("OAuth client credentials not found in ~/.gemini/oauth_creds.json or env vars")
+        return null
+      }
+
+      const accessToken = await this.refreshOAuthToken(
+        creds.refresh_token,
+        clientId,
+        clientSecret,
+      )
+      return accessToken ? { type: "bearer", token: accessToken } : null
+    } catch {
+      // File doesn't exist or is unreadable
+      return null
+    }
+  }
+
+  /** Exchange a refresh token for a short-lived access token. */
+  private async refreshOAuthToken(
+    refreshToken: string,
+    clientId: string,
+    clientSecret: string,
+  ): Promise<string | null> {
+    try {
+      const resp = await fetch("https://oauth2.googleapis.com/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          client_id: clientId,
+          client_secret: clientSecret,
+          refresh_token: refreshToken,
+          grant_type: "refresh_token",
+        }),
+      })
+      if (!resp.ok) {
+        log.warn("OAuth token refresh failed", { status: resp.status })
+        return null
+      }
+      const data = (await resp.json()) as { access_token?: string }
+      return data.access_token ?? null
+    } catch (err) {
+      log.warn("OAuth token refresh error", {
+        error: err instanceof Error ? err.message : String(err),
+      })
+      return null
+    }
   }
 
   async listSessions(): Promise<SessionInfo[]> {

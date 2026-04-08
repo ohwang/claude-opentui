@@ -85,12 +85,21 @@ describe("GeminiAdapter", () => {
   })
 
   describe("availableModels", () => {
-    it("returns known Gemini models", async () => {
-      const adapter = new GeminiAdapter()
-      const models = await adapter.availableModels()
-      expect(models.length).toBeGreaterThan(0)
-      expect(models[0]!.provider).toBe("google")
-      adapter.close()
+    it("returns empty when no credentials are available", async () => {
+      const saved = process.env["GEMINI_API_KEY"]
+      const savedHome = process.env["HOME"]
+      delete process.env["GEMINI_API_KEY"]
+      // Point HOME to a temp dir with no .gemini/oauth_creds.json
+      process.env["HOME"] = "/tmp/gemini-adapter-test-no-creds"
+      try {
+        const adapter = new GeminiAdapter()
+        const models = await adapter.availableModels()
+        expect(models).toEqual([])
+        adapter.close()
+      } finally {
+        if (saved !== undefined) process.env["GEMINI_API_KEY"] = saved
+        if (savedHome !== undefined) process.env["HOME"] = savedHome
+      }
     })
   })
 

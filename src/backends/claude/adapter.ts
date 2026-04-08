@@ -264,11 +264,13 @@ export class ClaudeAdapter implements AgentBackend {
   async availableModels(): Promise<ModelInfo[]> {
     if (!this.activeQuery) return []
     const models = await this.activeQuery.supportedModels()
-    return models.map((m: any) => ({
-      id: m.id ?? m.model,
-      name: m.name ?? m.model,
-      provider: "anthropic",
-    }))
+    return models
+      .map((m: any) => ({
+        id: m.id ?? m.model,
+        name: m.name ?? m.model,
+        provider: "anthropic" as const,
+      }))
+      .filter((m) => m.id != null && m.id !== "undefined" && m.id !== "")
   }
 
   async listSessions(): Promise<SessionInfo[]> {

@@ -331,7 +331,7 @@ export function ConversationView(props: { children?: JSX.Element }) {
                   <text fg={colors.text.inactive}>{"  \u2022  Use @ to reference files: @src/index.ts"}</text>
                   <text fg={colors.text.inactive}>{"  \u2022  Type / for slash commands"}</text>
                   <text fg={colors.text.inactive}>{"  \u2022  Ctrl+O to expand tool details"}</text>
-                  <text fg={colors.text.inactive}>{"  \u2022  Ctrl+P to switch models"}</text>
+                  <text fg={colors.text.inactive}>{"  \u2022  Ctrl+Shift+P to switch models"}</text>
                 </box>
               </box>
             </Show>

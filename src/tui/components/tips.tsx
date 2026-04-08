@@ -14,7 +14,7 @@ import { colors } from "../theme/tokens"
 const TIPS: Record<string, string[]> = {
   IDLE: [
     "Type a message and press Enter to send",
-    "/help for commands \u00b7 Ctrl+P to switch models \u00b7 Shift+Tab for permission mode",
+    "/help for commands \u00b7 Ctrl+Shift+P to switch models \u00b7 Shift+Tab for permission mode",
   ],
   RUNNING: [
     "Ctrl+C to interrupt \u00b7 Ctrl+O to expand tool output",

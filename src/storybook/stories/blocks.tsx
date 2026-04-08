@@ -108,6 +108,7 @@ export const conversationStories: Story[] = [
     variants: [
       { label: "expanded", render: () => <ThinkingBlock text={"The user wants to fix an auth bug. Let me check:\n- `login.ts` handles token creation\n- `middleware.ts` validates on each request\n\nI think the issue is that `Date.now()` returns milliseconds but JWT `exp` is in seconds."} /> },
       { label: "collapsed", render: () => <ThinkingBlock text="Let me analyze the code structure..." collapsed /> },
+      { label: "long text", render: () => <ThinkingBlock text={"Let me trace through the authentication flow step by step.\n\n1. User submits credentials to POST /api/login\n2. Server calls findUser(email) to look up the account\n3. bcrypt.compare() verifies the password hash\n4. jwt.sign() creates a token with { sub, exp, iat }\n5. Token is returned in the response body\n6. Client stores it in localStorage\n7. On each request, middleware reads Authorization header\n8. jwt.verify() validates signature and expiry\n9. If valid, req.user is set for downstream handlers\n10. If expired, 401 is returned with 'Token expired'\n11. The refresh endpoint accepts the old token\n12. It issues a new token with a fresh exp claim\n\nI see the bug now — line 4 uses Date.now() directly, which gives milliseconds, but JWT exp is supposed to be in seconds (Unix timestamp)."} /> },
     ],
   },
 

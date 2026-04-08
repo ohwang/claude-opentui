@@ -1,10 +1,13 @@
 /**
- * Thinking Block — Collapsible thinking content
+ * Thinking Block — Collapsible thinking content with blockquote style
  *
- * Shows Claude's reasoning process.
- * Collapsed: "∴ Thinking (ctrl+o to expand)"
- * Expanded: "∴ Thinking…" then dim markdown content
- * Matches Claude Code's AssistantThinkingMessage pattern.
+ * Shows Claude's reasoning process in a markdown-blockquote visual:
+ * a left border bar (│) with content indented beside it.
+ *
+ * Collapsed: "💭 Thinking (ctrl+o to expand)"
+ * Expanded:
+ *   💭 Thinking…
+ *   │ <markdown content>
  */
 
 import { Show } from "solid-js"
@@ -28,19 +31,24 @@ export function ThinkingBlock(props: { text: string; collapsed?: boolean }) {
         when={expanded()}
         fallback={
           <text fg={colors.text.thinking} attributes={TextAttributes.DIM | TextAttributes.ITALIC}>
-            {"\u2234 Thinking (ctrl+o to expand)"}
+            {"\ud83d\udcad Thinking (ctrl+o to expand)"}
           </text>
         }
       >
         <text fg={colors.text.thinking} attributes={TextAttributes.DIM | TextAttributes.ITALIC}>
-          {"\u2234 Thinking\u2026"}
+          {"\ud83d\udcad Thinking\u2026"}
         </text>
-        <box paddingLeft={2}>
-          <markdown
-            content={truncatedText()}
-            syntaxStyle={syntaxStyle}
-            fg={colors.text.thinking}
-          />
+        <box flexDirection="row">
+          <box width={2} flexShrink={0}>
+            <text fg={colors.border.default}>{"\u2502"}</text>
+          </box>
+          <box flexGrow={1}>
+            <markdown
+              content={truncatedText()}
+              syntaxStyle={syntaxStyle}
+              fg={colors.text.thinking}
+            />
+          </box>
         </box>
       </Show>
     </box>

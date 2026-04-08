@@ -18,6 +18,7 @@ import {
   batch,
   type ParentProps,
 } from "solid-js"
+import { reconcile } from "solid-js/store"
 import { reduce } from "../../protocol/reducer"
 import {
   createInitialState,
@@ -70,31 +71,29 @@ export function SyncProvider(props: ParentProps) {
     }
 
     batch(() => {
-      messages.setState({
-        blocks: conversationState.blocks,
-        streamingText: conversationState.streamingText,
-        streamingThinking: conversationState.streamingThinking,
-        activeTasks: Array.from(conversationState.activeTasks.entries()),
-        backgrounded: conversationState.backgrounded,
-        streamingOutputTokens: conversationState.streamingOutputTokens,
-        lastTurnFiles: conversationState.lastTurnFiles,
-      })
+      // Use reconcile() for arrays/objects so unchanged items keep stable
+      // proxy references. This lets <For> efficiently track identity and
+      // prevents mass element recreation on every event batch.
+      // Matches OpenCode's reconcile() + produce() update pattern.
+      messages.setState("blocks", reconcile(conversationState.blocks))
+      messages.setState("streamingText", conversationState.streamingText)
+      messages.setState("streamingThinking", conversationState.streamingThinking)
+      messages.setState("activeTasks", reconcile(Array.from(conversationState.activeTasks.entries())))
+      messages.setState("backgrounded", conversationState.backgrounded)
+      messages.setState("streamingOutputTokens", conversationState.streamingOutputTokens)
+      messages.setState("lastTurnFiles", reconcile(conversationState.lastTurnFiles ?? undefined as any))
 
-      session.setState({
-        sessionState: conversationState.sessionState,
-        session: conversationState.session,
-        cost: { ...conversationState.cost },
-        lastError: conversationState.lastError,
-        turnNumber: conversationState.turnNumber,
-        lastTurnInputTokens: conversationState.lastTurnInputTokens,
-        currentModel: conversationState.currentModel ?? "",
-        rateLimits: conversationState.rateLimits,
-      })
+      session.setState("sessionState", conversationState.sessionState)
+      session.setState("session", reconcile(conversationState.session))
+      session.setState("cost", reconcile(conversationState.cost))
+      session.setState("lastError", reconcile(conversationState.lastError))
+      session.setState("turnNumber", conversationState.turnNumber)
+      session.setState("lastTurnInputTokens", conversationState.lastTurnInputTokens)
+      session.setState("currentModel", conversationState.currentModel ?? "")
+      session.setState("rateLimits", reconcile(conversationState.rateLimits))
 
-      permissions.setState({
-        pendingPermission: conversationState.pendingPermission,
-        pendingElicitation: conversationState.pendingElicitation,
-      })
+      permissions.setState("pendingPermission", reconcile(conversationState.pendingPermission))
+      permissions.setState("pendingElicitation", reconcile(conversationState.pendingElicitation))
     })
   }
 
@@ -148,14 +147,12 @@ export function SyncProvider(props: ParentProps) {
 
     // Clear the SolidJS stores to match
     batch(() => {
-      messages.setState({
-        blocks: [],
-        streamingText: "",
-        streamingThinking: "",
-        activeTasks: [],
-        backgrounded: false,
-        streamingOutputTokens: 0,
-      })
+      messages.setState("blocks", reconcile([]))
+      messages.setState("streamingText", "")
+      messages.setState("streamingThinking", "")
+      messages.setState("activeTasks", reconcile([]))
+      messages.setState("backgrounded", false)
+      messages.setState("streamingOutputTokens", 0)
     })
   }
 
@@ -173,7 +170,7 @@ export function SyncProvider(props: ParentProps) {
       cost: zeroCost,
     }
     batch(() => {
-      session.setState({ cost: { ...zeroCost } })
+      session.setState("cost", reconcile(zeroCost))
     })
   }
 
@@ -235,7 +232,7 @@ export function SyncProvider(props: ParentProps) {
             blocks: historyBlocks,
           }
           batch(() => {
-            messages.setState({ blocks: historyBlocks })
+            messages.setState("blocks", reconcile(historyBlocks))
           })
         }
       }

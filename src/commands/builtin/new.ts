@@ -11,10 +11,5 @@ export const newCommand: SlashCommand = {
   execute: (_args, ctx) => {
     ctx.clearConversation()
     ctx.resetCost()
-    ctx.pushEvent({
-      type: "system_message",
-      text: "New conversation started",
-      ephemeral: true,
-    })
   },
 }

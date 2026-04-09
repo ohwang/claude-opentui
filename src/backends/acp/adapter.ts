@@ -224,12 +224,14 @@ export class AcpAdapter extends BaseAdapter {
     })
   }
 
-  denyToolUse(id: string, _reason?: string, _options?: { denyForSession?: boolean }): void {
+  denyToolUse(id: string, _reason?: string, options?: { denyForSession?: boolean }): void {
     const approval = this.pendingApprovals.get(id)
     if (!approval) return
 
     const opts = approval.params.options ?? []
-    const rejectOption = opts.find(o => o.kind === "reject_once") ?? opts.find(o => o.kind === "reject_always")
+    const rejectOption = options?.denyForSession
+      ? opts.find(o => o.kind === "reject_always") ?? opts.find(o => o.kind === "reject_once")
+      : opts.find(o => o.kind === "reject_once") ?? opts.find(o => o.kind === "reject_always")
 
     log.info("ACP approval: deny", { id, optionId: rejectOption?.optionId })
     this.transport?.respond(approval.rpcId, {

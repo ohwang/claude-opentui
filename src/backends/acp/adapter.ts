@@ -137,9 +137,14 @@ export class AcpAdapter extends BaseAdapter {
   }
 
   capabilities(): BackendCapabilities {
+    // Derive thinking support from discovered config options
+    const hasThinkingOption = this.discoveredConfigOptions.some(
+      o => o.id === "thinking" || o.name.toLowerCase().includes("thinking") || o.name.toLowerCase().includes("effort"),
+    )
+
     return {
       name: this.presetName,
-      supportsThinking: false,
+      supportsThinking: hasThinkingOption,
       supportsToolApproval: true,
       supportsResume: !!this.agentCapabilities?.loadSession,
       supportsFork: false,

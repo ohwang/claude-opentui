@@ -149,9 +149,15 @@ export class GeminiAdapter implements AgentBackend {
 
     log.info("Gemini interrupt", { hasAbortController: !!this.abortController })
     this.userInitiatedAbort = true
+
     // Push turn_complete FIRST so the state machine transitions to IDLE
     // before the abort fires. This ensures the TUI is in a clean state.
-    this.eventChannel?.push({ type: "turn_complete" })
+    // Include whatever usage was gathered so far.
+    const usage = this.turnUsage.inputTokens > 0 || this.turnUsage.outputTokens > 0
+      ? { ...this.turnUsage }
+      : undefined
+    this.eventChannel?.push({ type: "turn_complete", usage })
+    this.turnUsage = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0 }
 
     if (this.abortController) {
       // Defer the abort to the next microtask. Calling abort() synchronously
@@ -538,6 +544,15 @@ export class GeminiAdapter implements AgentBackend {
       payload: { prompt },
     })
     this.eventChannel?.push({ type: "turn_start" })
+
+    // If this is the first turn, warn about the initial hang (UPSTREAM-003)
+    if (this.turnCount === 1 && this.eventChannel) {
+      this.eventChannel.push({
+        type: "system_message",
+        text: "Connecting to Gemini (this first request may take a minute while the SDK initializes)...",
+        ephemeral: true,
+      })
+    }
 
     try {
       trace.write({

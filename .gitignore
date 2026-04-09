@@ -30,6 +30,7 @@ bun-debug.log
 
 # Claude Code
 .worktrees/
+worktrees/
 autoimpl/
 
 # Coverage / test artifacts

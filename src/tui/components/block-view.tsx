@@ -16,6 +16,7 @@ import type { Block } from "../../protocol/types"
 import type { ViewLevel } from "./tool-view"
 import { BlinkingDot } from "./primitives"
 import { truncatePathMiddle, truncateToWidth } from "../../utils/truncate"
+import { Divider } from "./primitives"
 import { UserBlock } from "./blocks/user-block"
 import { AssistantBlock } from "./blocks/assistant-block"
 import { SystemBlock, type SystemCategory, categorizeSystemMessage } from "./blocks/system-block"
@@ -43,7 +44,13 @@ export function BlockView(props: { block: Block; viewLevel: ViewLevel; prevType?
   return (
     <box flexDirection="column">
       <Show when={userBlock()}>{(ub: Accessor<Extract<Block, { type: "user" }>>) =>
-        <box marginTop={1}>
+        <box flexDirection="column" marginTop={1}>
+          {/* Turn separator — thin line between turns (skip before the first user message) */}
+          <Show when={props.prevType && props.prevType !== "user"}>
+            <box marginBottom={1}>
+              <Divider fg={colors.border.muted} />
+            </box>
+          </Show>
           <UserBlock block={ub()} />
         </box>
       }</Show>

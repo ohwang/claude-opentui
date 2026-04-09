@@ -554,7 +554,7 @@ export function StatusBar(props: { hint?: string | null }) {
       ) : (
         <box height={1} flexDirection="row" paddingLeft={2} paddingRight={1}>
           {/* Left: project name + model (always visible) */}
-          <text fg={colors.status.warning} attributes={TextAttributes.BOLD}>
+          <text fg={colors.text.secondary}>
             {projectName}
           </text>
 

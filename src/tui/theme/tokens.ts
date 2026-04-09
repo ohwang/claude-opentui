@@ -2,55 +2,53 @@
  * Design System -- Semantic Color Tokens
  *
  * Single source of truth for all colors in the TUI.
- * Derived from Claude Code's default dark theme (rgb values).
+ * Derived from the active theme (default: Dark).
  * Import from here instead of hardcoding hex values.
- *
- * Reference: claude-code-archive/src/utils/theme.ts  darkTheme
  *
  * ═══════════════════════════════════════════════════════════════════════
  * TOKEN NAMING — intent over appearance
  * ═══════════════════════════════════════════════════════════════════════
  *
  * Tokens are named after WHAT THEY MEAN, not what they look like.
- * This matches Claude Code's flat semantic vocabulary (text, inactive,
- * subtle, suggestion, permission) and ensures the name stays correct
- * even if the hex value changes for a new theme variant.
+ * This matches Claude Code's flat semantic vocabulary and ensures the
+ * name stays correct even if the hex value changes for a theme variant.
  *
- *   ✓  colors.text.inactive     (describes intent: "de-emphasized")
- *   ✗  colors.text.secondary    (describes position: "second tier")
- *   ✗  colors.accent.periwinkle (describes color: "light blue-purple")
+ *   ✓  colors.text.secondary    (describes intent: "readable metadata")
+ *   ✗  colors.text.gray         (describes appearance)
+ *   ✗  colors.accent.periwinkle (describes color)
  *
  * ═══════════════════════════════════════════════════════════════════════
  * TEXT HIERARCHY — choosing the right gray
  * ═══════════════════════════════════════════════════════════════════════
  *
- *   text.primary   #ffffff   Main content: assistant responses, user input,
- *                            tool names, anything the user *reads*.
+ *   text.primary     #ffffff   Main content: assistant responses, user input,
+ *                              tool names, anything the user *reads*.
  *
- *   text.inactive  #999999   De-emphasized readable text: version strings,
- *                            model info, timestamps, file paths, cost,
- *                            token counts, shortcut hints. Clearly legible
- *                            — just less prominent than primary.
- *                            Archive: "inactive"
+ *   text.secondary   #b0b0b0   Readable metadata: version strings, model info,
+ *                              timestamps, file paths, cost, token counts,
+ *                              tool arguments, conversation tips. Clearly
+ *                              legible — just less prominent than primary.
  *
- *   text.subtle    #505050   NON-TEXT decoration ONLY: <Divider> lines,
- *                            syntax highlight concealment. NEVER use on
- *                            <text>, <markdown>, or any readable element.
- *                            Archive: "subtle"
+ *   text.muted       #777777   Low-priority hints: shortcut labels, connector
+ *                              glyphs, truncation indicators, dim result
+ *                              summaries, ephemeral status text. Visible but
+ *                              not competing for attention.
  *
- *   text.thinking  #808080   Thinking blocks: subdued but readable gray
- *                            for Claude's reasoning text. Lighter than
- *                            subtle, dimmer than inactive.
+ *                              ⚠️  NEVER combine text.muted with DIM.
+ *                              The token is already at the target brightness.
  *
- *   ⚠️  RULE: NEVER use text.subtle on <text> elements.
- *       text.subtle (#505050) is invisible on dark backgrounds — especially
- *       combined with TextAttributes.DIM. Use text.inactive for readable
- *       metadata, text.thinking for thinking blocks, or border.default for
- *       structural glyphs (⎿, │, connectors).
+ *   text.thinking    #808080   Thinking blocks: subdued but readable gray
+ *                              for Claude's reasoning text.
  *
- *       ✗  <text fg={colors.text.subtle}>anything</text>
- *       ✓  <text fg={colors.text.inactive}>metadata</text>
- *       ✓  <text fg={colors.text.thinking}>thinking content</text>
+ *   text.subtle      #505050   NON-TEXT decoration ONLY: <Divider> lines.
+ *                              NEVER use on <text>, <markdown>, or readable
+ *                              elements.
+ *
+ *   ⚠️  DEPRECATED ALIASES:
+ *       text.inactive       → use text.secondary
+ *       text.inactiveShimmer → use text.secondaryShimmer
+ *       These aliases exist for backward compatibility and will be
+ *       removed in a future release.
  *
  * ═══════════════════════════════════════════════════════════════════════
  * BACKGROUND TOKENS — when to use what
@@ -87,15 +85,23 @@
  * These are used for fade-in effects, hover glows, and pulse animations
  * instead of computing lighter values at runtime.
  *
- *   accent.primaryShimmer     lighter claude orange for shimmer effect
- *   accent.suggestionShimmer  lighter suggestion blue for hover/pulse
- *   accent.fastModeShimmer    lighter fast mode orange for shimmer
- *   text.inactiveShimmer      lighter inactive gray for fade-in
- *   status.warningShimmer     lighter warning amber for pulse
- *   status.infoShimmer        lighter info blue for pulse
- *   border.promptShimmer      lighter prompt border for focus effect
+ *   accent.primaryShimmer       lighter claude orange for shimmer effect
+ *   accent.suggestionShimmer    lighter suggestion blue for hover/pulse
+ *   accent.fastModeShimmer      lighter fast mode orange for shimmer
+ *   text.secondaryShimmer       lighter secondary gray for fade-in
+ *   status.warningShimmer       lighter warning amber for pulse
+ *   status.infoShimmer          lighter info blue for pulse
+ *   border.promptShimmer        lighter prompt border for focus effect
  *
  * Pattern: lerp FROM base TO shimmer (or vice versa) in animations.
+ *
+ * ═══════════════════════════════════════════════════════════════════════
+ * THEMING
+ * ═══════════════════════════════════════════════════════════════════════
+ *
+ * Colors are mutable and derived from the active ThemeDefinition.
+ * Use applyTheme() to switch themes at startup. The colors object is
+ * updated in-place so all module-level references stay valid.
  *
  * ═══════════════════════════════════════════════════════════════════════
  * GENERAL RULES
@@ -110,136 +116,73 @@
  *      (agents.red) unless you genuinely need the agent palette.
  *   5. When adding a new color, check if an existing token already
  *      covers the use case before creating a new one.
+ *   6. Never combine text.muted with TextAttributes.DIM — the token
+ *      is already at its intended brightness.
  */
 
-export const colors = {
-  // -- Text ---------------------------------------------------------------
-  // See "TEXT HIERARCHY" above for usage guidance.
-  text: {
-    primary: "#ffffff",      // rgb(255,255,255)  -- archive: text
-    inverse: "#000000",      // rgb(0,0,0)        -- archive: inverseText — text on colored backgrounds
-    inactive: "#999999",     // rgb(153,153,153)  -- archive: inactive — de-emphasized readable text
-    inactiveShimmer: "#c1c1c1", // rgb(193,193,193) -- archive: inactiveShimmer — lighter variant for animations
-    subtle: "#505050",       // rgb(80,80,80)     -- archive: subtle  ⚠️ NEVER use on <text> elements
-    thinking: "#808080",     // rgb(128,128,128)  -- subdued but readable gray for thinking blocks
-    briefLabel: "#7ab4e8",   // rgb(122,180,232)  -- archive: briefLabelYou — "You:" label in brief mode
-    briefLabelClaude: "#d77757", // rgb(215,119,87) -- archive: briefLabelClaude — "Claude:" label
-  },
+import type { ThemeColors, ThemeDefinition } from "./types"
+import { defaultDark } from "./presets/default-dark"
 
-  // -- Backgrounds --------------------------------------------------------
-  // See "BACKGROUND TOKENS" above for usage guidance.
-  bg: {
-    primary: "#000000",      // rgb(0,0,0)        -- archive: clawd_background
-    surface: "#373737",      // rgb(55,55,55)     -- archive: userMessageBackground
-    surfaceHover: "#464646", // rgb(70,70,70)     -- archive: userMessageBackgroundHover
-    overlay: "#2c323e",      // rgb(44,50,62)     -- archive: messageActionsBackground
-    selection: "#264f78",    // rgb(38,79,120)    -- archive: selectionBg
-    bash: "#413c41",         // rgb(65,60,65)     -- archive: bashMessageBackgroundColor
-    memory: "#374146",       // rgb(55,65,70)     -- archive: memoryBackgroundColor
-  },
+// ---------------------------------------------------------------------------
+// Deep-clone helper
+// ---------------------------------------------------------------------------
 
-  // -- Accent -------------------------------------------------------------
-  // Brand and feature-mode colors. primary/logo are the Claude orange;
-  // secondary is electric violet used for autoAccept and merged badges.
-  accent: {
-    primary: "#d77757",      // rgb(215,119,87)   -- archive: claude (brand orange)
-    primaryShimmer: "#eb9f7f", // rgb(235,159,127) -- archive: claudeShimmer — lighter variant for animations
-    logo: "#d77757",         // rgb(215,119,87)   -- archive: claude
-    suggestion: "#b1b9f9",   // rgb(177,185,249)  -- archive: suggestion — selected state, navigation hints
-    suggestionShimmer: "#cfd7ff", // rgb(207,215,255) -- archive: permissionShimmer — lighter for animations
-    permission: "#b1b9f9",   // rgb(177,185,249)  -- archive: permission — same value today, separate intent
-    remember: "#b1b9f9",     // rgb(177,185,249)  -- archive: remember — memory-related UI
-    highlight: "#00cccc",    // rgb(0,204,204)    -- archive: background — bright cyan for special highlights
-    secondary: "#af87ff",    // rgb(175,135,255)  -- archive: autoAccept (electric violet)
-    bash: "#fd5db1",         // rgb(253,93,177)   -- archive: bashBorder (bright pink)
-    planMode: "#48968c",     // rgb(72,150,140)   -- archive: planMode (muted sage)
-    ide: "#4782c8",          // rgb(71,130,200)   -- archive: ide (muted blue)
-    fastMode: "#ff7814",     // rgb(255,120,20)   -- archive: fastMode (electric orange)
-    fastModeShimmer: "#ffa546", // rgb(255,165,70) -- archive: fastModeShimmer — lighter for animations
-  },
+function deepClone(obj: ThemeColors): ThemeColors {
+  const result = {} as Record<string, Record<string, string>>
+  for (const [cat, tokens] of Object.entries(obj)) {
+    result[cat] = { ...tokens as Record<string, string> }
+  }
+  return result as unknown as ThemeColors
+}
 
-  // -- Status -------------------------------------------------------------
-  // Semantic status colors. Use for toasts, badges, inline indicators.
-  // See "STATUS vs STATE" above.
-  status: {
-    success: "#4eba65",      // rgb(78,186,101)   -- archive: success
-    warning: "#ffc107",      // rgb(255,193,7)    -- archive: warning
-    warningShimmer: "#ffdf39", // rgb(255,223,57) -- archive: warningShimmer — lighter for animations
-    error: "#ff6b80",        // rgb(255,107,128)  -- archive: error
-    info: "#93a5ff",         // rgb(147,165,255)  -- archive: claudeBlue
-    infoShimmer: "#b1c3ff",  // rgb(177,195,255)  -- archive: claudeBlueShimmer — lighter for animations
-    merged: "#af87ff",       // rgb(175,135,255)  -- archive: merged (electric violet)
-  },
+// ---------------------------------------------------------------------------
+// Active theme state
+// ---------------------------------------------------------------------------
 
-  // -- Borders ------------------------------------------------------------
-  // default/subtle are for structural lines; named borders are for specific
-  // UI areas (permission dialog, input prompt, bash output).
-  border: {
-    default: "#505050",      // rgb(80,80,80)     -- archive: subtle
-    muted: "#373737",        // rgb(55,55,55)     -- subtle dividers
-    error: "#ff6b80",        // rgb(255,107,128)  -- archive: error
-    permission: "#b1b9f9",   // rgb(177,185,249)  -- archive: permission — dialog borders
-    elicitation: "#00cccc",  // rgb(0,204,204)    -- archive: background (bright cyan)
-    prompt: "#888888",       // rgb(136,136,136)  -- archive: promptBorder
-    promptShimmer: "#a6a6a6", // rgb(166,166,166)  -- archive: promptBorderShimmer — lighter for animations
-    bash: "#fd5db1",         // rgb(253,93,177)   -- archive: bashBorder
-  },
+let currentThemeId = defaultDark.id
 
-  // -- State indicators ---------------------------------------------------
-  // Agent lifecycle colors for the status bar dot / label.
-  // See "STATUS vs STATE" above.
-  state: {
-    idle: "#4eba65",         // rgb(78,186,101)   -- archive: success
-    running: "#93a5ff",      // rgb(147,165,255)  -- archive: claudeBlue
-    waiting: "#ffc107",      // rgb(255,193,7)    -- archive: warning
-    error: "#ff6b80",        // rgb(255,107,128)  -- archive: error
-    shuttingDown: "#999999", // rgb(153,153,153)  -- archive: inactive
-  },
+/**
+ * The active color tokens. Mutable — updated in-place by applyTheme().
+ *
+ * Components import this directly:
+ *   import { colors } from "../theme/tokens"
+ *   <text fg={colors.text.primary}>
+ */
+export const colors: ThemeColors = deepClone(defaultDark.colors)
 
-  // -- Permission dialog --------------------------------------------------
-  // Button/label colors inside the permission approval dialog.
-  permission: {
-    allow: "#4eba65",        // rgb(78,186,101)   -- archive: success
-    alwaysAllow: "#b1b9f9",  // rgb(177,185,249)  -- archive: permission
-    deny: "#ffc107",         // rgb(255,193,7)    -- archive: warning
-    denySession: "#ff6b80",  // rgb(255,107,128)  -- archive: error
-    modeLabel: "#af87ff",    // rgb(175,135,255)  -- archive: autoAccept
-  },
+// ---------------------------------------------------------------------------
+// Theme switching
+// ---------------------------------------------------------------------------
 
-  // -- Diff ---------------------------------------------------------------
-  // Word-level foreground colors (added/removed) and line-level background
-  // tints (addedBg/removedBg). Dimmed variants for context lines.
-  diff: {
-    added: "#38a660",        // rgb(56,166,96)    -- archive: diffAddedWord
-    removed: "#b3596b",      // rgb(179,89,107)   -- archive: diffRemovedWord
-    addedBg: "#225c2b",      // rgb(34,92,43)     -- archive: diffAdded
-    removedBg: "#7a2936",    // rgb(122,41,54)    -- archive: diffRemoved
-    addedDimmed: "#47584a",  // rgb(71,88,74)     -- archive: diffAddedDimmed
-    removedDimmed: "#69484d",// rgb(105,72,77)    -- archive: diffRemovedDimmed
-  },
+/**
+ * Apply a theme by mutating the colors object in-place.
+ * All module-level references to `colors` will see the new values.
+ *
+ * Call this BEFORE render() at startup, or trigger a full re-render
+ * after calling it at runtime.
+ */
+export function applyTheme(theme: ThemeDefinition): void {
+  currentThemeId = theme.id
+  for (const [cat, tokens] of Object.entries(theme.colors)) {
+    const target = (colors as unknown as Record<string, Record<string, string>>)[cat]
+    if (target) {
+      Object.assign(target, tokens as Record<string, string>)
+    }
+  }
+  // Rebuild syntax highlighting with new colors
+  rebuildSyntax()
+}
 
-  // -- Rate limit ---------------------------------------------------------
-  // Progress bar for context window / rate limit usage.
-  rateLimit: {
-    fill: "#b1b9f9",         // rgb(177,185,249)  -- archive: rate_limit_fill
-    empty: "#505370",        // rgb(80,83,112)    -- archive: rate_limit_empty
-  },
+/** Get the ID of the currently active theme. */
+export function getCurrentThemeId(): string {
+  return currentThemeId
+}
 
-  // -- Subagent palette ---------------------------------------------------
-  // Distinct hues for differentiating parallel subagents. Tailwind 600.
-  // Use ONLY for subagent identification; prefer status.* or accent.*
-  // for semantic meaning.
-  agents: {
-    red: "#dc2626",          // rgb(220,38,38)    -- Red 600
-    blue: "#2563eb",         // rgb(37,99,235)    -- Blue 600
-    green: "#16a34a",        // rgb(22,163,74)    -- Green 600
-    yellow: "#ca8a04",       // rgb(202,138,4)    -- Yellow 600
-    purple: "#9333ea",       // rgb(147,51,234)   -- Purple 600
-    orange: "#ea580c",       // rgb(234,88,12)    -- Orange 600
-    pink: "#db2777",         // rgb(219,39,119)   -- Pink 600
-    cyan: "#0891b2",         // rgb(8,145,178)    -- Cyan 600
-  },
-} as const
+// Lazy import to avoid circular dependency (syntax.ts imports from tokens.ts)
+let rebuildSyntax = () => {}
+export function _registerSyntaxRebuilder(fn: () => void): void {
+  rebuildSyntax = fn
+}
 
 // Convenience alias
 export type HexColor = string

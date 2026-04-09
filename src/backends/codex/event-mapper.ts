@@ -89,11 +89,17 @@ export function mapCodexNotification(
       const tokenUsage = params?.tokenUsage
       const usage = tokenUsage?.last ?? tokenUsage?.total
       if (usage) {
+        // For OpenAI models, inputTokens already INCLUDES cachedInputTokens
+        // (it's a subset, not disjoint like Anthropic's cache categories).
+        // Use the "last" API call's inputTokens as contextTokens for accurate
+        // context window fill — "total" is cumulative across all API calls.
+        const lastUsage = tokenUsage?.last
         events.push({
           type: "cost_update",
           inputTokens: usage.inputTokens ?? 0,
           outputTokens: usage.outputTokens ?? 0,
           cacheReadTokens: usage.cachedInputTokens ?? 0,
+          contextTokens: lastUsage?.inputTokens ?? undefined,
         })
       }
       break

@@ -31,3 +31,11 @@ export function friendlyModelName(name: string): string {
   if (MODEL_NAMES[name]) return MODEL_NAMES[name]
   return name.replace(/^[Cc]laude\s+/, "")
 }
+
+/** Convert backend capability name to a user-facing brand name */
+export function friendlyBackendName(backendName: string): string {
+  if (backendName.startsWith("claude")) return "Claude"
+  if (backendName === "gemini") return "Gemini"
+  if (backendName === "codex" || backendName === "codex-sdk") return "Codex"
+  return "the assistant"
+}

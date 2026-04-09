@@ -33,7 +33,7 @@ import { StatusBar } from "./components/status-bar"
 import { PermissionDialog } from "./components/permission-dialog"
 import { ElicitationDialog } from "./components/elicitation"
 import { DiagnosticsPanel, scrollDiagnostics, scrollDiagnosticsToTop, scrollDiagnosticsToBottom, switchDiagnosticsTab } from "./components/diagnostics"
-import { MODEL_NAMES, friendlyModelName } from "./models"
+import { MODEL_NAMES, friendlyModelName, friendlyBackendName } from "./models"
 
 // Module-level exit function so slash commands can trigger clean shutdown
 let _cleanExit: (() => void) | undefined
@@ -227,7 +227,7 @@ function Layout(props: { onExit?: () => void }) {
         // Only send desktop notification if the terminal is not focused
         // (i.e., user has tabbed away). We always send it since the terminal
         // emulator decides whether to show it based on focus state.
-        sendTerminalNotification("Claude", "Task completed")
+        sendTerminalNotification(friendlyBackendName(agent.backend.capabilities().name), "Task completed")
       }
 
       // -> ERROR: show error progress
@@ -475,7 +475,8 @@ function Layout(props: { onExit?: () => void }) {
           showTransientHint("Interrupt pending... Press Ctrl+D\u00D72 to force exit", 3000)
         } else {
           sync.pushEvent({ type: "interrupt" })
-          sync.pushEvent({ type: "system_message", text: "Interrupted \u00B7 What should Claude do instead?", ephemeral: true })
+          const interruptName = friendlyBackendName(agent.backend.capabilities().name)
+          sync.pushEvent({ type: "system_message", text: `Interrupted \u00B7 What should ${interruptName} do instead?`, ephemeral: true })
           try {
             agent.backend.interrupt()
           } catch (e) {

@@ -27,6 +27,7 @@ import { searchFiles, findLongestCommonPrefix } from "./file-autocomplete"
 import { triggerCleanExit, toggleDiagnostics } from "../app"
 import { registerOverlay, unregisterOverlay } from "../context/modal"
 import { colors } from "../theme/tokens"
+import { friendlyBackendName } from "../models"
 import { log } from "../../utils/logger"
 import { readClipboard, readClipboardImage, isImageFilePath, readImageFile } from "../../utils/clipboard"
 import { toast } from "../context/toast"
@@ -314,7 +315,7 @@ export function InputArea() {
 
     const blocks = messagesState.blocks
     if (blocks.length === 0) {
-      return "Ask Claude anything, or use / for commands"
+      return `Ask ${friendlyBackendName(agent.backend.capabilities().name)} anything, or use / for commands`
     }
     return ""
   }

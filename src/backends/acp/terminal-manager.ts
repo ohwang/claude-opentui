@@ -16,6 +16,7 @@ interface ManagedTerminal {
   exitCode: number | null
   exitPromise: Promise<number>
   killed: boolean
+  timeoutTimer?: ReturnType<typeof setTimeout>
 }
 
 export class AcpTerminalManager {
@@ -66,7 +67,7 @@ export class AcpTerminalManager {
 
     // Optional timeout
     if (timeout && timeout > 0) {
-      setTimeout(() => {
+      terminal.timeoutTimer = setTimeout(() => {
         if (terminal.exitCode === null) {
           log.warn("Terminal process timed out", { terminalId, timeout })
           this.kill(terminalId)
@@ -124,6 +125,9 @@ export class AcpTerminalManager {
   release(terminalId: string): void {
     const terminal = this.terminals.get(terminalId)
     if (!terminal) return
+
+    // Clear timers
+    if (terminal.timeoutTimer) clearTimeout(terminal.timeoutTimer)
 
     // Kill if still running
     if (terminal.exitCode === null) {

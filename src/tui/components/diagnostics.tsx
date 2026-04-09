@@ -544,7 +544,9 @@ export function DiagnosticsPanel(props: { visible: boolean; onClose: () => void 
                     </box>
                   </Show>
 
-                  {/* OUTPUT section */}
+                  {/* OUTPUT section — raw output contains ANSI escape sequences
+                       that can't be rendered as plain text, so we just show
+                       the byte length as a sanity check. */}
                   <box marginTop={1}>
                     <text fg={colors.accent.primary} attributes={TextAttributes.BOLD}>
                       {"OUTPUT"}
@@ -554,7 +556,9 @@ export function DiagnosticsPanel(props: { visible: boolean; onClose: () => void 
                   <Show when={diag.lastOutput} fallback={
                     <text fg={colors.text.inactive}>{"(no output yet)"}</text>
                   }>
-                    <text fg={colors.text.primary}>{diag.lastOutput!}</text>
+                    <text fg={colors.text.inactive}>
+                      {`(${diag.lastOutput!.length} bytes, contains ANSI escape sequences — rendered in status bar)`}
+                    </text>
                   </Show>
 
                   {/* PAYLOAD section — the JSON sent to the command */}

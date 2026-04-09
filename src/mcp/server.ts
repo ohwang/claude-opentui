@@ -33,6 +33,8 @@ let _mcpServer: McpServer | null = null
 
 let _sdkConfig: McpSdkServerConfigWithInstance | null = null
 
+const READONLY_ANNOTATIONS = { readOnlyHint: true, destructiveHint: false, idempotentHint: true } as const
+
 export function getDiagnosticsSdkMcpConfig(): McpSdkServerConfigWithInstance | null {
   if (_sdkConfig) return _sdkConfig
 
@@ -40,17 +42,17 @@ export function getDiagnosticsSdkMcpConfig(): McpSdkServerConfigWithInstance | n
     name: "opentui-diagnostics",
     version: "0.0.1",
     tools: [
-      tool("get_state", "Get current session state: lifecycle stage, model, cost/tokens, rate limits, turn number, error state", {}, async () => getState()),
-      tool("get_conversation", "Get conversation blocks: messages, tool uses, thinking blocks, errors", {
+      tool("get_state", "Read your own session state — lifecycle stage, model, token/cost usage, rate limits, and errors. Use this to understand where you are in a conversation.", {}, async () => getState(), { annotations: READONLY_ANNOTATIONS }),
+      tool("get_conversation", "Read your own conversation history as the user sees it — messages, tool uses, thinking blocks, and errors. Use this to review what has happened so far.", {
         last_n: z.number().optional().describe("Return only the last N blocks"),
         type_filter: z.string().optional().describe("Filter by block type: user, assistant, tool, thinking, system, compact, shell, error"),
-      }, async (args) => getConversation(args)),
-      tool("get_logs", "Get recent log entries from the session logger", {
+      }, async (args) => getConversation(args), { annotations: READONLY_ANNOTATIONS }),
+      tool("get_logs", "Read your own internal log entries from this session. Useful for debugging issues or understanding what happened behind the scenes.", {
         level: z.enum(["debug", "info", "warn", "error"]).optional().describe("Minimum log level to include"),
         last_n: z.number().optional().describe("Return only the last N lines (default: 50)"),
-      }, async (args) => getLogs(args)),
-      tool("get_screenshot", "Capture the current terminal screen as plain text", {}, async () => getScreenshot()),
-      tool("get_diagnostics", "Get full diagnostics: system/memory, git, backend capabilities, context window, conversation stats", {}, async () => getDiagnostics()),
+      }, async (args) => getLogs(args), { annotations: READONLY_ANNOTATIONS }),
+      tool("get_screenshot", "See what the user sees right now — captures your own terminal UI as plain text. Useful for understanding the current visual state.", {}, async () => getScreenshot(), { annotations: READONLY_ANNOTATIONS }),
+      tool("get_diagnostics", "Read your own system diagnostics — memory, git state, backend capabilities, context window utilization, and conversation statistics.", {}, async () => getDiagnostics(), { annotations: READONLY_ANNOTATIONS }),
     ],
   })
 
@@ -63,11 +65,13 @@ export function getDiagnosticsSdkMcpConfig(): McpSdkServerConfigWithInstance | n
 
 function registerHttpTools(server: McpServer): void {
   server.registerTool("get_state", {
-    description: "Get current session state: lifecycle stage, model, cost/tokens, rate limits, turn number, error state",
+    description: "Read your own session state — lifecycle stage, model, token/cost usage, rate limits, and errors. Use this to understand where you are in a conversation.",
+    annotations: READONLY_ANNOTATIONS,
   }, async () => getState())
 
   server.registerTool("get_conversation", {
-    description: "Get conversation blocks: messages, tool uses, thinking blocks, errors",
+    description: "Read your own conversation history as the user sees it — messages, tool uses, thinking blocks, and errors. Use this to review what has happened so far.",
+    annotations: READONLY_ANNOTATIONS,
     inputSchema: {
       last_n: z.number().optional().describe("Return only the last N blocks"),
       type_filter: z.string().optional().describe("Filter by block type: user, assistant, tool, thinking, system, compact, shell, error"),
@@ -75,7 +79,8 @@ function registerHttpTools(server: McpServer): void {
   }, async (args) => getConversation(args))
 
   server.registerTool("get_logs", {
-    description: "Get recent log entries from the session logger",
+    description: "Read your own internal log entries from this session. Useful for debugging issues or understanding what happened behind the scenes.",
+    annotations: READONLY_ANNOTATIONS,
     inputSchema: {
       level: z.enum(["debug", "info", "warn", "error"]).optional().describe("Minimum log level to include"),
       last_n: z.number().optional().describe("Return only the last N lines (default: 50)"),
@@ -83,11 +88,13 @@ function registerHttpTools(server: McpServer): void {
   }, async (args) => getLogs(args))
 
   server.registerTool("get_screenshot", {
-    description: "Capture the current terminal screen as plain text",
+    description: "See what the user sees right now — captures your own terminal UI as plain text. Useful for understanding the current visual state.",
+    annotations: READONLY_ANNOTATIONS,
   }, async () => getScreenshot())
 
   server.registerTool("get_diagnostics", {
-    description: "Get full diagnostics: system/memory, git, backend capabilities, context window, conversation stats",
+    description: "Read your own system diagnostics — memory, git state, backend capabilities, context window utilization, and conversation statistics.",
+    annotations: READONLY_ANNOTATIONS,
   }, async () => getDiagnostics())
 }
 

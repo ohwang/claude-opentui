@@ -97,9 +97,11 @@ export interface AcpModelState {
 }
 
 export interface AcpModel {
-  modelId: string
-  name: string
+  modelId?: string    // Gemini-style ID
+  value?: string      // ACP spec ID
+  name?: string       // Display name (may be absent)
   description?: string
+  _meta?: Record<string, unknown>  // Copilot adds _meta with copilotUsage etc.
 }
 
 // ---------------------------------------------------------------------------

@@ -458,12 +458,71 @@ export class AcpAdapter extends BaseAdapter {
     log.debug("Effort control not supported by this ACP agent", { level })
   }
 
+  /** Extract a normalized model ID from an AcpModel, preferring modelId > value > name */
+  private normalizeModelId(m: AcpModel): string {
+    return m.modelId ?? m.value ?? m.name ?? ""
+  }
+
+  /** Extract a display name from an AcpModel */
+  private normalizeModelName(m: AcpModel): string {
+    return m.name ?? m.modelId ?? m.value ?? ""
+  }
+
+  /** Normalize a list of AcpModel into ModelInfo[], skipping entries with no ID */
+  private normalizeModelList(models: AcpModel[]): ModelInfo[] {
+    const result: ModelInfo[] = []
+    for (const m of models) {
+      const id = this.normalizeModelId(m)
+      if (!id) continue
+      result.push({
+        id,
+        name: this.normalizeModelName(m) || id,
+        provider: this.presetName,
+      })
+    }
+    return result
+  }
+
+  /** Get the ID of the first model in a list, or null */
+  private firstModelId(models: AcpModel[]): string | null {
+    const id = models[0] ? this.normalizeModelId(models[0]) : ""
+    return id || null
+  }
+
   async availableModels(): Promise<ModelInfo[]> {
-    return this.discoveredModels.map(m => ({
-      id: m.modelId,
-      name: m.name,
-      provider: this.presetName,
-    }))
+    // Merge models from two sources:
+    // 1. models.availableModels from session/new
+    // 2. config option with category="model" (Copilot pattern)
+    const modelSet = new Map<string, ModelInfo>()
+
+    // Source 1: Direct model list
+    for (const m of this.discoveredModels) {
+      const id = m.modelId ?? m.value ?? m.name ?? ""
+      if (!id) continue
+      modelSet.set(id, {
+        id,
+        name: m.name ?? m.modelId ?? m.value ?? id,
+        provider: this.presetName,
+      })
+    }
+
+    // Source 2: Config option models (Copilot pattern)
+    const modelOption = this.discoveredConfigOptions.find(
+      o => o.category === "model" || o.id === "model",
+    )
+    if (modelOption?.options) {
+      for (const choice of modelOption.options) {
+        const id = choice.id ?? choice.value ?? choice.name
+        if (!id || modelSet.has(id)) continue
+        modelSet.set(id, {
+          id,
+          name: choice.name ?? id,
+          provider: this.presetName,
+        })
+      }
+    }
+
+    return Array.from(modelSet.values())
   }
 
   async listSessions(): Promise<SessionInfo[]> {
@@ -487,7 +546,8 @@ export class AcpAdapter extends BaseAdapter {
       this.sessionId = result.sessionId
       if (result.models) {
         this.discoveredModels = result.models.availableModels
-        this.currentModel = result.models.currentModelId
+        this.currentModel = result.models.currentModelId ??
+          this.firstModelId(this.discoveredModels)
       }
       if (result.modes) {
         this.discoveredModes = result.modes.availableModes
@@ -500,11 +560,7 @@ export class AcpAdapter extends BaseAdapter {
         type: "session_init",
         sessionId: this.sessionId,
         tools: [],
-        models: this.discoveredModels.map(m => ({
-          id: m.modelId,
-          name: m.name,
-          provider: this.presetName,
-        })),
+        models: this.normalizeModelList(this.discoveredModels),
       })
 
       this.emitConfigOptions()
@@ -625,7 +681,8 @@ export class AcpAdapter extends BaseAdapter {
       this.sessionId = sessionResult.sessionId
       if (sessionResult.models) {
         this.discoveredModels = sessionResult.models.availableModels
-        this.currentModel = sessionResult.models.currentModelId
+        this.currentModel = sessionResult.models.currentModelId ??
+          this.firstModelId(this.discoveredModels)
       }
       if (sessionResult.modes) {
         this.discoveredModes = sessionResult.modes.availableModes
@@ -646,11 +703,7 @@ export class AcpAdapter extends BaseAdapter {
         type: "session_init",
         sessionId: this.sessionId,
         tools: [],
-        models: this.discoveredModels.map(m => ({
-          id: m.modelId,
-          name: m.name,
-          provider: this.presetName,
-        })),
+        models: this.normalizeModelList(this.discoveredModels),
       })
 
       // 5b. Emit config options if the agent exposed any

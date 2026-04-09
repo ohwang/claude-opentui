@@ -36,6 +36,12 @@ export interface CLIFlags {
 
   /** Theme preset ID */
   theme?: string
+
+  /** ACP command (for --backend acp) */
+  acpCommand?: string
+
+  /** ACP args (for --backend acp) */
+  acpArgs?: string[]
 }
 
 /**
@@ -197,6 +203,16 @@ export function parseFlags(argv: string[]): CLIFlags {
         flags.noDiagnosticsMcp = true
         break
 
+      // ACP options
+      case "--acp-command":
+        flags.acpCommand = requireArg("--acp-command", args, ++i)
+        break
+
+      case "--acp-args":
+        if (!flags.acpArgs) flags.acpArgs = []
+        flags.acpArgs.push(requireArg("--acp-args", args, ++i))
+        break
+
       case "--theme":
         flags.theme = requireArg("--theme", args, ++i)
         break
@@ -233,7 +249,7 @@ Options:
   -p, --prompt <text>     Initial prompt
   -c, --continue          Continue most recent session
   -r, --resume <id>       Resume a specific session
-  -b, --backend <name>    Backend (claude, codex, gemini, mock)
+  -b, --backend <name>    Backend (claude, codex, gemini, gemini-acp, copilot-acp, acp, mock)
   --permission-mode <m>   Permission mode (default, acceptEdits, bypassPermissions, plan, dontAsk)
   --dangerously-skip-permissions  Shorthand for --permission-mode bypassPermissions
   --max-turns <n>         Maximum turns
@@ -247,6 +263,8 @@ Options:
   --theme <id>            Theme preset (dark, high-contrast, catppuccin, dracula, solarized)
   --debug                 Enable debug output
   --debug-backend         Write raw backend JSONL trace
+  --acp-command <cmd>     ACP agent command (for --backend acp)
+  --acp-args <args>       ACP agent args (repeatable, for --backend acp)
   --no-diagnostics-mcp    Disable the MCP diagnostics server
 `)
 }

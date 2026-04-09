@@ -15,6 +15,8 @@ import { parseFlags, printHelp } from "./cli/flags"
 import { ClaudeAdapter } from "./backends/claude/adapter"
 import { CodexAdapter } from "./backends/codex/adapter"
 import { GeminiAdapter } from "./backends/gemini/adapter"
+import { AcpAdapter } from "./backends/acp/adapter"
+import { ACP_PRESETS } from "./backends/acp/types"
 import { MockAdapter } from "./backends/mock/adapter"
 import { startApp } from "./tui/app"
 import { log } from "./utils/logger"
@@ -72,6 +74,25 @@ async function main() {
     case "gemini":
       backend = new GeminiAdapter()
       break
+    case "gemini-acp":
+    case "copilot-acp": {
+      const preset = ACP_PRESETS[flags.backend]!
+      backend = new AcpAdapter({ ...preset, presetName: flags.backend })
+      break
+    }
+    case "acp": {
+      if (!flags.acpCommand) {
+        console.error("Error: --backend acp requires --acp-command <cmd>")
+        process.exit(1)
+      }
+      backend = new AcpAdapter({
+        command: flags.acpCommand,
+        args: flags.acpArgs ?? [],
+        displayName: `ACP (${flags.acpCommand})`,
+        presetName: "acp",
+      })
+      break
+    }
     case "mock":
       backend = new MockAdapter()
       break

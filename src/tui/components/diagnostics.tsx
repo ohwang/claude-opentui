@@ -1,12 +1,13 @@
 /**
  * Diagnostics Panel — Ctrl+Shift+D toggle overlay
  *
- * Two-tab diagnostics view:
- *   [1] Info  — system, session, tokens, context, git, backend, config
- *   [2] Logs  — real-time streaming log viewer (current session)
+ * Three-tab diagnostics view:
+ *   [1] Info        — system, session, models, tokens, context, git, backend, config
+ *   [2] Logs        — real-time streaming log viewer (current session)
+ *   [3] Status Line — status line config, payload JSON, command output
  *
  * Toggled via Ctrl+Shift+D. Pressing again or Esc/q closes it.
- * Switch tabs with 1/2 or Tab.
+ * Switch tabs with 1/2/3 or Tab.
  */
 
 import { createSignal, createMemo, Show, For, Index, onCleanup } from "solid-js"
@@ -17,7 +18,8 @@ import { useAgent } from "../context/agent"
 import { useMessages } from "../context/messages"
 import { colors } from "../theme/tokens"
 import { log } from "../../utils/logger"
-import { friendlyModelName, MODEL_CONTEXT_WINDOWS, DEFAULT_CONTEXT_WINDOW } from "../models"
+import { friendlyModelName, MODEL_NAMES, MODEL_CONTEXT_WINDOWS, DEFAULT_CONTEXT_WINDOW } from "../models"
+import { getStatusLineDiagnostics } from "../../utils/statusline"
 
 // ---------------------------------------------------------------------------
 // Module-level callbacks — called from app.tsx keyboard handler
@@ -117,8 +119,8 @@ function getGitDirtyCount(): number {
 // Diagnostics Panel Component
 // ---------------------------------------------------------------------------
 
-const TAB_COUNT = 2
-const TAB_NAMES = ["Info", "Logs"] as const
+const TAB_COUNT = 3
+const TAB_NAMES = ["Info", "Logs", "Status Line"] as const
 
 export function DiagnosticsPanel(props: { visible: boolean; onClose: () => void }) {
   const { state: session } = useSession()
@@ -166,31 +168,23 @@ export function DiagnosticsPanel(props: { visible: boolean; onClose: () => void 
   // Scroll refs — one per tab, only the active one is connected
   let infoScrollRef: ScrollBoxRenderable | undefined
   let logsScrollRef: ScrollBoxRenderable | undefined
+  let statusLineScrollRef: ScrollBoxRenderable | undefined
+
+  // Helper to get the scroll ref for the active tab
+  const activeScrollRef = () => {
+    switch (activeTab()) {
+      case 0: return infoScrollRef
+      case 1: return logsScrollRef
+      case 2: return statusLineScrollRef
+      default: return undefined
+    }
+  }
 
   // Update the module-level scroll callbacks to route to the active tab
   const updateScrollRef = () => {
-    _scrollDiagnostics = (n: number) => {
-      if (activeTab() === 0) {
-        infoScrollRef?.scrollBy(n)
-      } else {
-        logsScrollRef?.scrollBy(n)
-      }
-    }
-    _scrollDiagnosticsToTop = () => {
-      if (activeTab() === 0) {
-        infoScrollRef?.scrollTo(0)
-      } else {
-        logsScrollRef?.scrollTo(0)
-      }
-    }
-    _scrollDiagnosticsToBottom = () => {
-      // scrollTo a very large value — the scrollbox clamps to max
-      if (activeTab() === 0) {
-        infoScrollRef?.scrollTo(999_999)
-      } else {
-        logsScrollRef?.scrollTo(999_999)
-      }
-    }
+    _scrollDiagnostics = (n: number) => { activeScrollRef()?.scrollBy(n) }
+    _scrollDiagnosticsToTop = () => { activeScrollRef()?.scrollTo(0) }
+    _scrollDiagnosticsToBottom = () => { activeScrollRef()?.scrollTo(999_999) }
   }
 
   // Clean up module-level refs when component unmounts
@@ -246,6 +240,39 @@ export function DiagnosticsPanel(props: { visible: boolean; onClose: () => void 
         { key: "Model ID:", value: rawModel || "(none)" },
       ],
     })
+
+    // -- AVAILABLE MODELS --
+    const activeModel = rawModel
+    const modelEntries: DiagEntry[] = []
+    // Session models from backend (if available)
+    const sessionModels = session.session?.models
+    if (sessionModels && sessionModels.length > 0) {
+      for (const m of sessionModels) {
+        const display = friendlyModelName(m.name)
+        const ctxStr = m.contextWindow
+          ? ` (${formatTokenCount(m.contextWindow)} ctx)`
+          : ""
+        const isActive = m.name === activeModel
+        modelEntries.push({
+          key: isActive ? "  ▸" : "   ",
+          value: `${display}${ctxStr}  ${m.name}`,
+          color: isActive ? colors.accent.primary : undefined,
+        })
+      }
+    } else {
+      // Fall back to static model registry
+      for (const [id, display] of Object.entries(MODEL_NAMES)) {
+        const ctxWindow = MODEL_CONTEXT_WINDOWS[id]
+        const ctxStr = ctxWindow ? ` (${formatTokenCount(ctxWindow)} ctx)` : ""
+        const isActive = id === activeModel
+        modelEntries.push({
+          key: isActive ? "  ▸" : "   ",
+          value: `${display}${ctxStr}  ${id}`,
+          color: isActive ? colors.accent.primary : undefined,
+        })
+      }
+    }
+    result.push({ title: "AVAILABLE MODELS", entries: modelEntries })
 
     // -- TOKENS & COST --
     const cost = session.cost
@@ -451,13 +478,114 @@ export function DiagnosticsPanel(props: { visible: boolean; onClose: () => void 
           </scrollbox>
         </Show>
 
+        {/* Tab: Status Line */}
+        <Show when={activeTab() === 2}>
+          <scrollbox
+            ref={(el: ScrollBoxRenderable) => { statusLineScrollRef = el; updateScrollRef() }}
+            flexGrow={1}
+            stickyScroll={false}
+            backgroundColor={colors.bg.overlay}
+          >
+            {(() => {
+              // Re-read on each tick so it refreshes
+              tick()
+              const diag = getStatusLineDiagnostics()
+              const cfg = diag.config
+
+              return (
+                <box flexDirection="column">
+                  {/* CONFIG section */}
+                  <box marginTop={1}>
+                    <text fg={colors.accent.primary} attributes={TextAttributes.BOLD}>
+                      {"CONFIG"}
+                    </text>
+                  </box>
+                  <box height={1} />
+                  <Show when={cfg} fallback={
+                    <text fg={colors.text.inactive}>{"(no status line configured in ~/.claude/settings.json)"}</text>
+                  }>
+                    <box flexDirection="column">
+                      <box flexDirection="row">
+                        <text fg={colors.text.inactive}>{padRight("Command:", 22)}</text>
+                        <text fg={colors.text.primary}>{" " + cfg!.command}</text>
+                      </box>
+                      <Show when={cfg!.padding !== undefined}>
+                        <box flexDirection="row">
+                          <text fg={colors.text.inactive}>{padRight("Padding:", 22)}</text>
+                          <text fg={colors.text.primary}>{" " + String(cfg!.padding)}</text>
+                        </box>
+                      </Show>
+                    </box>
+                  </Show>
+
+                  {/* EXECUTION section */}
+                  <box marginTop={1}>
+                    <text fg={colors.accent.primary} attributes={TextAttributes.BOLD}>
+                      {"EXECUTION"}
+                    </text>
+                  </box>
+                  <box height={1} />
+                  <box flexDirection="row">
+                    <text fg={colors.text.inactive}>{padRight("Last update:", 22)}</text>
+                    <text fg={colors.text.primary}>
+                      {" " + (diag.lastUpdateTime ? new Date(diag.lastUpdateTime).toISOString().slice(11, 23) : "(never)")}
+                    </text>
+                  </box>
+                  <box flexDirection="row">
+                    <text fg={colors.text.inactive}>{padRight("Duration:", 22)}</text>
+                    <text fg={colors.text.primary}>
+                      {" " + (diag.lastDurationMs !== null ? `${diag.lastDurationMs}ms` : "—")}
+                    </text>
+                  </box>
+                  <Show when={diag.lastError}>
+                    <box flexDirection="row">
+                      <text fg={colors.text.inactive}>{padRight("Error:", 22)}</text>
+                      <text fg={colors.status.error}>{" " + diag.lastError}</text>
+                    </box>
+                  </Show>
+
+                  {/* OUTPUT section */}
+                  <box marginTop={1}>
+                    <text fg={colors.accent.primary} attributes={TextAttributes.BOLD}>
+                      {"OUTPUT"}
+                    </text>
+                  </box>
+                  <box height={1} />
+                  <Show when={diag.lastOutput} fallback={
+                    <text fg={colors.text.inactive}>{"(no output yet)"}</text>
+                  }>
+                    <text fg={colors.text.primary}>{diag.lastOutput!}</text>
+                  </Show>
+
+                  {/* PAYLOAD section — the JSON sent to the command */}
+                  <box marginTop={1}>
+                    <text fg={colors.accent.primary} attributes={TextAttributes.BOLD}>
+                      {"PAYLOAD (JSON sent to stdin)"}
+                    </text>
+                  </box>
+                  <box height={1} />
+                  <Show when={diag.lastInputJson} fallback={
+                    <text fg={colors.text.inactive}>{"(no payload sent yet)"}</text>
+                  }>
+                    <Index each={diag.lastInputJson!.split("\n")}>
+                      {(line) => (
+                        <text fg={colors.text.thinking}>{line()}</text>
+                      )}
+                    </Index>
+                  </Show>
+                </box>
+              )
+            })()}
+          </scrollbox>
+        </Show>
+
         {/* Footer — keyboard hints */}
         <box height={1} flexShrink={0}>
           <text fg={colors.border.default}>{"─".repeat(separatorWidth())}</text>
         </box>
         <box flexShrink={0}>
           <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>
-            {"j/k scroll, d/u page, gg/G top/bottom, 1/2 or Tab switch tab, Esc to close"}
+            {"j/k scroll, d/u page, gg/G top/bottom, 1/2/3 or Tab switch tab, Esc to close"}
           </text>
         </box>
       </box>

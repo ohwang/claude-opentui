@@ -311,9 +311,10 @@ function Layout(props: { onExit?: () => void }) {
         setShowDiagnostics(false)
         return
       }
-      // Tab switching: 1/2 for direct, Tab to cycle
+      // Tab switching: 1/2/3 for direct, Tab to cycle
       if (event.name === "1") { event.preventDefault(); switchDiagnosticsTab(0); return }
       if (event.name === "2") { event.preventDefault(); switchDiagnosticsTab(1); return }
+      if (event.name === "3") { event.preventDefault(); switchDiagnosticsTab(2); return }
       if (event.name === "tab") { event.preventDefault(); switchDiagnosticsTab(); return }
       // Vim-style scrolling: j/k for line, d/u for half-page, gg/G top/bottom
       if (event.name === "j") { event.preventDefault(); scrollDiagnostics(1); return }

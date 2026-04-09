@@ -246,6 +246,36 @@ export function buildStatusLineInput(
 // Command executor — runs the configured shell command with JSON on stdin
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Diagnostic state — last payload + output for the diagnostics panel
+// ---------------------------------------------------------------------------
+
+export interface StatusLineDiagnostics {
+  config: StatusLineConfig | null
+  lastInput: StatusLineInput | null
+  lastInputJson: string | null
+  lastOutput: string | null
+  lastError: string | null
+  lastUpdateTime: number | null
+  lastDurationMs: number | null
+}
+
+const diagState: StatusLineDiagnostics = {
+  config: null,
+  lastInput: null,
+  lastInputJson: null,
+  lastOutput: null,
+  lastError: null,
+  lastUpdateTime: null,
+  lastDurationMs: null,
+}
+
+/** Get diagnostic snapshot of the last status line execution. */
+export function getStatusLineDiagnostics(): StatusLineDiagnostics {
+  diagState.config = getStatusLineConfig()
+  return { ...diagState }
+}
+
 const COMMAND_TIMEOUT_MS = 5_000
 
 /** Active child process for cancellation. */
@@ -270,6 +300,12 @@ export async function executeStatusLineCommand(
 
   const jsonStr = JSON.stringify(input)
 
+  // Store diagnostics (pretty-printed for readability)
+  diagState.lastInput = input
+  diagState.lastInputJson = JSON.stringify(input, null, 2)
+  diagState.lastError = null
+  diagState.lastOutput = null
+
   try {
     const proc = Bun.spawn(["sh", "-c", command], {
       stdin: "pipe",
@@ -280,7 +316,7 @@ export async function executeStatusLineCommand(
     const entry = { proc, aborted: false }
     activeProc = entry
 
-    // Write JSON to stdin and close
+    // Write compact JSON to stdin and close
     proc.stdin.write(jsonStr + "\n")
     proc.stdin.end()
 
@@ -314,13 +350,28 @@ export async function executeStatusLineCommand(
       return lines || null
     })()
 
+    const startMs = Date.now()
     const result = await Promise.race([outputPromise, timeoutPromise])
+
+    // Store diagnostics
+    diagState.lastDurationMs = Date.now() - startMs
+    diagState.lastUpdateTime = Date.now()
+    if (result) {
+      diagState.lastOutput = result
+    } else if (!entry.aborted) {
+      diagState.lastError = "Command returned no output or non-zero exit"
+    } else {
+      diagState.lastError = "Command timed out"
+    }
 
     // Clean up active ref if we're still the current one
     if (activeProc === entry) activeProc = null
 
     return result
   } catch (err) {
+    diagState.lastError = String(err)
+    diagState.lastDurationMs = null
+    diagState.lastUpdateTime = Date.now()
     log.debug("Status line command failed", { error: String(err) })
     activeProc = null
     return null

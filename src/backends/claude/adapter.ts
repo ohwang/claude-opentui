@@ -10,7 +10,7 @@
  * - Process lifecycle management (SIGINT/SIGTERM/SIGHUP cleanup)
  */
 
-import { query as sdkQuery, listSessions as sdkListSessions } from "@anthropic-ai/claude-agent-sdk"
+import { query as sdkQuery, listSessions as sdkListSessions, type Options as SDKOptions, type SDKUserMessage as SDKUserMsg, type ModelInfo as SDKModelInfo } from "@anthropic-ai/claude-agent-sdk"
 import { getDiagnosticsSdkMcpConfig } from "../../mcp/server"
 import { log } from "../../utils/logger"
 import type {
@@ -290,11 +290,11 @@ export class ClaudeAdapter implements AgentBackend {
 
   async availableModels(): Promise<ModelInfo[]> {
     if (!this.activeQuery) return []
-    const models = await this.activeQuery.supportedModels()
+    const models: SDKModelInfo[] = await this.activeQuery.supportedModels()
     return models
-      .map((m: any) => ({
-        id: m.id ?? m.model,
-        name: m.name ?? m.model,
+      .map((m) => ({
+        id: m.value ?? m.displayName,
+        name: m.displayName ?? m.value,
         provider: "anthropic" as const,
       }))
       .filter((m) => m.id != null && m.id !== "undefined" && m.id !== "")
@@ -379,11 +379,13 @@ export class ClaudeAdapter implements AgentBackend {
       try {
         for await (const msg of this.activeQuery!) {
           if (this.closed || !this.eventChannel) break
+          // SDK messages are a wide union — extract optional fields for logging
+          const msgRecord = msg as Record<string, unknown>
           log.debug("V1 SDK message", {
             type: msg.type,
-            subtype: (msg as any).subtype,
+            subtype: msgRecord.subtype,
             ...(msg.type === "stream_event" && {
-              eventType: (msg as any).event?.type,
+              eventType: (msgRecord.event as Record<string, unknown> | undefined)?.type,
             }),
           })
           trace.write({
@@ -435,7 +437,7 @@ export class ClaudeAdapter implements AgentBackend {
   // Private: Build SDK options from SessionConfig
   // -----------------------------------------------------------------------
 
-  private buildOptions(config: SessionConfig): any {
+  private buildOptions(config: SessionConfig): SDKOptions {
     log.info("Building V1 SDK options", {
       model: config.model,
       permissionMode: config.permissionMode,
@@ -454,19 +456,23 @@ export class ClaudeAdapter implements AgentBackend {
       continue: config.continue,
       resume: config.resume,
       forkSession: config.forkSession,
-      mcpServers: {
-        ...config.mcpServers,
-        ...(() => {
-          const diag = getDiagnosticsSdkMcpConfig()
-          return diag ? { "opentui-diagnostics": diag } : {}
-        })(),
-      },
+      mcpServers: (() => {
+        const servers: Record<string, unknown> = { ...config.mcpServers }
+        const diag = getDiagnosticsSdkMcpConfig()
+        if (diag) servers["opentui-diagnostics"] = diag
+        // Cast: mcpServers values come from user config and our MCP server —
+        // both conform to McpServerConfig at runtime but the spread loses type info
+        return servers as SDKOptions["mcpServers"]
+      })(),
       allowedTools: config.allowedTools,
       disallowedTools: config.disallowedTools,
       additionalDirectories: config.additionalDirectories,
       persistSession: config.persistSession ?? true,
       settingSources: ["user", "project", "local"],
-      canUseTool: createCanUseTool(this.bridgeState),
+      // Cast: our PermissionResult is structurally identical to the SDK's but
+      // updatedPermissions is typed as unknown[] (we pass through SDK values
+      // without importing PermissionUpdate from the SDK in the bridge module)
+      canUseTool: createCanUseTool(this.bridgeState) as SDKOptions["canUseTool"],
       includePartialMessages: true,
       ...(config.thinking ? { thinking: config.thinking } : {}),
       ...(config.effort ? { effort: config.effort } : {}),
@@ -479,7 +485,7 @@ export class ClaudeAdapter implements AgentBackend {
 
   private async *createMessageIterable(
     config: SessionConfig,
-  ): AsyncGenerator<any> {
+  ): AsyncGenerator<SDKUserMsg> {
     // First message from config or wait for user
     if (config.resume || config.continue) {
       // Resuming: don't send an initial message, wait for user
@@ -503,8 +509,8 @@ export class ClaudeAdapter implements AgentBackend {
     }
   }
 
-  private toSDKUserMessage(message: UserMessage): any {
-    const content: any[] = [{ type: "text", text: message.text }]
+  private toSDKUserMessage(message: UserMessage): SDKUserMsg {
+    const content: SDKUserMsg["message"]["content"] = [{ type: "text", text: message.text }]
 
     if (message.images) {
       for (const img of message.images) {

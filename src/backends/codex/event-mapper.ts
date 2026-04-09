@@ -27,6 +27,7 @@
 
 import { log } from "../../utils/logger"
 import type { AgentEvent, ModelInfo } from "../../protocol/types"
+import type { CodexFileChangeEntry, CodexMcpToolResult, CodexMcpToolError, CodexMcpContentBlock } from "./codex-types"
 
 // ---------------------------------------------------------------------------
 // Codex item types (subset of the full ThreadItem union)
@@ -508,10 +509,10 @@ function mapItemCompleted(item: CodexItem): AgentEvent[] {
 
     case "fileChange": {
       const status = item.status as string
-      const changes = (item.changes as any[]) ?? []
+      const changes = (item.changes as CodexFileChangeEntry[] | undefined) ?? []
       const summary = changes
         .map(
-          (c: any) =>
+          (c: CodexFileChangeEntry) =>
             `${c.kind ?? "update"}: ${c.path ?? "unknown"}`,
         )
         .join(", ")
@@ -527,17 +528,17 @@ function mapItemCompleted(item: CodexItem): AgentEvent[] {
 
     case "mcpToolCall": {
       const status = item.status as string
-      const result = item.result as any
-      const error = item.error as any
+      const result = item.result as CodexMcpToolResult | undefined
+      const error = item.error as CodexMcpToolError | undefined
       let output = ""
 
       if (result?.content) {
-        const contentBlocks = Array.isArray(result.content)
+        const contentBlocks: CodexMcpContentBlock[] = Array.isArray(result.content)
           ? result.content
           : [result.content]
         output = contentBlocks
-          .filter((b: any) => b.type === "text")
-          .map((b: any) => b.text)
+          .filter((b) => b.type === "text")
+          .map((b) => b.text ?? "")
           .join("\n")
       }
 

@@ -37,6 +37,16 @@ const trace = backendTrace.scoped("codex")
 
 import { JsonRpcTransport } from "./jsonrpc-transport"
 import { mapCodexNotification } from "./event-mapper"
+import type {
+  CodexThreadResponse,
+  CodexThreadListResponse,
+  CodexThreadInfo,
+  CodexThreadForkResponse,
+  CodexTurnStartResponse,
+  CodexTurnStartParams,
+  CodexTurnInput,
+  CodexTokenUsageParams,
+} from "./codex-types"
 
 // ---------------------------------------------------------------------------
 // Permission mode → Codex approval policy mapping
@@ -295,11 +305,11 @@ export class CodexAdapter implements AgentBackend {
   private async findMostRecentThread(): Promise<string | null> {
     if (!this.transport?.isAlive) return null
     try {
-      const result = (await this.transport.request("thread/list")) as any
+      const result = (await this.transport.request("thread/list")) as CodexThreadListResponse
       const threads = result?.threads ?? []
       if (threads.length === 0) return null
       // Sort by createdAt descending, pick the first
-      const sorted = [...threads].sort((a: any, b: any) =>
+      const sorted = [...threads].sort((a: CodexThreadInfo, b: CodexThreadInfo) =>
         (b.createdAt ?? 0) - (a.createdAt ?? 0)
       )
       return sorted[0]?.id ?? null
@@ -313,9 +323,9 @@ export class CodexAdapter implements AgentBackend {
     if (!this.transport?.isAlive) return []
 
     try {
-      const result = (await this.transport.request("thread/list")) as any
+      const result = (await this.transport.request("thread/list")) as CodexThreadListResponse
       const threads = result?.threads ?? []
-      return threads.map((t: any) => ({
+      return threads.map((t: CodexThreadInfo) => ({
         id: t.id,
         title: t.preview ?? t.name ?? "Untitled",
         createdAt: t.createdAt ?? 0,
@@ -338,9 +348,11 @@ export class CodexAdapter implements AgentBackend {
 
     const result = (await this.transport.request("thread/fork", {
       threadId: sessionId,
-    })) as any
+    })) as CodexThreadForkResponse
 
-    return result?.thread?.id ?? result?.threadId
+    const forkedId = result?.thread?.id ?? result?.threadId
+    if (!forkedId) throw new Error("Codex fork did not return a thread ID")
+    return forkedId
   }
 
   close(): void {
@@ -413,7 +425,7 @@ export class CodexAdapter implements AgentBackend {
         // Explicit resume by session ID
         const result = (await this.transport.request("thread/resume", {
           threadId: resumeSessionId,
-        })) as any
+        })) as CodexThreadResponse
         this.threadId = result?.thread?.id ?? resumeSessionId
         this.modelName = result?.model ?? result?.modelProvider ?? null
         log.info("Resumed Codex thread", { threadId: this.threadId, model: this.modelName })
@@ -424,21 +436,21 @@ export class CodexAdapter implements AgentBackend {
           log.info("Continuing most recent Codex thread", { threadId: latestId })
           const result = (await this.transport.request("thread/resume", {
             threadId: latestId,
-          })) as any
+          })) as CodexThreadResponse
           this.threadId = result?.thread?.id ?? latestId
           this.modelName = result?.model ?? result?.modelProvider ?? null
           log.info("Resumed Codex thread for --continue", { threadId: this.threadId, model: this.modelName })
         } else {
           // No threads found — fall through to starting a new thread
           log.info("No existing Codex threads found for --continue, starting new thread")
-          const result = (await this.transport.request("thread/start", {})) as any
-          this.threadId = result?.thread?.id
+          const result = (await this.transport.request("thread/start", {})) as CodexThreadResponse
+          this.threadId = result?.thread?.id ?? null
           this.modelName = result?.model ?? result?.modelProvider ?? null
           log.info("Started new Codex thread", { threadId: this.threadId, model: this.modelName })
         }
       } else {
-        const result = (await this.transport.request("thread/start", {})) as any
-        this.threadId = result?.thread?.id
+        const result = (await this.transport.request("thread/start", {})) as CodexThreadResponse
+        this.threadId = result?.thread?.id ?? null
         this.modelName = result?.model ?? result?.modelProvider ?? null
         log.info("Started Codex thread", { threadId: this.threadId, model: this.modelName })
       }
@@ -506,7 +518,7 @@ export class CodexAdapter implements AgentBackend {
 
     // Build user input, prepending system prompt on the first turn if provided
     const applySystemPrompt = !this.systemPromptApplied && !!this.config?.systemPrompt
-    const input: any[] = []
+    const input: CodexTurnInput[] = []
     if (applySystemPrompt) {
       input.push({ type: "text", text: `[System Prompt]\n${this.config!.systemPrompt}\n\n[User Message]\n${text}` })
       this.systemPromptApplied = true
@@ -522,22 +534,13 @@ export class CodexAdapter implements AgentBackend {
       }
     }
 
-    const turnParams: any = {
+    const turnParams: CodexTurnStartParams = {
       threadId: this.threadId,
       input,
       approvalPolicy: toCodexApprovalPolicy(this.config?.permissionMode),
-    }
-
-    // Also pass system prompt as instructions if the server supports it
-    if (applySystemPrompt) {
-      turnParams.instructions = this.config!.systemPrompt
-    }
-
-    if (this.config?.model) {
-      turnParams.model = this.config.model
-    }
-    if (this.config?.cwd) {
-      turnParams.cwd = this.config.cwd
+      ...(applySystemPrompt ? { instructions: this.config!.systemPrompt } : {}),
+      ...(this.config?.model ? { model: this.config.model } : {}),
+      ...(this.config?.cwd ? { cwd: this.config.cwd } : {}),
     }
 
     log.info("Starting Codex turn", { threadId: this.threadId })
@@ -546,7 +549,7 @@ export class CodexAdapter implements AgentBackend {
       const result = (await this.transport.request(
         "turn/start",
         turnParams,
-      )) as any
+      )) as CodexTurnStartResponse
       this.activeTurnId = result?.turn?.id ?? null
       log.info("Codex turn started", {
         turnId: this.activeTurnId,
@@ -614,7 +617,7 @@ export class CodexAdapter implements AgentBackend {
 
     // Capture token usage from thread/tokenUsage/updated (fires before turn/completed)
     if (method === "thread/tokenUsage/updated") {
-      const p = params as any
+      const p = params as CodexTokenUsageParams
       const usage = p?.tokenUsage?.last ?? p?.tokenUsage?.total
       if (usage) {
         this.lastTokenUsage = {
@@ -637,8 +640,8 @@ export class CodexAdapter implements AgentBackend {
         event.models = [{ id: this.modelName, name: this.modelName, provider: "openai" }]
       }
       // Inject cached token usage into turn_complete events if usage is undefined
-      if (event.type === "turn_complete" && !(event as any).usage && this.lastTokenUsage) {
-        ;(event as any).usage = { ...this.lastTokenUsage }
+      if (event.type === "turn_complete" && !event.usage && this.lastTokenUsage) {
+        event.usage = { ...this.lastTokenUsage }
         this.lastTokenUsage = null
       }
       trace.write({

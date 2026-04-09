@@ -40,7 +40,7 @@ export function ThinkingBlock(props: { text: string; collapsed?: boolean }) {
         </text>
         <box flexDirection="row">
           <box width={2} flexShrink={0}>
-            <text fg={colors.border.default}>{"\u2502"}</text>
+            <text fg={colors.border.default}>{"\u2503"}</text>
           </box>
           <box flexGrow={1}>
             <markdown

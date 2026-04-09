@@ -23,6 +23,31 @@ function dedupeModels(models: ModelInfo[]): ModelInfo[] {
   return deduped
 }
 
+/**
+ * Resolve a partial model name (e.g., "opus", "sonnet", "haiku") to a full model ID.
+ * Returns the matched model, or undefined if no match.
+ *
+ * Matching priority:
+ *   1. Exact model.id match (already handled before this is called)
+ *   2. Case-insensitive substring match on model.id or display name
+ *   3. Among matches, prefer: shorter id (more specific/latest), then alphabetical
+ */
+function resolvePartialModel(query: string, models: ModelInfo[]): ModelInfo | undefined {
+  const q = query.toLowerCase()
+
+  const matches = models.filter((m) => {
+    const displayName = (m.name || MODEL_NAMES[m.id] || "").toLowerCase()
+    return m.id.toLowerCase().includes(q) || displayName.includes(q)
+  })
+
+  if (matches.length === 0) return undefined
+  if (matches.length === 1) return matches[0]
+
+  // Multiple matches — pick shortest ID (more specific/latest), then alphabetical
+  matches.sort((a, b) => a.id.length - b.id.length || a.id.localeCompare(b.id))
+  return matches[0]
+}
+
 function formatModels(models: ModelInfo[]): string {
   return models
     .map((model) => {
@@ -83,30 +108,35 @@ export const modelCommand: SlashCommand = {
       return
     }
 
-    // Check if model name is valid
+    // Check if model name is valid — try exact match first, then partial
+    let resolvedModel = modelName
     if (!availableModels.some((model) => model.id === modelName)) {
-      ctx.pushEvent({
-        type: "system_message",
-        text: `Unknown model: ${modelName}\n\nAvailable models:\n${available}`,
-        ephemeral: true,
-      })
-      return
+      const partial = resolvePartialModel(modelName, availableModels)
+      if (!partial) {
+        ctx.pushEvent({
+          type: "system_message",
+          text: `Unknown model: ${modelName}\n\nAvailable models:\n${available}`,
+          ephemeral: true,
+        })
+        return
+      }
+      resolvedModel = partial.id
     }
     try {
-      await ctx.setModel(modelName)
+      await ctx.setModel(resolvedModel)
       ctx.pushEvent({
         type: "model_changed",
-        model: modelName,
+        model: resolvedModel,
       })
       ctx.pushEvent({
         type: "system_message",
-        text: `Switched to ${modelName}`,
+        text: `Switched to ${resolvedModel}`,
         ephemeral: true,
       })
     } catch (error) {
       ctx.pushEvent({
         type: "system_message",
-        text: `Error: Could not switch to model '${modelName}'. ${error instanceof Error ? error.message : 'Unknown error'}`,
+        text: `Error: Could not switch to model '${resolvedModel}'. ${error instanceof Error ? error.message : 'Unknown error'}`,
         ephemeral: true,
       })
     }

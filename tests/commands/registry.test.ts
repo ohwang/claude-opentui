@@ -538,4 +538,112 @@ describe("/model command", () => {
     expect(registry.get("m")).toBeDefined()
     expect(registry.get("m")!.name).toBe("model")
   })
+
+  it("resolves partial name 'opus' to claude-opus-4-6", async () => {
+    const registry = createCommandRegistry()
+    const setModelFn = mock(async () => {})
+    const ctx = makeCtx({ setModel: setModelFn })
+
+    await registry.tryExecute("/model opus", ctx)
+
+    expect(setModelFn).toHaveBeenCalledWith("claude-opus-4-6")
+    const modelChanged = ctx.events.find((e) => e.type === "model_changed")
+    expect(modelChanged).toBeDefined()
+    expect(modelChanged.model).toBe("claude-opus-4-6")
+  })
+
+  it("resolves partial name 'sonnet' to shortest matching model ID", async () => {
+    const registry = createCommandRegistry()
+    const setModelFn = mock(async () => {})
+    const ctx = makeCtx({ setModel: setModelFn })
+
+    await registry.tryExecute("/model sonnet", ctx)
+
+    // Should match claude-sonnet-4-6 (shortest ID containing "sonnet")
+    expect(setModelFn).toHaveBeenCalledWith("claude-sonnet-4-6")
+  })
+
+  it("resolves partial name 'haiku' to shortest matching model ID", async () => {
+    const registry = createCommandRegistry()
+    const setModelFn = mock(async () => {})
+    const ctx = makeCtx({ setModel: setModelFn })
+
+    await registry.tryExecute("/model haiku", ctx)
+
+    expect(setModelFn).toHaveBeenCalled()
+    const calledWith = (setModelFn.mock.calls[0] as unknown as string[])[0]
+    expect(calledWith).toContain("haiku")
+  })
+
+  it("resolves case-insensitive partial names", async () => {
+    const registry = createCommandRegistry()
+    const setModelFn = mock(async () => {})
+    const ctx = makeCtx({ setModel: setModelFn })
+
+    await registry.tryExecute("/model OPUS", ctx)
+
+    expect(setModelFn).toHaveBeenCalledWith("claude-opus-4-6")
+  })
+
+  it("still rejects completely unknown partial names", async () => {
+    const registry = createCommandRegistry()
+    const ctx = makeCtx()
+
+    await registry.tryExecute("/model gpt4", ctx)
+
+    const msg = ctx.events.find((e) => e.type === "system_message")
+    expect(msg).toBeDefined()
+    expect(msg.text).toContain("Unknown model: gpt4")
+  })
+
+  it("exact match takes priority over partial match", async () => {
+    const registry = createCommandRegistry()
+    const setModelFn = mock(async () => {})
+    const ctx = makeCtx({
+      setModel: setModelFn,
+      backend: {
+        availableModels: async () => [
+          { id: "opus", name: "Short Opus", provider: "test" },
+          { id: "claude-opus-4-6", name: "Opus 4.6", provider: "anthropic" },
+        ],
+        capabilities: () => ({ name: "test" }),
+      } as any,
+      getSessionState: () => ({
+        cost: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, totalCostUsd: 0 },
+        turnNumber: 0,
+        currentModel: "opus",
+        session: { tools: [], models: [] },
+      }),
+    })
+
+    await registry.tryExecute("/model opus", ctx)
+
+    // Exact match "opus" should win, not partial match to "claude-opus-4-6"
+    expect(setModelFn).toHaveBeenCalledWith("opus")
+  })
+
+  it("resolves partial names against non-Claude backends", async () => {
+    const registry = createCommandRegistry()
+    const setModelFn = mock(async () => {})
+    const ctx = makeCtx({
+      setModel: setModelFn,
+      backend: {
+        availableModels: async () => [
+          { id: "gemini-2.5-pro", name: "Gemini 2.5 Pro", provider: "google" },
+          { id: "gemini-2.5-flash", name: "Gemini 2.5 Flash", provider: "google" },
+        ],
+        capabilities: () => ({ name: "gemini" }),
+      } as any,
+      getSessionState: () => ({
+        cost: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, totalCostUsd: 0 },
+        turnNumber: 0,
+        currentModel: "gemini-2.5-pro",
+        session: { tools: [], models: [] },
+      }),
+    })
+
+    await registry.tryExecute("/model flash", ctx)
+
+    expect(setModelFn).toHaveBeenCalledWith("gemini-2.5-flash")
+  })
 })

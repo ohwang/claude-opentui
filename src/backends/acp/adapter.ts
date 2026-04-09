@@ -566,7 +566,26 @@ export class AcpAdapter extends BaseAdapter {
   }
 
   async listSessions(): Promise<SessionInfo[]> {
-    return []
+    // Check if the agent supports session listing
+    const sessionCaps = (this.agentCapabilities as any)?.sessionCapabilities
+    if (!sessionCaps?.list || !this.transport?.isAlive) {
+      return []
+    }
+
+    try {
+      const result = (await this.transport.request("session/list", {})) as {
+        sessions?: { sessionId: string; title?: string; cwd?: string; updatedAt?: string }[]
+      }
+      return (result.sessions ?? []).map(s => ({
+        id: s.sessionId,
+        title: s.title ?? s.sessionId.slice(0, 8),
+        updatedAt: s.updatedAt ? new Date(s.updatedAt).getTime() : Date.now(),
+        cwd: s.cwd,
+      }))
+    } catch (err) {
+      log.debug("session/list not supported by this agent", { error: String(err) })
+      return []
+    }
   }
 
   async forkSession(_sessionId: string, _options?: ForkOptions): Promise<string> {

@@ -171,6 +171,13 @@ async function main() {
     }
   }
 
+  // Load community themes from ~/.claude-opentui/themes/
+  const { loadCommunityThemes } = await import("./tui/theme/loader")
+  const communityCount = loadCommunityThemes()
+  if (communityCount > 0) {
+    log.info("Loaded community themes", { count: communityCount })
+  }
+
   // Apply theme if specified (must happen before render)
   if (flags.theme) {
     const { getTheme } = await import("./tui/theme/registry")

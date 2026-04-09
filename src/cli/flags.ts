@@ -244,7 +244,7 @@ Options:
   --max-thinking-tokens <n>  Fixed thinking token budget (sets thinking to enabled)
   --effort <level>        Reasoning effort (low, medium, high, max)
   --system-prompt <text>  System prompt
-  --theme <id>            Theme preset (dark, high-contrast)
+  --theme <id>            Theme preset (dark, high-contrast, catppuccin, dracula, solarized)
   --debug                 Enable debug output
   --debug-backend         Write raw backend JSONL trace
   --no-diagnostics-mcp    Disable the MCP diagnostics server

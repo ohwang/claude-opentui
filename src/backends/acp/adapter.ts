@@ -859,6 +859,7 @@ export class AcpAdapter extends BaseAdapter {
   // -----------------------------------------------------------------------
 
   private handleNotification(method: string, params: unknown): void {
+    if (this.closed) return
     log.debug("ACP notification", { method })
 
     if (method === "session/update") {
@@ -949,6 +950,7 @@ export class AcpAdapter extends BaseAdapter {
     method: string,
     params: any,
   ): void {
+    if (this.closed) return
     log.info("ACP server request", { method, rpcId })
     trace.write({
       dir: "internal",

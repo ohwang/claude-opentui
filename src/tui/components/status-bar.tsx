@@ -192,6 +192,7 @@ export function StatusBar(props: { hint?: string | null }) {
         permissionMode: permMode(),
         configModel: agent.config.model,
         terminalWidth: dims()?.width,
+        backendName: agent.backend.capabilities().name,
       })
       executeStatusLineCommand(statusLineConfig.command, input)
         .then((text) => {

@@ -518,11 +518,16 @@ export interface CostTotals {
 export interface RateLimitEntry {
   usedPercentage: number // 0-100
   resetsAt?: number      // Unix epoch seconds
+  windowDurationMins?: number // Actual window duration (from Codex)
 }
 
 export interface RateLimits {
   fiveHour?: RateLimitEntry
   sevenDay?: RateLimitEntry
+  /** Generic primary window (Codex backends where duration ≠ 5h or 7d) */
+  primary?: RateLimitEntry
+  /** Generic secondary window (Codex backends where duration ≠ 5h or 7d) */
+  secondary?: RateLimitEntry
 }
 
 export interface ElicitationQuestion {

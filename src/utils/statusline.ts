@@ -96,6 +96,13 @@ export interface StatusLineInput {
     five_hour?: { used_percentage: number; resets_at?: number }
     seven_day?: { used_percentage: number; resets_at?: number }
   }
+  /** Backend identity so scripts can branch on backend type */
+  backend?: { name: string }
+  /** Backend-native rate limits with actual window durations (Codex) */
+  backend_rate_limits?: {
+    primary?: { used_percentage: number; resets_at?: number; window_duration_mins?: number }
+    secondary?: { used_percentage: number; resets_at?: number; window_duration_mins?: number }
+  }
   vim?: { mode: string }
   agent?: { name: string }
   worktree?: {
@@ -126,6 +133,7 @@ export function buildStatusLineInput(
     permissionMode?: PermissionMode
     configModel?: string
     terminalWidth?: number
+    backendName?: string
   },
 ): StatusLineInput {
   if (sessionStartMs === 0) sessionStartMs = Date.now()
@@ -193,8 +201,8 @@ export function buildStatusLineInput(
       } : null,
     },
     exceeds_200k_tokens: lastInput > 200_000,
-    // Rate limits (populated when SDK emits rate_limit_event)
-    ...(sessionState.rateLimits && {
+    // Claude-compatible rate limits (only for real 5h/7d windows)
+    ...(sessionState.rateLimits && (sessionState.rateLimits.fiveHour || sessionState.rateLimits.sevenDay) && {
       rate_limits: {
         ...(sessionState.rateLimits.fiveHour && {
           five_hour: {
@@ -206,6 +214,27 @@ export function buildStatusLineInput(
           seven_day: {
             used_percentage: sessionState.rateLimits.sevenDay.usedPercentage,
             resets_at: sessionState.rateLimits.sevenDay.resetsAt,
+          },
+        }),
+      },
+    }),
+    // Backend identity
+    ...(opts.backendName && { backend: { name: opts.backendName } }),
+    // Backend-native rate limits with actual window durations (Codex)
+    ...(sessionState.rateLimits && (sessionState.rateLimits.primary || sessionState.rateLimits.secondary) && {
+      backend_rate_limits: {
+        ...(sessionState.rateLimits.primary && {
+          primary: {
+            used_percentage: sessionState.rateLimits.primary.usedPercentage,
+            resets_at: sessionState.rateLimits.primary.resetsAt,
+            window_duration_mins: sessionState.rateLimits.primary.windowDurationMins,
+          },
+        }),
+        ...(sessionState.rateLimits.secondary && {
+          secondary: {
+            used_percentage: sessionState.rateLimits.secondary.usedPercentage,
+            resets_at: sessionState.rateLimits.secondary.resetsAt,
+            window_duration_mins: sessionState.rateLimits.secondary.windowDurationMins,
           },
         }),
       },

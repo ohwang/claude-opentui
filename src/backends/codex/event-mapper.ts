@@ -301,6 +301,26 @@ export function mapCodexNotification(
   return events
 }
 
+/**
+ * Map Codex window duration to the appropriate rate-limit bucket type.
+ *
+ * Only maps to Claude-compatible buckets (`five_hour` / `seven_day`) when the
+ * actual window duration matches (within 10% tolerance). Otherwise preserves
+ * the Codex-native `primary` / `secondary` identity so the statusline can
+ * render duration-accurate labels.
+ */
+function codexWindowToBucket(
+  windowDurationMins: number | undefined,
+  slot: "primary" | "secondary",
+): "five_hour" | "seven_day" | "primary" | "secondary" {
+  if (typeof windowDurationMins !== "number") return slot
+  // 5 hours = 300 mins (±10%: 270–330)
+  if (windowDurationMins >= 270 && windowDurationMins <= 330) return "five_hour"
+  // 7 days = 10080 mins (±10%: 9072–11088)
+  if (windowDurationMins >= 9072 && windowDurationMins <= 11088) return "seven_day"
+  return slot
+}
+
 function mapCodexRateLimitEvents(params: any): AgentEvent[] {
   const rateLimits = params?.rateLimits
   if (!rateLimits || typeof rateLimits !== "object") {
@@ -315,14 +335,20 @@ function mapCodexRateLimitEvents(params: any): AgentEvent[] {
 
   const pushRateLimitEvent = (
     bucket: unknown,
-    rateLimitType: "five_hour" | "seven_day",
+    slot: "primary" | "secondary",
   ) => {
     if (!bucket || typeof bucket !== "object") return
 
     const usedPercent = (bucket as { usedPercent?: unknown }).usedPercent
     const resetsAt = (bucket as { resetsAt?: unknown }).resetsAt
+    const windowDurationMins = (bucket as { windowDurationMins?: unknown }).windowDurationMins
 
     if (typeof usedPercent !== "number") return
+
+    const rateLimitType = codexWindowToBucket(
+      typeof windowDurationMins === "number" ? windowDurationMins : undefined,
+      slot,
+    )
 
     events.push({
       type: "backend_specific",
@@ -330,16 +356,17 @@ function mapCodexRateLimitEvents(params: any): AgentEvent[] {
       data: {
         type: "rate_limit_event",
         rate_limit_info: {
-          rateLimitType: rateLimitType,
+          rateLimitType,
           utilization: usedPercent / 100,
           resetsAt: typeof resetsAt === "number" ? resetsAt : undefined,
+          windowDurationMins: typeof windowDurationMins === "number" ? windowDurationMins : undefined,
         },
       },
     })
   }
 
-  pushRateLimitEvent(rateLimits.primary, "five_hour")
-  pushRateLimitEvent(rateLimits.secondary, "seven_day")
+  pushRateLimitEvent(rateLimits.primary, "primary")
+  pushRateLimitEvent(rateLimits.secondary, "secondary")
 
   if (events.length === 0) {
     events.push({

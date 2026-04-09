@@ -423,7 +423,7 @@ describe("Codex Event Mapper", () => {
   })
 
   describe("passthrough events", () => {
-    it("maps account/rateLimits/updated to normalized rate-limit backend_specific events", () => {
+    it("maps account/rateLimits/updated with 5h/7d durations to Claude-compatible buckets", () => {
       const events = mapCodexNotification("account/rateLimits/updated", {
         rateLimits: {
           limitId: "codex",
@@ -450,6 +450,7 @@ describe("Codex Event Mapper", () => {
             rateLimitType: "five_hour",
             utilization: 0.12,
             resetsAt: 1775019636,
+            windowDurationMins: 300,
           },
         },
       })
@@ -462,9 +463,71 @@ describe("Codex Event Mapper", () => {
             rateLimitType: "seven_day",
             utilization: 0.08,
             resetsAt: 1775206513,
+            windowDurationMins: 10080,
           },
         },
       })
+    })
+
+    it("preserves generic primary/secondary when durations don't match 5h/7d", () => {
+      const events = mapCodexNotification("account/rateLimits/updated", {
+        rateLimits: {
+          limitId: "codex",
+          primary: {
+            usedPercent: 25,
+            windowDurationMins: 15,
+            resetsAt: 1775019636,
+          },
+          secondary: {
+            usedPercent: 40,
+            windowDurationMins: 60,
+            resetsAt: 1775020236,
+          },
+        },
+      })
+
+      expect(events).toHaveLength(2)
+      expect(events[0]).toEqual({
+        type: "backend_specific",
+        backend: "codex",
+        data: {
+          type: "rate_limit_event",
+          rate_limit_info: {
+            rateLimitType: "primary",
+            utilization: 0.25,
+            resetsAt: 1775019636,
+            windowDurationMins: 15,
+          },
+        },
+      })
+      expect(events[1]).toEqual({
+        type: "backend_specific",
+        backend: "codex",
+        data: {
+          type: "rate_limit_event",
+          rate_limit_info: {
+            rateLimitType: "secondary",
+            utilization: 0.40,
+            resetsAt: 1775020236,
+            windowDurationMins: 60,
+          },
+        },
+      })
+    })
+
+    it("falls back to slot name when windowDurationMins is missing", () => {
+      const events = mapCodexNotification("account/rateLimits/updated", {
+        rateLimits: {
+          primary: {
+            usedPercent: 50,
+            resetsAt: 1775019636,
+          },
+        },
+      })
+
+      expect(events).toHaveLength(1)
+      expect((events[0] as any).data.rate_limit_info.rateLimitType).toBe("primary")
+      expect((events[0] as any).data.rate_limit_info.windowDurationMins).toBeUndefined()
     })
 
     it("passes turn/diff/updated as backend_specific", () => {

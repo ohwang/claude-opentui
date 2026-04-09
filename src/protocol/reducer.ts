@@ -629,15 +629,20 @@ export function reduce(
           }
 
           if (usedPct !== undefined) {
-            const entry = {
+            const entry: import("./types").RateLimitEntry = {
               usedPercentage: usedPct,
               resetsAt: typeof info.resetsAt === "number" ? info.resetsAt : undefined,
+              windowDurationMins: typeof info.windowDurationMins === "number" ? info.windowDurationMins : undefined,
             }
             const rl = next.rateLimits ? { ...next.rateLimits } : {}
             if (info.rateLimitType === "five_hour") {
               rl.fiveHour = entry
             } else if (info.rateLimitType === "seven_day" || info.rateLimitType === "seven_day_opus" || info.rateLimitType === "seven_day_sonnet") {
               rl.sevenDay = entry
+            } else if (info.rateLimitType === "primary") {
+              rl.primary = entry
+            } else if (info.rateLimitType === "secondary") {
+              rl.secondary = entry
             }
             next.rateLimits = rl
           }

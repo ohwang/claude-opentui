@@ -950,6 +950,7 @@ describe("ConversationState reducer", () => {
               rateLimitType: "five_hour",
               utilization: 0.12,
               resetsAt: 1775019636,
+              windowDurationMins: 300,
             },
           },
         },
@@ -962,6 +963,7 @@ describe("ConversationState reducer", () => {
               rateLimitType: "seven_day",
               utilization: 0.08,
               resetsAt: 1775206513,
+              windowDurationMins: 10080,
             },
           },
         },
@@ -971,10 +973,57 @@ describe("ConversationState reducer", () => {
         fiveHour: {
           usedPercentage: 12,
           resetsAt: 1775019636,
+          windowDurationMins: 300,
         },
         sevenDay: {
           usedPercentage: 8,
           resetsAt: 1775206513,
+          windowDurationMins: 10080,
+        },
+      })
+    })
+
+    it("stores generic primary/secondary Codex windows", () => {
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        {
+          type: "backend_specific",
+          backend: "codex",
+          data: {
+            type: "rate_limit_event",
+            rate_limit_info: {
+              rateLimitType: "primary",
+              utilization: 0.25,
+              resetsAt: 1775019636,
+              windowDurationMins: 15,
+            },
+          },
+        },
+        {
+          type: "backend_specific",
+          backend: "codex",
+          data: {
+            type: "rate_limit_event",
+            rate_limit_info: {
+              rateLimitType: "secondary",
+              utilization: 0.40,
+              resetsAt: 1775020236,
+              windowDurationMins: 60,
+            },
+          },
+        },
+      ])
+
+      expect(state.rateLimits).toEqual({
+        primary: {
+          usedPercentage: 25,
+          resetsAt: 1775019636,
+          windowDurationMins: 15,
+        },
+        secondary: {
+          usedPercentage: 40,
+          resetsAt: 1775020236,
+          windowDurationMins: 60,
         },
       })
     })

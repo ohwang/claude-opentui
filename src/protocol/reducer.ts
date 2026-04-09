@@ -121,6 +121,7 @@ export function reduce(
         streamingText: "",
         streamingThinking: "",
         streamingOutputTokens: 0,
+        _contextFromStream: false,
       }
     }
 
@@ -206,11 +207,17 @@ export function reduce(
         awaitingTurnStart: false,
         activeTasks: prunedTasks,
         session: updatedSession,
-        // Context window fill = input_tokens + cache_read + cache_creation
-        // Matches Claude Code's calculateContextPercentages() which sums all three.
-        lastTurnInputTokens: event.usage && (event.usage.inputTokens > 0 || (event.usage.cacheReadTokens ?? 0) > 0)
-          ? (event.usage.inputTokens + (event.usage.cacheReadTokens ?? 0) + (event.usage.cacheWriteTokens ?? 0))
-          : state.lastTurnInputTokens,
+        // Context window fill: prefer per-API-call value from cost_update.contextTokens
+        // (set by message_start during streaming) over the cumulative turn usage.
+        // The result.usage sums ALL API calls in a multi-step agentic turn,
+        // overcounting by num_turns×. Fall back to turn usage for backends
+        // (Codex, Gemini) that don't emit per-API-call context tokens.
+        lastTurnInputTokens: state._contextFromStream
+          ? state.lastTurnInputTokens
+          : event.usage && (event.usage.inputTokens > 0 || (event.usage.cacheReadTokens ?? 0) > 0)
+            ? (event.usage.inputTokens + (event.usage.cacheReadTokens ?? 0) + (event.usage.cacheWriteTokens ?? 0))
+            : state.lastTurnInputTokens,
+        _contextFromStream: false,
         lastTurnFiles: turnFiles.length > 0 ? turnFiles : undefined,
       }
     }
@@ -469,9 +476,14 @@ export function reduce(
       // Authoritative cost is handled by turn_complete usage to prevent
       // double-counting. But we track streaming output tokens separately
       // for real-time display in the spinner.
+      // Per-API-call context fill from message_start is more accurate than
+      // the cumulative turn_complete usage for multi-step agentic turns.
       return {
         ...next,
         streamingOutputTokens: state.streamingOutputTokens + (event.outputTokens ?? 0),
+        ...(event.contextTokens !== undefined && event.contextTokens > 0
+          ? { lastTurnInputTokens: event.contextTokens, _contextFromStream: true }
+          : {}),
       }
 
     // ----- Tasks / subagents -----

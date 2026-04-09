@@ -418,9 +418,28 @@ export function mapStreamEvent(
   const events: AgentEvent[] = []
 
   switch (event.type) {
-    case "message_start":
+    case "message_start": {
       events.push({ type: "turn_start" })
+      // Extract per-API-call input tokens for accurate context window fill.
+      // The result message's usage is CUMULATIVE across all API calls in a
+      // multi-step turn, so using it directly overcounts by num_turns×.
+      const msgUsage = event.message?.usage
+      if (msgUsage) {
+        const contextFill =
+          (msgUsage.input_tokens ?? 0) +
+          (msgUsage.cache_read_input_tokens ?? 0) +
+          (msgUsage.cache_creation_input_tokens ?? 0)
+        if (contextFill > 0) {
+          events.push({
+            type: "cost_update",
+            inputTokens: 0,
+            outputTokens: 0,
+            contextTokens: contextFill,
+          })
+        }
+      }
       break
+    }
 
     case "content_block_start": {
       const block = event.content_block

@@ -1583,6 +1583,44 @@ describe("ConversationState reducer", () => {
       expect(state.lastTurnInputTokens).toBe(60000)
     })
 
+    it("per-API-call contextTokens overrides cumulative turn_complete usage", () => {
+      // Simulates a multi-step agentic turn: message_start emits per-API-call
+      // context fill via cost_update.contextTokens. The result.usage is cumulative
+      // across all API calls and would overcount.
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "turn_start" },
+        // First API call: 350K context
+        { type: "cost_update", inputTokens: 0, outputTokens: 0, contextTokens: 350000 },
+        // Second API call: 360K context (grows as tool results are added)
+        { type: "cost_update", inputTokens: 0, outputTokens: 0, contextTokens: 360000 },
+        // turn_complete with CUMULATIVE usage (350K + 360K = 710K) — should be ignored
+        { type: "turn_complete", usage: {
+          inputTokens: 30,
+          outputTokens: 4000,
+          cacheReadTokens: 700000,
+          cacheWriteTokens: 10000,
+        }},
+      ])
+      // Should use the last per-API-call value (360K), not cumulative (710K)
+      expect(state.lastTurnInputTokens).toBe(360000)
+    })
+
+    it("turn_complete usage is used as fallback when no contextTokens emitted", () => {
+      // Codex/Gemini backends don't emit cost_update.contextTokens
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "turn_start" },
+        { type: "turn_complete", usage: {
+          inputTokens: 5000,
+          outputTokens: 1000,
+          cacheReadTokens: 40000,
+        }},
+      ])
+      // Should use turn_complete usage: 5000 + 40000 = 45000
+      expect(state.lastTurnInputTokens).toBe(45000)
+    })
+
     it("turn_complete in ERROR state recovers to IDLE", () => {
       const state = applyEvents([
         { type: "session_init", tools: [], models: [] },

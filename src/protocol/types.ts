@@ -158,6 +158,10 @@ export type CostUpdateEvent = {
   cacheReadTokens?: number
   cacheWriteTokens?: number
   cost?: number
+  /** Per-API-call context fill (input + cache_read + cache_creation).
+   *  More accurate than turn_complete usage which is cumulative across
+   *  all API calls in a multi-step agentic turn. */
+  contextTokens?: number
 }
 
 /** Model changed (emitted by /model command) */
@@ -349,6 +353,10 @@ export interface ConversationState {
 
   /** Input tokens from the last completed turn — approximates context window fill */
   lastTurnInputTokens: number
+  /** True when lastTurnInputTokens was set from per-API-call data (message_start)
+   *  during the current turn, so turn_complete should not overwrite it with
+   *  cumulative usage. Reset on turn_start. */
+  _contextFromStream: boolean
 
   /** Output tokens accumulated during streaming (reset on turn boundaries, separate from authoritative cost) */
   streamingOutputTokens: number
@@ -605,6 +613,7 @@ export function createInitialState(): ConversationState {
     lastError: null,
     turnNumber: 0,
     lastTurnInputTokens: 0,
+    _contextFromStream: false,
     streamingOutputTokens: 0,
     backgrounded: false,
     awaitingTurnStart: false,

@@ -141,6 +141,7 @@ import { bugCommand, reviewCommand, commitCommand, testCommand } from "./builtin
 import { aboutCommand } from "./builtin/about"
 import { screenshotCommand } from "./builtin/screenshot"
 import { thinkingCommand } from "./builtin/thinking"
+import { themeCommand } from "./builtin/theme"
 
 /** Create a registry with all built-in commands */
 export function createCommandRegistry(): CommandRegistry {
@@ -166,6 +167,7 @@ export function createCommandRegistry(): CommandRegistry {
   registry.register(aboutCommand)
   registry.register(screenshotCommand)
   registry.register(thinkingCommand)
+  registry.register(themeCommand)
 
   return registry
 }

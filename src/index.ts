@@ -171,6 +171,22 @@ async function main() {
     }
   }
 
+  // Apply theme if specified (must happen before render)
+  if (flags.theme) {
+    const { getTheme } = await import("./tui/theme/registry")
+    const { applyTheme } = await import("./tui/theme/tokens")
+    const theme = getTheme(flags.theme)
+    if (theme) {
+      applyTheme(theme)
+      log.info("Theme applied", { theme: flags.theme })
+    } else {
+      const { listThemes } = await import("./tui/theme/registry")
+      const available = listThemes().map(t => t.id).join(", ")
+      console.error(`Unknown theme: ${flags.theme}. Available: ${available}`)
+      process.exit(1)
+    }
+  }
+
   // Pass initial prompt through config so the sync provider can handle it
   if (flags.prompt) {
     flags.config.initialPrompt = flags.prompt

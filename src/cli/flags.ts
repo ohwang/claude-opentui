@@ -33,6 +33,9 @@ export interface CLIFlags {
 
   /** Disable the MCP diagnostics server */
   noDiagnosticsMcp: boolean
+
+  /** Theme preset ID */
+  theme?: string
 }
 
 /**
@@ -194,6 +197,10 @@ export function parseFlags(argv: string[]): CLIFlags {
         flags.noDiagnosticsMcp = true
         break
 
+      case "--theme":
+        flags.theme = requireArg("--theme", args, ++i)
+        break
+
       // Prompt
       case "--prompt":
       case "-p":
@@ -237,6 +244,7 @@ Options:
   --max-thinking-tokens <n>  Fixed thinking token budget (sets thinking to enabled)
   --effort <level>        Reasoning effort (low, medium, high, max)
   --system-prompt <text>  System prompt
+  --theme <id>            Theme preset (dark, high-contrast)
   --debug                 Enable debug output
   --debug-backend         Write raw backend JSONL trace
   --no-diagnostics-mcp    Disable the MCP diagnostics server

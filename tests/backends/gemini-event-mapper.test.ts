@@ -173,9 +173,27 @@ describe("Gemini Event Mapper", () => {
       expect(events).toHaveLength(1)
       const costUpdate = events[0]! as any
       expect(costUpdate.type).toBe("cost_update")
-      expect(costUpdate.inputTokens).toBe(100)
+      expect(costUpdate.inputTokens).toBe(90)
       expect(costUpdate.outputTokens).toBe(50)
       expect(costUpdate.cacheReadTokens).toBe(10)
+    })
+
+    it("maps Finished with all tokens cached to inputTokens=0", () => {
+      const events = mapGeminiEvent({
+        type: GeminiEventType.Finished,
+        value: {
+          reason: "STOP",
+          usageMetadata: {
+            promptTokenCount: 100,
+            candidatesTokenCount: 50,
+            cachedContentTokenCount: 100,
+          },
+        },
+      })
+      expect(events).toHaveLength(1)
+      const costUpdate = events[0]! as any
+      expect(costUpdate.inputTokens).toBe(0)
+      expect(costUpdate.cacheReadTokens).toBe(100)
     })
 
     it("maps Finished without usage metadata to no events", () => {

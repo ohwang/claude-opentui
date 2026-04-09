@@ -196,17 +196,18 @@ function mapGeminiEventStateful(
       mapper.clearAccumulatedText()
 
       // Emit cost_update so running token totals accumulate.
-      // For Gemini, promptTokenCount already INCLUDES cachedContentTokenCount
-      // (it's a subset, not disjoint like Anthropic's three categories).
-      // Emit contextTokens = promptTokenCount so the reducer doesn't double-count
-      // by adding cacheReadTokens on top.
+      // For Gemini, promptTokenCount already INCLUDES cachedContentTokenCount.
+      // We emit inputTokens as the non-cached portion and cacheReadTokens as
+      // the cached portion so they are disjoint and can be summed correctly.
       if (usage) {
+        const cachedTokens = usage.cachedContentTokenCount ?? 0
+        const totalInputTokens = usage.promptTokenCount ?? 0
         events.push({
           type: "cost_update",
-          inputTokens: usage.promptTokenCount ?? 0,
+          inputTokens: Math.max(0, totalInputTokens - cachedTokens),
           outputTokens: usage.candidatesTokenCount ?? 0,
-          cacheReadTokens: usage.cachedContentTokenCount ?? 0,
-          contextTokens: usage.promptTokenCount ?? undefined,
+          cacheReadTokens: cachedTokens,
+          contextTokens: totalInputTokens || undefined,
         })
       }
 

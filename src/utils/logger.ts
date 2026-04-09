@@ -2,8 +2,9 @@
  * Logger — File-based session logging
  *
  * Writes structured log lines to ~/.claude-opentui/logs/<session-id>.log.
- * Each app invocation gets a unique session ID. Debug logging is enabled
- * via --debug flag.
+ * Each app invocation gets a unique session ID. The --debug flag controls
+ * file output level, but all levels (including debug) are always buffered
+ * in memory so the diagnostics panel can display them.
  */
 
 import { mkdirSync, appendFileSync } from "fs"
@@ -127,8 +128,6 @@ class Logger {
   }
 
   private write(level: LogLevel, message: string, data?: unknown) {
-    if (LEVEL_RANK[level] < LEVEL_RANK[this.level]) return
-
     this.ensureDir()
 
     const timestamp = new Date().toISOString()
@@ -143,12 +142,15 @@ class Logger {
     }
     line += "\n"
 
-    // Buffer the line (without trailing newline) for in-memory subscribers
+    // Always buffer in memory so the diagnostics view can show all levels
     const trimmed = line.trimEnd()
     this._lines.push(trimmed)
     for (const cb of this._subscribers) {
       try { cb(trimmed) } catch { /* never crash for observers */ }
     }
+
+    // Only write to log file if the level meets the configured threshold
+    if (LEVEL_RANK[level] < LEVEL_RANK[this.level]) return
 
     try {
       appendFileSync(this.logFile, line)

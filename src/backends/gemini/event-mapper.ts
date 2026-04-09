@@ -87,10 +87,14 @@ function mapGeminiEventStateful(
       if (value) {
         // ThoughtSummary has { subject, description } — subject is bold header,
         // description is the thought content. Combine for display.
-        const text = value.subject
+        let text = value.subject
           ? `**${value.subject}** ${value.description}`
           : value.description
         if (text) {
+          // Ensure each thought chunk ends with a newline so successive
+          // ThoughtSummary events don't concatenate into run-on text
+          // when the reducer accumulates streamingThinking (WI-17).
+          if (!text.endsWith("\n")) text += "\n"
           events.push({ type: "thinking_delta", text })
         }
       }
@@ -241,17 +245,15 @@ function mapGeminiEventStateful(
 
     case GeminiEventType.ModelInfo: {
       // Model info arrives after the adapter's synthetic session_init.
-      // Emit model_changed so the model display updates without
+      // Emit model_changed so the status bar updates without
       // overwriting the session (which already has the correct sessionId).
+      // No system_message — the SDK sends this on every first turn,
+      // and a visible "Model switched" message is confusing when the
+      // user didn't request a switch (WI-18).
       const modelId = event.value
       log.info("Gemini model info", { model: modelId })
       if (modelId) {
         events.push({ type: "model_changed", model: modelId })
-        events.push({
-          type: "system_message",
-          text: `Model switched to ${modelId}`,
-          ephemeral: true,
-        })
       }
       break
     }

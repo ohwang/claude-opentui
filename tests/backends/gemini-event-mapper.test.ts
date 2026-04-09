@@ -23,7 +23,7 @@ describe("Gemini Event Mapper", () => {
   })
 
   describe("thinking", () => {
-    it("maps Thought to thinking_delta", () => {
+    it("maps Thought to thinking_delta with trailing newline", () => {
       const events = mapGeminiEvent({
         type: GeminiEventType.Thought,
         value: { subject: "", description: "Let me analyze this..." },
@@ -31,7 +31,19 @@ describe("Gemini Event Mapper", () => {
       expect(events).toHaveLength(1)
       expect(events[0]!).toEqual({
         type: "thinking_delta",
-        text: "Let me analyze this...",
+        text: "Let me analyze this...\n",
+      })
+    })
+
+    it("preserves existing trailing newline without doubling", () => {
+      const events = mapGeminiEvent({
+        type: GeminiEventType.Thought,
+        value: { subject: "", description: "Already has newline\n" },
+      })
+      expect(events).toHaveLength(1)
+      expect(events[0]!).toEqual({
+        type: "thinking_delta",
+        text: "Already has newline\n",
       })
     })
 
@@ -43,7 +55,7 @@ describe("Gemini Event Mapper", () => {
       expect(events).toHaveLength(1)
       expect(events[0]!).toEqual({
         type: "thinking_delta",
-        text: "**Planning** the solution",
+        text: "**Planning** the solution\n",
       })
     })
 
@@ -200,20 +212,15 @@ describe("Gemini Event Mapper", () => {
   })
 
   describe("model info", () => {
-    it("maps ModelInfo to model_changed + system_message", () => {
+    it("maps ModelInfo to model_changed only (no system_message)", () => {
       const events = mapGeminiEvent({
         type: GeminiEventType.ModelInfo,
         value: "gemini-2.5-pro",
       })
-      expect(events).toHaveLength(2)
+      expect(events).toHaveLength(1)
       const changed = events[0]! as any
       expect(changed.type).toBe("model_changed")
       expect(changed.model).toBe("gemini-2.5-pro")
-
-      const sysMsg = events[1]! as any
-      expect(sysMsg.type).toBe("system_message")
-      expect(sysMsg.text).toBe("Model switched to gemini-2.5-pro")
-      expect(sysMsg.ephemeral).toBe(true)
     })
 
     it("produces no events for empty ModelInfo", () => {

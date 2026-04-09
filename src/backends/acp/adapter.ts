@@ -284,7 +284,7 @@ export class AcpAdapter extends BaseAdapter {
     if (!approval) return
 
     // Find the appropriate option
-    const opts = approval.params.options ?? []
+    const opts = approval.params.options || []
     const option = options?.alwaysAllow
       ? opts.find(o => o.kind === "allow_always") ?? opts.find(o => o.kind === "allow_once")
       : opts.find(o => o.kind === "allow_once")
@@ -308,7 +308,7 @@ export class AcpAdapter extends BaseAdapter {
     const approval = this.pendingApprovals.get(id)
     if (!approval) return
 
-    const opts = approval.params.options ?? []
+    const opts = approval.params.options || []
     const rejectOption = options?.denyForSession
       ? opts.find(o => o.kind === "reject_always") ?? opts.find(o => o.kind === "reject_once")
       : opts.find(o => o.kind === "reject_once") ?? opts.find(o => o.kind === "reject_always")

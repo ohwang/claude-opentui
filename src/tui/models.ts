@@ -65,6 +65,7 @@ export function friendlyModelName(name: string): string {
 export function friendlyBackendName(backendName: string): string {
   if (backendName.startsWith("claude")) return "Claude"
   if (backendName === "gemini") return "Gemini"
+  if (backendName === "copilot") return "GitHub Copilot"
   if (backendName === "codex") return "Codex"
   return "the assistant"
 }

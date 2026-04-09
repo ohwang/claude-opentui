@@ -6,8 +6,8 @@
  * Agent Client Protocol: Gemini CLI, GitHub Copilot CLI, and others.
  *
  * Usage:
- *   --backend gemini-acp       (preset: gemini --acp)
- *   --backend copilot-acp      (preset: gh copilot acp-server)
+ *   --backend gemini          (preset: gemini --acp)
+ *   --backend copilot         (preset: gh copilot --acp)
  *   --backend acp              (generic: requires --acp-command)
  *
  * Lifecycle:
@@ -673,7 +673,7 @@ export class AcpAdapter extends BaseAdapter {
   protected async runSession(config: SessionConfig): Promise<void> {
     if (!this.command) {
       throw new Error(
-        "ACP backend requires a command. Use --backend gemini-acp, --backend copilot-acp, " +
+        "ACP backend requires a command. Use --backend gemini, --backend copilot, " +
         "or --backend acp with --acp-command <cmd>",
       )
     }

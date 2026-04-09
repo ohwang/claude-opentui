@@ -121,6 +121,8 @@ class Logger {
         return "Codex Session"
       case "gemini":
         return "Gemini Session"
+      case "copilot":
+        return "Copilot Session"
       default:
         return "Backend Session"
     }

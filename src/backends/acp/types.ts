@@ -429,14 +429,14 @@ export interface AcpPreset {
 }
 
 export const ACP_PRESETS: Record<string, AcpPreset> = {
-  "gemini-acp": {
+  "gemini": {
     command: "gemini",
     args: ["--acp"],
-    displayName: "Gemini CLI (ACP)",
+    displayName: "Gemini CLI",
   },
-  "copilot-acp": {
+  "copilot": {
     command: "gh",
     args: ["copilot", "--acp"],
-    displayName: "GitHub Copilot (ACP)",
+    displayName: "GitHub Copilot",
   },
 }

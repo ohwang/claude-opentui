@@ -71,12 +71,9 @@ async function main() {
       backend = new CodexAdapter()
       break
     case "gemini":
-    case "gemini-acp":
-    case "copilot-acp": {
-      // "gemini" is now handled by the ACP adapter (same as gemini-acp)
-      const backendName = flags.backend === "gemini" ? "gemini-acp" : flags.backend
-      const preset = ACP_PRESETS[backendName]!
-      backend = new AcpAdapter({ ...preset, presetName: backendName })
+    case "copilot": {
+      const preset = ACP_PRESETS[flags.backend]!
+      backend = new AcpAdapter({ ...preset, presetName: flags.backend })
       break
     }
     case "acp": {

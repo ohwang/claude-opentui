@@ -8,7 +8,7 @@
  */
 
 import type { CliRenderer } from "@opentui/core"
-import type { AgentBackend, Block, CostTotals, SessionMetadata } from "../protocol/types"
+import type { AgentBackend, Block, ConfigOption, CostTotals, SessionMetadata } from "../protocol/types"
 
 export interface CommandContext {
   backend: AgentBackend
@@ -20,7 +20,7 @@ export interface CommandContext {
   setModel: (model: string) => Promise<void>
   exit?: () => void
   toggleDiagnostics?: () => void
-  getSessionState?: () => { cost: CostTotals; turnNumber: number; currentModel: string; currentEffort: string; session: SessionMetadata | null }
+  getSessionState?: () => { cost: CostTotals; turnNumber: number; currentModel: string; currentEffort: string; session: SessionMetadata | null; configOptions?: ConfigOption[] }
   getBlocks?: () => Block[]
   registry?: CommandRegistry
   renderer?: CliRenderer
@@ -142,6 +142,7 @@ import { aboutCommand } from "./builtin/about"
 import { screenshotCommand } from "./builtin/screenshot"
 import { thinkingCommand } from "./builtin/thinking"
 import { themeCommand } from "./builtin/theme"
+import { configCommand } from "./builtin/config"
 
 /** Create a registry with all built-in commands */
 export function createCommandRegistry(): CommandRegistry {
@@ -168,6 +169,7 @@ export function createCommandRegistry(): CommandRegistry {
   registry.register(screenshotCommand)
   registry.register(thinkingCommand)
   registry.register(themeCommand)
+  registry.register(configCommand)
 
   return registry
 }

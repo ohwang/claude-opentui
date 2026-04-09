@@ -158,9 +158,22 @@ export type CostUpdateEvent = {
   cacheReadTokens?: number
   cacheWriteTokens?: number
   cost?: number
-  /** Per-API-call context fill (input + cache_read + cache_creation).
-   *  More accurate than turn_complete usage which is cumulative across
-   *  all API calls in a multi-step agentic turn. */
+  /** Per-API-call context window fill — the total prompt tokens for the
+   *  most recent API call. More accurate than turn_complete.usage which
+   *  is cumulative across all API calls in a multi-step agentic turn.
+   *
+   *  Each backend computes this differently because caching models differ:
+   *
+   *  - **Anthropic**: input_tokens, cache_read, cache_creation are DISJOINT.
+   *    contextTokens = input_tokens + cache_read + cache_creation.
+   *    Source: message_start stream event usage.
+   *
+   *  - **OpenAI (Codex)**: inputTokens INCLUDES cachedInputTokens (subset).
+   *    contextTokens = inputTokens (from tokenUsage.last, not .total).
+   *
+   *  - **Gemini**: promptTokenCount INCLUDES cachedContentTokenCount (subset).
+   *    contextTokens = promptTokenCount.
+   */
   contextTokens?: number
 }
 

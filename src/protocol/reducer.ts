@@ -531,6 +531,26 @@ export function reduce(
       return { ...next, activeTasks }
     }
 
+    // ----- Plan updates (ACP structured plan) -----
+
+    case "plan_update": {
+      // Plan updates replace the entire plan (per ACP spec).
+      // Find existing plan block and replace, or create new.
+      const planBlock: Block = { type: "plan", entries: event.entries }
+
+      const lastPlanIdx = state.blocks.findLastIndex(b => b.type === "plan")
+      if (lastPlanIdx >= 0) {
+        const blocks = [...state.blocks]
+        blocks[lastPlanIdx] = planBlock
+        return { ...next, blocks }
+      }
+
+      return {
+        ...next,
+        blocks: [...state.blocks, planBlock],
+      }
+    }
+
     // ----- Compact -----
 
     case "compact":

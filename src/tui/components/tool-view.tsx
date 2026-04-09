@@ -289,6 +289,8 @@ function extractPrimaryArg(_tool: string, input: unknown): string {
     return truncateToWidth(inp.command, 60)
   }
   if (inp.pattern && typeof inp.pattern === "string") return inp.pattern
+  if (inp.query && typeof inp.query === "string") return truncateToWidth(inp.query, 60)
+  if (inp.description && typeof inp.description === "string") return truncateToWidth(inp.description, 60)
   return ""
 }
 

@@ -353,13 +353,18 @@ describe("Codex SDK Event Mapper", () => {
       expect(start.input).toEqual({ query: "TypeScript generics" })
     })
 
-    it("maps item.completed web_search to tool_use_end", () => {
+    it("maps item.completed web_search to tool_use_progress + tool_use_end", () => {
       const events = mapper.map({
         type: "item.completed",
         item: { id: "ws-1", type: "web_search", query: "TypeScript generics" },
       })
-      expect(events).toHaveLength(1)
-      expect((events[0]! as any).output).toBe("Web search completed")
+      expect(events).toHaveLength(2)
+      // First: progress event propagates the query to update tool block input
+      expect((events[0]! as any).type).toBe("tool_use_progress")
+      expect((events[0]! as any).input).toEqual({ query: "TypeScript generics" })
+      // Second: end event
+      expect((events[1]! as any).type).toBe("tool_use_end")
+      expect((events[1]! as any).output).toBe("Web search completed")
     })
   })
 

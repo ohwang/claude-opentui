@@ -386,6 +386,23 @@ describe("Codex Event Mapper", () => {
       expect(end.type).toBe("tool_use_end")
       expect(end.output).toBe("Web search completed")
     })
+
+    it("propagates query from webSearch completion via tool_use_progress", () => {
+      const events = mapCodexNotification("item/completed", {
+        item: { type: "webSearch", id: "ws-1", query: "typescript generics" },
+      })
+
+      expect(events).toHaveLength(2)
+      // First: progress event propagates the query to update tool block input
+      const progress = events[0]! as any
+      expect(progress.type).toBe("tool_use_progress")
+      expect(progress.input).toEqual({ query: "typescript generics" })
+      expect(progress.output).toBe("")
+      // Second: end event
+      const end = events[1]! as any
+      expect(end.type).toBe("tool_use_end")
+      expect(end.output).toBe("Web search completed")
+    })
   })
 
   describe("error handling", () => {

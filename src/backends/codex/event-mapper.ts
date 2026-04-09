@@ -514,13 +514,24 @@ function mapItemCompleted(item: CodexItem): AgentEvent[] {
       break
     }
 
-    case "webSearch":
+    case "webSearch": {
+      // Propagate query from completed item — item/started may arrive with empty query
+      const wsQuery = item.query as string | undefined
+      if (wsQuery) {
+        events.push({
+          type: "tool_use_progress",
+          id: item.id,
+          output: "",
+          input: { query: wsQuery },
+        })
+      }
       events.push({
         type: "tool_use_end",
         id: item.id,
         output: "Web search completed",
       })
       break
+    }
 
     case "reasoning":
     case "plan":

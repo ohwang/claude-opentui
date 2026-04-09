@@ -250,12 +250,24 @@ export class CodexSdkEventMapper {
       case "mcp_tool_call":
         return [this.mapMcpCompleted(item)]
 
-      case "web_search":
-        return [{
+      case "web_search": {
+        const events: AgentEvent[] = []
+        // Propagate query from completed item — item.started may arrive with empty query
+        if (item.query) {
+          events.push({
+            type: "tool_use_progress",
+            id: item.id,
+            output: "",
+            input: { query: item.query },
+          })
+        }
+        events.push({
           type: "tool_use_end",
           id: item.id,
           output: "Web search completed",
-        }]
+        })
+        return events
+      }
 
       case "todo_list":
         return [{

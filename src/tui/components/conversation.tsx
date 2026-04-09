@@ -19,6 +19,7 @@ import { TextAttributes, type ScrollBoxRenderable } from "@opentui/core"
 import { useKeyboard } from "@opentui/solid"
 import { useMessages } from "../context/messages"
 import { useSession } from "../context/session"
+import { useAgent } from "../context/agent"
 import { ThinkingBlock } from "./thinking-block"
 import { TaskView } from "./task-view"
 import { syntaxStyle } from "../theme"
@@ -54,6 +55,7 @@ function isNearBottom(ref: ScrollBoxRenderable, threshold = 3): boolean {
 // ---------------------------------------------------------------------------
 
 export function ConversationView(props: { children?: JSX.Element; footerHint?: string | null }) {
+  const agent = useAgent()
   const { state } = useMessages()
   const { state: session } = useSession()
   const [viewLevel, setViewLevel] = createSignal<ViewLevel>("collapsed")
@@ -62,6 +64,7 @@ export function ConversationView(props: { children?: JSX.Element; footerHint?: s
   let viewLevelHintTimer: ReturnType<typeof setTimeout> | undefined
   let scrollboxRef: ScrollBoxRenderable | undefined
   const [userScrolledAway, setUserScrolledAway] = createSignal(false)
+  let didInitialResumeScroll = false
 
   // --- Memo chain: store → committed → grouped → prevTypes ---
   // Each stage is a separate memo. Items are never wrapped in new objects —
@@ -216,6 +219,19 @@ export function ConversationView(props: { children?: JSX.Element; footerHint?: s
     if (state === "WAITING_FOR_PERM" || state === "WAITING_FOR_ELIC") {
       queueMicrotask(() => scrollboxRef?.scrollBy(999999))
     }
+  })
+
+  // On resume/continue, the conversation is pre-populated from disk before the
+  // backend finishes re-attaching. Start at the bottom so the input is visible
+  // and the user is ready to continue typing immediately.
+  createEffect(() => {
+    const isResumeMode = !!(agent.config.resume || agent.config.continue)
+    if (!isResumeMode || didInitialResumeScroll || committed().length === 0 || !scrollboxRef) {
+      return
+    }
+    didInitialResumeScroll = true
+    setUserScrolledAway(false)
+    queueMicrotask(() => scrollboxRef?.scrollBy(999999))
   })
 
   // View-level notification helper — transient hint, not a permanent message

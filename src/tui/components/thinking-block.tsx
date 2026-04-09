@@ -6,7 +6,7 @@
  *
  * Collapsed: "💡 Thinking (ctrl+o to expand)"
  * Expanded:
- *   💡 Thinking…
+ *   │ 💡 Thinking…
  *   │ <markdown content>
  */
 
@@ -35,13 +35,13 @@ export function ThinkingBlock(props: { text: string; collapsed?: boolean }) {
           </text>
         }
       >
-        <text fg={colors.text.thinking} attributes={TextAttributes.DIM | TextAttributes.ITALIC}>
-          {"\ud83d\udca1 Thinking\u2026"}
-        </text>
         <box flexDirection="row">
           <box width={1} flexShrink={0} backgroundColor={colors.border.default} />
           <box width={1} flexShrink={0} />
-          <box flexGrow={1}>
+          <box flexDirection="column" flexGrow={1}>
+            <text fg={colors.text.thinking} attributes={TextAttributes.DIM | TextAttributes.ITALIC}>
+              {"\ud83d\udca1 Thinking\u2026"}
+            </text>
             <markdown
               content={truncatedText()}
               syntaxStyle={syntaxStyle}

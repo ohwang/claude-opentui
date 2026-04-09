@@ -12,7 +12,7 @@ import fs from "node:fs"
 import { log } from "./logger"
 import { friendlyModelName, MODEL_CONTEXT_WINDOWS, DEFAULT_CONTEXT_WINDOW } from "../tui/models"
 import type { SessionContextState } from "../tui/context/session"
-import type { PermissionMode } from "../protocol/types"
+import type { PermissionMode, RateLimitEntry } from "../protocol/types"
 
 // ---------------------------------------------------------------------------
 // Settings
@@ -127,6 +127,15 @@ function formatModelDisplayName(rawModel: string, ctxWindow: number): string {
 /** Session start timestamp (set once on first build call). */
 let sessionStartMs = 0
 
+function toStatusLineRateLimit(entry: RateLimitEntry | undefined) {
+  if (!entry) return undefined
+  return {
+    used_percentage: entry.usedPercentage,
+    resets_at: entry.resetsAt,
+    window_duration_mins: entry.windowDurationMins,
+  }
+}
+
 export function buildStatusLineInput(
   sessionState: SessionContextState,
   opts: {
@@ -165,6 +174,34 @@ export function buildStatusLineInput(
 
   // Duration
   const durationMs = Date.now() - sessionStartMs
+
+  // Codex compatibility: some external statusline scripts branch on backend
+  // and only read backend_rate_limits. When Codex windows map cleanly to real
+  // 5h/7d buckets, synthesize matching primary/secondary entries too.
+  const synthesizedCodexBackendRateLimits = opts.backendName === "codex" && sessionState.rateLimits
+    ? {
+        ...(sessionState.rateLimits.primary
+          ? { primary: toStatusLineRateLimit(sessionState.rateLimits.primary) }
+          : sessionState.rateLimits.fiveHour
+            ? {
+                primary: {
+                  ...toStatusLineRateLimit(sessionState.rateLimits.fiveHour),
+                  window_duration_mins: sessionState.rateLimits.fiveHour.windowDurationMins ?? 300,
+                },
+              }
+            : {}),
+        ...(sessionState.rateLimits.secondary
+          ? { secondary: toStatusLineRateLimit(sessionState.rateLimits.secondary) }
+          : sessionState.rateLimits.sevenDay
+            ? {
+                secondary: {
+                  ...toStatusLineRateLimit(sessionState.rateLimits.sevenDay),
+                  window_duration_mins: sessionState.rateLimits.sevenDay.windowDurationMins ?? 10080,
+                },
+              }
+            : {}),
+      }
+    : null
 
   return {
     cwd,
@@ -221,22 +258,9 @@ export function buildStatusLineInput(
     // Backend identity
     ...(opts.backendName && { backend: { name: opts.backendName } }),
     // Backend-native rate limits with actual window durations (Codex)
-    ...(sessionState.rateLimits && (sessionState.rateLimits.primary || sessionState.rateLimits.secondary) && {
+    ...(synthesizedCodexBackendRateLimits && Object.keys(synthesizedCodexBackendRateLimits).length > 0 && {
       backend_rate_limits: {
-        ...(sessionState.rateLimits.primary && {
-          primary: {
-            used_percentage: sessionState.rateLimits.primary.usedPercentage,
-            resets_at: sessionState.rateLimits.primary.resetsAt,
-            window_duration_mins: sessionState.rateLimits.primary.windowDurationMins,
-          },
-        }),
-        ...(sessionState.rateLimits.secondary && {
-          secondary: {
-            used_percentage: sessionState.rateLimits.secondary.usedPercentage,
-            resets_at: sessionState.rateLimits.secondary.resetsAt,
-            window_duration_mins: sessionState.rateLimits.secondary.windowDurationMins,
-          },
-        }),
+        ...synthesizedCodexBackendRateLimits,
       },
     }),
   }

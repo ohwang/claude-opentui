@@ -714,6 +714,22 @@ export class AcpAdapter extends BaseAdapter {
         sessionId: this.sessionId ?? undefined,
       })
 
+      // Warn on non-normal stop reasons
+      if (result?.stopReason && result.stopReason !== "end_turn" && result.stopReason !== "stop") {
+        const reasonMessages: Record<string, string> = {
+          max_tokens: "Response truncated (token limit reached)",
+          max_turn_requests: "Turn ended (maximum tool calls reached)",
+          refusal: "Agent refused to continue",
+          cancelled: "Turn was cancelled",
+        }
+        const msg = reasonMessages[result.stopReason] ?? `Turn ended: ${result.stopReason}`
+        this.eventChannel?.push({
+          type: "system_message",
+          text: msg,
+          ephemeral: true,
+        })
+      }
+
       log.info("ACP prompt completed", { stopReason: result?.stopReason })
     } catch (err) {
       // If we were interrupted, the cancel notification resolves the prompt

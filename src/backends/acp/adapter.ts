@@ -1014,21 +1014,26 @@ export class AcpAdapter extends BaseAdapter {
 
       case "terminal/wait_for_exit": {
         const p = params as AcpTerminalWaitParams
-        this.terminalManager.waitForExit(p.terminalId).then(exitCode => {
-          this.transport?.respond(rpcId, { exitCode })
+        ;(async () => {
+          try {
+            const exitCode = await this.terminalManager.waitForExit(p.terminalId)
+            this.transport?.respond(rpcId, { exitCode })
 
-          // Emit shell_end with accumulated output
-          const { output } = this.terminalManager.getOutput(p.terminalId)
-          this.eventChannel?.push({
-            type: "shell_end",
-            id: p.terminalId,
-            output,
-            exitCode,
-            error: exitCode !== 0 ? `Process exited with code ${exitCode}` : undefined,
-          })
-        }).catch(err => {
-          this.transport?.respondError(rpcId, -32603, `Wait failed: ${String(err)}`)
-        })
+            // Emit shell_end with accumulated output
+            const { output } = this.terminalManager.getOutput(p.terminalId)
+            if (!this.closed) {
+              this.eventChannel?.push({
+                type: "shell_end",
+                id: p.terminalId,
+                output,
+                exitCode,
+                error: exitCode !== 0 ? `Process exited with code ${exitCode}` : undefined,
+              })
+            }
+          } catch (err) {
+            this.transport?.respondError(rpcId, -32603, `Wait failed: ${String(err)}`)
+          }
+        })()
         break
       }
 

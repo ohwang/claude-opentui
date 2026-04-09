@@ -542,6 +542,16 @@ export class GeminiAdapter implements AgentBackend {
       } finally {
         clearTimeout(firstEventTimeout)
       }
+
+      // Emit turn_complete AFTER the stream ends. The event mapper does NOT
+      // emit turn_complete from Finished events because the Gemini SDK can
+      // emit multiple Finished events per user message (one per internal
+      // tool-use cycle). Emitting turn_complete here — once per runTurn() —
+      // keeps the state machine in RUNNING throughout the multi-turn loop,
+      // allowing Ctrl+C interrupt to work at any point.
+      if (!this.closed && this.eventChannel) {
+        this.eventChannel.push({ type: "turn_complete" })
+      }
     } catch (err) {
       // AbortError is expected on interrupt (user Ctrl+C or first-event timeout)
       if (err instanceof Error && err.name === "AbortError") {

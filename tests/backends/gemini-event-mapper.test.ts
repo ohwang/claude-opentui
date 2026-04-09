@@ -144,7 +144,7 @@ describe("Gemini Event Mapper", () => {
   })
 
   describe("turn lifecycle", () => {
-    it("maps Finished to cost_update + turn_complete with usage", () => {
+    it("maps Finished to cost_update (turn_complete emitted by adapter)", () => {
       const events = mapGeminiEvent({
         type: GeminiEventType.Finished,
         value: {
@@ -156,28 +156,23 @@ describe("Gemini Event Mapper", () => {
           },
         },
       })
-      expect(events).toHaveLength(2)
-      // First event: cost_update for running token totals
+      // Only cost_update — turn_complete is emitted by the adapter after the
+      // stream ends, not by the event mapper on each Finished event.
+      expect(events).toHaveLength(1)
       const costUpdate = events[0]! as any
       expect(costUpdate.type).toBe("cost_update")
       expect(costUpdate.inputTokens).toBe(100)
       expect(costUpdate.outputTokens).toBe(50)
       expect(costUpdate.cacheReadTokens).toBe(10)
-      // Second event: turn_complete with authoritative usage
-      const complete = events[1]! as any
-      expect(complete.type).toBe("turn_complete")
-      expect(complete.usage.inputTokens).toBe(100)
-      expect(complete.usage.outputTokens).toBe(50)
-      expect(complete.usage.cacheReadTokens).toBe(10)
     })
 
-    it("maps Finished without usage metadata", () => {
+    it("maps Finished without usage metadata to no events", () => {
       const events = mapGeminiEvent({
         type: GeminiEventType.Finished,
         value: { reason: "STOP", usageMetadata: undefined },
       })
-      expect(events).toHaveLength(1)
-      expect((events[0]! as any).usage).toBeUndefined()
+      // No cost_update (no usage), no turn_complete (emitted by adapter)
+      expect(events).toHaveLength(0)
     })
   })
 
@@ -349,7 +344,7 @@ describe("Gemini Event Mapper", () => {
       mapper.map({ type: GeminiEventType.Content, value: "Hello, " })
       mapper.map({ type: GeminiEventType.Content, value: "world!" })
 
-      // Finished should emit text_complete -> cost_update -> turn_complete
+      // Finished should emit text_complete -> cost_update (no turn_complete — adapter emits that)
       const events = mapper.map({
         type: GeminiEventType.Finished,
         value: {
@@ -362,10 +357,9 @@ describe("Gemini Event Mapper", () => {
         },
       })
 
-      expect(events).toHaveLength(3)
+      expect(events).toHaveLength(2)
       expect(events[0]!).toEqual({ type: "text_complete", text: "Hello, world!" })
       expect(events[1]!.type).toBe("cost_update")
-      expect(events[2]!.type).toBe("turn_complete")
     })
 
     it("does not emit text_complete when no text was accumulated", () => {
@@ -376,8 +370,8 @@ describe("Gemini Event Mapper", () => {
         value: { reason: "STOP", usageMetadata: undefined },
       })
 
-      expect(events).toHaveLength(1)
-      expect(events[0]!.type).toBe("turn_complete")
+      // No text accumulated + no usage = no events (turn_complete emitted by adapter)
+      expect(events).toHaveLength(0)
     })
 
     it("resets accumulated text between turns", () => {
@@ -403,7 +397,7 @@ describe("Gemini Event Mapper", () => {
       expect(secondFinish[0]!).toEqual({ type: "text_complete", text: "Second turn" })
     })
 
-    it("emits text_complete before cost_update and turn_complete", () => {
+    it("emits text_complete before cost_update (turn_complete emitted by adapter)", () => {
       const mapper = new GeminiEventMapper()
 
       mapper.map({ type: GeminiEventType.Content, value: "Some response" })
@@ -420,7 +414,7 @@ describe("Gemini Event Mapper", () => {
       })
 
       const types = events.map((e) => e.type)
-      expect(types).toEqual(["text_complete", "cost_update", "turn_complete"])
+      expect(types).toEqual(["text_complete", "cost_update"])
     })
   })
 })

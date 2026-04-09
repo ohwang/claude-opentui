@@ -9,7 +9,7 @@
  *   Thought          → thinking_delta
  *   ToolCallRequest  → tool_use_start
  *   ToolCallResponse → tool_use_end
- *   Finished         → turn_complete (with usage)
+ *   Finished         → text_complete + cost_update (turn_complete emitted by adapter)
  *   Error            → error
  *   ModelInfo        → model_changed
  *   ChatCompressed   → compact
@@ -174,13 +174,13 @@ function mapGeminiEventStateful(
         rawKeys: usage ? Object.keys(usage) : "no usage",
       })
 
-      // Emit text_complete with accumulated text before cost/turn events
+      // Emit text_complete with accumulated text before cost events
       const fullText = mapper.consumeAccumulatedText()
       if (fullText) {
         events.push({ type: "text_complete", text: fullText })
       }
 
-      // Emit cost_update before turn_complete so running token totals accumulate.
+      // Emit cost_update so running token totals accumulate.
       // For Gemini, promptTokenCount already INCLUDES cachedContentTokenCount
       // (it's a subset, not disjoint like Anthropic's three categories).
       // Emit contextTokens = promptTokenCount so the reducer doesn't double-count
@@ -195,16 +195,13 @@ function mapGeminiEventStateful(
         })
       }
 
-      events.push({
-        type: "turn_complete",
-        usage: usage
-          ? {
-              inputTokens: usage.promptTokenCount ?? 0,
-              outputTokens: usage.candidatesTokenCount ?? 0,
-              cacheReadTokens: usage.cachedContentTokenCount ?? 0,
-            }
-          : undefined,
-      })
+      // NOTE: turn_complete is NOT emitted here. The Gemini SDK emits multiple
+      // Finished events per user message during multi-turn tool-use loops (one
+      // per internal sendStream cycle). Emitting turn_complete on each Finished
+      // would transition the state machine to IDLE mid-turn, making Ctrl+C
+      // interrupt checks fail (they require RUNNING state). The adapter emits
+      // a single turn_complete after the for-await loop over sendStream() ends.
+      // See adapter.ts runTurn().
 
       if (value?.reason) {
         log.info("Gemini turn finished", { reason: value.reason })

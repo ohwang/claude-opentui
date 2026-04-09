@@ -235,6 +235,8 @@ export function hasInputText(): boolean {
 let _sharedTextareaRef: TextareaRenderable | undefined
 /** Module-level callback to reset line count when clearInput() is called externally */
 let _resetLineCount: (() => void) | undefined
+/** Module-level callback to recalculate line count after programmatic text changes */
+let _updateLineCount: (() => void) | undefined
 
 /**
  * Parse a shell-like command string into argv, preserving quoted segments.
@@ -376,6 +378,9 @@ export function InputArea() {
     const width = (dims()?.width ?? 120) - 3
     setLineCount(computeVisualLineCount(text, width))
   }
+
+  // Register module-level update so setInputText() can recalculate height
+  _updateLineCount = updateLineCount
 
   // Autocomplete dropdown state
   const [showAutocomplete, setShowAutocomplete] = createSignal(false)
@@ -1120,6 +1125,7 @@ export function InputArea() {
         historyIndex--
       }
       setTextareaContent(inputHistory[historyIndex] ?? "")
+      updateLineCount()
       return
     }
 
@@ -1134,6 +1140,7 @@ export function InputArea() {
         historyIndex = -1
         setTextareaContent(savedInput)
       }
+      updateLineCount()
       return
     }
 
@@ -1241,12 +1248,14 @@ export function getInputHistory(): string[] {
 
 /**
  * Set the textarea content programmatically (e.g., from history search selection).
- * Clears existing text and inserts the new text.
+ * Clears existing text and inserts the new text, then updates the textarea height
+ * so multiline content is fully visible.
  */
 export function setInputText(text: string): void {
   if (!_sharedTextareaRef) return
   _sharedTextareaRef.clear()
   if (text) _sharedTextareaRef.insertText(text)
+  _updateLineCount?.()
 }
 
 /** Exported for testing */

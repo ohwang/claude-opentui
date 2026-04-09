@@ -114,6 +114,28 @@ export class AcpAdapter extends BaseAdapter {
     if (preset?.displayName) this.agentName = preset.displayName
   }
 
+  private deriveSupportedPermissionModes(): PermissionMode[] {
+    // Reverse-map ACP mode IDs to our internal PermissionMode names
+    const reverseMap: Record<string, PermissionMode> = {
+      default: "default",
+      autoEdit: "acceptEdits",
+      yolo: "bypassPermissions",
+      plan: "plan",
+    }
+
+    if (this.discoveredModes.length > 0) {
+      const modes = this.discoveredModes
+        .map(m => reverseMap[m.id])
+        .filter((m): m is PermissionMode => !!m)
+      // Always include "default" as a fallback
+      if (!modes.includes("default")) modes.unshift("default")
+      return modes
+    }
+
+    // Fallback if no modes discovered yet
+    return ["default", "bypassPermissions"]
+  }
+
   capabilities(): BackendCapabilities {
     return {
       name: this.presetName,
@@ -123,7 +145,7 @@ export class AcpAdapter extends BaseAdapter {
       supportsFork: false,
       supportsStreaming: true,
       supportsSubagents: false,
-      supportedPermissionModes: ["default", "bypassPermissions"],
+      supportedPermissionModes: this.deriveSupportedPermissionModes(),
     }
   }
 

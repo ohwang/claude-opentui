@@ -600,7 +600,8 @@ export class GeminiAdapter implements AgentBackend {
       // tool-use cycle). Emitting turn_complete here — once per runTurn() —
       // keeps the state machine in RUNNING throughout the multi-turn loop,
       // allowing Ctrl+C interrupt to work at any point.
-      if (!this.closed && this.eventChannel) {
+      // Skip if user already interrupted — interrupt() already pushed turn_complete.
+      if (!this.closed && !this.userInitiatedAbort && this.eventChannel) {
         this.eventChannel.push({ type: "turn_complete" })
       }
     } catch (err) {

@@ -9,7 +9,7 @@
  *   Thought          → thinking_delta
  *   ToolCallRequest  → tool_use_start
  *   ToolCallResponse → tool_use_end
- *   Finished         → text_complete + cost_update (turn_complete emitted by adapter)
+ *   Finished         → cost_update (turn_complete emitted by adapter)
  *   Error            → error
  *   ModelInfo        → model_changed
  *   ChatCompressed   → compact
@@ -24,9 +24,19 @@ import { GeminiEventType, type ServerGeminiStreamEvent } from "./types"
 // ---------------------------------------------------------------------------
 
 /**
- * Stateful mapper that accumulates text across Content events and emits
- * a `text_complete` event when the turn finishes. Create one per session;
- * call `reset()` at the start of each turn.
+ * Stateful mapper that converts SDK events to AgentEvents.
+ *
+ * The Gemini SDK's sendStream() drives an internal while-loop for tool
+ * execution.  Each iteration makes a fresh sendMessageStream() API call
+ * which yields Content events for genuinely new model output — it does
+ * NOT replay Content from prior iterations.  So no cross-turn text
+ * deduplication is needed; every Content event.value is new text.
+ *
+ * On `Finished` we do NOT emit `text_complete` — the text was already
+ * streamed via `text_delta`, and the reducer's turn_complete /
+ * tool_use_start handlers flush streaming buffers into blocks.
+ *
+ * Create one per session; call `reset()` at the start of each user turn.
  */
 export class GeminiEventMapper {
   private accumulatedText = ""
@@ -36,19 +46,18 @@ export class GeminiEventMapper {
     return mapGeminiEventStateful(event, this)
   }
 
-  /** Append text (called internally by the Content handler). */
-  appendText(text: string): void {
+  /** Append text and return it (every Content chunk is new model output). */
+  appendText(text: string): string {
     this.accumulatedText += text
-  }
-
-  /** Consume and return accumulated text, then clear it. */
-  consumeAccumulatedText(): string {
-    const text = this.accumulatedText
-    this.accumulatedText = ""
     return text
   }
 
-  /** Reset state between turns. */
+  /** Clear the text accumulator (called on Finished between SDK internal turns). */
+  clearAccumulatedText(): void {
+    this.accumulatedText = ""
+  }
+
+  /** Reset state between user turns. */
   reset(): void {
     this.accumulatedText = ""
   }
@@ -67,8 +76,8 @@ function mapGeminiEventStateful(
   switch (event.type) {
     case GeminiEventType.Content: {
       if (event.value) {
-        mapper.appendText(event.value)
-        events.push({ type: "text_delta", text: event.value })
+        const newText = mapper.appendText(event.value)
+        events.push({ type: "text_delta", text: newText })
       }
       break
     }
@@ -174,11 +183,13 @@ function mapGeminiEventStateful(
         rawKeys: usage ? Object.keys(usage) : "no usage",
       })
 
-      // Emit text_complete with accumulated text before cost events
-      const fullText = mapper.consumeAccumulatedText()
-      if (fullText) {
-        events.push({ type: "text_complete", text: fullText })
-      }
+      // Do NOT emit text_complete here. The text was already streamed via
+      // text_delta events, and the reducer's turn_complete/tool_use_start
+      // handlers call flushBuffers() to commit streaming text into blocks.
+      // Emitting text_complete would duplicate text that was already flushed
+      // (especially around tool calls where tool_use_start triggers a flush).
+      // Clear the accumulator so it doesn't leak into the next SDK internal turn.
+      mapper.clearAccumulatedText()
 
       // Emit cost_update so running token totals accumulate.
       // For Gemini, promptTokenCount already INCLUDES cachedContentTokenCount
@@ -363,7 +374,7 @@ function mapGeminiEventStateful(
  * Stateless convenience wrapper — maps a single event without cross-event
  * text accumulation. Resets internal state on each call so it never leaks
  * between independent invocations. Prefer `GeminiEventMapper` for production
- * use where `text_complete` emission matters.
+ * use where text accumulation across a turn matters.
  */
 const _defaultMapper = new GeminiEventMapper()
 

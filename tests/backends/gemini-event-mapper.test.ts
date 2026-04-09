@@ -336,15 +336,20 @@ describe("Gemini Event Mapper", () => {
     })
   })
 
-  describe("text_complete (stateful mapper)", () => {
-    it("emits text_complete with accumulated text on Finished", () => {
+  describe("stateful mapper (no text_complete, no cross-turn dedup)", () => {
+    it("does NOT emit text_complete on Finished (text already streamed via text_delta)", () => {
       const mapper = new GeminiEventMapper()
 
-      // Simulate two Content events
-      mapper.map({ type: GeminiEventType.Content, value: "Hello, " })
-      mapper.map({ type: GeminiEventType.Content, value: "world!" })
+      // Simulate two Content events — each produces a text_delta
+      const c1 = mapper.map({ type: GeminiEventType.Content, value: "Hello, " })
+      expect(c1).toHaveLength(1)
+      expect(c1[0]!).toEqual({ type: "text_delta", text: "Hello, " })
 
-      // Finished should emit text_complete -> cost_update (no turn_complete — adapter emits that)
+      const c2 = mapper.map({ type: GeminiEventType.Content, value: "world!" })
+      expect(c2).toHaveLength(1)
+      expect(c2[0]!).toEqual({ type: "text_delta", text: "world!" })
+
+      // Finished should emit only cost_update (no text_complete, no turn_complete)
       const events = mapper.map({
         type: GeminiEventType.Finished,
         value: {
@@ -357,9 +362,8 @@ describe("Gemini Event Mapper", () => {
         },
       })
 
-      expect(events).toHaveLength(2)
-      expect(events[0]!).toEqual({ type: "text_complete", text: "Hello, world!" })
-      expect(events[1]!.type).toBe("cost_update")
+      expect(events).toHaveLength(1)
+      expect(events[0]!.type).toBe("cost_update")
     })
 
     it("does not emit text_complete when no text was accumulated", () => {
@@ -374,30 +378,34 @@ describe("Gemini Event Mapper", () => {
       expect(events).toHaveLength(0)
     })
 
-    it("resets accumulated text between turns", () => {
+    it("resets accumulated text between user turns", () => {
       const mapper = new GeminiEventMapper()
 
       // First turn
-      mapper.map({ type: GeminiEventType.Content, value: "First turn text" })
+      const c1 = mapper.map({ type: GeminiEventType.Content, value: "First turn text" })
+      expect(c1[0]!).toEqual({ type: "text_delta", text: "First turn text" })
       const firstFinish = mapper.map({
         type: GeminiEventType.Finished,
         value: { reason: "STOP", usageMetadata: undefined },
       })
-      expect(firstFinish[0]!).toEqual({ type: "text_complete", text: "First turn text" })
+      // Finished without usage = no events (turn_complete emitted by adapter)
+      expect(firstFinish).toHaveLength(0)
 
-      // Reset for second turn
+      // Reset for second user turn
       mapper.reset()
 
-      // Second turn
-      mapper.map({ type: GeminiEventType.Content, value: "Second turn" })
+      // Second turn — new text should stream normally
+      const c2 = mapper.map({ type: GeminiEventType.Content, value: "Second turn" })
+      expect(c2[0]!).toEqual({ type: "text_delta", text: "Second turn" })
       const secondFinish = mapper.map({
         type: GeminiEventType.Finished,
         value: { reason: "STOP", usageMetadata: undefined },
       })
-      expect(secondFinish[0]!).toEqual({ type: "text_complete", text: "Second turn" })
+      // No usage = no events
+      expect(secondFinish).toHaveLength(0)
     })
 
-    it("emits text_complete before cost_update (turn_complete emitted by adapter)", () => {
+    it("Finished emits only cost_update (no text_complete, no turn_complete)", () => {
       const mapper = new GeminiEventMapper()
 
       mapper.map({ type: GeminiEventType.Content, value: "Some response" })
@@ -414,7 +422,69 @@ describe("Gemini Event Mapper", () => {
       })
 
       const types = events.map((e) => e.type)
-      expect(types).toEqual(["text_complete", "cost_update"])
+      expect(types).toEqual(["cost_update"])
+    })
+
+    it("emits all Content from each SDK internal turn (no cross-turn dedup)", () => {
+      const mapper = new GeminiEventMapper()
+
+      // SDK internal turn 1: Content → ToolCallRequest → Finished
+      const c1 = mapper.map({ type: GeminiEventType.Content, value: "I'll check the directory." })
+      expect(c1).toHaveLength(1)
+      expect(c1[0]!).toEqual({ type: "text_delta", text: "I'll check the directory." })
+
+      mapper.map({
+        type: GeminiEventType.ToolCallRequest,
+        value: { callId: "call-1", name: "list_directory", args: { dir_path: "." } },
+      })
+      mapper.map({
+        type: GeminiEventType.ToolCallResponse,
+        value: { callId: "call-1", responseParts: [{ text: "file.ts" }] },
+      })
+      mapper.map({
+        type: GeminiEventType.Finished,
+        value: { reason: "STOP", usageMetadata: undefined },
+      })
+
+      // SDK internal turn 2: fresh model output (the SDK makes a new API call,
+      // it does NOT re-emit Content from the previous turn)
+      const c2 = mapper.map({ type: GeminiEventType.Content, value: "Here are the results:" })
+      expect(c2).toHaveLength(1)
+      expect(c2[0]!).toEqual({ type: "text_delta", text: "Here are the results:" })
+    })
+
+    it("emits Content from multiple SDK internal turns without fragments", () => {
+      const mapper = new GeminiEventMapper()
+
+      // Turn 1: text + tool call
+      mapper.map({ type: GeminiEventType.Content, value: "Let me list the files." })
+      mapper.map({
+        type: GeminiEventType.ToolCallRequest,
+        value: { callId: "call-1", name: "list_directory", args: { dir_path: "src" } },
+      })
+      mapper.map({
+        type: GeminiEventType.Finished,
+        value: { reason: "STOP", usageMetadata: undefined },
+      })
+
+      // Turn 2: text + another tool call
+      const c2 = mapper.map({ type: GeminiEventType.Content, value: "Now let me read the file." })
+      expect(c2).toHaveLength(1)
+      expect(c2[0]!).toEqual({ type: "text_delta", text: "Now let me read the file." })
+
+      mapper.map({
+        type: GeminiEventType.ToolCallRequest,
+        value: { callId: "call-2", name: "read_file", args: { file_path: "src/index.ts" } },
+      })
+      mapper.map({
+        type: GeminiEventType.Finished,
+        value: { reason: "STOP", usageMetadata: undefined },
+      })
+
+      // Turn 3: final summary
+      const c3 = mapper.map({ type: GeminiEventType.Content, value: "The directory contains the following:" })
+      expect(c3).toHaveLength(1)
+      expect(c3[0]!).toEqual({ type: "text_delta", text: "The directory contains the following:" })
     })
   })
 })

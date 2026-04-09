@@ -745,11 +745,16 @@ export class AcpAdapter extends BaseAdapter {
           )
           this.transport?.respond(rpcId, { terminalId })
 
-          // Emit a tool progress event so the TUI shows terminal activity
+          // Build display command string
+          const displayCommand = p.args?.length
+            ? `${p.command} ${p.args.join(" ")}`
+            : p.command
+
+          // Emit shell_start so the TUI shows a shell block
           this.eventChannel?.push({
-            type: "backend_specific",
-            backend: "acp",
-            data: { type: "terminal_created", terminalId, command: p.command },
+            type: "shell_start",
+            id: terminalId,
+            command: displayCommand,
           })
         } catch (err) {
           this.transport?.respondError(rpcId, -32603, `Failed to create terminal: ${String(err)}`)
@@ -768,6 +773,16 @@ export class AcpAdapter extends BaseAdapter {
         const p = params as AcpTerminalWaitParams
         this.terminalManager.waitForExit(p.terminalId).then(exitCode => {
           this.transport?.respond(rpcId, { exitCode })
+
+          // Emit shell_end with accumulated output
+          const { output } = this.terminalManager.getOutput(p.terminalId)
+          this.eventChannel?.push({
+            type: "shell_end",
+            id: p.terminalId,
+            output,
+            exitCode,
+            error: exitCode !== 0 ? `Process exited with code ${exitCode}` : undefined,
+          })
         }).catch(err => {
           this.transport?.respondError(rpcId, -32603, `Wait failed: ${String(err)}`)
         })

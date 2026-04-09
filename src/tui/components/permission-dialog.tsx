@@ -561,13 +561,15 @@ export function PermissionDialog() {
             {/* Content preview between dashed borders — scrollable to fit small terminals */}
             <Show when={previewLines()}>
               {(lines: Accessor<PreviewLine[]>) => {
-                const isTruncated = createMemo(() => lines().length > maxPreviewHeight())
-                const extraLineCount = createMemo(() => lines().length - maxPreviewHeight())
+                const lineCount = createMemo(() => lines().length)
+                const isTruncated = createMemo(() => lineCount() > maxPreviewHeight())
+                const extraLineCount = createMemo(() => lineCount() - maxPreviewHeight())
+                const scrollHeight = createMemo(() => Math.min(lineCount(), maxPreviewHeight()))
                 return (
                 <box flexDirection="column">
                   <Divider char={"\u254C"} fg={ACCENT} paddingLeft={0} />
                   <scrollbox
-                    height={Math.min(lines().length, maxPreviewHeight())}
+                    height={scrollHeight()}
                     maxHeight={maxPreviewHeight()}
                     stickyScroll={false}
                   >

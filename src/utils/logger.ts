@@ -23,7 +23,7 @@ const LOG_DIR = join(homedir(), ".claude-opentui", "logs")
 
 function generateSessionId(): string {
   const now = new Date()
-  const date = now.toISOString().slice(0, 10)
+  const date = now.toISOString().slice(0, 10).replace(/-/g, "")
   const time = now.toISOString().slice(11, 19).replace(/:/g, "")
   const random = Math.random().toString(36).slice(2, 8)
   return `${date}_${time}_${random}`

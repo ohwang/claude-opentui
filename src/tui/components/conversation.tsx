@@ -7,9 +7,12 @@
  * A flex spacer + minHeight="100%" keeps the footer pinned to the bottom
  * of the viewport when conversation content is short.
  *
- * Auto-scrolls during streaming via a 200ms nudge timer, but respects
- * user scroll position — if the user scrolls up, auto-scroll disengages.
- * Re-engages when user scrolls back to bottom or sends a new message.
+ * Auto-scrolls using OpenTUI's native stickyScroll={true} + stickyStart="bottom".
+ * The Zig layout engine pins the viewport to the bottom during its own render
+ * frame — no timers or timing hacks needed for streaming, resume, or content
+ * changes. When the user scrolls away (Ctrl+Up or mouse wheel), stickyScroll
+ * is disabled so the viewport stays in place. Re-enables on Ctrl+Down back to
+ * bottom, printable input, or sending a new message.
  * Ctrl+O toggles tool view level, Ctrl+E shows all.
  */
 
@@ -19,7 +22,6 @@ import { TextAttributes, type ScrollBoxRenderable } from "@opentui/core"
 import { useKeyboard } from "@opentui/solid"
 import { useMessages } from "../context/messages"
 import { useSession } from "../context/session"
-import { useAgent } from "../context/agent"
 import { ThinkingBlock } from "./thinking-block"
 import { TaskView } from "./task-view"
 import { syntaxStyle } from "../theme"
@@ -55,7 +57,6 @@ function isNearBottom(ref: ScrollBoxRenderable, threshold = 3): boolean {
 // ---------------------------------------------------------------------------
 
 export function ConversationView(props: { children?: JSX.Element; footerHint?: string | null }) {
-  const agent = useAgent()
   const { state } = useMessages()
   const { state: session } = useSession()
   const [viewLevel, setViewLevel] = createSignal<ViewLevel>("collapsed")
@@ -64,7 +65,14 @@ export function ConversationView(props: { children?: JSX.Element; footerHint?: s
   let viewLevelHintTimer: ReturnType<typeof setTimeout> | undefined
   let scrollboxRef: ScrollBoxRenderable | undefined
   const [userScrolledAway, setUserScrolledAway] = createSignal(false)
-  let didInitialResumeScroll = false
+
+  // Helper: sync userScrolledAway and cursor visibility.
+  // stickyScroll is reactively bound in JSX via !userScrolledAway().
+  const setScrolledAway = (away: boolean) => {
+    setUserScrolledAway(away)
+    if (away) hideCursor()
+    else showCursor()
+  }
 
   // --- Memo chain: store → committed → grouped → prevTypes ---
   // Each stage is a separate memo. Items are never wrapped in new objects —
@@ -93,6 +101,19 @@ export function ConversationView(props: { children?: JSX.Element; footerHint?: s
       return prev ? (isToolGroup(prev) ? "tool" : (prev as Block).type) : undefined
     })
   )
+
+  // Line-buffered streaming text: only show text up to the last newline.
+  // Hides the in-progress partial line so text streams line-by-line, not
+  // char-by-char. This prevents layout reflow jitter (partial lines constantly
+  // change width), markdown mis-parsing of incomplete lines, and gives a
+  // polished visual cadence. Same approach as Claude Code (REPL.tsx).
+  const visibleStreamingText = createMemo(() => {
+    const raw = state.streamingText
+    if (!raw) return null
+    const lastNewline = raw.lastIndexOf("\n")
+    if (lastNewline === -1) return null // No complete line yet
+    return raw.substring(0, lastNewline + 1) || null
+  })
 
   // Tasks that have NO matching Agent tool block — these are "orphan" tasks
   // that should still be shown in the TaskView (e.g., background tasks started
@@ -158,80 +179,17 @@ export function ConversationView(props: { children?: JSX.Element; footerHint?: s
     return "Thinking..."
   }
 
-  // Periodic scroll nudge during streaming or thinking.
-  // Uses a 200ms interval (not per-delta) to avoid scroll thrashing
-  // that was fixed in commit 91901ca.
-  // Does NOT reset userScrolledAway on streaming start — if the user was
-  // scrolled up reading earlier content, we respect that position.
-  let scrollNudgeTimer: ReturnType<typeof setInterval> | undefined
-  let lastKnownScrollTop: number | undefined
-  createEffect(() => {
-    const isStreaming = !!(state.streamingText || state.streamingThinking || session.sessionState === "RUNNING")
-    if (isStreaming) {
-      if (!scrollNudgeTimer) {
-        // Initial nudge — only if user hasn't scrolled away
-        if (!userScrolledAway()) {
-          scrollboxRef?.scrollBy(1, "content")
-        }
-        if (scrollboxRef) lastKnownScrollTop = scrollboxRef.scrollTop
-        // Periodic nudge every 200ms — only when user hasn't scrolled away
-        scrollNudgeTimer = setInterval(() => {
-          // Detect external scroll (mouse wheel): if scrollTop moved upward
-          // since last check without us nudging, the user scrolled away
-          if (scrollboxRef && lastKnownScrollTop !== undefined) {
-            if (scrollboxRef.scrollTop < lastKnownScrollTop) {
-              setUserScrolledAway(true)
-              hideCursor()
-            }
-            // Re-engage auto-scroll if user scrolled back to bottom
-            if (!userScrolledAway() || isNearBottom(scrollboxRef)) {
-              setUserScrolledAway(false)
-              showCursor()
-            }
-          }
-          if (!userScrolledAway()) {
-            scrollboxRef?.scrollBy(1, "content")
-          }
-          if (scrollboxRef) lastKnownScrollTop = scrollboxRef.scrollTop
-        }, 200)
-      }
-    } else {
-      if (scrollNudgeTimer) {
-        clearInterval(scrollNudgeTimer)
-        scrollNudgeTimer = undefined
-        lastKnownScrollTop = undefined
-      }
-    }
-  })
-  onCleanup(() => {
-    if (scrollNudgeTimer) {
-      clearInterval(scrollNudgeTimer)
-    }
-  })
-
   // Auto-scroll to bottom when permission/elicitation dialog appears
   // so the user can see and interact with it immediately.
   // Uses queueMicrotask to defer until after the current reactive pass
   // completes, avoiding the race between a 50ms setTimeout and layout
   // recalculation that caused visual jumps.
   createEffect(() => {
-    const state = session.sessionState
-    if (state === "WAITING_FOR_PERM" || state === "WAITING_FOR_ELIC") {
+    const s = session.sessionState
+    if (s === "WAITING_FOR_PERM" || s === "WAITING_FOR_ELIC") {
+      setScrolledAway(false)
       queueMicrotask(() => scrollboxRef?.scrollBy(999999))
     }
-  })
-
-  // On resume/continue, the conversation is pre-populated from disk before the
-  // backend finishes re-attaching. Start at the bottom so the input is visible
-  // and the user is ready to continue typing immediately.
-  createEffect(() => {
-    const isResumeMode = !!(agent.config.resume || agent.config.continue)
-    if (!isResumeMode || didInitialResumeScroll || committed().length === 0 || !scrollboxRef) {
-      return
-    }
-    didInitialResumeScroll = true
-    setUserScrolledAway(false)
-    queueMicrotask(() => scrollboxRef?.scrollBy(999999))
   })
 
   // View-level notification helper — transient hint, not a permanent message
@@ -298,17 +256,14 @@ export function ConversationView(props: { children?: JSX.Element; footerHint?: s
     if (event.ctrl && event.name === "up") {
       event.preventDefault()
       scrollboxRef?.scrollBy(-3)
-      setUserScrolledAway(true)
+      setScrolledAway(true)
       showScrollbarBriefly()
-      hideCursor()  // Hide cursor when scrolled away from input
     }
     if (event.ctrl && event.name === "down") {
       event.preventDefault()
       scrollboxRef?.scrollBy(3)
-      // Only re-engage auto-scroll and refocus when back at bottom
       if (scrollboxRef && isNearBottom(scrollboxRef)) {
-        setUserScrolledAway(false)
-        showCursor()
+        setScrolledAway(false)
       }
       showScrollbarBriefly()
     }
@@ -316,8 +271,7 @@ export function ConversationView(props: { children?: JSX.Element; footerHint?: s
     // Auto-scroll to bottom and refocus on any printable input while scrolled away
     if (userScrolledAway() && !event.ctrl && !event.option && !event.meta && event.name.length === 1) {
       scrollboxRef?.scrollBy(999999)
-      setUserScrolledAway(false)
-      showCursor()
+      setScrolledAway(false)
       // Don't preventDefault — let the keystroke reach the textarea
     }
   })
@@ -342,7 +296,7 @@ export function ConversationView(props: { children?: JSX.Element; footerHint?: s
 
   return (
     <box flexDirection="column" flexGrow={1}>
-      <scrollbox ref={(el: ScrollBoxRenderable) => { scrollboxRef = el; registerScrollToBottom(() => { setUserScrolledAway(false); queueMicrotask(() => el.scrollBy(999999)) }) }} flexGrow={1}>
+      <scrollbox ref={(el: ScrollBoxRenderable) => { scrollboxRef = el; registerScrollToBottom(() => { setScrolledAway(false); queueMicrotask(() => el.scrollBy(999999)) }) }} stickyScroll={!userScrolledAway()} stickyStart="bottom" flexGrow={1}>
         <box flexDirection="column" paddingRight={1} minHeight="100%">
           {/* Header bar — scrolls with content */}
           <HeaderBar />
@@ -428,12 +382,12 @@ export function ConversationView(props: { children?: JSX.Element; footerHint?: s
               CodeRenderable sub-blocks to re-highlight from scratch, leaving
               text invisible for 1+ frames while async tree-sitter completes. */}
           <box flexDirection="column">
-            <box flexDirection="row" marginTop={1} visible={!state.backgrounded && !!state.streamingText}>
+            <box flexDirection="row" marginTop={1} visible={!state.backgrounded && !!visibleStreamingText()}>
               <box width={2} flexShrink={0}>
                 <text fg={colors.text.primary}>{"\u23FA"}</text>
               </box>
               <box flexGrow={1}>
-                <markdown content={state.streamingText} syntaxStyle={syntaxStyle} streaming={true} fg={colors.text.primary} />
+                <markdown content={visibleStreamingText() ?? undefined} syntaxStyle={syntaxStyle} streaming={true} fg={colors.text.primary} />
               </box>
             </box>
           </box>

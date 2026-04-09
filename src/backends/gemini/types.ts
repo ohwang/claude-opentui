@@ -34,8 +34,8 @@ export enum GeminiEventType {
 }
 
 export interface ThoughtSummary {
-  thought: string
-  thoughtSignature?: string
+  subject: string
+  description: string
 }
 
 export interface ToolCallRequestInfo {

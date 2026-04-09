@@ -74,9 +74,16 @@ function mapGeminiEventStateful(
     }
 
     case GeminiEventType.Thought: {
-      const thought = event.value?.thought
-      if (thought) {
-        events.push({ type: "thinking_delta", text: thought })
+      const value = event.value
+      if (value) {
+        // ThoughtSummary has { subject, description } — subject is bold header,
+        // description is the thought content. Combine for display.
+        const text = value.subject
+          ? `**${value.subject}** ${value.description}`
+          : value.description
+        if (text) {
+          events.push({ type: "thinking_delta", text })
+        }
       }
       break
     }

@@ -26,7 +26,7 @@ describe("Gemini Event Mapper", () => {
     it("maps Thought to thinking_delta", () => {
       const events = mapGeminiEvent({
         type: GeminiEventType.Thought,
-        value: { thought: "Let me analyze this..." },
+        value: { subject: "", description: "Let me analyze this..." },
       })
       expect(events).toHaveLength(1)
       expect(events[0]!).toEqual({
@@ -35,10 +35,22 @@ describe("Gemini Event Mapper", () => {
       })
     })
 
+    it("maps Thought with subject to thinking_delta with bold header", () => {
+      const events = mapGeminiEvent({
+        type: GeminiEventType.Thought,
+        value: { subject: "Planning", description: "the solution" },
+      })
+      expect(events).toHaveLength(1)
+      expect(events[0]!).toEqual({
+        type: "thinking_delta",
+        text: "**Planning** the solution",
+      })
+    })
+
     it("skips empty thought", () => {
       const events = mapGeminiEvent({
         type: GeminiEventType.Thought,
-        value: { thought: "" },
+        value: { subject: "", description: "" },
       })
       expect(events).toHaveLength(0)
     })

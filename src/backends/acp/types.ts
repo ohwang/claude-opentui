@@ -301,6 +301,34 @@ export interface AcpPermissionResponse {
 }
 
 // ---------------------------------------------------------------------------
+// Elicitation (agent-initiated request to client)
+// ---------------------------------------------------------------------------
+
+export interface AcpElicitationParams {
+  sessionId: string
+  message: string
+  schema?: AcpElicitationSchema
+}
+
+export interface AcpElicitationSchema {
+  type: "object"
+  properties?: Record<string, AcpElicitationProperty>
+  required?: string[]
+}
+
+export interface AcpElicitationProperty {
+  type: "string" | "boolean" | "number" | "enum"
+  description?: string
+  enum?: string[]
+  default?: unknown
+}
+
+export interface AcpElicitationResponse {
+  action: "submit" | "cancel"
+  data?: Record<string, unknown>
+}
+
+// ---------------------------------------------------------------------------
 // Cancel (notification, not request)
 // ---------------------------------------------------------------------------
 

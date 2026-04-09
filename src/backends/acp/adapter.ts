@@ -24,6 +24,8 @@ import type {
   AgentEvent,
   BackendCapabilities,
   EffortLevel,
+  ElicitationQuestion,
+  ElicitationOption,
   ForkOptions,
   ModelInfo,
   PermissionMode,
@@ -42,6 +44,7 @@ import type {
   AcpSessionNewResult,
   AcpSessionUpdateParams,
   AcpPermissionRequestParams,
+  AcpElicitationParams,
   AcpTerminalCreateParams,
   AcpTerminalOutputParams,
   AcpTerminalWaitParams,
@@ -124,6 +127,9 @@ export class AcpAdapter extends BaseAdapter {
     string,
     { rpcId: number | string; params: AcpPermissionRequestParams }
   >()
+
+  // Pending elicitation requests (server-initiated JSON-RPC requests awaiting user input)
+  private pendingElicitations = new Map<string, { rpcId: number | string }>()
 
   // Turn lifecycle
   private turnCompleteResolve: (() => void) | null = null
@@ -247,6 +253,17 @@ export class AcpAdapter extends BaseAdapter {
     }
     this.pendingApprovals.clear()
 
+    // Auto-cancel pending elicitations
+    for (const [elicId, elic] of this.pendingElicitations) {
+      this.transport.respond(elic.rpcId, { action: "cancel" })
+      this.eventChannel?.push({
+        type: "elicitation_response",
+        id: elicId,
+        answers: {},
+      })
+    }
+    this.pendingElicitations.clear()
+
     // session/cancel is a notification per ACP spec (no id, no response)
     this.transport.notify("session/cancel", { sessionId: this.sessionId })
 
@@ -311,12 +328,35 @@ export class AcpAdapter extends BaseAdapter {
     })
   }
 
-  respondToElicitation(_id: string, _answers: Record<string, string>): void {
-    log.debug("respondToElicitation not supported for ACP backend")
+  respondToElicitation(id: string, answers: Record<string, string>): void {
+    const pending = this.pendingElicitations.get(id)
+    if (!pending) return
+
+    this.transport?.respond(pending.rpcId, {
+      action: "submit",
+      data: answers,
+    })
+    this.pendingElicitations.delete(id)
+    this.eventChannel?.push({
+      type: "elicitation_response",
+      id,
+      answers,
+    })
   }
 
-  cancelElicitation(_id: string): void {
-    log.debug("cancelElicitation not supported for ACP backend")
+  cancelElicitation(id: string): void {
+    const pending = this.pendingElicitations.get(id)
+    if (!pending) return
+
+    this.transport?.respond(pending.rpcId, {
+      action: "cancel",
+    })
+    this.pendingElicitations.delete(id)
+    this.eventChannel?.push({
+      type: "elicitation_response",
+      id,
+      answers: {},
+    })
   }
 
   async setModel(model: string): Promise<void> {
@@ -586,6 +626,12 @@ export class AcpAdapter extends BaseAdapter {
       })
     }
     this.pendingApprovals.clear()
+
+    // Cancel pending elicitations
+    for (const [, elic] of this.pendingElicitations) {
+      this.transport?.respond(elic.rpcId, { action: "cancel" })
+    }
+    this.pendingElicitations.clear()
 
     // Send session/close notification for graceful shutdown
     if (this.transport?.isAlive && this.sessionId) {
@@ -998,6 +1044,24 @@ export class AcpAdapter extends BaseAdapter {
         break
       }
 
+      case "session/elicitation": {
+        const elicParams = params as AcpElicitationParams
+        const elicId = String(rpcId)
+
+        // Store the pending elicitation for response matching
+        this.pendingElicitations.set(elicId, { rpcId })
+
+        // Map ACP schema to ElicitationQuestion[] format
+        const questions = this.mapElicitationQuestions(elicParams)
+
+        this.eventChannel?.push({
+          type: "elicitation_request",
+          id: elicId,
+          questions,
+        })
+        break
+      }
+
       case "fs/read_text_file": {
         const p = params as AcpFsReadParams
         this.handleFsRead(rpcId, p)
@@ -1014,6 +1078,47 @@ export class AcpAdapter extends BaseAdapter {
         log.warn("Unhandled ACP server request", { method })
         this.transport?.respondError(rpcId, -32601, `Method not supported: ${method}`)
     }
+  }
+
+  // -----------------------------------------------------------------------
+  // Private: Elicitation helpers
+  // -----------------------------------------------------------------------
+
+  private mapElicitationQuestions(params: AcpElicitationParams): ElicitationQuestion[] {
+    const questions: ElicitationQuestion[] = []
+
+    // The message itself is always a question
+    if (params.message) {
+      questions.push({
+        question: params.message,
+        options: [],
+        allowFreeText: true,
+      })
+    }
+
+    // Map schema properties to additional questions
+    if (params.schema?.properties) {
+      for (const [key, prop] of Object.entries(params.schema.properties)) {
+        const options: ElicitationOption[] = []
+        if (prop.enum) {
+          for (const value of prop.enum) {
+            options.push({ label: value })
+          }
+        } else if (prop.type === "boolean") {
+          options.push({ label: "true" }, { label: "false" })
+        }
+
+        questions.push({
+          question: prop.description ?? key,
+          header: key.length <= 12 ? key : undefined,
+          options,
+          allowFreeText: prop.type === "string" || prop.type === "number",
+          multiSelect: false,
+        })
+      }
+    }
+
+    return questions
   }
 
   // -----------------------------------------------------------------------

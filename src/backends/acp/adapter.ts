@@ -318,8 +318,29 @@ export class AcpAdapter extends BaseAdapter {
     }
   }
 
-  async setEffort(_level: EffortLevel): Promise<void> {
-    log.debug("setEffort not supported for ACP backend")
+  async setEffort(level: EffortLevel): Promise<void> {
+    if (!this.transport?.isAlive || !this.sessionId) return
+
+    // Try config option if a thinking/effort config option exists
+    const effortOption = this.discoveredConfigOptions.find(
+      o => o.id === "thinking" || o.name.toLowerCase().includes("thinking") || o.name.toLowerCase().includes("effort"),
+    )
+    if (effortOption) {
+      try {
+        await this.transport.request("session/set_config_option", {
+          sessionId: this.sessionId,
+          configOptionId: effortOption.id,
+          value: level,
+        })
+        this.eventChannel?.push({ type: "effort_changed", effort: level })
+        log.info("ACP effort set via config option", { level })
+        return
+      } catch (err) {
+        log.warn("session/set_config_option failed for effort", { error: String(err) })
+      }
+    }
+
+    log.debug("Effort control not supported by this ACP agent", { level })
   }
 
   async availableModels(): Promise<ModelInfo[]> {

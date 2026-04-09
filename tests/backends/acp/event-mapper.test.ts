@@ -994,6 +994,264 @@ describe("ACP Event Mapper", () => {
   })
 
   // ---------------------------------------------------------------------------
+  // usage_update → cost_update
+  // ---------------------------------------------------------------------------
+
+  describe("usage_update → cost_update", () => {
+    it("maps used/size to cost_update with contextTokens", () => {
+      const events = mapAcpUpdate(
+        makeParams({
+          sessionUpdate: "usage_update",
+          used: 5000,
+          size: 128000,
+        }),
+      )
+
+      expect(events).toHaveLength(1)
+      const cost = events[0]! as any
+      expect(cost.type).toBe("cost_update")
+      expect(cost.inputTokens).toBe(5000)
+      expect(cost.outputTokens).toBe(0)
+      expect(cost.contextTokens).toBe(5000)
+      expect(cost.cost).toBeUndefined()
+    })
+
+    it("maps cost field to cost amount", () => {
+      const events = mapAcpUpdate(
+        makeParams({
+          sessionUpdate: "usage_update",
+          used: 3000,
+          size: 128000,
+          cost: { amount: 0.05, currency: "USD" },
+        }),
+      )
+
+      expect(events).toHaveLength(1)
+      const cost = events[0]! as any
+      expect(cost.type).toBe("cost_update")
+      expect(cost.inputTokens).toBe(3000)
+      expect(cost.contextTokens).toBe(3000)
+      expect(cost.cost).toBe(0.05)
+    })
+
+    it("returns empty array when neither used nor cost is present", () => {
+      const events = mapAcpUpdate(
+        makeParams({
+          sessionUpdate: "usage_update",
+          size: 128000,
+        }),
+      )
+
+      expect(events).toHaveLength(0)
+    })
+  })
+
+  // ---------------------------------------------------------------------------
+  // config_option_update → backend_specific
+  // ---------------------------------------------------------------------------
+
+  describe("config_option_update → backend_specific", () => {
+    it("maps configOptions to backend_specific with config data", () => {
+      const configOptions = [
+        { id: "opt1", name: "Option 1", type: "boolean", value: true },
+        { id: "opt2", name: "Option 2", type: "string", value: "hello" },
+      ]
+
+      const events = mapAcpUpdate(
+        makeParams({
+          sessionUpdate: "config_option_update",
+          configOptions,
+        }),
+      )
+
+      expect(events).toHaveLength(1)
+      const bs = events[0]! as any
+      expect(bs.type).toBe("backend_specific")
+      expect(bs.backend).toBe("acp")
+      expect(bs.data.type).toBe("config_option_session_update")
+      expect(bs.data.configOptions).toEqual(configOptions)
+    })
+  })
+
+  // ---------------------------------------------------------------------------
+  // current_mode_update → backend_specific
+  // ---------------------------------------------------------------------------
+
+  describe("current_mode_update → backend_specific", () => {
+    it("maps currentModeId to backend_specific", () => {
+      const events = mapAcpUpdate(
+        makeParams({
+          sessionUpdate: "current_mode_update",
+          currentModeId: "agent",
+        }),
+      )
+
+      expect(events).toHaveLength(1)
+      const bs = events[0]! as any
+      expect(bs.type).toBe("backend_specific")
+      expect(bs.backend).toBe("acp")
+      expect(bs.data.type).toBe("current_mode_update")
+      expect(bs.data.currentModeId).toBe("agent")
+    })
+  })
+
+  // ---------------------------------------------------------------------------
+  // session_info_update → backend_specific
+  // ---------------------------------------------------------------------------
+
+  describe("session_info_update → backend_specific", () => {
+    it("maps title and updatedAt to backend_specific", () => {
+      const events = mapAcpUpdate(
+        makeParams({
+          sessionUpdate: "session_info_update",
+          title: "My Session",
+          updatedAt: "2026-04-09T12:00:00Z",
+        }),
+      )
+
+      expect(events).toHaveLength(1)
+      const bs = events[0]! as any
+      expect(bs.type).toBe("backend_specific")
+      expect(bs.backend).toBe("acp")
+      expect(bs.data.type).toBe("session_info_update")
+      expect(bs.data.title).toBe("My Session")
+      expect(bs.data.updatedAt).toBe("2026-04-09T12:00:00Z")
+    })
+  })
+
+  // ---------------------------------------------------------------------------
+  // user_message_chunk → user_message
+  // ---------------------------------------------------------------------------
+
+  describe("user_message_chunk → user_message", () => {
+    it("maps text content to user_message", () => {
+      const events = mapAcpUpdate(
+        makeParams({
+          sessionUpdate: "user_message_chunk",
+          content: { type: "text", text: "Hello from the user" },
+        }),
+      )
+
+      expect(events).toHaveLength(1)
+      expect(events[0]!).toEqual({ type: "user_message", text: "Hello from the user" })
+    })
+
+    it("returns empty array for empty text", () => {
+      const events = mapAcpUpdate(
+        makeParams({
+          sessionUpdate: "user_message_chunk",
+          content: { type: "text", text: "" },
+        }),
+      )
+
+      expect(events).toHaveLength(0)
+    })
+
+    it("returns empty array for missing content", () => {
+      const events = mapAcpUpdate(
+        makeParams({
+          sessionUpdate: "user_message_chunk",
+          content: undefined,
+        }),
+      )
+
+      expect(events).toHaveLength(0)
+    })
+
+    it("drops non-text user content with log", () => {
+      const events = mapAcpUpdate(
+        makeParams({
+          sessionUpdate: "user_message_chunk",
+          content: { type: "image", mimeType: "image/png", data: "abc=" },
+        }),
+      )
+
+      expect(events).toHaveLength(0)
+    })
+  })
+
+  // ---------------------------------------------------------------------------
+  // audio content → text_delta placeholder
+  // ---------------------------------------------------------------------------
+
+  describe("audio content → text_delta", () => {
+    it("maps audio content to text_delta with mimeType placeholder", () => {
+      const events = mapAcpUpdate(
+        makeParams({
+          sessionUpdate: "agent_message_chunk",
+          content: { type: "audio", mimeType: "audio/wav", data: "UklGR..." },
+        }),
+      )
+
+      expect(events).toHaveLength(1)
+      expect(events[0]!).toEqual({
+        type: "text_delta",
+        text: "\n[Audio: audio/wav]\n",
+      })
+    })
+  })
+
+  // ---------------------------------------------------------------------------
+  // resource content → text_delta
+  // ---------------------------------------------------------------------------
+
+  describe("resource content → text_delta", () => {
+    it("inlines text resource directly", () => {
+      const events = mapAcpUpdate(
+        makeParams({
+          sessionUpdate: "agent_message_chunk",
+          content: {
+            type: "resource",
+            resource: { uri: "file:///data.txt", text: "Hello from resource", mimeType: "text/plain" },
+          },
+        }),
+      )
+
+      expect(events).toHaveLength(1)
+      expect(events[0]!).toEqual({
+        type: "text_delta",
+        text: "Hello from resource",
+      })
+    })
+
+    it("renders URI link for resource without text", () => {
+      const events = mapAcpUpdate(
+        makeParams({
+          sessionUpdate: "agent_message_chunk",
+          content: {
+            type: "resource",
+            resource: { uri: "file:///project/data.bin", mimeType: "application/octet-stream" },
+          },
+        }),
+      )
+
+      expect(events).toHaveLength(1)
+      expect(events[0]!).toEqual({
+        type: "text_delta",
+        text: "[Resource: file:///project/data.bin]",
+      })
+    })
+
+    it("falls back to 'resource' label when URI is missing", () => {
+      const events = mapAcpUpdate(
+        makeParams({
+          sessionUpdate: "agent_message_chunk",
+          content: {
+            type: "resource",
+            resource: { mimeType: "application/json" },
+          },
+        }),
+      )
+
+      expect(events).toHaveLength(1)
+      expect(events[0]!).toEqual({
+        type: "text_delta",
+        text: "[Resource: resource]",
+      })
+    })
+  })
+
+  // ---------------------------------------------------------------------------
   // Unknown update type → backend_specific
   // ---------------------------------------------------------------------------
 

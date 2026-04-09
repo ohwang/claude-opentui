@@ -8,12 +8,19 @@
  *
  * Key mapping:
  *   agent_message_chunk (text)    → text_delta
+ *   agent_message_chunk (audio)   → text_delta (placeholder)
+ *   agent_message_chunk (resource)→ text_delta (inline or link)
  *   agent_thought_chunk (text)    → thinking_delta
  *   tool_call                     → tool_use_start
  *   tool_call_update (in_progress) → tool_use_progress
  *   tool_call_update (completed)  → tool_use_end
  *   tool_call_update (failed)     → tool_use_end (with error)
  *   plan                          → plan_update
+ *   usage_update                  → cost_update
+ *   config_option_update          → backend_specific (config data)
+ *   current_mode_update           → backend_specific (mode data)
+ *   session_info_update           → backend_specific (session metadata)
+ *   user_message_chunk            → user_message
  *   available_commands_update     → backend_specific
  *   unknown                       → backend_specific
  */
@@ -64,6 +71,62 @@ export function mapAcpUpdate(params: AcpSessionUpdateParams): AgentEvent[] {
     case "available_commands_update":
       return mapAvailableCommands(update as AcpAvailableCommandsUpdate)
 
+    case "usage_update": {
+      const u = update as { sessionUpdate: string; used?: number; size?: number; cost?: { amount: number; currency: string } }
+      const events: AgentEvent[] = []
+      if (u.used != null || u.cost) {
+        events.push({
+          type: "cost_update",
+          inputTokens: u.used ?? 0,
+          outputTokens: 0,
+          contextTokens: u.used,
+          cost: u.cost?.amount,
+        })
+      }
+      return events
+    }
+
+    case "config_option_update": {
+      const configUpdate = update as { sessionUpdate: string; configOptions?: unknown[] }
+      return [{
+        type: "backend_specific",
+        backend: "acp",
+        data: { type: "config_option_session_update", configOptions: configUpdate.configOptions },
+      }]
+    }
+
+    case "current_mode_update": {
+      const modeUpdate = update as { sessionUpdate: string; currentModeId?: string }
+      log.info("ACP mode updated by agent", { currentModeId: modeUpdate.currentModeId })
+      return [{
+        type: "backend_specific",
+        backend: "acp",
+        data: { type: "current_mode_update", currentModeId: modeUpdate.currentModeId },
+      }]
+    }
+
+    case "session_info_update": {
+      const infoUpdate = update as { sessionUpdate: string; title?: string; updatedAt?: string }
+      log.debug("ACP session info update", { title: infoUpdate.title })
+      return [{
+        type: "backend_specific",
+        backend: "acp",
+        data: { type: "session_info_update", title: infoUpdate.title, updatedAt: infoUpdate.updatedAt },
+      }]
+    }
+
+    case "user_message_chunk": {
+      const userChunk = update as unknown as AcpAgentMessageChunk  // same content shape
+      if (!userChunk.content) return []
+      if (userChunk.content.type === "text" && userChunk.content.text != null) {
+        if (userChunk.content.text === "") return []
+        return [{ type: "user_message", text: userChunk.content.text }]
+      }
+      // Non-text user content — log and drop
+      log.debug("ACP user_message_chunk with non-text content", { type: userChunk.content.type })
+      return []
+    }
+
     default:
       log.warn("Unhandled ACP update type", { sessionUpdate: update.sessionUpdate })
       return [{
@@ -112,9 +175,26 @@ function mapAgentMessageChunk(update: AcpAgentMessageChunk): AgentEvent[] {
     }
 
     default: {
-      // Unknown content type — pass through
-      const unknown = content as { type: string }
-      log.debug("ACP agent_message_chunk with unhandled content type", { type: unknown.type })
+      // Handle content types not yet in AcpContentBlock union (audio, resource, etc.)
+      const generic = content as unknown as { type: string; [key: string]: unknown }
+
+      if (generic.type === "audio") {
+        const audio = content as unknown as { type: "audio"; mimeType: string; data: string }
+        return [{ type: "text_delta", text: `\n[Audio: ${audio.mimeType}]\n` }]
+      }
+
+      if (generic.type === "resource") {
+        const res = content as unknown as { type: "resource"; resource: { uri?: string; text?: string; mimeType?: string } }
+        if (res.resource?.text) {
+          // Inline text resources directly
+          return [{ type: "text_delta", text: res.resource.text }]
+        }
+        const label = res.resource?.uri ?? "resource"
+        return [{ type: "text_delta", text: `[Resource: ${label}]` }]
+      }
+
+      // Truly unknown content type — pass through
+      log.debug("ACP agent_message_chunk with unhandled content type", { type: generic.type })
       return [{
         type: "backend_specific",
         backend: "acp",

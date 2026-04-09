@@ -113,6 +113,16 @@ export function reduce(
       ) {
         return next
       }
+      // Prune completed tasks from previous turn — kept visible during IDLE
+      // so the sub-agent tree persists after turn_complete, cleaned up when
+      // the next turn begins.
+      const prunedTasks = new Map(state.activeTasks)
+      for (const [id, task] of prunedTasks) {
+        if (task.status === "completed") {
+          prunedTasks.delete(id)
+        }
+      }
+
       return {
         ...next,
         sessionState: "RUNNING",
@@ -122,6 +132,7 @@ export function reduce(
         streamingThinking: "",
         streamingOutputTokens: 0,
         _contextFromStream: false,
+        activeTasks: prunedTasks,
       }
     }
 
@@ -153,14 +164,6 @@ export function reduce(
         cost.cacheReadTokens += event.usage.cacheReadTokens ?? 0
         cost.cacheWriteTokens += event.usage.cacheWriteTokens ?? 0
         cost.totalCostUsd += event.usage.totalCostUsd ?? 0
-      }
-
-      // Prune completed tasks from activeTasks
-      const prunedTasks = new Map(state.activeTasks)
-      for (const [id, task] of prunedTasks) {
-        if (task.status === "completed") {
-          prunedTasks.delete(id)
-        }
       }
 
       // Extract file changes from this turn's tool blocks
@@ -205,7 +208,6 @@ export function reduce(
         streamingOutputTokens: 0,
         backgrounded: false,
         awaitingTurnStart: false,
-        activeTasks: prunedTasks,
         session: updatedSession,
         // Context window fill: prefer per-API-call value from cost_update.contextTokens
         // (set by message_start during streaming) over the cumulative turn usage.

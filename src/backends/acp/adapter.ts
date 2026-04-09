@@ -964,7 +964,11 @@ export class AcpAdapter extends BaseAdapter {
         const permParams = params as AcpPermissionRequestParams
         const toolCallId = permParams.toolCall?.toolCallId ?? String(rpcId)
         const toolCall = permParams.toolCall as Record<string, unknown> | undefined
-        const toolName = deriveToolName(toolCall?.kind as string, toolCall?.title as string)
+        const kind = typeof toolCall?.kind === "string" ? toolCall.kind : undefined
+        const title = typeof toolCall?.title === "string" ? toolCall.title : undefined
+        const toolName = deriveToolName(kind, title)
+        const locations = Array.isArray(toolCall?.locations) ? toolCall.locations : []
+        const blockedPath = typeof locations[0]?.path === "string" ? locations[0].path : undefined
 
         this.pendingApprovals.set(toolCallId, { rpcId, params: permParams })
 
@@ -973,9 +977,9 @@ export class AcpAdapter extends BaseAdapter {
           id: toolCallId,
           tool: toolName,
           input: permParams.toolCall,
-          title: `${this.agentName}: ${toolCall?.title ?? toolName}`,
+          title: `${this.agentName}: ${title ?? toolName}`,
           description: permParams.options?.map(o => o.name).join(" / "),
-          blockedPath: (toolCall?.locations as any[])?.[0]?.path,
+          blockedPath,
         })
         break
       }

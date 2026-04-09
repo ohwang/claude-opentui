@@ -340,11 +340,11 @@ describe("ACP Config Options", () => {
   })
 
   describe("setModel — without transport", () => {
-    it("returns silently when no transport is connected", async () => {
+    it("throws when no transport is connected", async () => {
       const { adapter, events } = createTestAdapter()
 
-      // No transport set up — setModel should bail early
-      await adapter.setModel("gemini-2.5-flash")
+      // No transport set up — setModel should throw
+      await expect(adapter.setModel("gemini-2.5-flash")).rejects.toThrow("No active ACP session")
 
       // No events should be emitted
       expect(events).toHaveLength(0)
@@ -492,7 +492,9 @@ describe("ACP Config Options", () => {
       }
       ;(adapter as any).sessionId = "test-session"
 
-      await adapter.setModel("unsupported-model")
+      await expect(adapter.setModel("unsupported-model")).rejects.toThrow(
+        "Model switching not supported by this ACP agent",
+      )
 
       // No model_changed event should be emitted
       expect(events).toHaveLength(0)

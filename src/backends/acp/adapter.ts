@@ -257,7 +257,9 @@ export class AcpAdapter extends BaseAdapter {
   }
 
   async setModel(model: string): Promise<void> {
-    if (!this.transport?.isAlive || !this.sessionId) return
+    if (!this.transport?.isAlive || !this.sessionId) {
+      throw new Error("No active ACP session")
+    }
 
     // Strategy 1: Try config option if a model config option exists
     const modelOption = this.discoveredConfigOptions.find(
@@ -291,6 +293,7 @@ export class AcpAdapter extends BaseAdapter {
       log.info("ACP model set via session/set_model", { model })
     } catch (err) {
       log.warn("Model switching not supported by this ACP agent", { error: String(err), model })
+      throw new Error("Model switching not supported by this ACP agent")
     }
   }
 

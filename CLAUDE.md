@@ -44,6 +44,7 @@ The protocol layer is the load-bearing abstraction. All backends implement `Agen
 - **~500 line file max.** One component per file, one adapter per file.
 - **Types as documentation.** `src/protocol/types.ts` IS the spec.
 - **Test contracts, not implementations.** Adapter contract tests validate event ordering and lifecycle rules.
+- **Prefer framework primitives over custom logic.** Use built-in capabilities of OpenTUI, SolidJS, and the SDK before writing manual workarounds. Example: `stickyScroll={true}` + `stickyStart="bottom"` on `<scrollbox>` replaces 80+ lines of timer-based scroll nudging and setTimeout hacks. Custom logic for something the framework already handles is harder to maintain and more likely to have race conditions.
 - **Explicit over clever.** No metaprogramming, no deep inheritance, no magic.
 - **Cleanup must survive deletion.** When removing a variable/timer, grep for ALL references including `onCleanup` callbacks. SolidJS cleanup runs during `renderer.destroy()` — a dangling reference there prevents `process.exit()` and silently breaks exit.
 - **`tsc --noEmit` must pass.** Never commit code that adds new TypeScript errors. The type checker catches undefined variables, missing properties, and type mismatches at compile time.

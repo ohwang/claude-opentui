@@ -12,6 +12,12 @@ export const MODEL_NAMES: Record<string, string> = {
   "claude-sonnet-4-5-20250514": "Sonnet 4.5",
   "claude-3-5-sonnet-20241022": "Sonnet 3.5",
   "claude-3-5-haiku-20241022": "Haiku 3.5",
+  "gemini-3.1-pro": "Gemini 3.1 Pro",
+  "gemini-3.1-pro-preview": "Gemini 3.1 Pro (Preview)",
+  "gemini-3.1-flash": "Gemini 3.1 Flash",
+  "gemini-3.1-flash-lite": "Gemini 3.1 Flash-Lite",
+  "gemini-2.5-pro": "Gemini 2.5 Pro",
+  "gemini-2.5-flash": "Gemini 2.5 Flash",
 }
 
 /** Model context window sizes (in tokens) for context usage calculation */
@@ -22,6 +28,12 @@ export const MODEL_CONTEXT_WINDOWS: Record<string, number> = {
   "claude-sonnet-4-5-20250514": 200_000,
   "claude-3-5-sonnet-20241022": 200_000,
   "claude-3-5-haiku-20241022": 200_000,
+  "gemini-3.1-pro": 2_000_000,
+  "gemini-3.1-pro-preview": 2_000_000,
+  "gemini-3.1-flash": 1_000_000,
+  "gemini-3.1-flash-lite": 1_000_000,
+  "gemini-2.5-pro": 2_000_000,
+  "gemini-2.5-flash": 1_000_000,
 }
 
 export const DEFAULT_CONTEXT_WINDOW = 200_000

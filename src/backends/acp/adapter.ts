@@ -147,7 +147,7 @@ export class AcpAdapter extends BaseAdapter {
         description: o.description,
         type: o.type,
         value: o.value,
-        choices: o.options?.map(c => ({ id: c.id, name: c.name, description: c.description })),
+        choices: o.options?.map(c => ({ id: c.id ?? c.value ?? c.name, name: c.name, description: c.description })),
       })),
     })
   }

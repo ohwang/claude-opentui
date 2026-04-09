@@ -681,7 +681,7 @@ export interface ConfigOption {
   id: string
   name: string
   description?: string
-  type: "string" | "boolean" | "enum"
+  type: "string" | "boolean" | "enum" | "select"  // "select" is Copilot's alias for "enum"
   value: unknown
   choices?: { id: string; name: string; description?: string }[]
 }

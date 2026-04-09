@@ -34,12 +34,18 @@ import type {
 import { backendTrace } from "../../utils/backend-trace"
 import { BaseAdapter } from "../shared/base-adapter"
 import { AcpTransport } from "./transport"
+import { AcpTerminalManager } from "./terminal-manager"
 import { mapAcpUpdate } from "./event-mapper"
 import type {
   AcpInitializeResult,
   AcpSessionNewResult,
   AcpSessionUpdateParams,
   AcpPermissionRequestParams,
+  AcpTerminalCreateParams,
+  AcpTerminalOutputParams,
+  AcpTerminalWaitParams,
+  AcpTerminalKillParams,
+  AcpTerminalReleaseParams,
   AcpContentBlock,
   AcpModel,
   AcpMode,
@@ -55,6 +61,7 @@ const trace = backendTrace.scoped("acp")
 
 export class AcpAdapter extends BaseAdapter {
   private transport: AcpTransport | null = null
+  private terminalManager = new AcpTerminalManager()
 
   // Session state
   private sessionId: string | null = null
@@ -333,6 +340,9 @@ export class AcpAdapter extends BaseAdapter {
       payload: { sessionId: this.sessionId, hadTransport: !!this.transport },
     })
 
+    // Kill all managed terminals
+    this.terminalManager.destroyAll()
+
     // Reject pending approvals
     for (const [, approval] of this.pendingApprovals) {
       this.transport?.respond(approval.rpcId, {
@@ -380,7 +390,9 @@ export class AcpAdapter extends BaseAdapter {
           name: "claude-opentui",
           version: "0.0.1",
         },
-        clientCapabilities: {},
+        clientCapabilities: {
+          terminal: true,
+        },
       })) as AcpInitializeResult
 
       this.agentName = initResult.agentInfo?.title ?? initResult.agentInfo?.name ?? this.agentName
@@ -628,6 +640,57 @@ export class AcpAdapter extends BaseAdapter {
           title: `${this.agentName} requests permission`,
           description: permParams.options?.map(o => o.name).join(" / "),
         })
+        break
+      }
+
+      case "terminal/create": {
+        const p = params as AcpTerminalCreateParams
+        try {
+          const terminalId = this.terminalManager.create(
+            p.command, p.args, p.cwd, p.env, p.timeout,
+          )
+          this.transport?.respond(rpcId, { terminalId })
+
+          // Emit a tool progress event so the TUI shows terminal activity
+          this.eventChannel?.push({
+            type: "backend_specific",
+            backend: "acp",
+            data: { type: "terminal_created", terminalId, command: p.command },
+          })
+        } catch (err) {
+          this.transport?.respondError(rpcId, -32603, `Failed to create terminal: ${String(err)}`)
+        }
+        break
+      }
+
+      case "terminal/output": {
+        const p = params as AcpTerminalOutputParams
+        const result = this.terminalManager.getOutput(p.terminalId)
+        this.transport?.respond(rpcId, result)
+        break
+      }
+
+      case "terminal/wait_for_exit": {
+        const p = params as AcpTerminalWaitParams
+        this.terminalManager.waitForExit(p.terminalId).then(exitCode => {
+          this.transport?.respond(rpcId, { exitCode })
+        }).catch(err => {
+          this.transport?.respondError(rpcId, -32603, `Wait failed: ${String(err)}`)
+        })
+        break
+      }
+
+      case "terminal/kill": {
+        const p = params as AcpTerminalKillParams
+        this.terminalManager.kill(p.terminalId, p.signal)
+        this.transport?.respond(rpcId, {})
+        break
+      }
+
+      case "terminal/release": {
+        const p = params as AcpTerminalReleaseParams
+        this.terminalManager.release(p.terminalId)
+        this.transport?.respond(rpcId, {})
         break
       }
 

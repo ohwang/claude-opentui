@@ -15,16 +15,16 @@ export const solarizedDark: ThemeDefinition = {
   colors: {
     text: {
       primary: "#839496", // base0 — body text
-      secondary: "#93a1a1", // base1 — secondary content
-      secondaryShimmer: "#eee8d5", // base2 — emphasized shimmer
+      secondary: "#657b83", // base00 — secondary content (dimmer than primary)
+      secondaryShimmer: "#839496", // base0 — shimmer target for secondary animations
       muted: "#586e75", // base01 — comments / muted
       inverse: "#fdf6e3", // base3 — light bg (inverse)
       thinking: "#657b83", // base00 — mid-tone
       briefLabel: "#268bd2", // blue
       briefLabelClaude: "#cb4b16", // orange
       // Deprecated aliases
-      inactive: "#93a1a1", // base1
-      inactiveShimmer: "#eee8d5", // base2
+      inactive: "#657b83", // base00
+      inactiveShimmer: "#839496", // base0
       subtle: "#073642", // base02
     },
 

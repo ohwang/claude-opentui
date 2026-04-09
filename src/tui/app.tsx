@@ -22,6 +22,8 @@ import { SyncProvider, useSync } from "./context/sync"
 import { ToastProvider, toast } from "./context/toast"
 import { ModalProvider, useModal, registerModalRef, type ModalComponent } from "./context/modal"
 import { AnimationProvider } from "./context/animation"
+import { setBackend, setConfig, setRenderer } from "../mcp/state-bridge"
+import { startMcpHttpServer, stopMcpHttpServer } from "../mcp/server"
 import { colors } from "./theme/tokens"
 import { ConversationView } from "./components/conversation"
 import { Divider } from "./components/primitives"
@@ -127,6 +129,7 @@ function Layout(props: { onExit?: () => void }) {
   })
 
   const renderer = useRenderer()
+  setRenderer(renderer)
 
   /**
    * Copy text to clipboard, preferring OSC 52 (instant, no subprocess, works
@@ -152,6 +155,7 @@ function Layout(props: { onExit?: () => void }) {
 
   const cleanExit = (reason: string) => {
     log.info("Clean exit", { reason })
+    stopMcpHttpServer().catch(() => {})
     disableFocusReporting()
     sync.pushEvent({ type: "shutdown" })
     agent.backend.close()
@@ -569,9 +573,13 @@ export interface AppOptions {
   backend: AgentBackend
   config: SessionConfig
   onExit?: () => void
+  noDiagnosticsMcp?: boolean
 }
 
 export function startApp(options: AppOptions): void {
+  setBackend(options.backend)
+  setConfig(options.config)
+
   const agentValue: AgentContextValue = {
     backend: options.backend,
     config: options.config,
@@ -626,4 +634,13 @@ export function startApp(options: AppOptions): void {
       selectionColor: colors.bg.selection,
     },
   })
+
+  // Start the MCP diagnostics server (non-blocking)
+  if (!options.noDiagnosticsMcp) {
+    startMcpHttpServer().then(({ port }) => {
+      log.info("MCP diagnostics server started", { port })
+    }).catch(err => {
+      log.warn("MCP server failed to start", { error: String(err) })
+    })
+  }
 }

@@ -11,6 +11,7 @@
  */
 
 import { query as sdkQuery } from "@anthropic-ai/claude-agent-sdk"
+import { getDiagnosticsSdkMcpConfig } from "../../mcp/server"
 import { log } from "../../utils/logger"
 import type {
   AgentBackend,
@@ -418,7 +419,13 @@ export class ClaudeAdapter implements AgentBackend {
       continue: config.continue,
       resume: config.resume,
       forkSession: config.forkSession,
-      mcpServers: config.mcpServers,
+      mcpServers: {
+        ...config.mcpServers,
+        ...(() => {
+          const diag = getDiagnosticsSdkMcpConfig()
+          return diag ? { "opentui-diagnostics": diag } : {}
+        })(),
+      },
       allowedTools: config.allowedTools,
       disallowedTools: config.disallowedTools,
       additionalDirectories: config.additionalDirectories,

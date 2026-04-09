@@ -31,6 +31,7 @@ import { useMessages } from "./messages"
 import { useSession } from "./session"
 import { usePermissions } from "./permissions"
 import { readSessionHistory, findMostRecentSession } from "../../backends/claude/session-reader"
+import { setConversationState } from "../../mcp/state-bridge"
 
 export interface SyncContextValue {
   /** Manually push an event (for slash commands, synthetic events, etc.) */
@@ -68,6 +69,7 @@ export function SyncProvider(props: ParentProps) {
       }
       conversationState = reduce(conversationState, event)
     }
+    setConversationState(conversationState)
 
     batch(() => {
       // Use reconcile() for arrays/objects so unchanged items keep stable

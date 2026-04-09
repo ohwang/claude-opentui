@@ -30,6 +30,9 @@ export interface CLIFlags {
 
   /** Enable raw backend JSONL tracing */
   debugBackend: boolean
+
+  /** Disable the MCP diagnostics server */
+  noDiagnosticsMcp: boolean
 }
 
 /**
@@ -54,6 +57,7 @@ export function parseFlags(argv: string[]): CLIFlags {
     version: false,
     debug: false,
     debugBackend: false,
+    noDiagnosticsMcp: false,
   }
 
   let i = 0
@@ -146,6 +150,10 @@ export function parseFlags(argv: string[]): CLIFlags {
         flags.backend = requireArg("--backend", args, ++i)
         break
 
+      case "--no-diagnostics-mcp":
+        flags.noDiagnosticsMcp = true
+        break
+
       // Prompt
       case "--prompt":
       case "-p":
@@ -188,5 +196,6 @@ Options:
   --system-prompt <text>  System prompt
   --debug                 Enable debug output
   --debug-backend         Write raw backend JSONL trace
+  --no-diagnostics-mcp    Disable the MCP diagnostics server
 `)
 }

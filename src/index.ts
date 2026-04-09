@@ -22,6 +22,7 @@ import { startApp } from "./tui/app"
 import { log } from "./utils/logger"
 import { backendTrace } from "./utils/backend-trace"
 import type { AgentBackend } from "./protocol/types"
+import { stopMcpHttpServer } from "./mcp/server"
 
 const VERSION = "0.0.1"
 
@@ -109,6 +110,7 @@ async function main() {
   // Process lifecycle management
   const cleanup = () => {
     log.info("Cleanup: closing backend")
+    stopMcpHttpServer().catch(() => {})
     backend.close()
     backendTrace.close()
   }
@@ -180,6 +182,7 @@ async function main() {
     backend,
     config: flags.config,
     onExit: cleanup,
+    noDiagnosticsMcp: flags.noDiagnosticsMcp,
   })
 }
 

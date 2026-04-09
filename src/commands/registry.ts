@@ -4,7 +4,7 @@
  * Manages slash commands. Components check for '/' at position 0
  * and dispatch through this registry.
  *
- * Supports fuzzy matching for command palette UX.
+ * Supports prefix/substring matching for autocomplete.
  */
 
 import type { CliRenderer } from "@opentui/core"
@@ -86,17 +86,17 @@ export class CommandRegistry {
     return result
   }
 
-  /** Fuzzy match command names against a query */
+  /** Match command names (and aliases) against a query using prefix/substring matching */
   search(query: string): SlashCommand[] {
     const q = query.toLowerCase()
     return this.all()
       .filter(
         (cmd) =>
           cmd.name.toLowerCase().includes(q) ||
-          cmd.description.toLowerCase().includes(q),
+          (cmd.aliases?.some((alias) => alias.toLowerCase().includes(q)) ?? false),
       )
       .sort((a, b) => {
-        // Exact prefix match first
+        // Exact prefix match on name first, then alias prefix, then substring
         const aPrefix = a.name.toLowerCase().startsWith(q) ? 0 : 1
         const bPrefix = b.name.toLowerCase().startsWith(q) ? 0 : 1
         return aPrefix - bPrefix || a.name.localeCompare(b.name)

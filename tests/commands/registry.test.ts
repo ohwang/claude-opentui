@@ -208,6 +208,17 @@ describe("search features", () => {
     expect(results.some((r) => r.name === "exit")).toBe(true)
   })
 
+  it("does not match commands whose description (but not name) contains the query", () => {
+    const registry = createCommandRegistry()
+    // /he should only match /help, not /diagnostics ("Toggle the diagnostics panel")
+    // or /exit ("Exit the application") whose descriptions contain "he" via "the"
+    const results = registry.search("he")
+    const names = results.map((r) => r.name)
+    expect(names).toContain("help")
+    expect(names).not.toContain("diagnostics")
+    expect(names).not.toContain("exit")
+  })
+
   it("returns empty for no matches", () => {
     const registry = createCommandRegistry()
     const results = registry.search("xyznonexistent")
@@ -222,10 +233,17 @@ describe("search features", () => {
     expect(lower.some((r) => r.name === "help")).toBe(true)
   })
 
-  it("matches on description text", () => {
+  it("does not match on description text (only names and aliases)", () => {
     const registry = createCommandRegistry()
-    // "keyboard" appears in the hotkeys description
+    // "keyboard" appears in the hotkeys description but not in its name or aliases
     const results = registry.search("keyboard")
+    expect(results.some((r) => r.name === "hotkeys")).toBe(false)
+  })
+
+  it("matches on alias names", () => {
+    const registry = createCommandRegistry()
+    // "shortcuts" is an alias for /hotkeys
+    const results = registry.search("shortcuts")
     expect(results.some((r) => r.name === "hotkeys")).toBe(true)
   })
 

@@ -75,6 +75,28 @@ export function validatePathWithinCwd(
   return { valid: true, resolved }
 }
 
+/**
+ * Normalize an ACP config option to a consistent shape.
+ * Handles Copilot vs Gemini differences:
+ *   - Copilot: type="select", currentValue, options[].value
+ *   - Gemini: type="enum", value, options[].id
+ */
+function normalizeConfigOption(raw: AcpConfigOption): AcpConfigOption {
+  return {
+    ...raw,
+    // Normalize type: "select" → "enum"
+    type: raw.type === "select" ? "enum" : raw.type,
+    // Normalize value: prefer currentValue (Copilot), fall back to value (Gemini)
+    value: raw.currentValue ?? raw.value,
+    // Normalize choices: ensure each has both id and value
+    options: raw.options?.map(c => ({
+      ...c,
+      id: c.id ?? c.value ?? c.name,
+      value: c.value ?? c.id ?? c.name,
+    })),
+  }
+}
+
 // ---------------------------------------------------------------------------
 // ACP Adapter
 // ---------------------------------------------------------------------------
@@ -115,21 +137,41 @@ export class AcpAdapter extends BaseAdapter {
   }
 
   private deriveSupportedPermissionModes(): PermissionMode[] {
-    // Reverse-map ACP mode IDs to our internal PermissionMode names
+    // Reverse-map ACP mode IDs to our internal PermissionMode names.
+    // Supports both short IDs (Gemini: "default", "yolo") and
+    // URI-based IDs (Copilot: "https://...#agent", "https://...#plan").
     const reverseMap: Record<string, PermissionMode> = {
       default: "default",
       autoEdit: "acceptEdits",
       yolo: "bypassPermissions",
       plan: "plan",
     }
+    // URI fragment mappings for Copilot-style mode IDs
+    const fragmentMap: Record<string, PermissionMode> = {
+      agent: "default",
+      plan: "plan",
+      autopilot: "bypassPermissions",
+    }
 
     if (this.discoveredModes.length > 0) {
       const modes = this.discoveredModes
-        .map(m => reverseMap[m.id])
+        .map(m => {
+          // Try direct ID match first (Gemini)
+          if (reverseMap[m.id]) return reverseMap[m.id]!
+          // Try URI fragment match (Copilot)
+          const fragment = m.id.split("#").pop()
+          if (fragment && fragmentMap[fragment]) return fragmentMap[fragment]!
+          // Try name-based matching as fallback
+          const name = m.name.toLowerCase()
+          if (name.includes("plan")) return "plan" as PermissionMode
+          if (name.includes("auto")) return "bypassPermissions" as PermissionMode
+          return undefined
+        })
         .filter((m): m is PermissionMode => !!m)
       // Always include "default" as a fallback
       if (!modes.includes("default")) modes.unshift("default")
-      return modes
+      // Deduplicate
+      return [...new Set(modes)]
     }
 
     // Fallback if no modes discovered yet
@@ -305,7 +347,34 @@ export class AcpAdapter extends BaseAdapter {
   async setPermissionMode(mode: PermissionMode): Promise<void> {
     if (!this.transport?.isAlive || !this.sessionId) return
 
-    // Map our permission modes to ACP mode IDs
+    // Strategy 1: Try config option (Copilot supports mode as a config option)
+    const modeOption = this.discoveredConfigOptions.find(
+      o => o.id === "mode" || o.category === "mode",
+    )
+    if (modeOption) {
+      // Find the matching choice value
+      const targetName = mode === "default" ? "agent" : mode === "bypassPermissions" ? "autopilot" : mode
+      const choice = modeOption.options?.find(c => {
+        const cid = (c.id ?? c.value ?? "").toLowerCase()
+        const cname = c.name.toLowerCase()
+        return cid.includes(targetName) || cname.includes(targetName)
+      })
+      if (choice) {
+        try {
+          await this.transport.request("session/set_config_option", {
+            sessionId: this.sessionId,
+            configOptionId: modeOption.id,
+            value: choice.id ?? choice.value,
+          })
+          log.info("ACP mode set via config option", { mode, value: choice.id ?? choice.value })
+          return
+        } catch (err) {
+          log.warn("session/set_config_option failed for mode", { error: String(err) })
+        }
+      }
+    }
+
+    // Strategy 2: Try session/set_mode with direct ID mapping (Gemini)
     const modeMap: Record<string, string> = {
       default: "default",
       acceptEdits: "autoEdit",
@@ -320,7 +389,7 @@ export class AcpAdapter extends BaseAdapter {
         sessionId: this.sessionId,
         modeId,
       })
-      log.info("ACP mode set", { mode, modeId })
+      log.info("ACP mode set via session/set_mode", { mode, modeId })
     } catch (err) {
       log.warn("session/set_mode failed", { error: String(err) })
     }
@@ -386,7 +455,7 @@ export class AcpAdapter extends BaseAdapter {
         this.discoveredModes = result.modes.availableModes
       }
       if (result.configOptions) {
-        this.discoveredConfigOptions = result.configOptions
+        this.discoveredConfigOptions = result.configOptions.map(normalizeConfigOption)
       }
 
       this.eventChannel?.push({

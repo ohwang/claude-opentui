@@ -110,13 +110,16 @@ export interface AcpConfigOption {
   id: string
   name: string
   description?: string
-  type: "string" | "boolean" | "enum"
-  value: unknown
-  options?: AcpConfigOptionChoice[]  // for enum type
+  type: "string" | "boolean" | "enum" | "select"  // "select" is Copilot's alias for "enum"
+  value?: unknown
+  currentValue?: unknown  // Copilot uses currentValue instead of value
+  options?: AcpConfigOptionChoice[]  // for enum/select type
+  category?: string  // Copilot groups options by category (e.g., "model", "mode")
 }
 
 export interface AcpConfigOptionChoice {
-  id: string
+  id?: string
+  value?: string    // Copilot uses value instead of id
   name: string
   description?: string
 }

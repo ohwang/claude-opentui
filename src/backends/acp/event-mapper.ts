@@ -12,13 +12,13 @@
  *   tool_call_update (in_progress) → tool_use_progress
  *   tool_call_update (completed)  → tool_use_end
  *   tool_call_update (failed)     → tool_use_end (with error)
- *   plan                          → thinking_delta
+ *   plan                          → plan_update
  *   available_commands_update     → backend_specific
  *   unknown                       → backend_specific
  */
 
 import { log } from "../../utils/logger"
-import type { AgentEvent } from "../../protocol/types"
+import type { AgentEvent, PlanEntry } from "../../protocol/types"
 import type {
   AcpSessionUpdateParams,
   AcpAgentMessageChunk,
@@ -163,16 +163,15 @@ function mapToolCallUpdate(update: AcpToolCallUpdate): AgentEvent[] {
 // ---------------------------------------------------------------------------
 
 function mapPlan(update: AcpPlanUpdate): AgentEvent[] {
-  // Plan entries — surface as thinking since it's the agent's reasoning
-  if (update.entries && update.entries.length > 0) {
-    const text = update.entries
-      .map((e: any) => e.text ?? e.title ?? JSON.stringify(e))
-      .join("\n")
-    if (text) {
-      return [{ type: "thinking_delta", text }]
-    }
-  }
-  return []
+  if (!update.entries || update.entries.length === 0) return []
+
+  const entries: PlanEntry[] = update.entries.map((e) => ({
+    content: e.content ?? e.text ?? e.title ?? JSON.stringify(e),
+    priority: e.priority,
+    status: e.status,
+  }))
+
+  return [{ type: "plan_update", entries }]
 }
 
 // ---------------------------------------------------------------------------

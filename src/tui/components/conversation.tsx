@@ -28,6 +28,7 @@ import type { Block } from "../../protocol/types"
 import { hideCursor, showCursor, registerScrollToBottom } from "./input-area"
 import { StreamingSpinner } from "./streaming-spinner"
 import { type ViewLevel } from "./tool-view"
+import { isMcpTool, parseMcpToolName } from "./mcp-tool-view"
 import { BlockView } from "./block-view"
 import { CollapsedToolGroup } from "./collapsed-tool-group"
 import { EphemeralLine } from "./ephemeral-line"
@@ -144,6 +145,10 @@ export function ConversationView(props: { children?: JSX.Element; footerHint?: s
     for (let i = blocks.length - 1; i >= 0; i--) {
       const b = blocks[i]
       if (b !== undefined && b.type === "tool" && b.status === "running") {
+        if (isMcpTool(b.tool)) {
+          const parsed = parseMcpToolName(b.tool)
+          return `Running ${parsed.server} \u203A ${parsed.tool.replace(/_/g, " ")}...`
+        }
         return `Running ${b.tool}...`
       }
     }

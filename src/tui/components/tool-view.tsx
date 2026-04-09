@@ -13,6 +13,7 @@ import { formatDuration } from "../../utils/format"
 import { syntaxStyle } from "../theme/syntax"
 import { getStatusConfig } from "./primitives"
 import { truncatePathMiddle, truncateToWidth } from "../../utils/truncate"
+import { isMcpTool, parseMcpToolName } from "./mcp-tool-view"
 
 export type ViewLevel = "collapsed" | "expanded" | "show_all"
 
@@ -291,8 +292,14 @@ function extractPrimaryArg(_tool: string, input: unknown): string {
   return ""
 }
 
-/** Present-tense verb for running tools, past-tense for completed */
+/** Present-tense verb for running tools, past-tense for completed.
+ *  MCP tools are formatted as "server › tool_name" instead of the raw name. */
 function toolVerb(tool: string, isRunning: boolean): string {
+  if (isMcpTool(tool)) {
+    const parsed = parseMcpToolName(tool)
+    const display = `${parsed.server} \u203A ${parsed.tool.replace(/_/g, " ")}`
+    return isRunning ? display : display
+  }
   switch (tool) {
     case "Read":     return isRunning ? "Reading" : "Read"
     case "Write":    return isRunning ? "Writing" : "Wrote"

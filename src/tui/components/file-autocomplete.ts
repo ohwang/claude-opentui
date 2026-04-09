@@ -1,24 +1,30 @@
 /**
- * File Autocomplete — Git-based file discovery + fuzzy search for @-mention file picker
+ * File Autocomplete — fuzzy file search for @-mention file picker
  *
- * Uses `git ls-files` for tracked files (fast, respects .gitignore).
- * Falls back to directory walking for non-git repos.
- * Caches file list with smart refresh (watches .git/index mtime).
+ * Discovery chain: rg --files -> git ls-files -> walkDir fallback
+ * Fuzzy scoring: fuzzysort (same as OpenCode)
+ * Supports path prefixes: @../, @~/, @/absolute/ to search outside cwd
+ * Caches per root directory with LRU eviction.
  */
 
+import fuzzysort from "fuzzysort"
 import { readdirSync, statSync } from "fs"
-import { join, relative, dirname, sep } from "path"
+import { homedir } from "os"
+import { join, resolve, relative, dirname, sep } from "path"
 import { log } from "../../utils/logger"
 
-// Configuration
+// ── Configuration ────────────────────────────────────────────────────
 const MAX_SUGGESTIONS = 15
-const REFRESH_THROTTLE_MS = 5_000 // 5 seconds
-const FALLBACK_MAX_DEPTH = 4 // Deeper than the old 3 for fallback
-const FALLBACK_MAX_FILES = 2000 // More files for fallback
-/** Cap on files to fuzzy-match per search (prevents UI freeze in large repos) */
+const REFRESH_THROTTLE_MS = 5_000
+const FALLBACK_MAX_DEPTH = 4
+const FALLBACK_MAX_FILES = 2000
+/** Max files to fuzzy-match per search (prevents UI freeze in large repos) */
 const MAX_FUZZY_CANDIDATES = 2000
+/** Max cached root directories (LRU eviction) */
+const MAX_CACHE_ENTRIES = 5
+/** Max depth for broad directory scans (e.g. ~/) */
+const BROAD_SCAN_MAX_DEPTH = 3
 
-// Exclude directories for fallback walking
 const EXCLUDE_DIRS = new Set([
   "node_modules",
   ".git",
@@ -36,28 +42,119 @@ const EXCLUDE_DIRS = new Set([
   "coverage",
 ])
 
-// Cache state
-let cachedFiles: string[] = []
-let cachedDirs: string[] = []
-let cachedCwd = ""
-let lastRefreshMs = 0
-let lastGitIndexMtime: number | null = null
-let isRefreshing = false
+// ── Path prefix resolution ───────────────────────────────────────────
+
+export interface ParsedPrefix {
+  /** Resolved absolute path to search within */
+  root: string
+  /** Remaining query to fuzzy-match against files in root */
+  fuzzyQuery: string
+  /** Original prefix typed by user (e.g. "../src/", "~/dev/") for reinsertion */
+  prefix: string
+}
 
 /**
- * Get git index mtime to detect changes without running git ls-files
+ * Parse a @-mention query into a search root and fuzzy query.
+ *
+ * Recognises three prefix forms:
+ * - `../` (one or more levels) — resolve relative to cwd
+ * - `~/`  — resolve relative to $HOME
+ * - `/`   — absolute path
+ *
+ * Everything after the last `/` in the prefix is the fuzzy query.
+ * Queries without a special prefix search within cwd (default).
  */
-function getGitIndexMtime(cwd: string): number | null {
+export function parsePathPrefix(query: string, cwd: string): ParsedPrefix {
+  // No query → search cwd root
+  if (!query) return { root: cwd, fuzzyQuery: "", prefix: "" }
+
+  // ~/ prefix → home directory
+  if (query.startsWith("~/")) {
+    const rest = query.slice(2) // everything after ~/
+    const lastSlash = rest.lastIndexOf("/")
+    if (lastSlash >= 0) {
+      const dirPart = rest.slice(0, lastSlash)
+      const fuzzyQuery = rest.slice(lastSlash + 1)
+      const prefix = "~/" + dirPart + "/"
+      return { root: resolve(homedir(), dirPart), fuzzyQuery, prefix }
+    }
+    // "~/foo" → search $HOME, fuzzy query "foo"
+    return { root: homedir(), fuzzyQuery: rest, prefix: "~/" }
+  }
+
+  // ../ prefix — one or more levels up
+  if (query.startsWith("../")) {
+    const lastSlash = query.lastIndexOf("/")
+    const dirPart = query.slice(0, lastSlash)
+    const fuzzyQuery = query.slice(lastSlash + 1)
+    const prefix = dirPart + "/"
+    return { root: resolve(cwd, dirPart), fuzzyQuery, prefix }
+  }
+
+  // / prefix — absolute path
+  if (query.startsWith("/")) {
+    const lastSlash = query.lastIndexOf("/")
+    if (lastSlash > 0) {
+      const dirPart = query.slice(0, lastSlash)
+      const fuzzyQuery = query.slice(lastSlash + 1)
+      const prefix = dirPart + "/"
+      return { root: dirPart, fuzzyQuery, prefix }
+    }
+    // Just "/" → search filesystem root
+    return { root: "/", fuzzyQuery: query.slice(1), prefix: "/" }
+  }
+
+  // No special prefix → search cwd, full query is fuzzy
+  return { root: cwd, fuzzyQuery: query, prefix: "" }
+}
+
+// ── LRU cache ────────────────────────────────────────────────────────
+
+interface CacheEntry {
+  files: string[]
+  dirs: string[]
+  timestamp: number
+  gitIndexMtime: number | null
+}
+
+/** LRU cache keyed by resolved root path */
+const cache = new Map<string, CacheEntry>()
+/** Roots currently being refreshed (prevents concurrent refreshes) */
+const refreshingRoots = new Set<string>()
+
+function evictOldestIfNeeded(): void {
+  if (cache.size <= MAX_CACHE_ENTRIES) return
+  // Map iterates in insertion order — first key is oldest
+  const oldest = cache.keys().next().value
+  if (oldest !== undefined) cache.delete(oldest)
+}
+
+function getCacheEntry(root: string): CacheEntry | undefined {
+  const entry = cache.get(root)
+  if (entry) {
+    // Move to end (most recently used) by re-inserting
+    cache.delete(root)
+    cache.set(root, entry)
+  }
+  return entry
+}
+
+function setCacheEntry(root: string, entry: CacheEntry): void {
+  cache.delete(root) // remove old position
+  cache.set(root, entry) // insert at end (most recent)
+  evictOldestIfNeeded()
+}
+
+// ── File discovery ───────────────────────────────────────────────────
+
+function getGitIndexMtime(dir: string): number | null {
   try {
-    return statSync(join(cwd, ".git", "index")).mtimeMs
+    return statSync(join(dir, ".git", "index")).mtimeMs
   } catch {
     return null
   }
 }
 
-/**
- * Walk up from cwd to find the .git directory (repo root)
- */
 function findGitRoot(cwd: string): string | null {
   let dir = cwd
   while (true) {
@@ -73,21 +170,36 @@ function findGitRoot(cwd: string): string | null {
 }
 
 /**
- * Get tracked files using git ls-files (fast, respects .gitignore)
+ * Discover files using ripgrep (rg --files).
+ * Returns file paths relative to `root`, or null if rg is unavailable.
  */
-async function getGitFiles(cwd: string): Promise<string[] | null> {
-  const repoRoot = findGitRoot(cwd)
+async function getRgFiles(root: string, maxDepth?: number): Promise<string[] | null> {
+  try {
+    const args = ["rg", "--files", "--hidden", "--glob=!.git/*"]
+    if (maxDepth !== undefined) args.push(`--max-depth=${maxDepth}`)
+
+    const proc = Bun.spawn(args, { cwd: root, stdout: "pipe", stderr: "pipe" })
+    const output = await new Response(proc.stdout).text()
+    const exitCode = await proc.exited
+
+    if (exitCode !== 0 && exitCode !== 1) return null // rg exit 1 = no matches (ok)
+    return output.trim().split("\n").filter(Boolean)
+  } catch {
+    return null // rg not found or spawn failed
+  }
+}
+
+/**
+ * Discover files using git ls-files.
+ * Returns file paths relative to `root`, or null if not a git repo.
+ */
+async function getGitFiles(root: string): Promise<string[] | null> {
+  const repoRoot = findGitRoot(root)
   if (!repoRoot) return null
 
   try {
     const proc = Bun.spawn(
-      [
-        "git",
-        "-c",
-        "core.quotepath=false",
-        "ls-files",
-        "--recurse-submodules",
-      ],
+      ["git", "-c", "core.quotepath=false", "ls-files", "--recurse-submodules"],
       { cwd: repoRoot, stdout: "pipe", stderr: "pipe" },
     )
     const output = await new Response(proc.stdout).text()
@@ -97,14 +209,11 @@ async function getGitFiles(cwd: string): Promise<string[] | null> {
 
     const files = output.trim().split("\n").filter(Boolean)
 
-    // Normalize paths relative to CWD (not repo root)
-    if (cwd !== repoRoot) {
+    // Normalize paths relative to the search root (not repo root)
+    if (root !== repoRoot) {
       return files
-        .map((f) => {
-          const abs = join(repoRoot, f)
-          return relative(cwd, abs)
-        })
-        .filter((f) => !f.startsWith("..")) // Only files under CWD
+        .map((f) => relative(root, join(repoRoot, f)))
+        .filter((f) => !f.startsWith(".."))
     }
 
     return files
@@ -113,23 +222,14 @@ async function getGitFiles(cwd: string): Promise<string[] | null> {
   }
 }
 
-/**
- * Get untracked files in background (non-gitignored)
- */
-async function getUntrackedFiles(cwd: string): Promise<string[]> {
-  const repoRoot = findGitRoot(cwd)
+/** Fetch untracked files in background (non-gitignored) */
+async function getUntrackedFiles(root: string): Promise<string[]> {
+  const repoRoot = findGitRoot(root)
   if (!repoRoot) return []
 
   try {
     const proc = Bun.spawn(
-      [
-        "git",
-        "-c",
-        "core.quotepath=false",
-        "ls-files",
-        "--others",
-        "--exclude-standard",
-      ],
+      ["git", "-c", "core.quotepath=false", "ls-files", "--others", "--exclude-standard"],
       { cwd: repoRoot, stdout: "pipe", stderr: "pipe" },
     )
     const output = await new Response(proc.stdout).text()
@@ -138,9 +238,9 @@ async function getUntrackedFiles(cwd: string): Promise<string[]> {
     if (exitCode !== 0) return []
 
     const files = output.trim().split("\n").filter(Boolean)
-    if (cwd !== repoRoot) {
+    if (root !== repoRoot) {
       return files
-        .map((f) => relative(cwd, join(repoRoot, f)))
+        .map((f) => relative(root, join(repoRoot, f)))
         .filter((f) => !f.startsWith(".."))
     }
     return files
@@ -149,9 +249,7 @@ async function getUntrackedFiles(cwd: string): Promise<string[]> {
   }
 }
 
-/**
- * Extract unique directory paths from file list (for directory completion)
- */
+/** Extract unique directory paths from file list */
 function extractDirectories(files: string[]): string[] {
   const dirs = new Set<string>()
   for (const file of files) {
@@ -164,9 +262,7 @@ function extractDirectories(files: string[]): string[] {
   return [...dirs].map((d) => d + sep)
 }
 
-/**
- * Fallback: walk directory tree for non-git repos
- */
+/** Fallback: synchronous directory walk for non-git, non-rg repos */
 function walkDir(dir: string, basePath: string, depth: number): string[] {
   if (depth > FALLBACK_MAX_DEPTH) return []
   const results: string[] = []
@@ -174,6 +270,7 @@ function walkDir(dir: string, basePath: string, depth: number): string[] {
     const entries = readdirSync(dir)
     for (const entry of entries) {
       if (EXCLUDE_DIRS.has(entry)) continue
+      if (entry.startsWith(".") && entry.length > 1) continue // skip hidden
       const fullPath = join(dir, entry)
       const relPath = relative(basePath, fullPath)
       try {
@@ -195,30 +292,68 @@ function walkDir(dir: string, basePath: string, depth: number): string[] {
   return results
 }
 
+// ── Cache management ─────────────────────────────────────────────────
+
 /**
- * Refresh the file cache. Uses git ls-files when possible, falls back to walkDir.
+ * Check if the cache for a given root needs refreshing.
  */
-async function refreshCache(cwd: string): Promise<void> {
-  if (isRefreshing) return
-  isRefreshing = true
+function needsRefresh(root: string): boolean {
+  const entry = cache.get(root)
+  if (!entry) return true
+  if (entry.files.length === 0 && entry.dirs.length === 0) return true
+
+  // Check git index mtime for tracked file changes
+  const currentMtime = getGitIndexMtime(root)
+  if (currentMtime !== null && currentMtime !== entry.gitIndexMtime) return true
+
+  // Time-based fallback
+  return Date.now() - entry.timestamp >= REFRESH_THROTTLE_MS
+}
+
+/** Determine if a root is "broad" (home dir, or very high-level) and needs depth limits */
+function isBroadRoot(root: string): boolean {
+  const home = homedir()
+  return root === home || root === "/" || root === dirname(home)
+}
+
+/**
+ * Refresh the file cache for a given root.
+ * Discovery chain: rg --files -> git ls-files -> walkDir
+ */
+async function refreshCache(root: string): Promise<void> {
+  if (refreshingRoots.has(root)) return
+  refreshingRoots.add(root)
 
   try {
-    const gitFiles = await getGitFiles(cwd)
+    const maxDepth = isBroadRoot(root) ? BROAD_SCAN_MAX_DEPTH : undefined
 
-    if (gitFiles !== null) {
-      cachedFiles = gitFiles
-      cachedDirs = extractDirectories(gitFiles)
-      cachedCwd = cwd
-      lastRefreshMs = Date.now()
-      lastGitIndexMtime = getGitIndexMtime(cwd)
+    // Try ripgrep first (fastest, works everywhere)
+    let files = await getRgFiles(root, maxDepth)
 
-      // Background fetch untracked files
-      getUntrackedFiles(cwd)
+    // Fall back to git ls-files
+    if (files === null) {
+      files = await getGitFiles(root)
+    }
+
+    if (files !== null) {
+      const dirs = extractDirectories(files)
+      setCacheEntry(root, {
+        files,
+        dirs,
+        timestamp: Date.now(),
+        gitIndexMtime: getGitIndexMtime(root),
+      })
+
+      // Background: merge untracked files (git-only enhancement)
+      getUntrackedFiles(root)
         .then((untracked) => {
-          if (untracked.length > 0 && cachedCwd === cwd) {
-            const untrackedDirs = extractDirectories(untracked)
-            cachedFiles = [...new Set([...cachedFiles, ...untracked])]
-            cachedDirs = [...new Set([...cachedDirs, ...untrackedDirs])]
+          if (untracked.length > 0) {
+            const entry = cache.get(root)
+            if (entry) {
+              const untrackedDirs = extractDirectories(untracked)
+              entry.files = [...new Set([...entry.files, ...untracked])]
+              entry.dirs = [...new Set([...entry.dirs, ...untrackedDirs])]
+            }
           }
         })
         .catch(() => {})
@@ -226,101 +361,84 @@ async function refreshCache(cwd: string): Promise<void> {
       return
     }
 
-    // Fallback to walkDir
-    cachedFiles = walkDir(cwd, cwd, 0)
-    cachedDirs = extractDirectories(cachedFiles)
-    cachedCwd = cwd
-    lastRefreshMs = Date.now()
+    // Final fallback: synchronous walkDir
+    const walked = walkDir(root, root, 0)
+    setCacheEntry(root, {
+      files: walked.filter((f) => !f.endsWith("/")),
+      dirs: walked.filter((f) => f.endsWith("/")),
+      timestamp: Date.now(),
+      gitIndexMtime: null,
+    })
   } finally {
-    isRefreshing = false
+    refreshingRoots.delete(root)
   }
 }
 
 /**
- * Check if cache needs refresh based on git state or time
+ * Get cached files + dirs for a root. On cold start, does synchronous
+ * walkDir fallback so the first autocomplete isn't empty.
+ * Triggers async refresh in background for better data.
  */
-function needsRefresh(cwd: string): boolean {
-  if (cwd !== cachedCwd) return true
-  if (cachedFiles.length === 0) return true
+function getFilesForRoot(root: string): { files: string[]; dirs: string[] } {
+  const entry = getCacheEntry(root)
 
-  // Check git index mtime for tracked file changes
-  const currentMtime = getGitIndexMtime(cwd)
-  if (currentMtime !== null && currentMtime !== lastGitIndexMtime) return true
-
-  // Time-based fallback for untracked files
-  return Date.now() - lastRefreshMs >= REFRESH_THROTTLE_MS
-}
-
-/**
- * Get all files (synchronous, returns cached data and triggers async refresh).
- * On cold start (empty cache), does a synchronous walkDir fallback so the first
- * autocomplete invocation has results immediately. The async git refresh upgrades
- * the cache in the background for subsequent calls.
- */
-export function getFiles(cwd: string): string[] {
-  if (needsRefresh(cwd)) {
-    // If cache is empty (cold start), do a synchronous fallback so the first
-    // autocomplete dropdown isn't empty while git ls-files runs in background
-    if (cachedFiles.length === 0 && cwd !== cachedCwd) {
-      cachedFiles = walkDir(cwd, cwd, 0)
-      cachedDirs = extractDirectories(cachedFiles)
-      cachedCwd = cwd
-      lastRefreshMs = Date.now()
+  if (needsRefresh(root)) {
+    // Cold start: synchronous fallback so dropdown isn't empty
+    if (!entry || (entry.files.length === 0 && entry.dirs.length === 0)) {
+      const walked = walkDir(root, root, 0)
+      const files = walked.filter((f) => !f.endsWith("/"))
+      const dirs = walked.filter((f) => f.endsWith("/"))
+      setCacheEntry(root, { files, dirs, timestamp: Date.now(), gitIndexMtime: null })
     }
-    // Fire and forget async refresh (git ls-files will upgrade the cache)
-    refreshCache(cwd).catch((err) => {
-      log.warn("File cache refresh failed", { error: String(err) })
+    // Async refresh upgrades the cache in background
+    refreshCache(root).catch((err) => {
+      log.warn("File cache refresh failed", { root, error: String(err) })
     })
   }
-  return cachedFiles
+
+  const cached = cache.get(root)
+  return cached ? { files: cached.files, dirs: cached.dirs } : { files: [], dirs: [] }
 }
 
-/** Invalidate the file cache (e.g. after a tool creates files) */
+/** Invalidate all cached file lists (e.g. after a tool creates/deletes files) */
 export function invalidateFileCache(): void {
-  lastRefreshMs = 0
-  lastGitIndexMtime = null
+  for (const entry of cache.values()) {
+    entry.timestamp = 0
+    entry.gitIndexMtime = null
+  }
 }
+
+// ── Search ───────────────────────────────────────────────────────────
 
 /**
- * Fuzzy match with score -- higher is better.
- * Returns -1 for no match.
+ * Search files using fuzzysort. Returns up to `limit` file paths relative
+ * to the resolved search root. Handles path prefix resolution internally.
  */
-export function fuzzyScore(query: string, target: string): number {
-  const q = query.toLowerCase()
-  const t = target.toLowerCase()
-  let qi = 0
-  let score = 0
-  let lastMatchIndex = -1
+export function searchFiles(
+  query: string,
+  cwd: string,
+  limit = MAX_SUGGESTIONS,
+): string[] {
+  const { root, fuzzyQuery } = parsePathPrefix(query, cwd)
+  const { files, dirs } = getFilesForRoot(root)
 
-  for (let ti = 0; ti < t.length && qi < q.length; ti++) {
-    if (t[ti] === q[qi]) {
-      // Bonus for consecutive matches
-      if (ti === lastMatchIndex + 1) score += 3
-      // Bonus for matching after separator (/, ., -)
-      else if (ti === 0 || "/.-_".includes(t[ti - 1] ?? "")) score += 2
-      else score += 1
+  const allEntries =
+    dirs.length > 0 ? [...new Set([...files, ...dirs])] : files
 
-      lastMatchIndex = ti
-      qi++
-    }
-  }
+  if (!fuzzyQuery) return allEntries.slice(0, limit)
 
-  if (qi < q.length) return -1 // No match
+  const candidates =
+    allEntries.length > MAX_FUZZY_CANDIDATES
+      ? allEntries.slice(0, MAX_FUZZY_CANDIDATES)
+      : allEntries
 
-  // Bonus for shorter paths (more specific)
-  score -= target.length * 0.01
-  // Bonus for substring match
-  if (t.includes(q)) score += 5
-  // Bonus for basename match
-  const basename = target.split("/").pop() ?? target
-  if (basename.toLowerCase().includes(q)) score += 3
-
-  return score
+  const results = fuzzysort.go(fuzzyQuery, candidates, { limit })
+  return results.map((r) => r.target)
 }
 
 /**
  * Find longest common prefix among a list of strings.
- * Used for tab completion: fill the shared prefix before requiring a pick.
+ * Used for Tab completion: fill the shared prefix before requiring a pick.
  */
 export function findLongestCommonPrefix(items: string[]): string {
   if (items.length === 0) return ""
@@ -333,39 +451,4 @@ export function findLongestCommonPrefix(items: string[]): string {
     }
   }
   return prefix
-}
-
-/**
- * Search files using fuzzy scoring. Returns up to `limit` results sorted by score.
- * Includes both files and directory entries for directory completion.
- */
-export function searchFiles(
-  query: string,
-  cwd: string,
-  limit = MAX_SUGGESTIONS,
-): string[] {
-  const files = getFiles(cwd)
-  const allEntries =
-    cachedDirs.length > 0
-      ? [...new Set([...files, ...cachedDirs])]
-      : files
-
-  if (!query) return allEntries.slice(0, limit)
-
-  // Cap the number of candidates to prevent expensive O(n) fuzzy matching
-  const candidates =
-    allEntries.length > MAX_FUZZY_CANDIDATES
-      ? allEntries.slice(0, MAX_FUZZY_CANDIDATES)
-      : allEntries
-
-  const scored: Array<{ path: string; score: number }> = []
-  for (const path of candidates) {
-    const score = fuzzyScore(query, path)
-    if (score >= 0) {
-      scored.push({ path, score })
-    }
-  }
-
-  scored.sort((a, b) => b.score - a.score)
-  return scored.slice(0, limit).map((s) => s.path)
 }

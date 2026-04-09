@@ -227,7 +227,7 @@ function mapAvailableCommands(update: AcpAvailableCommandsUpdate): AgentEvent[] 
 /**
  * Derive a human-readable tool name from ACP kind + title.
  */
-function deriveToolName(kind?: string, title?: string): string {
+export function deriveToolName(kind?: string, title?: string): string {
   // Map ACP kind to a tool name similar to Claude/Codex naming
   switch (kind) {
     case "read":

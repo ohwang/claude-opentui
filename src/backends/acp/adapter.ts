@@ -35,7 +35,7 @@ import { backendTrace } from "../../utils/backend-trace"
 import { BaseAdapter } from "../shared/base-adapter"
 import { AcpTransport } from "./transport"
 import { AcpTerminalManager } from "./terminal-manager"
-import { mapAcpUpdate } from "./event-mapper"
+import { mapAcpUpdate, deriveToolName } from "./event-mapper"
 import type {
   AcpInitializeResult,
   AcpAgentCapabilities,
@@ -672,16 +672,19 @@ export class AcpAdapter extends BaseAdapter {
       case "session/request_permission": {
         const permParams = params as AcpPermissionRequestParams
         const toolCallId = permParams.toolCall?.toolCallId ?? String(rpcId)
+        const toolCall = permParams.toolCall as Record<string, unknown> | undefined
+        const toolName = deriveToolName(toolCall?.kind as string, toolCall?.title as string)
 
         this.pendingApprovals.set(toolCallId, { rpcId, params: permParams })
 
         this.eventChannel?.push({
           type: "permission_request",
           id: toolCallId,
-          tool: "Tool",
+          tool: toolName,
           input: permParams.toolCall,
-          title: `${this.agentName} requests permission`,
+          title: `${this.agentName}: ${toolCall?.title ?? toolName}`,
           description: permParams.options?.map(o => o.name).join(" / "),
+          blockedPath: (toolCall?.locations as any[])?.[0]?.path,
         })
         break
       }

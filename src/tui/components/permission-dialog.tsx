@@ -567,6 +567,7 @@ export function PermissionDialog() {
                 <box flexDirection="column">
                   <Divider char={"\u254C"} fg={ACCENT} paddingLeft={0} />
                   <scrollbox
+                    height={Math.min(lines().length, maxPreviewHeight())}
                     maxHeight={maxPreviewHeight()}
                     stickyScroll={false}
                   >

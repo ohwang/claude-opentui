@@ -148,10 +148,10 @@ function QuestionView(props: {
           {(option, index) => (
             <box flexDirection="column">
               <box flexDirection="row">
-                <text fg={index === selected() ? colors.border.permission : "white"}>
+                <text fg={index === selected() ? colors.border.permission : colors.text.primary}>
                   {index === selected() ? " > " : "   "}
                 </text>
-                <text fg={index === selected() ? colors.border.permission : "white"}>
+                <text fg={index === selected() ? colors.border.permission : colors.text.primary}>
                   {index + 1}) {truncateLabel(option().label)}
                 </text>
               </box>

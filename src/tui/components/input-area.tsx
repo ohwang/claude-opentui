@@ -1163,7 +1163,7 @@ export function InputArea() {
       {/* Input row with > prompt prefix */}
       <box flexDirection="row">
         <box width={2} flexShrink={0}>
-          <text fg={isDisabled() ? colors.text.inactive : "white"} attributes={isDisabled() ? TextAttributes.DIM : 0}>{"❯"}</text>
+          <text fg={isDisabled() ? colors.text.inactive : colors.text.primary} attributes={isDisabled() ? TextAttributes.DIM : 0}>{"❯"}</text>
         </box>
         <textarea
           ref={(el: TextareaRenderable) => { textareaRef = el; _sharedTextareaRef = el }}
@@ -1200,7 +1200,7 @@ export function InputArea() {
                 )}
                 <text
                   attributes={index === selectedIndex() ? TextAttributes.BOLD : 0}
-                  fg={index === selectedIndex() ? "cyan" : "white"}
+                  fg={index === selectedIndex() ? colors.accent.highlight : colors.text.primary}
                 >
                   {autocompleteMode() === "file" ? truncatePath(item().name) : `/${item().name}`}
                 </text>

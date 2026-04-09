@@ -573,7 +573,7 @@ export function PermissionDialog() {
                           const lineColor = () => {
                             if (line.prefix === "+") return DIFF_ADDED
                             if (line.prefix === "-") return DIFF_REMOVED
-                            return "white"
+                            return colors.text.primary
                           }
                           return (
                             <box height={1} paddingLeft={1}>

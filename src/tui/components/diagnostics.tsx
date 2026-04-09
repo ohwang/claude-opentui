@@ -410,7 +410,7 @@ export function DiagnosticsPanel(props: { visible: boolean; onClose: () => void 
                     {(entry) => (
                       <box flexDirection="row">
                         <text fg={colors.text.inactive}>{padRight(entry.key, 22)}</text>
-                        <text fg={entry.color ?? "white"}>{" " + entry.value}</text>
+                        <text fg={entry.color ?? colors.text.primary}>{" " + entry.value}</text>
                       </box>
                     )}
                   </For>

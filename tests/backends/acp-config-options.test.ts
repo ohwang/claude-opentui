@@ -107,8 +107,10 @@ describe("ACP Config Options", () => {
         },
       })
 
-      expect(events).toHaveLength(1)
-      expect(events[0]).toEqual({
+      // config_options event is emitted first, then model_changed
+      const nonConfig = events.filter(e => e.type !== "config_options")
+      expect(nonConfig).toHaveLength(1)
+      expect(nonConfig[0]).toEqual({
         type: "model_changed",
         model: "gemini-2.5-flash",
       })
@@ -128,8 +130,9 @@ describe("ACP Config Options", () => {
         },
       })
 
-      expect(events).toHaveLength(1)
-      expect(events[0]).toEqual({
+      const nonConfig = events.filter(e => e.type !== "config_options")
+      expect(nonConfig).toHaveLength(1)
+      expect(nonConfig[0]).toEqual({
         type: "model_changed",
         model: "gpt-4o",
       })
@@ -168,8 +171,9 @@ describe("ACP Config Options", () => {
         },
       })
 
-      expect(events).toHaveLength(1)
-      expect(events[0]).toEqual({
+      const nonConfig = events.filter(e => e.type !== "config_options")
+      expect(nonConfig).toHaveLength(1)
+      expect(nonConfig[0]).toEqual({
         type: "effort_changed",
         effort: "high",
       })
@@ -189,8 +193,9 @@ describe("ACP Config Options", () => {
         },
       })
 
-      expect(events).toHaveLength(1)
-      expect(events[0]).toEqual({
+      const nonConfig = events.filter(e => e.type !== "config_options")
+      expect(nonConfig).toHaveLength(1)
+      expect(nonConfig[0]).toEqual({
         type: "effort_changed",
         effort: "low",
       })
@@ -210,8 +215,9 @@ describe("ACP Config Options", () => {
         },
       })
 
-      expect(events).toHaveLength(1)
-      expect(events[0]).toEqual({
+      const nonConfig = events.filter(e => e.type !== "config_options")
+      expect(nonConfig).toHaveLength(1)
+      expect(nonConfig[0]).toEqual({
         type: "effort_changed",
         effort: "max",
       })
@@ -231,8 +237,9 @@ describe("ACP Config Options", () => {
         },
       })
 
-      // Should not emit any event (invalid value silently dropped)
-      expect(events).toHaveLength(0)
+      // Should only emit config_options (no effort_changed since value is invalid)
+      const nonConfig = events.filter(e => e.type !== "config_options")
+      expect(nonConfig).toHaveLength(0)
 
       adapter.close()
     })
@@ -251,8 +258,9 @@ describe("ACP Config Options", () => {
         },
       })
 
-      expect(events).toHaveLength(1)
-      expect(events[0]).toMatchObject({
+      const nonConfig = events.filter(e => e.type !== "config_options")
+      expect(nonConfig).toHaveLength(1)
+      expect(nonConfig[0]).toMatchObject({
         type: "backend_specific",
         backend: "acp",
         data: {

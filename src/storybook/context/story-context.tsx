@@ -49,6 +49,7 @@ const DEFAULT_SESSION: SessionContextState = {
   currentEffort: "",
   rateLimits: null,
   agentCommands: [],
+  configOptions: [],
 }
 
 const DEFAULT_MESSAGES: MessagesState = {

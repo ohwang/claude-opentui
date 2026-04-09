@@ -358,6 +358,7 @@ export function InputArea() {
         currentModel: session.currentModel,
         currentEffort: session.currentEffort,
         session: session.session,
+        configOptions: session.configOptions,
       }),
       getBlocks: () => messagesState.blocks,
       renderer,

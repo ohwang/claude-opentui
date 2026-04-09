@@ -60,6 +60,7 @@ function createSessionStore() {
     currentEffort: "",
     rateLimits: null,
     agentCommands: [],
+    configOptions: [],
   })
 }
 
@@ -106,6 +107,7 @@ function createApplyEventsHarness() {
       setSession("currentEffort", conversationState.currentEffort ?? "")
       setSession("rateLimits", reconcile(conversationState.rateLimits))
       setSession("agentCommands", reconcile(conversationState.agentCommands))
+      setSession("configOptions", reconcile(conversationState.configOptions))
 
       setPermissions("pendingPermission", reconcile(conversationState.pendingPermission))
       setPermissions("pendingElicitation", reconcile(conversationState.pendingElicitation))

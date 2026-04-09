@@ -136,6 +136,22 @@ export class AcpAdapter extends BaseAdapter {
     if (preset?.displayName) this.agentName = preset.displayName
   }
 
+  /** Map ACP config options to protocol ConfigOption[] and emit a config_options event */
+  private emitConfigOptions(): void {
+    if (this.discoveredConfigOptions.length === 0) return
+    this.eventChannel?.push({
+      type: "config_options",
+      options: this.discoveredConfigOptions.map(o => ({
+        id: o.id,
+        name: o.name,
+        description: o.description,
+        type: o.type,
+        value: o.value,
+        choices: o.options?.map(c => ({ id: c.id, name: c.name, description: c.description })),
+      })),
+    })
+  }
+
   private deriveSupportedPermissionModes(): PermissionMode[] {
     // Reverse-map ACP mode IDs to our internal PermissionMode names.
     // Supports both short IDs (Gemini: "default", "yolo") and
@@ -395,6 +411,28 @@ export class AcpAdapter extends BaseAdapter {
     }
   }
 
+  async setConfigOption(id: string, value: unknown): Promise<void> {
+    if (!this.transport?.isAlive || !this.sessionId) return
+
+    await this.transport.request("session/set_config_option", {
+      sessionId: this.sessionId,
+      configOptionId: id,
+      value,
+    })
+
+    // Update local state
+    const idx = this.discoveredConfigOptions.findIndex(o => o.id === id)
+    const existing = this.discoveredConfigOptions[idx]
+    if (idx >= 0 && existing) {
+      this.discoveredConfigOptions[idx] = { ...existing, value }
+    }
+
+    // Emit updated options
+    this.emitConfigOptions()
+
+    log.info("ACP config option set", { id, value })
+  }
+
   async setEffort(level: EffortLevel): Promise<void> {
     if (!this.transport?.isAlive || !this.sessionId) return
 
@@ -468,6 +506,8 @@ export class AcpAdapter extends BaseAdapter {
           provider: this.presetName,
         })),
       })
+
+      this.emitConfigOptions()
 
       log.info("ACP session reset", { sessionId: this.sessionId })
     } catch (err) {
@@ -608,6 +648,9 @@ export class AcpAdapter extends BaseAdapter {
         })),
       })
 
+      // 5b. Emit config options if the agent exposed any
+      this.emitConfigOptions()
+
       // 6. If there's an initial prompt, send the first turn
       if (config.initialPrompt) {
         await this.sendPrompt(config.initialPrompt)
@@ -745,6 +788,9 @@ export class AcpAdapter extends BaseAdapter {
     } else {
       this.discoveredConfigOptions.push(option)
     }
+
+    // Emit refreshed config options list to update TUI state
+    this.emitConfigOptions()
 
     // Map to AgentEvents based on the option type
     if (option.id === "model" || option.name.toLowerCase().includes("model")) {

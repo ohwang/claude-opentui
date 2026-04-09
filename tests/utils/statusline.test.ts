@@ -20,6 +20,7 @@ function baseSessionState(): SessionContextState {
     currentEffort: "",
     rateLimits: null,
     agentCommands: [],
+    configOptions: [],
   }
 }
 

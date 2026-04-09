@@ -81,8 +81,7 @@ src/
     registry.ts           # Backend registry + selection
   backends/
     claude/
-      adapter.ts          # V1 adapter (query API, default)
-      adapter-v2.ts       # V2 adapter (session API, --backend claude-v2)
+      adapter.ts          # Claude adapter (query API, default)
   tui/
     app.tsx               # Root SolidJS component
     components/           # UI components (one per file)

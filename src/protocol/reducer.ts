@@ -637,8 +637,28 @@ export function reduce(
       return next
 
     case "backend_specific": {
-      // Extract rate limit data from claude backend rate_limit_event
       const data = event.data as Record<string, unknown> | null
+
+      // Handle ACP agent slash commands
+      if (data && (data as { type?: string }).type === "available_commands") {
+        const commands = (data as { commands?: unknown[] }).commands
+        if (Array.isArray(commands)) {
+          return {
+            ...next,
+            agentCommands: commands
+              .map((c: unknown) => {
+                const cmd = c as Record<string, unknown>
+                return {
+                  name: String(cmd.name ?? ""),
+                  description: cmd.description ? String(cmd.description) : undefined,
+                }
+              })
+              .filter((c) => c.name),
+          }
+        }
+      }
+
+      // Extract rate limit data from claude backend rate_limit_event
       if (data && (data as { type?: string }).type === "rate_limit_event") {
         const info = (data as { rate_limit_info?: Record<string, unknown> }).rate_limit_info
         if (info && typeof info.rateLimitType === "string") {

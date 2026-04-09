@@ -93,6 +93,7 @@ export function SyncProvider(props: ParentProps) {
       session.setState("currentModel", conversationState.currentModel ?? "")
       session.setState("currentEffort", conversationState.currentEffort ?? "")
       session.setState("rateLimits", reconcile(conversationState.rateLimits))
+      session.setState("agentCommands", reconcile(conversationState.agentCommands))
 
       permissions.setState("pendingPermission", reconcile(conversationState.pendingPermission))
       permissions.setState("pendingElicitation", reconcile(conversationState.pendingElicitation))

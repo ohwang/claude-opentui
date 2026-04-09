@@ -434,6 +434,9 @@ export interface ConversationState {
 
   /** Files modified in the last completed turn */
   lastTurnFiles?: TurnFileChange[]
+
+  /** Agent-advertised slash commands (from ACP available_commands_update) */
+  agentCommands: AgentSlashCommand[]
 }
 
 // ---------------------------------------------------------------------------
@@ -654,6 +657,12 @@ export interface TurnFileChange {
   tool: string
 }
 
+/** Agent-advertised slash command (from ACP backends) */
+export interface AgentSlashCommand {
+  name: string
+  description?: string
+}
+
 // ---------------------------------------------------------------------------
 // Initial state factory
 // ---------------------------------------------------------------------------
@@ -687,5 +696,6 @@ export function createInitialState(): ConversationState {
     awaitingTurnStart: false,
     lastTurnFiles: undefined,
     rateLimits: null,
+    agentCommands: [],
   }
 }

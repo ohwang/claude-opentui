@@ -19,6 +19,7 @@ function baseSessionState(): SessionContextState {
     currentModel: "gpt-5",
     currentEffort: "",
     rateLimits: null,
+    agentCommands: [],
   }
 }
 

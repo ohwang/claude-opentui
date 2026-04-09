@@ -269,9 +269,24 @@ export function InputArea() {
       const afterSlash = text.slice(1)
       if (!afterSlash.includes(" ")) {
         const query = afterSlash
-        const matches = commandRegistry.search(query)
-        if (matches.length > 0) {
-          setAutocompleteItems(matches)
+        const builtinMatches = commandRegistry.search(query)
+
+        // Merge agent-advertised commands (from ACP available_commands_update)
+        const agentCmds = session.agentCommands ?? []
+        const agentMatches = agentCmds
+          .filter((c) => c.name.toLowerCase().includes(query.toLowerCase()))
+          .map((c) => ({
+            name: c.name,
+            description: c.description ?? `${friendlyBackendName(agent.backend.capabilities().name)} command`,
+          }))
+
+        // Deduplicate: built-in commands take precedence
+        const builtinNames = new Set(builtinMatches.map((c) => c.name))
+        const uniqueAgentMatches = agentMatches.filter((c) => !builtinNames.has(c.name))
+
+        const allMatches = [...builtinMatches, ...uniqueAgentMatches]
+        if (allMatches.length > 0) {
+          setAutocompleteItems(allMatches)
           setSelectedIndex(0)
           setAutocompleteMode("slash")
           setShowAutocomplete(true)

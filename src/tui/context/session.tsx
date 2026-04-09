@@ -16,6 +16,7 @@ import type {
   CostTotals,
   ErrorEvent,
   RateLimits,
+  AgentSlashCommand,
 } from "../../protocol/types"
 
 export interface SessionContextState {
@@ -28,6 +29,7 @@ export interface SessionContextState {
   currentModel: string
   currentEffort: string
   rateLimits: RateLimits | null
+  agentCommands: AgentSlashCommand[]
 }
 
 export interface SessionContextValue {
@@ -54,6 +56,7 @@ export function SessionProvider(props: ParentProps) {
     currentModel: "",
     currentEffort: "",
     rateLimits: null,
+    agentCommands: [],
   })
 
   return (

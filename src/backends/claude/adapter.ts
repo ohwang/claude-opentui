@@ -17,6 +17,7 @@ import type {
   AgentBackend,
   AgentEvent,
   BackendCapabilities,
+  EffortLevel,
   ForkOptions,
   ModelInfo,
   PermissionMode,
@@ -262,6 +263,31 @@ export class ClaudeAdapter implements AgentBackend {
     }
   }
 
+  async setEffort(level: EffortLevel): Promise<void> {
+    if (!this.activeQuery) return
+    // applyFlagSettings only supports low/medium/high — reject 'max' at runtime
+    if (level === "max") {
+      this.eventChannel?.push({
+        type: "system_message",
+        text: "Cannot set effort to 'max' at runtime. Use --effort max at startup.",
+        ephemeral: true,
+      })
+      return
+    }
+    try {
+      await this.activeQuery.applyFlagSettings({ effortLevel: level })
+      log.info("setEffort()", { level })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      log.error("setEffort() failed", { error: message })
+      this.eventChannel?.push({
+        type: "system_message",
+        text: `Failed to set effort level: ${message}`,
+        ephemeral: true,
+      })
+    }
+  }
+
   async availableModels(): Promise<ModelInfo[]> {
     if (!this.activeQuery) return []
     const models = await this.activeQuery.supportedModels()
@@ -275,10 +301,19 @@ export class ClaudeAdapter implements AgentBackend {
   }
 
   async listSessions(): Promise<SessionInfo[]> {
-    // Session listing is handled by the SDK's file-based storage
-    // We'd need to read ~/.claude/projects/ directly
-    // For now, return empty - the TUI can implement this at the filesystem level
-    return []
+    try {
+      const sessions = await sdkListSessions({ dir: process.cwd() })
+      return sessions.map((s) => ({
+        id: s.sessionId,
+        title: s.summary ?? s.firstPrompt ?? "Untitled",
+        createdAt: s.createdAt ?? s.lastModified,
+        updatedAt: s.lastModified,
+        messageCount: 0, // Not available from SDK metadata
+      }))
+    } catch (err) {
+      log.warn("Failed to list sessions", { error: String(err) })
+      return []
+    }
   }
 
   async forkSession(

@@ -926,9 +926,19 @@ export function InputArea() {
     }
 
     // Ctrl+K = kill to end of line (Emacs kill-line)
+    // If cursor is at a newline, consume it to join with the next line (standard Emacs behavior).
+    // Note: deleteToLineEnd() always returns true in OpenTUI, so check position explicitly.
     if (e.ctrl && e.name === "k") {
       e.preventDefault()
-      textareaRef?.deleteToLineEnd()
+      if (textareaRef) {
+        const text = textareaRef.plainText
+        const offset = textareaRef.cursorOffset
+        if (offset < text.length && text[offset] === "\n") {
+          textareaRef.deleteChar()
+        } else {
+          textareaRef.deleteToLineEnd()
+        }
+      }
       queueMicrotask(() => { updateLineCount(); updateAutocomplete(textareaRef?.plainText ?? "") })
       return
     }

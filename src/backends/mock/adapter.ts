@@ -8,8 +8,6 @@
  */
 
 import type {
-  AgentBackend,
-  AgentEvent,
   BackendCapabilities,
   EffortLevel,
   ModelInfo,
@@ -18,16 +16,14 @@ import type {
   SessionInfo,
   UserMessage,
 } from "../../protocol/types"
+import { BaseAdapter } from "../shared/base-adapter"
 
 type PendingResolve = (result: { behavior: "allow" | "deny"; message?: string }) => void
 
-export class MockAdapter implements AgentBackend {
-  private messageQueue: UserMessage[] = []
-  private waitingForMessage: ((msg: UserMessage) => void) | null = null
+export class MockAdapter extends BaseAdapter {
   private pendingPermission: { id: string; resolve: PendingResolve } | null = null
   private pendingElicitation: { id: string; resolve: PendingResolve } | null = null
   private interrupted = false
-  private closed = false
 
   capabilities(): BackendCapabilities {
     return {
@@ -42,9 +38,9 @@ export class MockAdapter implements AgentBackend {
     }
   }
 
-  async *start(_config: SessionConfig): AsyncGenerator<AgentEvent> {
+  protected async runSession(_config: SessionConfig): Promise<void> {
     // Emit session_init immediately
-    yield {
+    this.eventChannel?.push({
       type: "session_init",
       sessionId: "mock-" + crypto.randomUUID(),
       tools: [
@@ -59,30 +55,12 @@ export class MockAdapter implements AgentBackend {
         { id: "claude-sonnet-4-6", name: "Claude Sonnet 4.6" },
         { id: "claude-opus-4-6", name: "Claude Opus 4.6" },
       ],
-    }
+    })
 
-    // Process messages in a loop
-    while (!this.closed) {
-      const message = await this.nextMessage()
-      if (!message || this.closed) break
-
-      // Generate a mock response for each message
-      yield* this.generateResponse(message)
-    }
-  }
-
-  async *resume(_sessionId: string): AsyncGenerator<AgentEvent> {
-    yield* this.start({})
-  }
-
-  sendMessage(message: UserMessage): void {
-    if (this.waitingForMessage) {
-      const resolve = this.waitingForMessage
-      this.waitingForMessage = null
-      resolve(message)
-    } else {
-      this.messageQueue.push(message)
-    }
+    // Process messages via the base adapter's message loop
+    await this.runMessageLoop(async (message) => {
+      await this.generateResponse(message)
+    })
   }
 
   interrupt(): void {
@@ -144,61 +122,43 @@ export class MockAdapter implements AgentBackend {
     throw new Error("Mock adapter does not support forking")
   }
 
-  close(): void {
-    this.closed = true
-    if (this.waitingForMessage) {
-      this.waitingForMessage(null as any)
-      this.waitingForMessage = null
-    }
-  }
-
   // -----------------------------------------------------------------------
   // Private
   // -----------------------------------------------------------------------
 
-  private nextMessage(): Promise<UserMessage | null> {
-    const queued = this.messageQueue.shift()
-    if (queued) return Promise.resolve(queued)
-    if (this.closed) return Promise.resolve(null)
-
-    return new Promise((resolve) => {
-      this.waitingForMessage = resolve
-    })
-  }
-
-  private async *generateResponse(message: UserMessage): AsyncGenerator<AgentEvent> {
+  private async generateResponse(message: UserMessage): Promise<void> {
     this.interrupted = false
 
-    yield { type: "turn_start" }
+    this.eventChannel?.push({ type: "turn_start" })
 
     const text = message.text.toLowerCase()
 
     // Simulate thinking for certain prompts
     if (text.includes("think") || text.length > 50) {
-      yield { type: "thinking_delta", text: "Let me think about this..." }
+      this.eventChannel?.push({ type: "thinking_delta", text: "Let me think about this..." })
       await this.delay(300)
-      yield { type: "thinking_delta", text: " I'll analyze the request carefully." }
+      this.eventChannel?.push({ type: "thinking_delta", text: " I'll analyze the request carefully." })
       await this.delay(200)
     }
 
     // Simulate tool use for certain prompts
     if (text.includes("read") || text.includes("file")) {
-      yield* this.simulateToolUse()
+      await this.simulateToolUse()
     }
 
     // Simulate permission request
     if (text.includes("permission") || text.includes("bash")) {
-      yield* this.simulatePermission()
+      await this.simulatePermission()
     }
 
     // Simulate subagent/task
     if (text.includes("agent") || text.includes("task")) {
-      yield* this.simulateTasks()
+      await this.simulateTasks()
     }
 
     // Simulate elicitation (ask user question)
     if (text.includes("ask") || text.includes("question")) {
-      yield* this.simulateElicitation()
+      await this.simulateElicitation()
     }
 
     // Stream the response text
@@ -207,70 +167,70 @@ export class MockAdapter implements AgentBackend {
 
     for (let i = 0; i < words.length; i++) {
       if (this.interrupted) {
-        yield { type: "text_delta", text: "\n\n*[interrupted]*" }
+        this.eventChannel?.push({ type: "text_delta", text: "\n\n*[interrupted]*" })
         break
       }
-      yield { type: "text_delta", text: (i > 0 ? " " : "") + words[i] }
+      this.eventChannel?.push({ type: "text_delta", text: (i > 0 ? " " : "") + words[i] })
       // Emit live cost updates every few words
       if (i > 0 && i % 5 === 0) {
-        yield {
+        this.eventChannel?.push({
           type: "cost_update",
           inputTokens: 0,
           outputTokens: (words[i]?.length ?? 0) * 5,
           cost: 0.0001,
-        }
+        })
       }
       await this.delay(30 + Math.random() * 40)
     }
 
-    yield { type: "text_complete", text: response }
+    this.eventChannel?.push({ type: "text_complete", text: response })
 
-    yield {
+    this.eventChannel?.push({
       type: "turn_complete",
       usage: {
         inputTokens: message.text.length * 2,
         outputTokens: response.length,
         totalCostUsd: 0.001 + Math.random() * 0.005,
       },
-    }
+    })
   }
 
-  private async *simulateToolUse(): AsyncGenerator<AgentEvent> {
+  private async simulateToolUse(): Promise<void> {
     const toolId = `tool_${Date.now()}`
 
-    yield {
+    this.eventChannel?.push({
       type: "tool_use_start",
       id: toolId,
       tool: "Read",
       input: { file_path: "/src/protocol/types.ts" },
-    }
+    })
 
     await this.delay(200)
 
-    yield {
+    this.eventChannel?.push({
       type: "tool_use_progress",
       id: toolId,
       output: "Reading file...",
-    }
+    })
 
     await this.delay(300)
 
-    yield {
+    this.eventChannel?.push({
       type: "tool_use_end",
       id: toolId,
       output: "interface AgentBackend {\n  start(): AsyncGenerator<AgentEvent>\n  sendMessage(msg: UserMessage): void\n  ...\n}",
-    }
+    })
   }
 
-  private async *simulatePermission(): AsyncGenerator<AgentEvent> {
+  private async simulatePermission(): Promise<void> {
     const permId = `perm_${Date.now()}`
 
-    yield {
+    this.eventChannel?.push({
       type: "permission_request",
       id: permId,
       tool: "Bash",
       input: { command: "echo 'hello world'" },
-    }
+    })
 
     // Wait for approve/deny
     const result = await new Promise<{ behavior: "allow" | "deny" }>((resolve) => {
@@ -281,26 +241,26 @@ export class MockAdapter implements AgentBackend {
     })
 
     // Emit permission_response to transition state machine back to RUNNING
-    yield { type: "permission_response", id: permId, behavior: result.behavior }
+    this.eventChannel?.push({ type: "permission_response", id: permId, behavior: result.behavior })
   }
 
-  private async *simulateTasks(): AsyncGenerator<AgentEvent> {
+  private async simulateTasks(): Promise<void> {
     const task1 = `task_${Date.now()}_1`
     const task2 = `task_${Date.now()}_2`
 
-    yield { type: "task_start", taskId: task1, description: "Researching codebase" }
+    this.eventChannel?.push({ type: "task_start", taskId: task1, description: "Researching codebase" })
     await this.delay(300)
-    yield { type: "task_start", taskId: task2, description: "Running tests" }
+    this.eventChannel?.push({ type: "task_start", taskId: task2, description: "Running tests" })
     await this.delay(500)
-    yield { type: "task_complete", taskId: task1, output: "Found 12 relevant files" }
+    this.eventChannel?.push({ type: "task_complete", taskId: task1, output: "Found 12 relevant files" })
     await this.delay(400)
-    yield { type: "task_complete", taskId: task2, output: "All 97 tests passing" }
+    this.eventChannel?.push({ type: "task_complete", taskId: task2, output: "All 97 tests passing" })
   }
 
-  private async *simulateElicitation(): AsyncGenerator<AgentEvent> {
+  private async simulateElicitation(): Promise<void> {
     const elicId = `elic_${Date.now()}`
 
-    yield {
+    this.eventChannel?.push({
       type: "elicitation_request",
       id: elicId,
       questions: [
@@ -315,7 +275,7 @@ export class MockAdapter implements AgentBackend {
           allowFreeText: true,
         },
       ],
-    }
+    })
 
     // Wait for user response
     const result = await new Promise<{ behavior: "allow" | "deny" }>((resolve) => {
@@ -326,10 +286,10 @@ export class MockAdapter implements AgentBackend {
     })
 
     // Emit elicitation_response to transition state machine back to RUNNING
-    yield { type: "elicitation_response", id: elicId, answers: {} }
+    this.eventChannel?.push({ type: "elicitation_response", id: elicId, answers: {} })
 
     if (result.behavior === "deny") {
-      yield { type: "text_delta", text: "\n\nOk, I'll skip that question.\n\n" }
+      this.eventChannel?.push({ type: "text_delta", text: "\n\nOk, I'll skip that question.\n\n" })
     }
   }
 

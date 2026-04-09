@@ -18,7 +18,6 @@
 
 import { log } from "../../utils/logger"
 import type {
-  AgentBackend,
   AgentEvent,
   BackendCapabilities,
   EffortLevel,
@@ -29,9 +28,8 @@ import type {
   SessionInfo,
   UserMessage,
 } from "../../protocol/types"
-import { EventChannel } from "../../utils/event-channel"
-import { AsyncQueue } from "../../utils/async-queue"
 import { backendTrace } from "../../utils/backend-trace"
+import { BaseAdapter } from "../shared/base-adapter"
 
 const trace = backendTrace.scoped("codex")
 
@@ -69,11 +67,8 @@ function toCodexApprovalPolicy(mode?: PermissionMode): string {
 // Codex Adapter
 // ---------------------------------------------------------------------------
 
-export class CodexAdapter implements AgentBackend {
+export class CodexAdapter extends BaseAdapter {
   private transport: JsonRpcTransport | null = null
-  private messageQueue = new AsyncQueue<UserMessage>()
-  private eventChannel: EventChannel<AgentEvent> | null = null
-  private closed = false
 
   // Thread/turn state
   private threadId: string | null = null
@@ -116,45 +111,6 @@ export class CodexAdapter implements AgentBackend {
     }
   }
 
-  async *start(config: SessionConfig): AsyncGenerator<AgentEvent> {
-    this.config = config
-    this.eventChannel = new EventChannel<AgentEvent>()
-
-    // Run the session loop in the background, pushing events to the channel
-    this.runSession(config).catch((err) => {
-      if (!this.closed && this.eventChannel) {
-        this.eventChannel.push({
-          type: "error",
-          code: "adapter_error",
-          message: `Codex session failed: ${err instanceof Error ? err.message : String(err)}`,
-          severity: "fatal",
-        })
-        this.eventChannel.close()
-      }
-    })
-
-    yield* this.eventChannel[Symbol.asyncIterator]()
-  }
-
-  async *resume(sessionId: string): AsyncGenerator<AgentEvent> {
-    this.config = { resume: sessionId }
-    this.eventChannel = new EventChannel<AgentEvent>()
-
-    this.runSession(this.config, sessionId).catch((err) => {
-      if (!this.closed && this.eventChannel) {
-        this.eventChannel.push({
-          type: "error",
-          code: "adapter_error",
-          message: `Codex resume failed: ${err instanceof Error ? err.message : String(err)}`,
-          severity: "fatal",
-        })
-        this.eventChannel.close()
-      }
-    })
-
-    yield* this.eventChannel[Symbol.asyncIterator]()
-  }
-
   sendMessage(message: UserMessage): void {
     trace.write({
       dir: "out",
@@ -162,7 +118,7 @@ export class CodexAdapter implements AgentBackend {
       type: "sendMessage",
       payload: message,
     })
-    this.messageQueue.push(message)
+    super.sendMessage(message)
   }
 
   interrupt(): void {
@@ -355,9 +311,7 @@ export class CodexAdapter implements AgentBackend {
     return forkedId
   }
 
-  close(): void {
-    if (this.closed) return
-
+  protected onClose(): void {
     trace.write({
       dir: "out",
       stage: "adapter_event",
@@ -365,20 +319,11 @@ export class CodexAdapter implements AgentBackend {
       payload: { threadId: this.threadId, hadTransport: !!this.transport },
     })
 
-    this.closed = true
-
-    this.messageQueue.close()
-
     // Reject pending approvals
     for (const [, approval] of this.pendingApprovals) {
       this.transport?.respond(approval.rpcId, { decision: "cancel" })
     }
     this.pendingApprovals.clear()
-
-    if (this.eventChannel) {
-      this.eventChannel.close()
-      this.eventChannel = null
-    }
 
     if (this.transport) {
       this.transport.close()
@@ -387,13 +332,15 @@ export class CodexAdapter implements AgentBackend {
   }
 
   // -----------------------------------------------------------------------
-  // Private: Session lifecycle
+  // Protected: Session lifecycle
   // -----------------------------------------------------------------------
 
-  private async runSession(
+  protected async runSession(
     config: SessionConfig,
     resumeSessionId?: string,
   ): Promise<void> {
+    this.config = config
+
     try {
       // 1. Spawn transport
       this.transport = new JsonRpcTransport()
@@ -465,16 +412,9 @@ export class CodexAdapter implements AgentBackend {
       }
 
       // 6. Main message loop
-      while (!this.closed) {
-        try {
-          const message = await this.messageQueue.pull()
-          if (this.closed) break
-          await this.startTurn(message.text, message.images)
-        } catch (err) {
-          if (this.closed) break
-          throw err
-        }
-      }
+      await this.runMessageLoop(async (message) => {
+        await this.startTurn(message.text, message.images)
+      })
     } catch (err) {
       if (!this.closed && this.eventChannel) {
         this.eventChannel.push({
@@ -485,8 +425,6 @@ export class CodexAdapter implements AgentBackend {
         })
       }
     }
-
-    this.eventChannel?.close()
   }
 
   // -----------------------------------------------------------------------

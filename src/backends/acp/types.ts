@@ -324,6 +324,53 @@ export interface AcpFsWriteParams {
 }
 
 // ---------------------------------------------------------------------------
+// Terminal (agent-initiated requests to client)
+// ---------------------------------------------------------------------------
+
+export interface AcpTerminalCreateParams {
+  sessionId: string
+  command: string
+  args?: string[]
+  cwd?: string
+  env?: Record<string, string>
+  timeout?: number  // ms
+}
+
+export interface AcpTerminalCreateResult {
+  terminalId: string
+}
+
+export interface AcpTerminalOutputParams {
+  sessionId: string
+  terminalId: string
+}
+
+export interface AcpTerminalOutputResult {
+  output: string
+  isComplete: boolean
+}
+
+export interface AcpTerminalWaitParams {
+  sessionId: string
+  terminalId: string
+}
+
+export interface AcpTerminalWaitResult {
+  exitCode: number
+}
+
+export interface AcpTerminalKillParams {
+  sessionId: string
+  terminalId: string
+  signal?: string  // e.g., "SIGTERM", "SIGKILL"
+}
+
+export interface AcpTerminalReleaseParams {
+  sessionId: string
+  terminalId: string
+}
+
+// ---------------------------------------------------------------------------
 // ACP presets for known agents
 // ---------------------------------------------------------------------------
 

@@ -158,7 +158,7 @@ export function ConversationView(props: { children?: JSX.Element; footerHint?: s
     return "Thinking..."
   }
 
-  // Periodic scroll nudge during streaming.
+  // Periodic scroll nudge during streaming or thinking.
   // Uses a 200ms interval (not per-delta) to avoid scroll thrashing
   // that was fixed in commit 91901ca.
   // Does NOT reset userScrolledAway on streaming start — if the user was
@@ -166,7 +166,7 @@ export function ConversationView(props: { children?: JSX.Element; footerHint?: s
   let scrollNudgeTimer: ReturnType<typeof setInterval> | undefined
   let lastKnownScrollTop: number | undefined
   createEffect(() => {
-    const isStreaming = !!(state.streamingText || state.streamingThinking)
+    const isStreaming = !!(state.streamingText || state.streamingThinking || session.sessionState === "RUNNING")
     if (isStreaming) {
       if (!scrollNudgeTimer) {
         // Initial nudge — only if user hasn't scrolled away

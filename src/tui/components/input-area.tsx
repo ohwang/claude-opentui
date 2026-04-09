@@ -23,7 +23,7 @@ import { useSync } from "../context/sync"
 import { useMessages } from "../context/messages"
 import { createCommandRegistry } from "../../commands/registry"
 import { executeShellCommand } from "../../commands/builtin/shell"
-import { searchFiles, findLongestCommonPrefix } from "./file-autocomplete"
+import { searchFiles, findLongestCommonPrefix, parsePathPrefix } from "./file-autocomplete"
 import { triggerCleanExit, toggleDiagnostics } from "../app"
 import { registerOverlay, unregisterOverlay } from "../context/modal"
 import { colors } from "../theme/tokens"
@@ -382,8 +382,12 @@ export function InputArea() {
     const text = textareaRef?.plainText ?? ""
     const atMatch = text.match(/@(\S*)$/)
     if (atMatch) {
+      const query = atMatch[1] ?? ""
+      // Preserve the path prefix (e.g. "../src/", "~/dev/") the user typed
+      const lastSlash = query.lastIndexOf("/")
+      const prefix = lastSlash >= 0 ? query.slice(0, lastSlash + 1) : ""
       const beforeAt = text.slice(0, atMatch.index!)
-      setTextareaContent(beforeAt + filePath + " ")
+      setTextareaContent(beforeAt + prefix + filePath + " ")
     } else {
       setTextareaContent(text + filePath + " ")
     }
@@ -750,12 +754,15 @@ export function InputArea() {
           const text = textareaRef?.plainText ?? ""
           const atMatch = text.match(/@(\S*)$/)
           const currentQuery = atMatch?.[1] ?? ""
+          const cwd = agent.config.cwd ?? process.cwd()
+          const { prefix: pathPrefix, fuzzyQuery } = parsePathPrefix(currentQuery, cwd)
 
-          if (commonPrefix.length > currentQuery.length) {
+          if (commonPrefix.length > fuzzyQuery.length) {
             const beforeAt = text.slice(0, atMatch?.index ?? text.length)
-            setTextareaContent(beforeAt + "@" + commonPrefix)
+            const full = "@" + pathPrefix + commonPrefix
+            setTextareaContent(beforeAt + full)
             queueMicrotask(() =>
-              updateAutocomplete(beforeAt + "@" + commonPrefix),
+              updateAutocomplete(beforeAt + full),
             )
             return
           }

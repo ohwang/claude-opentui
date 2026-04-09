@@ -162,6 +162,7 @@ function CollapsedToolLine(props: { block: Extract<Block, { type: "tool" }> }) {
       return ` ${truncateToWidth(String(inp.command), 60)}`
     }
     if (inp.pattern) return ` ${String(inp.pattern)}`
+    if (inp.query) return `(${truncateToWidth(String(inp.query), 50)})`
     return ""
   }
 

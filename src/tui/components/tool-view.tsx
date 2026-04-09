@@ -124,6 +124,9 @@ export function ToolBlockView(props: { block: Extract<Block, { type: "tool" }>; 
     if (inp.description) {
       return truncateToWidth(String(inp.description), 80)
     }
+    if (inp.query) {
+      return truncateToWidth(String(inp.query), 80)
+    }
     return ""
   })
 

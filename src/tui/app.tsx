@@ -151,8 +151,6 @@ function Layout(props: { onExit?: () => void }) {
     }
   }
 
-  const GOODBYE_MESSAGES = ["Goodbye!", "See ya!", "Bye!", "Catch you later!", "Until next time!"]
-
   const cleanExit = (reason: string) => {
     log.info("Clean exit", { reason })
     stopMcpHttpServer().catch(() => {})
@@ -165,8 +163,6 @@ function Layout(props: { onExit?: () => void }) {
     if (backendSessionId) {
       log.setBackendSessionId(backendSessionId)
     }
-    // Show a random goodbye message before exit
-    const goodbye = GOODBYE_MESSAGES[Math.floor(Math.random() * GOODBYE_MESSAGES.length)]
     try {
       renderer.destroy()
     } catch (e) {
@@ -175,10 +171,9 @@ function Layout(props: { onExit?: () => void }) {
       // stale variables (e.g., removed timers). This is a safety net.
       log.error("renderer.destroy() failed", { error: String(e) })
     }
-    console.log(goodbye)
-    // Print session info immediately after goodbye — this is the primary
-    // output path. The process.on("exit") handler in index.ts is a fallback
-    // for non-cleanExit paths (SIGINT safety-net, SIGTERM, etc.).
+    // Print session info — this is the primary output path. The
+    // process.on("exit") handler in index.ts is a fallback for non-cleanExit
+    // paths (SIGINT safety-net, SIGTERM, etc.).
     log.printSessionInfo()
     process.exit(0)
   }

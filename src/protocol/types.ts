@@ -215,6 +215,18 @@ export type SystemMessageEvent = {
 export type TaskBackgroundEvent = { type: "task_background" }
 export type TaskForegroundEvent = { type: "task_foreground" }
 
+/** Plan update (ACP structured plan) */
+export type PlanUpdateEvent = {
+  type: "plan_update"
+  entries: PlanEntry[]
+}
+
+export interface PlanEntry {
+  content: string
+  priority?: "high" | "medium" | "low"
+  status?: "pending" | "in_progress" | "completed"
+}
+
 /** Backend escape hatch */
 export type BackendSpecificEvent = {
   type: "backend_specific"
@@ -255,6 +267,7 @@ export type AgentEvent =
   | BackendSpecificEvent
   | ShellStartEvent
   | ShellEndEvent
+  | PlanUpdateEvent
 
 // ---------------------------------------------------------------------------
 // Agent Backend — the unified adapter interface
@@ -347,6 +360,7 @@ export type Block =
   | { type: "compact"; summary: string }
   | { type: "shell"; id: string; command: string; output: string; error?: string; exitCode?: number; status: "running" | "done" | "error"; startTime: number; duration?: number }
   | { type: "error"; code: string; message: string }
+  | { type: "plan"; entries: PlanEntry[] }
 
 // ---------------------------------------------------------------------------
 // Conversation State — event-sourced, derived via reducer

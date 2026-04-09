@@ -188,9 +188,17 @@ export interface AcpToolCallUpdate {
   rawOutput?: unknown
 }
 
+export interface AcpPlanEntry {
+  content?: string
+  priority?: "high" | "medium" | "low"
+  status?: "pending" | "in_progress" | "completed"
+  title?: string
+  text?: string // alias for content in some agents
+}
+
 export interface AcpPlanUpdate {
   sessionUpdate: "plan"
-  entries: unknown[]
+  entries: AcpPlanEntry[]
 }
 
 export interface AcpAvailableCommandsUpdate {

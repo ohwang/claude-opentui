@@ -20,6 +20,7 @@ import type {
   AgentBackend,
   AgentEvent,
   BackendCapabilities,
+  EffortLevel,
   ForkOptions,
   ModelInfo,
   PermissionMode,
@@ -290,6 +291,10 @@ export class GeminiAdapter implements AgentBackend {
 
   async setModel(_model: string): Promise<void> {
     throw new Error("Model switching is not supported by the Gemini backend. Restart with --model <name> to change.")
+  }
+
+  async setEffort(_level: EffortLevel): Promise<void> {
+    log.debug("setEffort called on Gemini adapter — not supported")
   }
 
   async setPermissionMode(_mode: PermissionMode): Promise<void> {

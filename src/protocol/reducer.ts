@@ -547,6 +547,12 @@ export function reduce(
         currentModel: event.model,
       }
 
+    case "effort_changed":
+      return {
+        ...next,
+        currentEffort: event.effort,
+      }
+
     // ----- System messages -----
 
     case "system_message":

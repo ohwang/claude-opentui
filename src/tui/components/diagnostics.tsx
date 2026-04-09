@@ -364,6 +364,8 @@ export function DiagnosticsPanel(props: { visible: boolean; onClose: () => void 
       title: "CONFIG",
       entries: [
         { key: "CWD:", value: process.cwd() },
+        { key: "Effort:", value: session.currentEffort || "high (default)" },
+        { key: "Thinking:", value: agent.config.thinking ? agent.config.thinking.type + (agent.config.thinking.type === "enabled" && agent.config.thinking.budgetTokens ? ` (${agent.config.thinking.budgetTokens} tokens)` : "") : "adaptive (default)" },
         { key: "Log file:", value: log.getLogFile() },
       ],
     })

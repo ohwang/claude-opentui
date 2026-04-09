@@ -20,7 +20,7 @@ export interface CommandContext {
   setModel: (model: string) => Promise<void>
   exit?: () => void
   toggleDiagnostics?: () => void
-  getSessionState?: () => { cost: CostTotals; turnNumber: number; currentModel: string; session: SessionMetadata | null }
+  getSessionState?: () => { cost: CostTotals; turnNumber: number; currentModel: string; currentEffort: string; session: SessionMetadata | null }
   getBlocks?: () => Block[]
   registry?: CommandRegistry
   renderer?: CliRenderer
@@ -140,6 +140,7 @@ import { exitCommand } from "./builtin/exit"
 import { bugCommand, reviewCommand, commitCommand, testCommand } from "./builtin/prompts"
 import { aboutCommand } from "./builtin/about"
 import { screenshotCommand } from "./builtin/screenshot"
+import { thinkingCommand } from "./builtin/thinking"
 
 /** Create a registry with all built-in commands */
 export function createCommandRegistry(): CommandRegistry {
@@ -164,6 +165,7 @@ export function createCommandRegistry(): CommandRegistry {
   registry.register(testCommand)
   registry.register(aboutCommand)
   registry.register(screenshotCommand)
+  registry.register(thinkingCommand)
 
   return registry
 }

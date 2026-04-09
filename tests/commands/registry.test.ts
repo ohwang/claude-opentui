@@ -25,6 +25,7 @@ function makeCtx(overrides: Partial<CommandContext> = {}): CommandContext & { ev
       cost: { inputTokens: 100, outputTokens: 50, cacheReadTokens: 0, cacheWriteTokens: 0, totalCostUsd: 0.01 },
       turnNumber: 3,
       currentModel: "claude-sonnet-4-6",
+      currentEffort: "",
       session: null,
     }),
     getBlocks: () => [],
@@ -266,6 +267,7 @@ describe("/cost command", () => {
         cost: { inputTokens: 5000, outputTokens: 2000, cacheReadTokens: 1000, cacheWriteTokens: 500, totalCostUsd: 0.0142 },
         turnNumber: 5,
         currentModel: "claude-opus-4-6",
+        currentEffort: "",
         session: null,
       }),
     })
@@ -285,6 +287,7 @@ describe("/cost command", () => {
         cost: { inputTokens: 100, outputTokens: 50, cacheReadTokens: 0, cacheWriteTokens: 0, totalCostUsd: 0.01 },
         turnNumber: 3,
         currentModel: "claude-sonnet-4-6",
+        currentEffort: "",
         session: null,
       }),
     })
@@ -407,6 +410,7 @@ describe("/usage command", () => {
         cost: { inputTokens: 100, outputTokens: 50, cacheReadTokens: 0, cacheWriteTokens: 0, totalCostUsd: 0.01 },
         turnNumber: 3,
         currentModel: "claude-sonnet-4-6",
+        currentEffort: "",
         session: { account: { email: "test@example.com", plan: "pro" }, tools: [], models: [] },
       }),
     })
@@ -480,6 +484,7 @@ describe("/model command", () => {
         cost: { inputTokens: 100, outputTokens: 50, cacheReadTokens: 0, cacheWriteTokens: 0, totalCostUsd: 0.01 },
         turnNumber: 3,
         currentModel: "gemini-2.5-pro",
+        currentEffort: "",
         session: {
           tools: [],
           models: [{ id: "gemini-2.5-pro", name: "gemini-2.5-pro", provider: "google" }],
@@ -512,6 +517,7 @@ describe("/model command", () => {
         cost: { inputTokens: 100, outputTokens: 50, cacheReadTokens: 0, cacheWriteTokens: 0, totalCostUsd: 0.01 },
         turnNumber: 3,
         currentModel: "o3",
+        currentEffort: "",
         session: {
           tools: [],
           models: [{ id: "o3", name: "o3", provider: "openai" }],
@@ -619,6 +625,7 @@ describe("/model command", () => {
         cost: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, totalCostUsd: 0 },
         turnNumber: 0,
         currentModel: "opus",
+        currentEffort: "",
         session: { tools: [], models: [] },
       }),
     })
@@ -645,6 +652,7 @@ describe("/model command", () => {
         cost: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, totalCostUsd: 0 },
         turnNumber: 0,
         currentModel: "gemini-2.5-pro",
+        currentEffort: "",
         session: { tools: [], models: [] },
       }),
     })

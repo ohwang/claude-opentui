@@ -48,6 +48,10 @@ export function getState(): CallToolResult {
       id: rawModel,
       display_name: friendlyModelName(rawModel),
     },
+    thinking: {
+      effort: s.currentEffort || "high",
+      config: snap.config?.thinking ?? { type: "adaptive" },
+    },
     cost: {
       total_cost_usd: s.cost.totalCostUsd,
       input_tokens: s.cost.inputTokens,

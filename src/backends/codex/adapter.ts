@@ -21,6 +21,7 @@ import type {
   AgentBackend,
   AgentEvent,
   BackendCapabilities,
+  EffortLevel,
   ForkOptions,
   ModelInfo,
   PermissionMode,
@@ -264,6 +265,10 @@ export class CodexAdapter implements AgentBackend {
     this.config.model = model
     // Model is sent per-turn via turn/start params, so the next turn
     // will automatically use the new model. No RPC call needed.
+  }
+
+  async setEffort(_level: EffortLevel): Promise<void> {
+    log.debug("setEffort called on Codex adapter — not supported")
   }
 
   async setPermissionMode(mode: PermissionMode): Promise<void> {

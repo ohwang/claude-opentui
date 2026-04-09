@@ -8,6 +8,19 @@
  */
 
 // ---------------------------------------------------------------------------
+// Thinking & Effort — controls for Claude's reasoning behavior
+// ---------------------------------------------------------------------------
+
+/** Thinking configuration for extended reasoning */
+export type ThinkingConfig =
+  | { type: "adaptive" }
+  | { type: "enabled"; budgetTokens?: number }
+  | { type: "disabled" }
+
+/** Effort level for controlling reasoning depth */
+export type EffortLevel = "low" | "medium" | "high" | "max"
+
+// ---------------------------------------------------------------------------
 // Agent Events — unified stream from all backends
 // ---------------------------------------------------------------------------
 
@@ -183,6 +196,12 @@ export type ModelChangedEvent = {
   model: string
 }
 
+/** Effort level changed (emitted by /thinking command) */
+export type EffortChangedEvent = {
+  type: "effort_changed"
+  effort: EffortLevel
+}
+
 /** System message (slash command output, notifications) */
 export type SystemMessageEvent = {
   type: "system_message"
@@ -229,6 +248,7 @@ export type AgentEvent =
   | ErrorEvent
   | CostUpdateEvent
   | ModelChangedEvent
+  | EffortChangedEvent
   | SystemMessageEvent
   | TaskBackgroundEvent
   | TaskForegroundEvent
@@ -279,6 +299,9 @@ export interface AgentBackend {
 
   /** Change permission mode. */
   setPermissionMode(mode: PermissionMode): Promise<void>
+
+  /** Change thinking effort level at runtime. Only valid in IDLE state. */
+  setEffort(level: EffortLevel): Promise<void>
 
   /** Query backend capabilities. */
   capabilities(): BackendCapabilities
@@ -354,6 +377,9 @@ export interface ConversationState {
   /** Current model name (updated by /model command, overrides session default) */
   currentModel: string | null
 
+  /** Current effort level (updated by /thinking command, null = default/high) */
+  currentEffort: EffortLevel | null
+
   /** Session metadata from session_init */
   session: SessionMetadata | null
 
@@ -428,6 +454,10 @@ export interface SessionConfig {
   initialPrompt?: string
   /** Persist session to disk so it can be resumed later (default: true) */
   persistSession?: boolean
+  /** Thinking/reasoning configuration */
+  thinking?: ThinkingConfig
+  /** Effort level for controlling reasoning depth */
+  effort?: EffortLevel
 }
 
 export interface SessionInfo {
@@ -624,6 +654,7 @@ export function createInitialState(): ConversationState {
     pendingElicitation: null,
     activeTasks: new Map(),
     currentModel: null,
+    currentEffort: null,
     session: null,
     cost: {
       inputTokens: 0,

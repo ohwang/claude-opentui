@@ -59,6 +59,11 @@ interface GitInfo {
   hasUpstream: boolean
 }
 
+interface RateLimitDisplay {
+  label: string
+  usedPercentage: number
+}
+
 function getGitInfo(): GitInfo | null {
   try {
     const branchResult = Bun.spawnSync(["git", "rev-parse", "--abbrev-ref", "HEAD"])
@@ -120,6 +125,20 @@ function permissionModeLabel(mode: PermissionMode | undefined): string {
     default:
       return "default"
   }
+}
+
+function formatRateLimitWindowLabel(windowDurationMins: number | undefined, fallback: string): string {
+  if (typeof windowDurationMins !== "number") return fallback
+  if (windowDurationMins < 60) return `${windowDurationMins}m`
+  if (windowDurationMins < 1440) return `${Math.round(windowDurationMins / 60)}h`
+  const days = Math.round(windowDurationMins / 1440)
+  return `${days}d`
+}
+
+function rateLimitColor(usedPercentage: number): string {
+  if (usedPercentage >= 80) return colors.status.error
+  if (usedPercentage >= 50) return colors.status.warning
+  return colors.status.success
 }
 
 // ---------------------------------------------------------------------------
@@ -399,6 +418,13 @@ export function StatusBar(props: { hint?: string | null }) {
     return `${friendly} (${ctxAbbrev})`
   }
 
+  // Effort badge — only show when not the default ("high")
+  const effortBadge = createMemo(() => {
+    const e = state.currentEffort
+    if (!e || e === "high") return ""
+    return e === "medium" ? "med" : e // "low", "med", "max"
+  })
+
   const costStr = createMemo(() => {
     const c = state.cost.totalCostUsd
     if (c === 0) return ""
@@ -483,10 +509,32 @@ export function StatusBar(props: { hint?: string | null }) {
     return `[${parts.join(" ")}]`
   })
 
+  const rateLimitDisplays = createMemo<RateLimitDisplay[]>(() => {
+    const rl = state.rateLimits
+    if (!rl) return []
+
+    const displays: RateLimitDisplay[] = []
+    if (rl.fiveHour) displays.push({ label: "5h", usedPercentage: rl.fiveHour.usedPercentage })
+    if (rl.sevenDay) displays.push({ label: "7d", usedPercentage: rl.sevenDay.usedPercentage })
+    if (rl.primary) {
+      displays.push({
+        label: formatRateLimitWindowLabel(rl.primary.windowDurationMins, "primary"),
+        usedPercentage: rl.primary.usedPercentage,
+      })
+    }
+    if (rl.secondary) {
+      displays.push({
+        label: formatRateLimitWindowLabel(rl.secondary.windowDurationMins, "secondary"),
+        usedPercentage: rl.secondary.usedPercentage,
+      })
+    }
+    return displays
+  })
+
   // ---------------------------------------------------------------------------
   // Render — 2-line status bar (matches Claude Code)
   // Line 1: project, model, state, cost, git, ctx — right side: tok/s or hint
-  // Line 2: permission mode indicator (left-aligned)
+  // Line 2: permission mode indicator + rate limits
   // ---------------------------------------------------------------------------
 
   const statusLinePadding = statusLineConfig?.padding ?? 0
@@ -515,6 +563,14 @@ export function StatusBar(props: { hint?: string | null }) {
           <text fg={colors.text.primary} attributes={TextAttributes.BOLD}>
             {modelName()}
           </text>
+
+          {/* Effort level (hidden when default/high) */}
+          {effortBadge() && (
+            <box flexDirection="row">
+              <text fg={colors.text.inactive}>{" "}</text>
+              <text fg={colors.status.warning} attributes={TextAttributes.DIM}>{effortBadge()}</text>
+            </box>
+          )}
 
           {/* State icon + backgrounded label */}
           <text fg={colors.text.inactive}>{"  "}</text>
@@ -572,10 +628,22 @@ export function StatusBar(props: { hint?: string | null }) {
       )}
 
       {/* Line 2: permission mode indicator (left-aligned, matches Claude Code) */}
-      <box height={1} flexDirection="row" paddingLeft={2}>
+      <box height={1} flexDirection="row" paddingLeft={2} paddingRight={1}>
         <text fg={permModeColor()}>{"\u25CF "}</text>
         <text fg={colors.permission.modeLabel}>{permissionModeLabel(permMode())}</text>
         <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>{" \u00B7 shift+tab"}</text>
+
+        <box flexGrow={1} />
+
+        <box flexDirection="row" visible={rateLimitDisplays().length > 0}>
+          {rateLimitDisplays().map((entry, index) => (
+            <>
+              {index > 0 && <text fg={colors.text.inactive}>{"  "}</text>}
+              <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>{`${entry.label}:`}</text>
+              <text fg={rateLimitColor(entry.usedPercentage)}>{`${Math.round(entry.usedPercentage)}%`}</text>
+            </>
+          ))}
+        </box>
       </box>
     </box>
   )

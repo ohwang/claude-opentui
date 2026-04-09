@@ -46,6 +46,7 @@ const DEFAULT_SESSION: SessionContextState = {
   turnNumber: 0,
   lastTurnInputTokens: 0,
   currentModel: "",
+  currentEffort: "",
   rateLimits: null,
 }
 

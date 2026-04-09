@@ -11,6 +11,7 @@ import type {
   AgentBackend,
   AgentEvent,
   BackendCapabilities,
+  EffortLevel,
   ModelInfo,
   PermissionMode,
   SessionConfig,
@@ -126,6 +127,7 @@ export class MockAdapter implements AgentBackend {
 
   async setModel(_model: string): Promise<void> {}
   async setPermissionMode(_mode: PermissionMode): Promise<void> {}
+  async setEffort(_level: EffortLevel): Promise<void> {}
 
   async availableModels(): Promise<ModelInfo[]> {
     return [

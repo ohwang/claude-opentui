@@ -7,6 +7,7 @@ import type {
   AgentBackend,
   AgentEvent,
   BackendCapabilities,
+  EffortLevel,
   ModelInfo,
   SessionConfig,
   SessionInfo,
@@ -39,6 +40,7 @@ export class NoopBackend implements AgentBackend {
 
   async setModel(_model: string): Promise<void> {}
   async setPermissionMode(_mode: PermissionMode): Promise<void> {}
+  async setEffort(_level: EffortLevel): Promise<void> {}
 
   capabilities(): BackendCapabilities {
     return {

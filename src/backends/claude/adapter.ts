@@ -10,7 +10,7 @@
  * - Process lifecycle management (SIGINT/SIGTERM/SIGHUP cleanup)
  */
 
-import { query as sdkQuery } from "@anthropic-ai/claude-agent-sdk"
+import { query as sdkQuery, listSessions as sdkListSessions } from "@anthropic-ai/claude-agent-sdk"
 import { getDiagnosticsSdkMcpConfig } from "../../mcp/server"
 import { log } from "../../utils/logger"
 import type {
@@ -468,6 +468,8 @@ export class ClaudeAdapter implements AgentBackend {
       settingSources: ["user", "project", "local"],
       canUseTool: createCanUseTool(this.bridgeState),
       includePartialMessages: true,
+      ...(config.thinking ? { thinking: config.thinking } : {}),
+      ...(config.effort ? { effort: config.effort } : {}),
     }
   }
 

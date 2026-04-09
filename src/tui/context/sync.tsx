@@ -91,6 +91,7 @@ export function SyncProvider(props: ParentProps) {
       session.setState("turnNumber", conversationState.turnNumber)
       session.setState("lastTurnInputTokens", conversationState.lastTurnInputTokens)
       session.setState("currentModel", conversationState.currentModel ?? "")
+      session.setState("currentEffort", conversationState.currentEffort ?? "")
       session.setState("rateLimits", reconcile(conversationState.rateLimits))
 
       permissions.setState("pendingPermission", reconcile(conversationState.pendingPermission))
@@ -143,6 +144,7 @@ export function SyncProvider(props: ParentProps) {
       session: conversationState.session,
       cost: { ...conversationState.cost },
       currentModel: conversationState.currentModel,
+      currentEffort: conversationState.currentEffort,
     }
 
     // Clear the SolidJS stores to match

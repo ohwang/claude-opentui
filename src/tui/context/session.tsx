@@ -26,6 +26,7 @@ export interface SessionContextState {
   turnNumber: number
   lastTurnInputTokens: number
   currentModel: string
+  currentEffort: string
   rateLimits: RateLimits | null
 }
 
@@ -51,6 +52,7 @@ export function SessionProvider(props: ParentProps) {
     turnNumber: 0,
     lastTurnInputTokens: 0,
     currentModel: "",
+    currentEffort: "",
     rateLimits: null,
   })
 

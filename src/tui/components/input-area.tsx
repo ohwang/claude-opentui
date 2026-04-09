@@ -427,6 +427,7 @@ export function InputArea() {
         cost: session.cost,
         turnNumber: session.turnNumber,
         currentModel: session.currentModel,
+        currentEffort: session.currentEffort,
         session: session.session,
       }),
       getBlocks: () => messagesState.blocks,

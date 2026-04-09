@@ -389,6 +389,7 @@ describe("ACP Config Options", () => {
           requestedParams = params
           return {}
         },
+        notify() {},
         close() {},
       }
       ;(adapter as any).sessionId = "test-session"
@@ -428,6 +429,7 @@ describe("ACP Config Options", () => {
           requestedMethods.push(method)
           return {}
         },
+        notify() {},
         close() {},
       }
       ;(adapter as any).sessionId = "test-session"
@@ -464,6 +466,7 @@ describe("ACP Config Options", () => {
           }
           return {}
         },
+        notify() {},
         close() {},
       }
       ;(adapter as any).sessionId = "test-session"
@@ -496,6 +499,7 @@ describe("ACP Config Options", () => {
         request: async (_method: string, _params: unknown) => {
           throw new Error("Not supported")
         },
+        notify() {},
         close() {},
       }
       ;(adapter as any).sessionId = "test-session"

@@ -523,9 +523,6 @@ export class AcpAdapter extends BaseAdapter {
       payload: { sessionId: this.sessionId, hadTransport: !!this.transport },
     })
 
-    // Kill all managed terminals
-    this.terminalManager.destroyAll()
-
     // Reject pending approvals
     for (const [, approval] of this.pendingApprovals) {
       this.transport?.respond(approval.rpcId, {
@@ -533,6 +530,14 @@ export class AcpAdapter extends BaseAdapter {
       })
     }
     this.pendingApprovals.clear()
+
+    // Send session/close notification for graceful shutdown
+    if (this.transport?.isAlive && this.sessionId) {
+      this.transport.notify("session/close", { sessionId: this.sessionId })
+    }
+
+    // Kill all managed terminals
+    this.terminalManager.destroyAll()
 
     if (this.transport) {
       this.transport.close()

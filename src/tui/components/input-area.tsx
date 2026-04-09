@@ -903,11 +903,6 @@ export function InputArea() {
           <Index each={autocompleteItems().slice(0, MAX_VISIBLE_ITEMS)}>
             {(item, index) => (
               <box flexDirection="row">
-                {autocompleteMode() === "file" && (
-                  <text fg={colors.text.inactive}>
-                    {item().name.endsWith("/") ? "\u{1F4C1} " : "\u{1F4C4} "}
-                  </text>
-                )}
                 <text
                   attributes={index === selectedIndex() ? TextAttributes.BOLD : 0}
                   fg={index === selectedIndex() ? colors.accent.highlight : colors.text.primary}

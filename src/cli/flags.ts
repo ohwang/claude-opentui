@@ -37,6 +37,9 @@ export interface CLIFlags {
 
 /**
  * Validate that a flag's required value argument is present and not another flag.
+ *
+ * NOTE: Uses console.error intentionally — flag parsing runs before the logger
+ * is initialized, and the user needs to see the error on stderr before exit.
  */
 function requireArg(flag: string, args: string[], i: number): string {
   const value = args[i]

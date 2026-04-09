@@ -186,6 +186,9 @@ async function main() {
 }
 
 main().catch((err) => {
+  // Log to file if logger is already initialized, plus stderr for user visibility.
+  // Logger may not be initialized if main() fails during early bootstrap.
+  try { log.error("Fatal error in main()", { error: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : undefined }) } catch {}
   console.error("Fatal:", err)
   process.exit(1)
 })

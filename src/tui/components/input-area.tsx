@@ -7,55 +7,50 @@
  * '@' anywhere triggers fuzzy file search autocomplete.
  *
  * Utilities split into:
- *   - input-utils.ts  — cursor/focus/history helpers, shared refs
- *   - command-parser.ts — shell-like command string parsing
+ *   - input-utils.ts        — cursor/focus/history helpers, shared refs, pure helpers
+ *   - command-parser.ts     — shell-like command string parsing
+ *   - input-keybindings.ts  — key handler factory (Emacs, autocomplete, history)
  */
 
 import { createSignal, createEffect, Show, Index, onCleanup } from "solid-js"
-import { TextAttributes, type TextareaRenderable, type KeyEvent, type CliRenderer, decodePasteBytes } from "@opentui/core"
+import { TextAttributes, type TextareaRenderable } from "@opentui/core"
 import { useRenderer, usePaste, useTerminalDimensions } from "@opentui/solid"
-import { tmpdir } from "os"
-import { join } from "path"
-import { writeFileSync, readFileSync, unlinkSync } from "fs"
+import { decodePasteBytes } from "@opentui/core"
 import { useAgent } from "../context/agent"
 import { useSession } from "../context/session"
 import { useSync } from "../context/sync"
 import { useMessages } from "../context/messages"
 import { createCommandRegistry } from "../../commands/registry"
 import { executeShellCommand } from "../../commands/builtin/shell"
-import { searchFiles, findLongestCommonPrefix, parsePathPrefix } from "./file-autocomplete"
+import { searchFiles } from "./file-autocomplete"
 import { triggerCleanExit, toggleDiagnostics } from "../app"
 import { registerOverlay, unregisterOverlay } from "../context/modal"
 import { colors } from "../theme/tokens"
 import { friendlyBackendName } from "../models"
 import { log } from "../../utils/logger"
-import { readClipboard, readClipboardImage, isImageFilePath, readImageFile } from "../../utils/clipboard"
+import { readClipboardImage, isImageFilePath, readImageFile } from "../../utils/clipboard"
 import { toast } from "../context/toast"
 
 // Import from extracted modules
-import { parseCommandString } from "./command-parser"
 import {
   _cursorHidden,
-  _scrollToBottom,
   setSharedTextareaRef,
   setResetLineCount,
   setUpdateLineCount,
   setAttachedImageCountSetter,
   imageAttachments,
-  nextImageCounter,
-  resetImageCounter,
-  pasteStore,
   inputHistory,
-  getHistoryIndex,
   setHistoryIndex,
-  getSavedInput,
   setSavedInput,
   computeVisualLineCount,
-  isSubmitKey,
   truncatePath,
   truncatePastedText,
   expandPasteRefs,
+  attachImage,
+  resetInputState,
 } from "./input-utils"
+
+import { createKeyHandler, type AutocompleteMode, type AutocompleteItem } from "./input-keybindings"
 
 // Re-export everything that external files import from input-area
 export {
@@ -79,91 +74,8 @@ export { parseCommandString } from "./command-parser"
 
 const commandRegistry = createCommandRegistry()
 
-/** Discriminated union for autocomplete modes */
-type AutocompleteMode = "slash" | "file" | null
-
 /** Maximum number of items visible in the autocomplete dropdown */
 const MAX_VISIBLE_ITEMS = 12
-
-/**
- * Open the user's preferred editor ($VISUAL or $EDITOR, falling back to vi)
- * with the current input text. On save+quit, the edited content replaces
- * the textarea input. The TUI renderer is suspended while the editor runs.
- *
- * Ctrl+G keybinding — matches Claude Code behavior.
- */
-async function openExternalEditor(
-  textareaRef: TextareaRenderable | undefined,
-  renderer: CliRenderer,
-): Promise<void> {
-  const editor = process.env["VISUAL"] || process.env["EDITOR"] || "vi"
-  const tmpFile = join(tmpdir(), `claude-opentui-${Date.now()}.md`)
-
-  try {
-    const currentText = textareaRef?.plainText ?? ""
-    writeFileSync(tmpFile, currentText)
-    renderer.suspend()
-
-    try {
-      renderer.currentRenderBuffer.clear()
-      const parts = parseCommandString(editor)
-      const proc = Bun.spawn([...parts, tmpFile], {
-        stdin: "inherit",
-        stdout: "inherit",
-        stderr: "inherit",
-      })
-      await proc.exited
-
-      const newText = readFileSync(tmpFile, "utf-8").trimEnd()
-      if (textareaRef) {
-        textareaRef.clear()
-        if (newText) {
-          textareaRef.insertText(newText)
-        }
-      }
-    } finally {
-      renderer.currentRenderBuffer.clear()
-      renderer.resume()
-      renderer.requestRender()
-    }
-  } catch (err) {
-    log.warn("External editor failed", { error: String(err) })
-  } finally {
-    try { unlinkSync(tmpFile) } catch {}
-  }
-}
-
-/** Helper: attach an image and insert a pill into the textarea */
-function attachImage(
-  image: import("../../protocol/types").ImageContent,
-  textareaRef: TextareaRenderable | undefined,
-  setAttachedImageCount: (n: number) => void,
-  updateLineCount: () => void,
-  startPasteGuard: () => void,
-) {
-  const imgNum = nextImageCounter()
-  imageAttachments.push(image)
-  setAttachedImageCount(imageAttachments.length)
-  if (textareaRef) {
-    startPasteGuard()
-    textareaRef.insertText(`[Image #${imgNum}]`)
-    updateLineCount()
-  }
-}
-
-/** Helper: reset all input state after submit or shell command */
-function resetInputState(
-  textareaRef: TextareaRenderable,
-  setLineCount: (n: number) => void,
-  setAttachedImageCount: (n: number) => void,
-) {
-  textareaRef.clear()
-  setLineCount(1)
-  imageAttachments.length = 0
-  resetImageCounter()
-  setAttachedImageCount(0)
-  pasteStore.clear()
-}
 
 export function InputArea() {
   const agent = useAgent()
@@ -186,8 +98,19 @@ export function InputArea() {
   const [attachedImageCount, setAttachedImageCount] = createSignal(0)
   setAttachedImageCountSetter(setAttachedImageCount)
 
-  // Clear paste-guard timer on unmount to prevent leak
+  // ── Paste guard state ──────────────────────────────────────────────
+  const PASTE_GUARD_MS = 300
+  let isPasting = false
+  let isPastingTimer: ReturnType<typeof setTimeout> | undefined
+  let lastCtrlVTime = 0
   onCleanup(() => clearTimeout(isPastingTimer))
+
+  /** Start the paste guard timer to suppress synthetic return keys */
+  const startPasteGuard = () => {
+    isPasting = true
+    clearTimeout(isPastingTimer)
+    isPastingTimer = setTimeout(() => { isPasting = false }, PASTE_GUARD_MS)
+  }
 
   // Register module-level callbacks so exported functions can update height
   setResetLineCount(() => setLineCount(1))
@@ -203,7 +126,7 @@ export function InputArea() {
 
   // Autocomplete dropdown state
   const [showAutocomplete, setShowAutocomplete] = createSignal(false)
-  const [autocompleteItems, setAutocompleteItems] = createSignal<{ name: string; description: string; argumentHint?: string; type?: string }[]>([])
+  const [autocompleteItems, setAutocompleteItems] = createSignal<AutocompleteItem[]>([])
   const [selectedIndex, setSelectedIndex] = createSignal(0)
   const [autocompleteMode, setAutocompleteMode] = createSignal<AutocompleteMode>(null)
 
@@ -226,19 +149,6 @@ export function InputArea() {
   let lastPasteText = ""
   let lastPasteTime = 0
   const PASTE_DEDUP_MS = 150
-
-  // ── Paste → Enter suppression ──────────────────────────────────────
-  const PASTE_GUARD_MS = 300
-  let isPasting = false
-  let isPastingTimer: ReturnType<typeof setTimeout> | undefined
-  let lastCtrlVTime = 0
-
-  /** Start the paste guard timer to suppress synthetic return keys */
-  const startPasteGuard = () => {
-    isPasting = true
-    clearTimeout(isPastingTimer)
-    isPastingTimer = setTimeout(() => { isPasting = false }, PASTE_GUARD_MS)
-  }
 
   usePaste((event) => {
     event.preventDefault()
@@ -458,403 +368,52 @@ export function InputArea() {
     if (text) textareaRef.insertText(text)
   }
 
-  const handleKeyDown = (e: KeyEvent) => {
-    if (isDisabled()) return
+  // ── Key handler (logic lives in input-keybindings.ts) ──────────────
 
-    _scrollToBottom?.()
-
-    if (isPasting && e.name === "return") {
-      e.preventDefault()
-      return
-    }
-
-    // Ctrl+V = paste from system clipboard (try image first, fall back to text)
-    if (e.ctrl && e.name === "v") {
-      e.preventDefault()
-      lastCtrlVTime = Date.now()
-
-      readClipboardImage().then((result) => {
-        if (result.ok) {
-          if (result.resized) toast.info("Image resized to fit size limit")
-          attachImage(result.image, textareaRef, setAttachedImageCount, updateLineCount, startPasteGuard)
-          return
-        }
-        if (result.reason === "too_large") {
-          toast.warn("Image too large (>5MB). Try a smaller screenshot.")
-          return
-        }
-        return readClipboard().then(async (raw) => {
-          if (!raw) return
-          const text = raw.replace(/\r\n?/g, "\n")
-
-          if (isImageFilePath(text)) {
-            const img = await readImageFile(text)
-            if (img) {
-              attachImage(img, textareaRef, setAttachedImageCount, updateLineCount, startPasteGuard)
-              toast.success(`Attached image: ${text.split("/").pop()}`)
-              return
-            }
-          }
-
-          const insertText = truncatePastedText(text)
-          if (textareaRef) {
-            startPasteGuard()
-            textareaRef.insertText(insertText)
-            updateLineCount()
-          }
-        }).catch((err) => {
-          log.warn("Ctrl+V text clipboard read failed", { error: String(err) })
-          sync.pushEvent({ type: "system_message", text: "Clipboard read failed — try pasting with your terminal's built-in paste", ephemeral: true })
-        })
-      }).catch((err) => {
-        log.warn("Ctrl+V clipboard read failed", { error: String(err) })
-        sync.pushEvent({ type: "system_message", text: "Clipboard read failed — try pasting with your terminal's built-in paste", ephemeral: true })
-      })
-      return
-    }
-
-    // Ctrl+Shift+X = clear all image attachments
-    if (e.ctrl && e.shift && e.name === "x") {
-      e.preventDefault()
-      if (imageAttachments.length > 0) {
-        imageAttachments.length = 0
-        resetImageCounter()
-        setAttachedImageCount(0)
-        toast.info("Cleared image attachments")
-        const text = textareaRef?.plainText ?? ""
-        const cleaned = text.replace(/\[Image #\d+\]/g, "").trim()
-        textareaRef?.clear()
-        if (cleaned) textareaRef?.insertText(cleaned)
-        updateLineCount()
-      }
-      return
-    }
-
-    // Escape = dismiss autocomplete, then completion hint, then clear input
-    if (e.name === "escape") {
-      e.preventDefault()
-      if (showAutocomplete()) {
-        const wasFile = autocompleteMode() === "file"
-        dismissAutocomplete()
-        if (wasFile) {
-          const text = textareaRef?.plainText ?? ""
-          const atMatch = text.match(/@(\S*)$/)
-          if (atMatch) {
-            setTextareaContent(text.slice(0, atMatch.index!))
-          }
-        } else {
-          textareaRef?.clear()
-          setLineCount(1)
-        }
-      } else if (tabMatches.length > 0) {
-        setCompletionHint("")
-        tabIndex = -1
-        tabMatches = []
-      } else {
-        textareaRef?.clear()
-        setLineCount(1)
-        imageAttachments.length = 0
-        resetImageCounter()
-        setAttachedImageCount(0)
-        pasteStore.clear()
-        setHistoryIndex(-1)
-        setSavedInput("")
-      }
-      return
-    }
-
-    // ── Emacs keybindings ──────────────────────────────────────────────
-
-    if (e.ctrl && e.name === "a") {
-      e.preventDefault()
-      textareaRef?.gotoLineHome()
-      return
-    }
-
-    if (e.ctrl && e.name === "e") {
-      e.preventDefault()
-      textareaRef?.gotoLineEnd()
-      return
-    }
-
-    if (e.ctrl && e.name === "f") {
-      e.preventDefault()
-      textareaRef?.moveCursorRight()
-      return
-    }
-
-    if (e.ctrl && !e.shift && e.name === "b") {
-      e.preventDefault()
-      textareaRef?.moveCursorLeft()
-      return
-    }
-
-    if (e.ctrl && e.name === "n") {
-      e.preventDefault()
-      textareaRef?.moveCursorDown()
-      return
-    }
-
-    if (e.ctrl && !e.shift && e.name === "p") {
-      e.preventDefault()
-      textareaRef?.moveCursorUp()
-      return
-    }
-
-    if (e.ctrl && !e.shift && e.name === "d") {
-      e.preventDefault()
-      textareaRef?.deleteChar()
-      queueMicrotask(() => { updateLineCount(); updateAutocomplete(textareaRef?.plainText ?? "") })
-      return
-    }
-
-    if (e.ctrl && e.name === "h") {
-      e.preventDefault()
-      textareaRef?.deleteCharBackward()
-      queueMicrotask(() => { updateLineCount(); updateAutocomplete(textareaRef?.plainText ?? "") })
-      return
-    }
-
-    if (e.ctrl && e.name === "t") {
-      e.preventDefault()
-      if (!textareaRef) return
-      const text = textareaRef.plainText
-      const pos = textareaRef.cursorOffset
-      if (pos <= 0 || text.length < 2) return
-      const swapPos = pos >= text.length ? pos - 2 : pos - 1
-      const chars = text.split("")
-      const a = chars[swapPos]
-      const b = chars[swapPos + 1]
-      if (a === undefined || b === undefined) return
-      chars[swapPos] = b
-      chars[swapPos + 1] = a
-      textareaRef.replaceText(chars.join(""))
-      textareaRef.cursorOffset = swapPos + 2
-      queueMicrotask(() => { updateLineCount(); updateAutocomplete(textareaRef?.plainText ?? "") })
-      return
-    }
-
-    // Ctrl+K = kill to end of line (Emacs kill-line)
-    // If cursor is at a newline, consume it to join with the next line (standard Emacs behavior).
-    // Note: deleteToLineEnd() always returns true in OpenTUI, so check position explicitly.
-    if (e.ctrl && e.name === "k") {
-      e.preventDefault()
-      if (textareaRef) {
-        const text = textareaRef.plainText
-        const offset = textareaRef.cursorOffset
-        if (offset < text.length && text[offset] === "\n") {
-          textareaRef.deleteChar()
-        } else {
-          textareaRef.deleteToLineEnd()
-        }
-      }
-      queueMicrotask(() => { updateLineCount(); updateAutocomplete(textareaRef?.plainText ?? "") })
-      return
-    }
-
-    if (e.ctrl && e.name === "u") {
-      e.preventDefault()
-      textareaRef?.deleteToLineStart()
-      queueMicrotask(() => { updateLineCount(); updateAutocomplete(textareaRef?.plainText ?? "") })
-      return
-    }
-
-    if (e.ctrl && e.name === "w") {
-      e.preventDefault()
-      textareaRef?.deleteWordBackward()
-      queueMicrotask(() => { updateLineCount(); updateAutocomplete(textareaRef?.plainText ?? "") })
-      return
-    }
-
-    if (e.ctrl && e.name === "y") {
-      e.preventDefault()
-      readClipboard().then((raw) => {
-        if (!raw || !textareaRef) return
-        const text = raw.replace(/\r\n?/g, "\n")
-        textareaRef.insertText(text)
-        updateLineCount()
-      }).catch((err) => {
-        log.warn("Ctrl+Y clipboard read failed", { error: String(err) })
-      })
-      return
-    }
-
-    if (e.option && e.name === "f") {
-      e.preventDefault()
-      textareaRef?.moveWordForward()
-      return
-    }
-
-    if (e.option && e.name === "b") {
-      e.preventDefault()
-      textareaRef?.moveWordBackward()
-      return
-    }
-
-    if (e.option && e.name === "d") {
-      e.preventDefault()
-      textareaRef?.deleteWordForward()
-      queueMicrotask(() => { updateLineCount(); updateAutocomplete(textareaRef?.plainText ?? "") })
-      return
-    }
-
-    // Ctrl+G = open external editor
-    if (e.ctrl && e.name === "g") {
-      e.preventDefault()
-      openExternalEditor(textareaRef, renderer)
-        .then(() => {
-          updateLineCount()
-        })
-        .catch((err) => {
-          log.warn("openExternalEditor promise rejected", {
-            error: String(err),
-          })
-          sync.pushEvent({ type: "system_message", text: `External editor failed: ${err instanceof Error ? err.message : String(err)}`, ephemeral: true })
-        })
-      return
-    }
-
-    // When autocomplete is open, intercept navigation keys
-    if (showAutocomplete()) {
-      const items = autocompleteItems()
-
-      if (e.name === "up") {
-        e.preventDefault()
-        const idx = selectedIndex()
-        setSelectedIndex(idx <= 0 ? items.length - 1 : idx - 1)
-        return
-      }
-
-      if (e.name === "down") {
-        e.preventDefault()
-        const idx = selectedIndex()
-        setSelectedIndex(idx >= items.length - 1 ? 0 : idx + 1)
-        return
-      }
-
-      if (isSubmitKey(e)) {
-        e.preventDefault()
-        const selected = items[selectedIndex()]
-        if (selected) {
-          if (autocompleteMode() === "file") {
-            selectFile(selected.name)
-          } else {
-            setTextareaContent(`/${selected.name}`)
-            dismissAutocomplete()
-            submit()
-          }
-        }
-        return
-      }
-
-      if (e.name === "tab" && !e.shift) {
-        e.preventDefault()
-        if (autocompleteMode() === "file") {
-          const commonPrefix = findLongestCommonPrefix(items.map((i) => i.name))
-          const text = textareaRef?.plainText ?? ""
-          const atMatch = text.match(/@(\S*)$/)
-          const currentQuery = atMatch?.[1] ?? ""
-          const cwd = agent.config.cwd ?? process.cwd()
-          const { prefix: pathPrefix, fuzzyQuery } = parsePathPrefix(currentQuery, cwd)
-
-          if (commonPrefix.length > fuzzyQuery.length) {
-            const beforeAt = text.slice(0, atMatch?.index ?? text.length)
-            const full = "@" + pathPrefix + commonPrefix
-            setTextareaContent(beforeAt + full)
-            queueMicrotask(() =>
-              updateAutocomplete(beforeAt + full),
-            )
-            return
-          }
-          const selected = items[selectedIndex()]
-          if (selected) selectFile(selected.name)
-        } else {
-          const selected = items[selectedIndex()]
-          if (selected) selectCommand(selected)
-        }
-        return
-      }
-    }
-
-    // Clear completion hint on non-Tab keys
-    if (e.name !== "tab") {
-      setCompletionHint("")
-      tabIndex = -1
-      tabMatches = []
-    }
-
-    // Enter without shift/meta = submit
-    if (isSubmitKey(e)) {
-      e.preventDefault()
-      submit()
-      return
-    }
-
-    // Tab = slash command completion (fallback when dropdown is not showing)
-    if (e.name === "tab" && !e.shift) {
-      e.preventDefault()
-      const text = textareaRef?.plainText ?? ""
-      if (text.startsWith("/")) {
-        const query = text.slice(1).split(/\s/)[0] ?? ""
-
-        if (lastTabText !== text || tabMatches.length === 0) {
-          tabMatches = commandRegistry
-            .search(query)
-            .map((cmd) => `/${cmd.name}`)
-          tabIndex = 0
-          lastTabText = text
-        } else {
-          tabIndex = (tabIndex + 1) % tabMatches.length
-        }
-
-        if (tabMatches.length > 0) {
-          setTextareaContent(tabMatches[tabIndex] + " ")
-          const others = tabMatches
-            .filter((_, i) => i !== tabIndex)
-            .join("  ")
-          setCompletionHint(others ? `  ${others}` : "")
-        }
-      }
-      return
-    }
-
-    // Up arrow = recall previous history entry
-    if (e.name === "up" && !e.ctrl && inputHistory.length > 0) {
-      e.preventDefault()
-      const hi = getHistoryIndex()
-      if (hi === -1) {
-        setSavedInput(textareaRef?.plainText ?? "")
-        setHistoryIndex(inputHistory.length - 1)
-      } else if (hi > 0) {
-        setHistoryIndex(hi - 1)
-      }
-      setTextareaContent(inputHistory[getHistoryIndex()] ?? "")
-      updateLineCount()
-      return
-    }
-
-    // Down arrow = move forward in history
-    if (e.name === "down" && !e.ctrl && getHistoryIndex() !== -1) {
-      e.preventDefault()
-      const hi = getHistoryIndex()
-      if (hi < inputHistory.length - 1) {
-        setHistoryIndex(hi + 1)
-        setTextareaContent(inputHistory[getHistoryIndex()] ?? "")
-      } else {
-        setHistoryIndex(-1)
-        setTextareaContent(getSavedInput())
-      }
-      updateLineCount()
-      return
-    }
-
-    // After the key is processed, schedule autocomplete + line count update
-    queueMicrotask(() => {
-      const text = textareaRef?.plainText ?? ""
-      updateAutocomplete(text)
-      updateLineCount()
-    })
+  const mutableState = {
+    get isPasting() { return isPasting },
+    set isPasting(v: boolean) { isPasting = v },
+    get isPastingTimer() { return isPastingTimer },
+    set isPastingTimer(v: ReturnType<typeof setTimeout> | undefined) { isPastingTimer = v },
+    get lastCtrlVTime() { return lastCtrlVTime },
+    set lastCtrlVTime(v: number) { lastCtrlVTime = v },
+    get tabIndex() { return tabIndex },
+    set tabIndex(v: number) { tabIndex = v },
+    get tabMatches() { return tabMatches },
+    set tabMatches(v: string[]) { tabMatches = v },
+    get lastTabText() { return lastTabText },
+    set lastTabText(v: string) { lastTabText = v },
   }
+
+  const handleKeyDown = createKeyHandler(
+    {
+      isDisabled,
+      showAutocomplete,
+      autocompleteItems,
+      autocompleteMode,
+      selectedIndex,
+      setSelectedIndex,
+      setCompletionHint,
+      setLineCount,
+      setAttachedImageCount,
+    },
+    mutableState,
+    {
+      getTextareaRef: () => textareaRef,
+      updateLineCount,
+      updateAutocomplete,
+      dismissAutocomplete,
+      setTextareaContent,
+      selectFile,
+      selectCommand,
+      submit,
+      startPasteGuard,
+      pushEvent: sync.pushEvent,
+      searchCommands: (query: string) => commandRegistry.search(query),
+      getCwd: () => agent.config.cwd ?? process.cwd(),
+    },
+    renderer,
+  )
 
   return (
     <box flexDirection="column">

@@ -5,10 +5,14 @@
  * Module-level mutable state lives here; the component wires it up on mount.
  */
 
-import type { TextareaRenderable } from "@opentui/core"
+import type { TextareaRenderable, CliRenderer } from "@opentui/core"
 import type { ImageContent } from "../../protocol/types"
+import { tmpdir } from "os"
+import { join } from "path"
+import { writeFileSync, readFileSync, unlinkSync } from "fs"
 import { log } from "../../utils/logger"
 import { toast } from "../context/toast"
+import { parseCommandString } from "./command-parser"
 
 // ---------------------------------------------------------------------------
 // Module-level shared refs — set by InputArea on mount
@@ -307,4 +311,88 @@ export function setInputText(text: string): void {
   _sharedTextareaRef.clear()
   if (text) _sharedTextareaRef.insertText(text)
   _updateLineCount?.()
+}
+
+// ---------------------------------------------------------------------------
+// Helper functions extracted from InputArea component
+// ---------------------------------------------------------------------------
+
+/**
+ * Open the user's preferred editor ($VISUAL or $EDITOR, falling back to vi)
+ * with the current input text. On save+quit, the edited content replaces
+ * the textarea input. The TUI renderer is suspended while the editor runs.
+ *
+ * Ctrl+G keybinding — matches Claude Code behavior.
+ */
+export async function openExternalEditor(
+  textareaRef: TextareaRenderable | undefined,
+  renderer: CliRenderer,
+): Promise<void> {
+  const editor = process.env["VISUAL"] || process.env["EDITOR"] || "vi"
+  const tmpFile = join(tmpdir(), `claude-opentui-${Date.now()}.md`)
+
+  try {
+    const currentText = textareaRef?.plainText ?? ""
+    writeFileSync(tmpFile, currentText)
+    renderer.suspend()
+
+    try {
+      renderer.currentRenderBuffer.clear()
+      const parts = parseCommandString(editor)
+      const proc = Bun.spawn([...parts, tmpFile], {
+        stdin: "inherit",
+        stdout: "inherit",
+        stderr: "inherit",
+      })
+      await proc.exited
+
+      const newText = readFileSync(tmpFile, "utf-8").trimEnd()
+      if (textareaRef) {
+        textareaRef.clear()
+        if (newText) {
+          textareaRef.insertText(newText)
+        }
+      }
+    } finally {
+      renderer.currentRenderBuffer.clear()
+      renderer.resume()
+      renderer.requestRender()
+    }
+  } catch (err) {
+    log.warn("External editor failed", { error: String(err) })
+  } finally {
+    try { unlinkSync(tmpFile) } catch {}
+  }
+}
+
+/** Helper: attach an image and insert a pill into the textarea */
+export function attachImage(
+  image: ImageContent,
+  textareaRef: TextareaRenderable | undefined,
+  setAttachedImageCount: (n: number) => void,
+  updateLineCount: () => void,
+  startPasteGuard: () => void,
+) {
+  const imgNum = nextImageCounter()
+  imageAttachments.push(image)
+  setAttachedImageCount(imageAttachments.length)
+  if (textareaRef) {
+    startPasteGuard()
+    textareaRef.insertText(`[Image #${imgNum}]`)
+    updateLineCount()
+  }
+}
+
+/** Helper: reset all input state after submit or shell command */
+export function resetInputState(
+  textareaRef: TextareaRenderable,
+  setLineCount: (n: number) => void,
+  setAttachedImageCount: (n: number) => void,
+) {
+  textareaRef.clear()
+  setLineCount(1)
+  imageAttachments.length = 0
+  resetImageCounter()
+  setAttachedImageCount(0)
+  pasteStore.clear()
 }

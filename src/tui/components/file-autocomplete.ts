@@ -346,7 +346,9 @@ export function searchFiles(
 ): string[] {
   const files = getFiles(cwd)
   const allEntries =
-    cachedDirs.length > 0 ? [...files, ...cachedDirs] : files
+    cachedDirs.length > 0
+      ? [...new Set([...files, ...cachedDirs])]
+      : files
 
   if (!query) return allEntries.slice(0, limit)
 

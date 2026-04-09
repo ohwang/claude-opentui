@@ -242,7 +242,7 @@ export class AcpAdapter extends BaseAdapter {
 
     // Auto-deny pending permission requests
     for (const [toolCallId, approval] of this.pendingApprovals) {
-      this.transport.respond(approval.rpcId, {
+      this.transport?.respond(approval.rpcId, {
         outcome: { outcome: "cancelled" },
       })
       this.eventChannel?.push({

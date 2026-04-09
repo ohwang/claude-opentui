@@ -154,8 +154,12 @@ export function DiagnosticsPanel(props: { visible: boolean; onClose: () => void 
   const [logLines, setLogLines] = createSignal<string[]>(log.getLines().slice())
   const hasLogLines = createMemo(() => logLines().length > 0)
 
+  const MAX_DISPLAY_LINES = 2000
   const unsubscribe = log.subscribe((line: string) => {
-    setLogLines(prev => [...prev, line])
+    setLogLines(prev => {
+      const next = [...prev, line]
+      return next.length > MAX_DISPLAY_LINES ? next.slice(-MAX_DISPLAY_LINES) : next
+    })
   })
   onCleanup(() => unsubscribe())
 

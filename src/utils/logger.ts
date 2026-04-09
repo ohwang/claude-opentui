@@ -38,6 +38,7 @@ class Logger {
   private backendSessionId: string | null = null
   private backendName: string | null = null
   private _sessionInfoPrinted = false
+  private static readonly MAX_BUFFER_LINES = 5000
   private _lines: string[] = []
   private _subscribers: Set<(line: string) => void> = new Set()
 
@@ -145,6 +146,9 @@ class Logger {
     // Always buffer in memory so the diagnostics view can show all levels
     const trimmed = line.trimEnd()
     this._lines.push(trimmed)
+    if (this._lines.length > Logger.MAX_BUFFER_LINES) {
+      this._lines = this._lines.slice(-Logger.MAX_BUFFER_LINES)
+    }
     for (const cb of this._subscribers) {
       try { cb(trimmed) } catch { /* never crash for observers */ }
     }

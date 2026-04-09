@@ -34,7 +34,7 @@ import { backendTrace } from "../../utils/backend-trace"
 const trace = backendTrace.scoped("gemini")
 
 /** Check if an error is an abort error (AbortError or wrapped abort from the SDK). */
-function isAbortError(err: unknown): boolean {
+export function isAbortError(err: unknown): boolean {
   if (!(err instanceof Error)) return false
   if (err.name === "AbortError") return true
   // The Gemini SDK (and Bun's fetch internals) sometimes wrap the DOMException

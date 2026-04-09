@@ -99,9 +99,14 @@
  * THEMING
  * ═══════════════════════════════════════════════════════════════════════
  *
- * Colors are mutable and derived from the active ThemeDefinition.
- * Use applyTheme() to switch themes at startup. The colors object is
- * updated in-place so all module-level references stay valid.
+ * `colors` is a SolidJS store proxy derived from the active ThemeDefinition.
+ * Reading any token (e.g. `colors.text.primary`) inside a reactive context
+ * (JSX, createMemo, createEffect) subscribes to that token. When applyTheme()
+ * updates the store, only the affected components re-render.
+ *
+ * ⚠️  NEVER snapshot a color into a local constant:
+ *       const ACCENT = colors.border.permission  // BUG: won't update
+ *     Always read inline in JSX or via a () => accessor.
  *
  * ═══════════════════════════════════════════════════════════════════════
  * GENERAL RULES
@@ -120,56 +125,53 @@
  *      is already at its intended brightness.
  */
 
+import { createRoot } from "solid-js"
+import { createStore, reconcile, type SetStoreFunction } from "solid-js/store"
 import type { ThemeColors, ThemeDefinition } from "./types"
 import { defaultDark } from "./presets/default-dark"
 
 // ---------------------------------------------------------------------------
-// Deep-clone helper
-// ---------------------------------------------------------------------------
-
-function deepClone(obj: ThemeColors): ThemeColors {
-  const result = {} as Record<string, Record<string, string>>
-  for (const [cat, tokens] of Object.entries(obj)) {
-    result[cat] = { ...tokens as Record<string, string> }
-  }
-  return result as unknown as ThemeColors
-}
-
-// ---------------------------------------------------------------------------
-// Active theme state
+// Active theme state (SolidJS store for reactive theme switching)
 // ---------------------------------------------------------------------------
 
 let currentThemeId = defaultDark.id
+let setColors: SetStoreFunction<ThemeColors>
 
 /**
- * The active color tokens. Mutable — updated in-place by applyTheme().
+ * The active color tokens — a SolidJS store proxy.
+ *
+ * Reading `colors.text.primary` inside a reactive context (JSX, createMemo,
+ * createEffect) automatically subscribes to that specific token. When a theme
+ * switch updates that token, only the subscribing components re-render.
  *
  * Components import this directly:
  *   import { colors } from "../theme/tokens"
  *   <text fg={colors.text.primary}>
+ *
+ * ⚠️  NEVER snapshot a color into a module-level constant:
+ *       const ACCENT = colors.border.permission  // BUG: won't update on theme switch
+ *     Instead, read colors inline in JSX or via () => accessor.
  */
-export const colors: ThemeColors = deepClone(defaultDark.colors)
+export const colors: ThemeColors = createRoot(() => {
+  const [state, setState] = createStore<ThemeColors>(
+    structuredClone(defaultDark.colors) as ThemeColors,
+  )
+  setColors = setState
+  return state
+}) as ThemeColors
 
 // ---------------------------------------------------------------------------
 // Theme switching
 // ---------------------------------------------------------------------------
 
 /**
- * Apply a theme by mutating the colors object in-place.
- * All module-level references to `colors` will see the new values.
- *
- * Call this BEFORE render() at startup, or trigger a full re-render
- * after calling it at runtime.
+ * Apply a theme by updating the reactive store.
+ * All components reading color tokens will automatically re-render.
  */
 export function applyTheme(theme: ThemeDefinition): void {
   currentThemeId = theme.id
-  for (const [cat, tokens] of Object.entries(theme.colors)) {
-    const target = (colors as unknown as Record<string, Record<string, string>>)[cat]
-    if (target) {
-      Object.assign(target, tokens as Record<string, string>)
-    }
-  }
-  // Rebuild syntax highlighting with new colors
+  setColors(reconcile(structuredClone(theme.colors) as ThemeColors))
+  // Rebuild syntax highlighting with new colors (non-reactive Zig-side object)
   rebuildSyntax()
 }
 

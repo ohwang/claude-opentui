@@ -23,11 +23,13 @@ const TOAST_PREFIX: Record<ToastType, string> = {
   error: "\u2717",     // x mark
 }
 
-const TOAST_COLOR: Record<ToastType, string> = {
-  info: colors.status.info,
-  success: colors.status.success,
-  warning: colors.status.warning,
-  error: colors.status.error,
+function toastColor(type: ToastType): string {
+  switch (type) {
+    case "info":    return colors.status.info
+    case "success": return colors.status.success
+    case "warning": return colors.status.warning
+    case "error":   return colors.status.error
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -47,7 +49,7 @@ export function ToastDisplay() {
         <For each={ctx.toasts}>
           {(t) => (
             <box height={1} flexDirection="row">
-              <text fg={TOAST_COLOR[t.type]} attributes={TextAttributes.DIM}>{TOAST_PREFIX[t.type]}</text>
+              <text fg={toastColor(t.type)} attributes={TextAttributes.DIM}>{TOAST_PREFIX[t.type]}</text>
               <text fg={colors.text.muted}>{` ${t.message}`}</text>
             </box>
           )}

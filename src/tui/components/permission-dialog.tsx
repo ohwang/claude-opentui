@@ -26,12 +26,6 @@ import { Divider, ShortcutBar, ShortcutHint } from "./primitives"
 import { truncatePathMiddle } from "../../utils/truncate"
 import type { PermissionRequestEvent, PermissionUpdate } from "../../protocol/types"
 
-// Semantic aliases from design system tokens
-const ACCENT = colors.border.permission
-const MUTED = colors.text.muted
-const DIFF_ADDED = colors.diff.added
-const DIFF_REMOVED = colors.diff.removed
-
 // Max lines to show in content preview
 const MAX_PREVIEW_LINES = 20
 
@@ -515,13 +509,13 @@ export function PermissionDialog() {
           <box
             flexDirection="column"
             borderStyle="single"
-            borderColor={ACCENT}
+            borderColor={colors.border.permission}
             paddingLeft={1}
             paddingRight={1}
           >
             {/* Action label */}
             <box height={1} paddingLeft={1}>
-              <text fg={ACCENT} attributes={TextAttributes.BOLD}>
+              <text fg={colors.border.permission} attributes={TextAttributes.BOLD}>
                 {label()}
               </text>
             </box>
@@ -529,7 +523,7 @@ export function PermissionDialog() {
             {/* Path / primary content info */}
             <Show when={pathStr()}>
               <box paddingLeft={1}>
-                <text fg={MUTED}>{pathStr()}</text>
+                <text fg={colors.text.muted}>{pathStr()}</text>
               </box>
             </Show>
 
@@ -545,7 +539,7 @@ export function PermissionDialog() {
             {/* Description from SDK */}
             <Show when={description()}>
               <box paddingLeft={1}>
-                <text fg={MUTED}>{description()}</text>
+                <text fg={colors.text.muted}>{description()}</text>
               </box>
             </Show>
 
@@ -567,7 +561,7 @@ export function PermissionDialog() {
                 const scrollHeight = createMemo(() => Math.min(lineCount(), maxPreviewHeight()))
                 return (
                 <box flexDirection="column">
-                  <Divider char={"\u254C"} fg={ACCENT} paddingLeft={0} />
+                  <Divider char={"\u254C"} fg={colors.border.permission} paddingLeft={0} />
                   <scrollbox
                     height={scrollHeight()}
                     maxHeight={maxPreviewHeight()}
@@ -577,8 +571,8 @@ export function PermissionDialog() {
                       <For each={lines()}>
                         {(line, _idx) => {
                           const lineColor = () => {
-                            if (line.prefix === "+") return DIFF_ADDED
-                            if (line.prefix === "-") return DIFF_REMOVED
+                            if (line.prefix === "+") return colors.diff.added
+                            if (line.prefix === "-") return colors.diff.removed
                             return colors.text.primary
                           }
                           return (
@@ -592,10 +586,10 @@ export function PermissionDialog() {
                   </scrollbox>
                   <Show when={isTruncated()}>
                     <box height={1} paddingLeft={2}>
-                      <text fg={MUTED} attributes={TextAttributes.DIM}>{`... ${extraLineCount()} more line${extraLineCount() === 1 ? "" : "s"}`}</text>
+                      <text fg={colors.text.muted} attributes={TextAttributes.DIM}>{`... ${extraLineCount()} more line${extraLineCount() === 1 ? "" : "s"}`}</text>
                     </box>
                   </Show>
-                  <Divider char={"\u254C"} fg={ACCENT} paddingLeft={0} />
+                  <Divider char={"\u254C"} fg={colors.border.permission} paddingLeft={0} />
                 </box>
                 )
               }}
@@ -615,7 +609,7 @@ export function PermissionDialog() {
                   <text fg={colors.text.primary}>{"  y. Allow"}</text>
                 }
               >
-                <text fg={ACCENT}>
+                <text fg={colors.border.permission}>
                   {"\u276F y. Allow"}
                 </text>
               </Show>
@@ -630,7 +624,7 @@ export function PermissionDialog() {
                   </text>
                 }
               >
-                <text fg={ACCENT} attributes={TextAttributes.BOLD}>
+                <text fg={colors.border.permission} attributes={TextAttributes.BOLD}>
                   {"\u276F a. \uD83D\uDD12 " + opt2()}
                 </text>
               </Show>
@@ -640,10 +634,10 @@ export function PermissionDialog() {
             <box height={1} paddingLeft={1}>
               <Show when={selectedOption() === 2}
                 fallback={
-                  <text fg={MUTED}>{"  n. Deny"}</text>
+                  <text fg={colors.text.muted}>{"  n. Deny"}</text>
                 }
               >
-                <text fg={ACCENT}>{"\u276F n. Deny"}</text>
+                <text fg={colors.border.permission}>{"\u276F n. Deny"}</text>
               </Show>
             </box>
 
@@ -651,10 +645,10 @@ export function PermissionDialog() {
             <box height={1} paddingLeft={1}>
               <Show when={selectedOption() === 3}
                 fallback={
-                  <text fg={MUTED}>{"  d. Deny for session"}</text>
+                  <text fg={colors.text.muted}>{"  d. Deny for session"}</text>
                 }
               >
-                <text fg={ACCENT}>{"\u276F d. Deny for session"}</text>
+                <text fg={colors.border.permission}>{"\u276F d. Deny for session"}</text>
               </Show>
             </box>
 

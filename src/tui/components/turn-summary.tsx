@@ -11,11 +11,14 @@ const ACTION_ICONS: Record<string, string> = {
   write: "+",
 }
 
-const ACTION_COLORS: Record<string, string> = {
-  create: colors.diff.added,
-  edit: colors.accent.primary,
-  read: colors.text.muted,
-  write: colors.diff.added,
+function actionColor(action: string): string {
+  switch (action) {
+    case "create": return colors.diff.added
+    case "edit":   return colors.accent.primary
+    case "read":   return colors.text.muted
+    case "write":  return colors.diff.added
+    default:       return colors.text.muted
+  }
 }
 
 export function TurnSummary(props: { files: TurnFileChange[] }) {
@@ -41,7 +44,7 @@ export function TurnSummary(props: { files: TurnFileChange[] }) {
         <For each={deduped()}>
           {(file) => {
             const icon = ACTION_ICONS[file.action] ?? " "
-            const color = ACTION_COLORS[file.action] ?? colors.text.muted
+            const color = actionColor(file.action)
             const rel = file.path.startsWith(process.cwd() + "/")
               ? file.path.slice(process.cwd().length + 1)
               : file.path

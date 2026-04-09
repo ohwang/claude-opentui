@@ -49,6 +49,7 @@ The protocol layer is the load-bearing abstraction. All backends implement `Agen
 - **Cleanup must survive deletion.** When removing a variable/timer, grep for ALL references including `onCleanup` callbacks. SolidJS cleanup runs during `renderer.destroy()` — a dangling reference there prevents `process.exit()` and silently breaks exit.
 - **`tsc --noEmit` must pass.** Never commit code that adds new TypeScript errors. The type checker catches undefined variables, missing properties, and type mismatches at compile time.
 - **Never silently drop events.** Every event/message received by an event mapper must either be mapped to an `AgentEvent`, or logged. Use `log.debug` for intentionally suppressed events (e.g., streaming items whose content arrives via deltas). Use `log.warn` for truly unhandled/unknown event types — these indicate protocol additions we're missing. A bare `break` or `return []` with no log is a bug.
+- **Runtime-mutable values must be SolidJS signals or stores.** Plain objects and module-level constants are for truly immutable data only (string enums, static config). If a value can change via a slash command, CLI flag, or user action, it must be reactive. Theme colors (`colors` in `tokens.ts`) are a SolidJS store — never snapshot them into a `const`: read inline in JSX or via `() =>` accessor.
 
 ## OpenTUI Prop Rules (CRITICAL)
 

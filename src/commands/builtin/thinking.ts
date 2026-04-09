@@ -60,17 +60,30 @@ export const thinkingCommand: SlashCommand = {
       return
     }
 
+    const caps = ctx.backend.capabilities()
+
     try {
       await ctx.backend.setEffort(level as EffortLevel)
-      ctx.pushEvent({
-        type: "effort_changed",
-        effort: level as EffortLevel,
-      })
-      ctx.pushEvent({
-        type: "system_message",
-        text: `Thinking effort set to ${level}`,
-        ephemeral: true,
-      })
+
+      if (caps.supportsThinking) {
+        // Backend supports thinking — emit event and confirm
+        ctx.pushEvent({
+          type: "effort_changed",
+          effort: level as EffortLevel,
+        })
+        ctx.pushEvent({
+          type: "system_message",
+          text: `Thinking effort set to ${level}`,
+          ephemeral: true,
+        })
+      } else {
+        // Backend may not support effort control — inform the user
+        ctx.pushEvent({
+          type: "system_message",
+          text: `Requested thinking effort: ${level}\n(This backend may not support thinking control)`,
+          ephemeral: true,
+        })
+      }
     } catch (error) {
       ctx.pushEvent({
         type: "system_message",

@@ -391,7 +391,7 @@ export function ConversationView(props: { children?: JSX.Element; footerHint?: s
           <box flexDirection="column">
             <box flexDirection="row" marginTop={1} visible={!state.backgrounded && !!visibleStreamingText()}>
               <box width={2} flexShrink={0}>
-                <text fg={colors.accent.primary}>{"\u23FA"}</text>
+                <text fg={colors.text.primary}>{"\u23FA"}</text>
               </box>
               <box flexGrow={1}>
                 <markdown content={visibleStreamingText() ?? undefined} syntaxStyle={syntaxStyle} streaming={true} fg={colors.text.primary} />

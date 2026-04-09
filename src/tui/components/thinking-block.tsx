@@ -4,9 +4,9 @@
  * Shows Claude's reasoning process in a markdown-blockquote visual:
  * a left border bar (│) with content indented beside it.
  *
- * Collapsed: "💭 Thinking (ctrl+o to expand)"
+ * Collapsed: "💡 Thinking (ctrl+o to expand)"
  * Expanded:
- *   💭 Thinking…
+ *   💡 Thinking…
  *   │ <markdown content>
  */
 
@@ -31,12 +31,12 @@ export function ThinkingBlock(props: { text: string; collapsed?: boolean }) {
         when={expanded()}
         fallback={
           <text fg={colors.text.thinking} attributes={TextAttributes.DIM | TextAttributes.ITALIC}>
-            {"\ud83d\udcad Thinking (ctrl+o to expand)"}
+            {"\ud83d\udca1 Thinking (ctrl+o to expand)"}
           </text>
         }
       >
         <text fg={colors.text.thinking} attributes={TextAttributes.DIM | TextAttributes.ITALIC}>
-          {"\ud83d\udcad Thinking\u2026"}
+          {"\ud83d\udca1 Thinking\u2026"}
         </text>
         <box flexDirection="row">
           <box width={2} flexShrink={0}>

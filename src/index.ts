@@ -145,6 +145,13 @@ async function main() {
   })
 
   process.on("unhandledRejection", (err) => {
+    // AbortErrors are expected during user-initiated interrupt (Ctrl+C).
+    // The Gemini SDK's internal promises reject when the AbortController fires,
+    // producing many simultaneous unhandled rejections. Swallow silently.
+    if (err instanceof Error && err.name === "AbortError") {
+      log.debug("Suppressed AbortError rejection (expected during interrupt)")
+      return
+    }
     // Log but don't crash — many rejections are non-fatal (e.g., backend API
     // calls that fail after the user already moved on). Fatal errors should
     // be caught and handled explicitly at their call sites.

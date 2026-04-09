@@ -276,6 +276,7 @@ function Layout(props: { onExit?: () => void }) {
 
   // Global keyboard shortcuts
   useKeyboard((event) => {
+    try {
     // When modal overlay is active, delegate to the modal's key handler first,
     // then fall back to Escape-to-dismiss. Block all other unhandled keys.
     if (modal.isActive()) {
@@ -475,7 +476,11 @@ function Layout(props: { onExit?: () => void }) {
         } else {
           sync.pushEvent({ type: "interrupt" })
           sync.pushEvent({ type: "system_message", text: "Interrupted \u00B7 What should Claude do instead?", ephemeral: true })
-          agent.backend.interrupt()
+          try {
+            agent.backend.interrupt()
+          } catch (e) {
+            log.error("Failed to interrupt backend", { error: String(e) })
+          }
         }
       } else {
         const hadText = clearInput()
@@ -513,6 +518,9 @@ function Layout(props: { onExit?: () => void }) {
       isCursorHidden()
     if (!typingDisabled) {
       refocusInput()
+    }
+    } catch (e) {
+      log.error("Keyboard handler error", { error: String(e) })
     }
   })
 

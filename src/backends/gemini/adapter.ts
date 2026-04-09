@@ -145,12 +145,26 @@ export class GeminiAdapter implements AgentBackend {
 
     log.info("Gemini interrupt", { hasAbortController: !!this.abortController })
     this.userInitiatedAbort = true
-    if (this.abortController) {
-      this.abortController.abort()
-      this.abortController = null
-    }
-    // Push turn_complete so the state machine transitions
+    // Push turn_complete FIRST so the state machine transitions to IDLE
+    // before the abort fires. This ensures the TUI is in a clean state.
     this.eventChannel?.push({ type: "turn_complete" })
+
+    if (this.abortController) {
+      // Defer the abort to the next microtask. Calling abort() synchronously
+      // within the keyboard handler causes the Gemini SDK's internal promises
+      // to reject immediately, and those unhandled rejections propagate back
+      // through OpenTUI's Zig FFI boundary, printing stack traces to stdout
+      // and corrupting the TUI display.
+      const controller = this.abortController
+      this.abortController = null
+      queueMicrotask(() => {
+        try {
+          controller.abort()
+        } catch {
+          // AbortController.abort() itself shouldn't throw, but guard anyway
+        }
+      })
+    }
   }
 
   approveToolUse(_id: string): void {

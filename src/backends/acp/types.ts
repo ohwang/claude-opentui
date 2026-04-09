@@ -183,6 +183,7 @@ export interface AcpSessionUpdateParams {
 
 export type AcpUpdate =
   | AcpAgentMessageChunk
+  | AcpAgentThoughtChunk
   | AcpToolCall
   | AcpToolCallUpdate
   | AcpPlanUpdate
@@ -191,6 +192,11 @@ export type AcpUpdate =
 
 export interface AcpAgentMessageChunk {
   sessionUpdate: "agent_message_chunk"
+  content: AcpContentBlock
+}
+
+export interface AcpAgentThoughtChunk {
+  sessionUpdate: "agent_thought_chunk"
   content: AcpContentBlock
 }
 
@@ -397,7 +403,7 @@ export const ACP_PRESETS: Record<string, AcpPreset> = {
   },
   "copilot-acp": {
     command: "gh",
-    args: ["copilot", "acp-server"],
+    args: ["copilot", "--acp"],
     displayName: "GitHub Copilot (ACP)",
   },
 }

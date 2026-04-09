@@ -131,6 +131,90 @@ describe("ACP Event Mapper", () => {
   })
 
   // ---------------------------------------------------------------------------
+  // agent_thought_chunk → thinking_delta
+  // ---------------------------------------------------------------------------
+
+  describe("agent_thought_chunk → thinking_delta", () => {
+    it("maps text thinking content to thinking_delta", () => {
+      const events = mapAcpUpdate(
+        makeParams({
+          sessionUpdate: "agent_thought_chunk",
+          content: { type: "text", text: "Let me think about this..." },
+        }),
+      )
+
+      expect(events).toHaveLength(1)
+      expect(events[0]!).toEqual({ type: "thinking_delta", text: "Let me think about this..." })
+    })
+
+    it("returns empty array for missing content", () => {
+      const events = mapAcpUpdate(
+        makeParams({
+          sessionUpdate: "agent_thought_chunk",
+          content: undefined,
+        }),
+      )
+
+      expect(events).toHaveLength(0)
+    })
+
+    it("returns empty array for empty text", () => {
+      const events = mapAcpUpdate(
+        makeParams({
+          sessionUpdate: "agent_thought_chunk",
+          content: { type: "text", text: "" },
+        }),
+      )
+
+      expect(events).toHaveLength(0)
+    })
+
+    it("returns empty array for null text", () => {
+      const events = mapAcpUpdate(
+        makeParams({
+          sessionUpdate: "agent_thought_chunk",
+          content: { type: "text", text: null },
+        }),
+      )
+
+      expect(events).toHaveLength(0)
+    })
+
+    it("maps non-text thinking content to backend_specific", () => {
+      const events = mapAcpUpdate(
+        makeParams({
+          sessionUpdate: "agent_thought_chunk",
+          content: { type: "image", mimeType: "image/png", data: "abc123" },
+        }),
+      )
+
+      expect(events).toHaveLength(1)
+      expect((events[0] as any).type).toBe("backend_specific")
+      expect((events[0] as any).backend).toBe("acp")
+    })
+
+    it("accumulates multiple thought chunks", () => {
+      const events1 = mapAcpUpdate(
+        makeParams({
+          sessionUpdate: "agent_thought_chunk",
+          content: { type: "text", text: "First, I should " },
+        }),
+      )
+      const events2 = mapAcpUpdate(
+        makeParams({
+          sessionUpdate: "agent_thought_chunk",
+          content: { type: "text", text: "check the file structure." },
+        }),
+      )
+
+      expect(events1).toHaveLength(1)
+      expect(events1[0]!).toEqual({ type: "thinking_delta", text: "First, I should " })
+      expect(events2).toHaveLength(1)
+      expect(events2[0]!).toEqual({ type: "thinking_delta", text: "check the file structure." })
+    })
+  })
+
+  // ---------------------------------------------------------------------------
   // tool_call → tool_use_start
   // ---------------------------------------------------------------------------
 

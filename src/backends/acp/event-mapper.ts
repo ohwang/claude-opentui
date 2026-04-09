@@ -8,6 +8,7 @@
  *
  * Key mapping:
  *   agent_message_chunk (text)    → text_delta
+ *   agent_thought_chunk (text)    → thinking_delta
  *   tool_call                     → tool_use_start
  *   tool_call_update (in_progress) → tool_use_progress
  *   tool_call_update (completed)  → tool_use_end
@@ -22,6 +23,7 @@ import type { AgentEvent, PlanEntry } from "../../protocol/types"
 import type {
   AcpSessionUpdateParams,
   AcpAgentMessageChunk,
+  AcpAgentThoughtChunk,
   AcpToolCall,
   AcpToolCallUpdate,
   AcpPlanUpdate,
@@ -46,6 +48,9 @@ export function mapAcpUpdate(params: AcpSessionUpdateParams): AgentEvent[] {
   switch (update.sessionUpdate) {
     case "agent_message_chunk":
       return mapAgentMessageChunk(update as AcpAgentMessageChunk)
+
+    case "agent_thought_chunk":
+      return mapAgentThoughtChunk(update as AcpAgentThoughtChunk)
 
     case "tool_call":
       return mapToolCall(update as AcpToolCall)
@@ -117,6 +122,29 @@ function mapAgentMessageChunk(update: AcpAgentMessageChunk): AgentEvent[] {
       }]
     }
   }
+}
+
+// ---------------------------------------------------------------------------
+// Agent thought chunk (thinking/reasoning)
+// ---------------------------------------------------------------------------
+
+function mapAgentThoughtChunk(update: AcpAgentThoughtChunk): AgentEvent[] {
+  const content = update.content
+  if (!content) return []
+
+  // Thinking content is typically text — extract and emit as thinking_delta
+  if (content.type === "text") {
+    if (content.text == null || content.text === "") return []
+    return [{ type: "thinking_delta", text: content.text }]
+  }
+
+  // Non-text thinking content (unlikely but handle gracefully)
+  log.debug("ACP agent_thought_chunk with non-text content", { type: (content as { type: string }).type })
+  return [{
+    type: "backend_specific",
+    backend: "acp",
+    data: { method: "session/update", update },
+  }]
 }
 
 // ---------------------------------------------------------------------------

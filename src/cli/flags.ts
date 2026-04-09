@@ -139,6 +139,43 @@ export function parseFlags(argv: string[]): CLIFlags {
         flags.config.cwd = requireArg("--cwd", args, ++i)
         break
 
+      // Thinking & effort
+      case "--thinking": {
+        const val = requireArg("--thinking", args, ++i)
+        if (val === "adaptive") {
+          flags.config.thinking = { type: "adaptive" }
+        } else if (val === "enabled") {
+          flags.config.thinking = { type: "enabled" }
+        } else if (val === "disabled") {
+          flags.config.thinking = { type: "disabled" }
+        } else {
+          console.error("Error: --thinking must be adaptive, enabled, or disabled")
+          process.exit(1)
+        }
+        break
+      }
+
+      case "--max-thinking-tokens": {
+        const val = parseInt(requireArg("--max-thinking-tokens", args, ++i), 10)
+        if (isNaN(val) || val <= 0) {
+          console.error("Error: --max-thinking-tokens must be a positive integer")
+          process.exit(1)
+        }
+        flags.config.thinking = { type: "enabled", budgetTokens: val }
+        break
+      }
+
+      case "--effort": {
+        const val = requireArg("--effort", args, ++i)
+        if (val === "low" || val === "medium" || val === "high" || val === "max") {
+          flags.config.effort = val
+        } else {
+          console.error("Error: --effort must be low, medium, high, or max")
+          process.exit(1)
+        }
+        break
+      }
+
       // System prompt
       case "--system-prompt":
         flags.config.systemPrompt = requireArg("--system-prompt", args, ++i)
@@ -186,13 +223,16 @@ Options:
   -p, --prompt <text>     Initial prompt
   -c, --continue          Continue most recent session
   -r, --resume <id>       Resume a specific session
-  -b, --backend <name>    Backend (claude, claude-v2, codex, codex-sdk, gemini, mock)
+  -b, --backend <name>    Backend (claude, codex, gemini, mock)
   --permission-mode <m>   Permission mode (default, acceptEdits, bypassPermissions, plan, dontAsk)
   --dangerously-skip-permissions  Shorthand for --permission-mode bypassPermissions
   --max-turns <n>         Maximum turns
   --max-budget <usd>      Maximum budget in USD
   --no-session-persistence  Disable session persistence to disk
   --cwd <path>            Working directory
+  --thinking <mode>       Thinking mode (adaptive, enabled, disabled)
+  --max-thinking-tokens <n>  Fixed thinking token budget (sets thinking to enabled)
+  --effort <level>        Reasoning effort (low, medium, high, max)
   --system-prompt <text>  System prompt
   --debug                 Enable debug output
   --debug-backend         Write raw backend JSONL trace

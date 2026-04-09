@@ -72,7 +72,7 @@ async function resolveAvailableModels(ctx: CommandContext): Promise<ModelInfo[]>
   const backendName = ctx.backend.capabilities().name
   const merged = dedupeModels([...backendModels, ...sessionModels])
 
-  if (backendName === "claude" || backendName === "claude-v2") {
+  if (backendName === "claude") {
     if (backendModels.length === 0) {
       return dedupeModels([...merged, ...staticClaudeModels()])
     }

@@ -116,7 +116,6 @@ class Logger {
     switch (this.backendName) {
       case "claude":
       case "claude-v1":
-      case "claude-v2":
         return "Claude Code Session"
       case "codex":
       case "codex-sdk":

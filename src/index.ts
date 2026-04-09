@@ -13,7 +13,6 @@ process.on("SIGINT", () => {})
 
 import { parseFlags, printHelp } from "./cli/flags"
 import { ClaudeAdapter } from "./backends/claude/adapter"
-import { ClaudeV2Adapter } from "./backends/claude/adapter-v2"
 import { CodexAdapter } from "./backends/codex/adapter"
 import { CodexSdkAdapter } from "./backends/codex-sdk/adapter"
 import { GeminiAdapter } from "./backends/gemini/adapter"
@@ -67,9 +66,6 @@ async function main() {
     case "claude":
     case "claude-v1":
       backend = new ClaudeAdapter()
-      break
-    case "claude-v2":
-      backend = new ClaudeV2Adapter()
       break
     case "codex":
       backend = new CodexAdapter()

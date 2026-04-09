@@ -1,9 +1,10 @@
 /**
  * Blink primitive -- synchronized blinking for progress indicators.
  *
- * Uses the centralized AnimationContext clock. All BlinkingDot instances
- * share the same frame callback so they pulse in unison without needing
- * their own per-component timers.
+ * Uses the centralized AnimationContext clock with absolute-time derivation.
+ * Visibility is computed from `Date.now()` so that all BlinkingDot instances
+ * produce the same value on each frame tick, regardless of when they were
+ * mounted. This keeps every indicator blinking in perfect unison.
  */
 
 import { createSignal } from "solid-js"
@@ -16,17 +17,15 @@ const BLINK_INTERVAL_MS = 600
 // useBlink — reactive hook powered by AnimationContext
 // ---------------------------------------------------------------------------
 
-/** Hook that returns a reactive blinking signal (true/false at 600ms) */
+/** Hook that returns a reactive blinking signal (true/false at 600ms).
+ *  Derives visibility from absolute time so all instances stay in phase. */
 export function useBlink(): () => boolean {
   const [visible, setVisible] = createSignal(true)
-  let accum = 0
 
-  useAnimationFrame((dt) => {
-    accum += dt
-    if (accum >= BLINK_INTERVAL_MS) {
-      accum -= BLINK_INTERVAL_MS
-      setVisible((v) => !v)
-    }
+  useAnimationFrame(() => {
+    // Derive from absolute time — all instances compute the same value
+    const shouldBeVisible = Math.floor(Date.now() / BLINK_INTERVAL_MS) % 2 === 0
+    setVisible(shouldBeVisible)
   })
 
   return visible

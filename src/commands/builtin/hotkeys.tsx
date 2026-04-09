@@ -113,7 +113,7 @@ function ShortcutGroupView(props: { group: ShortcutGroup }) {
       <box marginTop={0} flexDirection="column">
         <For each={props.group.entries}>
           {(entry) => (
-            <text fg={colors.text.inactive}>{"    "}{padRight(entry.key, KEY_COL_WIDTH + 2)}{entry.desc}</text>
+            <text fg={colors.text.secondary}>{"    "}{padRight(entry.key, KEY_COL_WIDTH + 2)}{entry.desc}</text>
           )}
         </For>
       </box>
@@ -151,8 +151,7 @@ function HotkeysModal() {
           {/* Footer */}
           <box marginTop={1}>
             <text
-              fg={colors.text.inactive}
-              attributes={TextAttributes.DIM}
+              fg={colors.text.muted}
             >
               {"  Press Escape to close"}
             </text>

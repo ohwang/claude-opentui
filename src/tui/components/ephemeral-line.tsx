@@ -9,7 +9,6 @@
  */
 
 import { Show } from "solid-js"
-import { TextAttributes } from "@opentui/core"
 import { colors } from "../theme/tokens"
 
 export interface EphemeralLineProps {
@@ -20,7 +19,7 @@ export function EphemeralLine(props: EphemeralLineProps) {
   return (
     <box height={1} flexShrink={0} paddingLeft={2}>
       <Show when={props.message}>
-        <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>{props.message}</text>
+        <text fg={colors.text.muted}>{props.message}</text>
       </Show>
     </box>
   )

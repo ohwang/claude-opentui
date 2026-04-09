@@ -49,7 +49,7 @@ export const primitivesStories: Story[] = [
         {(["success", "error", "warning", "info", "running", "declined", "pending"] as StatusType[]).map((s) => (
           <box flexDirection="row">
             <StatusIcon status={s} />
-            <text fg={colors.text.inactive}>{s}</text>
+            <text fg={colors.text.secondary}>{s}</text>
           </box>
         ))}
       </box>
@@ -65,7 +65,7 @@ export const primitivesStories: Story[] = [
         {[0, 0.25, 0.5, 0.75, 1].map((r) => (
           <box flexDirection="row">
             <ProgressBar ratio={r} width={20} />
-            <text fg={colors.text.inactive}>{` ${String(Math.round(r * 100)).padStart(3)}%`}</text>
+            <text fg={colors.text.secondary}>{` ${String(Math.round(r * 100)).padStart(3)}%`}</text>
           </box>
         ))}
       </box>
@@ -81,7 +81,7 @@ export const primitivesStories: Story[] = [
         {(["active", "success", "error", "declined"] as const).map((s) => (
           <box flexDirection="row">
             <BlinkingDot status={s} />
-            <text fg={colors.text.inactive}>{` ${s}`}</text>
+            <text fg={colors.text.secondary}>{` ${s}`}</text>
           </box>
         ))}
       </box>
@@ -94,9 +94,9 @@ export const primitivesStories: Story[] = [
     category: "Primitives",
     render: () => (
       <Byline>
-        <text fg={colors.text.inactive}>3 turns</text>
-        <text fg={colors.text.inactive}>$0.042</text>
-        <text fg={colors.text.inactive}>45k tokens</text>
+        <text fg={colors.text.secondary}>3 turns</text>
+        <text fg={colors.text.secondary}>$0.042</text>
+        <text fg={colors.text.secondary}>45k tokens</text>
       </Byline>
     ),
   },

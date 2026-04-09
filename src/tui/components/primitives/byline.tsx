@@ -14,7 +14,6 @@
 
 import type { JSX } from "solid-js"
 import { For } from "solid-js"
-import { TextAttributes } from "@opentui/core"
 import { colors } from "../../theme/tokens"
 
 export function Byline(props: { children: JSX.Element[] }) {
@@ -32,7 +31,7 @@ export function Byline(props: { children: JSX.Element[] }) {
         {(child, index) => (
           <>
             {index() > 0 && (
-              <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>{" · "}</text>
+              <text fg={colors.text.muted}>{" · "}</text>
             )}
             {child}
           </>

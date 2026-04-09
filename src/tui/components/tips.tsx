@@ -7,7 +7,6 @@
  */
 
 import { Show } from "solid-js"
-import { TextAttributes } from "@opentui/core"
 import { useSession } from "../context/session"
 import { colors } from "../theme/tokens"
 
@@ -47,7 +46,7 @@ export function ContextualTips() {
   return (
     <Show when={tip()}>
       <box paddingLeft={2}>
-        <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>
+        <text fg={colors.text.muted}>
           {tip()}
         </text>
       </box>

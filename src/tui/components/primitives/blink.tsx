@@ -59,13 +59,13 @@ export function BlinkingDot(props: {
   const color = () => {
     switch (props.status) {
       case "active":
-        return colors.text.inactive
+        return colors.text.muted
       case "success":
         return colors.status.success
       case "error":
         return colors.status.error
       case "declined":
-        return colors.text.inactive
+        return colors.text.muted
     }
   }
 

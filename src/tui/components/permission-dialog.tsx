@@ -28,7 +28,7 @@ import type { PermissionRequestEvent, PermissionUpdate } from "../../protocol/ty
 
 // Semantic aliases from design system tokens
 const ACCENT = colors.border.permission
-const MUTED = colors.text.inactive
+const MUTED = colors.text.muted
 const DIFF_ADDED = colors.diff.added
 const DIFF_REMOVED = colors.diff.removed
 
@@ -552,7 +552,7 @@ export function PermissionDialog() {
             {/* Decision reason hint */}
             <Show when={perm().decisionReason}>
               <box paddingLeft={1}>
-                <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>
+                <text fg={colors.text.muted}>
                   {"Reason: " + perm().decisionReason}
                 </text>
               </box>

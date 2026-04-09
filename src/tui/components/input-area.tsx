@@ -423,7 +423,7 @@ export function InputArea() {
           <text fg={colors.accent.primary}>
             {"\u{1F4CE} " + attachedImageCount() + " image" + (attachedImageCount() > 1 ? "s" : "") + " attached"}
           </text>
-          <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>
+          <text fg={colors.text.muted}>
             {" \u00B7 Ctrl+Shift+X to clear"}
           </text>
         </box>
@@ -432,7 +432,7 @@ export function InputArea() {
       {/* Input row with > prompt prefix */}
       <box flexDirection="row">
         <box width={2} flexShrink={0}>
-          <text fg={isDisabled() ? colors.text.inactive : colors.text.primary} attributes={isDisabled() ? TextAttributes.DIM : 0}>{"❯"}</text>
+          <text fg={isDisabled() ? colors.text.muted : colors.text.primary}>{"❯"}</text>
         </box>
         <textarea
           ref={(el: TextareaRenderable) => { textareaRef = el; setSharedTextareaRef(el) }}
@@ -450,7 +450,7 @@ export function InputArea() {
           flexGrow={1}
         />
         {completionHint() ? (
-          <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>
+          <text fg={colors.text.muted}>
             {completionHint()}
           </text>
         ) : null}
@@ -469,7 +469,7 @@ export function InputArea() {
                   {autocompleteMode() === "file" ? truncatePath(item().name) : `/${item().name}`}
                 </text>
                 {autocompleteMode() === "slash" && item().argumentHint && (
-                  <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>
+                  <text fg={colors.text.muted}>
                     {` ${item().argumentHint}`}
                   </text>
                 )}
@@ -478,14 +478,14 @@ export function InputArea() {
                     {" [prompt]"}
                   </text>
                 )}
-                <text fg={colors.text.inactive} attributes={index !== selectedIndex() ? TextAttributes.DIM : 0}>
+                <text fg={colors.text.secondary} attributes={index !== selectedIndex() ? TextAttributes.DIM : 0}>
                   {"  \u2013  "}{item().description}
                 </text>
               </box>
             )}
           </Index>
           <Show when={autocompleteItems().length > MAX_VISIBLE_ITEMS}>
-            <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>
+            <text fg={colors.text.muted}>
               {`  ${autocompleteItems().length - MAX_VISIBLE_ITEMS} more...`}
             </text>
           </Show>

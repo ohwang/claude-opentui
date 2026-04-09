@@ -404,14 +404,14 @@ export function DiagnosticsPanel(props: { visible: boolean; onClose: () => void 
           <text fg={colors.text.primary} attributes={TextAttributes.BOLD}>
             {"Diagnostics"}
           </text>
-          <text fg={colors.text.inactive}>{"  "}</text>
+          <text fg={colors.text.secondary}>{"  "}</text>
           <For each={TAB_NAMES as unknown as string[]}>
             {(name, i) => (
               <box flexDirection="row">
-                <text fg={activeTab() === i() ? colors.accent.primary : colors.text.inactive} attributes={activeTab() === i() ? TextAttributes.BOLD : 0}>
+                <text fg={activeTab() === i() ? colors.accent.primary : colors.text.secondary} attributes={activeTab() === i() ? TextAttributes.BOLD : 0}>
                   {`[${i() + 1}] ${name}`}
                 </text>
-                <text fg={colors.text.inactive}>{i() < TAB_COUNT - 1 ? "  " : ""}</text>
+                <text fg={colors.text.secondary}>{i() < TAB_COUNT - 1 ? "  " : ""}</text>
               </box>
             )}
           </For>
@@ -442,7 +442,7 @@ export function DiagnosticsPanel(props: { visible: boolean; onClose: () => void 
                   <For each={section.entries}>
                     {(entry) => (
                       <box flexDirection="row">
-                        <text fg={colors.text.inactive}>{padRight(entry.key, 22)}</text>
+                        <text fg={colors.text.secondary}>{padRight(entry.key, 22)}</text>
                         <text fg={entry.color ?? colors.text.primary}>{" " + entry.value}</text>
                       </box>
                     )}
@@ -463,7 +463,7 @@ export function DiagnosticsPanel(props: { visible: boolean; onClose: () => void 
           >
             <Show when={hasLogLines()} fallback={
               <box marginTop={1}>
-                <text fg={colors.text.inactive}>{"(no log entries yet)"}</text>
+                <text fg={colors.text.secondary}>{"(no log entries yet)"}</text>
               </box>
             }>
               <Index each={logLines()}>
@@ -504,16 +504,16 @@ export function DiagnosticsPanel(props: { visible: boolean; onClose: () => void 
                   </box>
                   <box height={1} />
                   <Show when={cfg} fallback={
-                    <text fg={colors.text.inactive}>{"(no status line configured in ~/.claude/settings.json)"}</text>
+                    <text fg={colors.text.secondary}>{"(no status line configured in ~/.claude/settings.json)"}</text>
                   }>
                     <box flexDirection="column">
                       <box flexDirection="row">
-                        <text fg={colors.text.inactive}>{padRight("Command:", 22)}</text>
+                        <text fg={colors.text.secondary}>{padRight("Command:", 22)}</text>
                         <text fg={colors.text.primary}>{" " + cfg!.command}</text>
                       </box>
                       <Show when={cfg!.padding !== undefined}>
                         <box flexDirection="row">
-                          <text fg={colors.text.inactive}>{padRight("Padding:", 22)}</text>
+                          <text fg={colors.text.secondary}>{padRight("Padding:", 22)}</text>
                           <text fg={colors.text.primary}>{" " + String(cfg!.padding)}</text>
                         </box>
                       </Show>
@@ -528,20 +528,20 @@ export function DiagnosticsPanel(props: { visible: boolean; onClose: () => void 
                   </box>
                   <box height={1} />
                   <box flexDirection="row">
-                    <text fg={colors.text.inactive}>{padRight("Last update:", 22)}</text>
+                    <text fg={colors.text.secondary}>{padRight("Last update:", 22)}</text>
                     <text fg={colors.text.primary}>
                       {" " + (diag.lastUpdateTime ? new Date(diag.lastUpdateTime).toISOString().slice(11, 23) : "(never)")}
                     </text>
                   </box>
                   <box flexDirection="row">
-                    <text fg={colors.text.inactive}>{padRight("Duration:", 22)}</text>
+                    <text fg={colors.text.secondary}>{padRight("Duration:", 22)}</text>
                     <text fg={colors.text.primary}>
                       {" " + (diag.lastDurationMs !== null ? `${diag.lastDurationMs}ms` : "—")}
                     </text>
                   </box>
                   <Show when={diag.lastError}>
                     <box flexDirection="row">
-                      <text fg={colors.text.inactive}>{padRight("Error:", 22)}</text>
+                      <text fg={colors.text.secondary}>{padRight("Error:", 22)}</text>
                       <text fg={colors.status.error}>{" " + diag.lastError}</text>
                     </box>
                   </Show>
@@ -556,9 +556,9 @@ export function DiagnosticsPanel(props: { visible: boolean; onClose: () => void 
                   </box>
                   <box height={1} />
                   <Show when={diag.lastOutput} fallback={
-                    <text fg={colors.text.inactive}>{"(no output yet)"}</text>
+                    <text fg={colors.text.secondary}>{"(no output yet)"}</text>
                   }>
-                    <text fg={colors.text.inactive}>
+                    <text fg={colors.text.secondary}>
                       {`(${diag.lastOutput!.length} bytes, contains ANSI escape sequences — rendered in status bar)`}
                     </text>
                   </Show>
@@ -571,7 +571,7 @@ export function DiagnosticsPanel(props: { visible: boolean; onClose: () => void 
                   </box>
                   <box height={1} />
                   <Show when={diag.lastInputJson} fallback={
-                    <text fg={colors.text.inactive}>{"(no payload sent yet)"}</text>
+                    <text fg={colors.text.secondary}>{"(no payload sent yet)"}</text>
                   }>
                     <Index each={diag.lastInputJson!.split("\n")}>
                       {(line) => (
@@ -590,7 +590,7 @@ export function DiagnosticsPanel(props: { visible: boolean; onClose: () => void 
           <text fg={colors.border.default}>{"─".repeat(separatorWidth())}</text>
         </box>
         <box flexShrink={0}>
-          <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>
+          <text fg={colors.text.muted}>
             {"j/k scroll, d/u page, gg/G top/bottom, 1/2/3 or Tab switch tab, Esc to close"}
           </text>
         </box>
@@ -615,7 +615,7 @@ function stateColor(state: string): string {
     case "WAITING_FOR_ELIC":
     case "INTERRUPTING": return colors.state.waiting
     case "ERROR": return colors.state.error
-    default: return colors.text.inactive
+    default: return colors.text.muted
   }
 }
 
@@ -653,6 +653,6 @@ function logLevelColor(level: string): string {
     case "INFO":  return colors.text.primary
     case "WARN":  return colors.status.warning
     case "ERROR": return colors.status.error
-    default:      return colors.text.inactive
+    default:      return colors.text.muted
   }
 }

@@ -70,9 +70,9 @@ export function ShellBlock(props: { block: ShellBlockType; viewLevel: ViewLevel 
       <Show when={b().status === "running"}>
         <box flexDirection="row">
           <box width={2} flexShrink={0}>
-            <text fg={colors.text.inactive}>{"\u23BF"}</text>
+            <text fg={colors.text.secondary}>{"\u23BF"}</text>
           </box>
-          <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>{"Running\u2026"}</text>
+          <text fg={colors.text.muted}>{"Running\u2026"}</text>
         </box>
       </Show>
 
@@ -82,9 +82,9 @@ export function ShellBlock(props: { block: ShellBlockType; viewLevel: ViewLevel 
           {visibleLines().map((line, i) => (
             <box flexDirection="row">
               <box width={2} flexShrink={0}>
-                <text fg={colors.text.inactive}>{i === 0 ? "\u23BF" : " "}</text>
+                <text fg={colors.text.secondary}>{i === 0 ? "\u23BF" : " "}</text>
               </box>
-              <text fg={b().error && b().exitCode !== 0 ? colors.status.error : colors.text.inactive}>{line || " "}</text>
+              <text fg={b().error && b().exitCode !== 0 ? colors.status.error : colors.text.secondary}>{line || " "}</text>
             </box>
           ))}
 
@@ -92,9 +92,9 @@ export function ShellBlock(props: { block: ShellBlockType; viewLevel: ViewLevel 
           <Show when={outputInfo().truncated}>
             <box flexDirection="row">
               <box width={2} flexShrink={0}>
-                <text fg={colors.text.inactive}>{" "}</text>
+                <text fg={colors.text.secondary}>{" "}</text>
               </box>
-              <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>
+              <text fg={colors.text.muted}>
                 {`\u2026 +${outputInfo().hiddenCount} lines (ctrl+o to expand)`}
               </text>
             </box>
@@ -106,7 +106,7 @@ export function ShellBlock(props: { block: ShellBlockType; viewLevel: ViewLevel 
       <Show when={b().status === "error" && !b().output}>
         <box flexDirection="row">
           <box width={2} flexShrink={0}>
-            <text fg={colors.text.inactive}>{"\u23BF"}</text>
+            <text fg={colors.text.secondary}>{"\u23BF"}</text>
           </box>
           <text fg={colors.status.error}>{b().error || "Command failed"}</text>
         </box>
@@ -116,9 +116,9 @@ export function ShellBlock(props: { block: ShellBlockType; viewLevel: ViewLevel 
       <Show when={b().status === "done" && !b().output}>
         <box flexDirection="row">
           <box width={2} flexShrink={0}>
-            <text fg={colors.text.inactive}>{"\u23BF"}</text>
+            <text fg={colors.text.secondary}>{"\u23BF"}</text>
           </box>
-          <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>{"(no output)"}</text>
+          <text fg={colors.text.muted}>{"(no output)"}</text>
         </box>
       </Show>
     </box>

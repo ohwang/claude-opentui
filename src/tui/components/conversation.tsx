@@ -18,7 +18,7 @@
 
 import type { JSX } from "solid-js"
 import { createSignal, createEffect, createMemo, onCleanup, Show, For, Index, batch } from "solid-js"
-import { TextAttributes, type ScrollBoxRenderable } from "@opentui/core"
+import { type ScrollBoxRenderable } from "@opentui/core"
 import { useKeyboard } from "@opentui/solid"
 import { useMessages } from "../context/messages"
 import { useSession } from "../context/session"
@@ -321,15 +321,15 @@ export function ConversationView(props: { children?: JSX.Element; footerHint?: s
           <box flexDirection="column">
             <Show when={committed().length === 0 && !state.streamingText}>
               <box flexDirection="column" paddingLeft={2}>
-                <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>
+                <text fg={colors.text.muted}>
                   {"Tips to get started:"}
                 </text>
                 <box marginTop={1} flexDirection="column">
-                  <text fg={colors.text.inactive}>{"  \u2022  Ask a question or describe a task"}</text>
-                  <text fg={colors.text.inactive}>{"  \u2022  Use @ to reference files: @src/index.ts"}</text>
-                  <text fg={colors.text.inactive}>{"  \u2022  Type / for slash commands"}</text>
-                  <text fg={colors.text.inactive}>{"  \u2022  Ctrl+O to expand tool details"}</text>
-                  <text fg={colors.text.inactive}>{"  \u2022  Ctrl+Shift+P to switch models"}</text>
+                  <text fg={colors.text.secondary}>{"  \u2022  Ask a question or describe a task"}</text>
+                  <text fg={colors.text.secondary}>{"  \u2022  Use @ to reference files: @src/index.ts"}</text>
+                  <text fg={colors.text.secondary}>{"  \u2022  Type / for slash commands"}</text>
+                  <text fg={colors.text.secondary}>{"  \u2022  Ctrl+O to expand tool details"}</text>
+                  <text fg={colors.text.secondary}>{"  \u2022  Ctrl+Shift+P to switch models"}</text>
                 </box>
               </box>
             </Show>

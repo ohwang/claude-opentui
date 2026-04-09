@@ -14,7 +14,7 @@ const ACTION_ICONS: Record<string, string> = {
 const ACTION_COLORS: Record<string, string> = {
   create: colors.diff.added,
   edit: colors.accent.primary,
-  read: colors.text.inactive,
+  read: colors.text.muted,
   write: colors.diff.added,
 }
 
@@ -35,13 +35,13 @@ export function TurnSummary(props: { files: TurnFileChange[] }) {
   return (
     <Show when={deduped().length > 0}>
       <box flexDirection="column" paddingLeft={2} marginTop={1}>
-        <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>
+        <text fg={colors.text.muted}>
           {"Files changed:"}
         </text>
         <For each={deduped()}>
           {(file) => {
             const icon = ACTION_ICONS[file.action] ?? " "
-            const color = ACTION_COLORS[file.action] ?? colors.text.inactive
+            const color = ACTION_COLORS[file.action] ?? colors.text.muted
             const rel = file.path.startsWith(process.cwd() + "/")
               ? file.path.slice(process.cwd().length + 1)
               : file.path

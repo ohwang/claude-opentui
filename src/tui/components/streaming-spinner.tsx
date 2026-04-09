@@ -61,8 +61,17 @@ function interpolateColor(from: RGB, to: RGB, t: number): string {
   return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`
 }
 
-// Pre-parse the accent color once at module load
-const ACCENT_RGB = parseHexColor(colors.accent.primary)
+// Lazily parsed accent color — re-parsed if theme changes
+let _accentRgb: RGB | null = null
+let _accentHex = ""
+function getAccentRgb(): RGB {
+  const hex = colors.accent.primary
+  if (hex !== _accentHex || !_accentRgb) {
+    _accentRgb = parseHexColor(hex)
+    _accentHex = hex
+  }
+  return _accentRgb
+}
 
 // ---------------------------------------------------------------------------
 // Component
@@ -170,14 +179,14 @@ export function StreamingSpinner(props: { label: string; elapsedSeconds?: number
   const spinnerColor = () => {
     const intensity = stallIntensity()
     if (intensity <= 0) return colors.accent.primary
-    return interpolateColor(ACCENT_RGB, ERROR_RED, intensity)
+    return interpolateColor(getAccentRgb(), ERROR_RED, intensity)
   }
 
   return (
     <box flexDirection="row">
       <text fg={spinnerColor()}>{SPINNER_FRAMES[frameIndex()]} </text>
       <text fg={spinnerColor()}>{displayLabel()}</text>
-      <text fg={colors.text.inactive}>{metaStr()}</text>
+      <text fg={colors.text.secondary}>{metaStr()}</text>
     </box>
   )
 }

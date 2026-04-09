@@ -48,7 +48,7 @@ export function ToastDisplay() {
           {(t) => (
             <box height={1} flexDirection="row">
               <text fg={TOAST_COLOR[t.type]} attributes={TextAttributes.DIM}>{TOAST_PREFIX[t.type]}</text>
-              <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>{` ${t.message}`}</text>
+              <text fg={colors.text.muted}>{` ${t.message}`}</text>
             </box>
           )}
         </For>

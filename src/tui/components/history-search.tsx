@@ -120,7 +120,7 @@ export function HistorySearchModal(props: HistorySearchProps) {
 
         {/* Search input display */}
         <box marginTop={1} flexDirection="row">
-          <text fg={colors.text.inactive}>{"Search: "}</text>
+          <text fg={colors.text.secondary}>{"Search: "}</text>
           <text fg={colors.text.primary} attributes={TextAttributes.BOLD}>
             {query() || ""}
           </text>
@@ -132,7 +132,7 @@ export function HistorySearchModal(props: HistorySearchProps) {
           <Show
             when={filtered().length > 0}
             fallback={
-              <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>
+              <text fg={colors.text.muted}>
                 {props.history.length === 0 ? "(empty -- no history yet)" : "No matches"}
               </text>
             }
@@ -143,7 +143,7 @@ export function HistorySearchModal(props: HistorySearchProps) {
                 return (
                   <box flexDirection="row" height={1}>
                     <text
-                      fg={isSelected() ? colors.accent.highlight : colors.text.inactive}
+                      fg={isSelected() ? colors.accent.highlight : colors.text.secondary}
                       attributes={isSelected() ? TextAttributes.BOLD : 0}
                     >
                       {isSelected() ? "> " : "  "}
@@ -159,7 +159,7 @@ export function HistorySearchModal(props: HistorySearchProps) {
               }}
             </Index>
             <Show when={filtered().length > MAX_VISIBLE}>
-              <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>
+              <text fg={colors.text.muted}>
                 {`  ${filtered().length - MAX_VISIBLE} more...`}
               </text>
             </Show>

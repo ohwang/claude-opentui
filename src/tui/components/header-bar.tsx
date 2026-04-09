@@ -33,8 +33,6 @@ const LOGO_LINES = [
   "  > ~ <   ",  // paws
 ]
 
-const LOGO_COLOR = colors.accent.logo
-
 export function HeaderBar() {
   const { state } = useSession()
   const agent = useAgent()
@@ -82,19 +80,19 @@ export function HeaderBar() {
     <box flexDirection="column" flexShrink={0} paddingBottom={1}>
       {/* Row 0: head + tail + app name + version */}
       <box flexDirection="row">
-        <text fg={LOGO_COLOR}>{LOGO_LINES[0]}</text>
-        <text fg={LOGO_COLOR} attributes={TextAttributes.BOLD}>{"claude-opentui"}</text>
-        <text fg={colors.text.inactive}>{`  v0.0.1 (${backendLabel()})`}</text>
+        <text fg={colors.accent.logo}>{LOGO_LINES[0]}</text>
+        <text fg={colors.accent.logo} attributes={TextAttributes.BOLD}>{"claude-opentui"}</text>
+        <text fg={colors.text.secondary}>{`  v0.0.1 (${backendLabel()})`}</text>
       </box>
       {/* Row 1: body + model info */}
       <box flexDirection="row">
-        <text fg={LOGO_COLOR}>{LOGO_LINES[1]}</text>
-        <text fg={colors.text.inactive}>{modelInfo()}</text>
+        <text fg={colors.accent.logo}>{LOGO_LINES[1]}</text>
+        <text fg={colors.text.secondary}>{modelInfo()}</text>
       </box>
       {/* Row 2: legs + working directory */}
       <box flexDirection="row">
-        <text fg={LOGO_COLOR}>{LOGO_LINES[2]}</text>
-        <text fg={colors.text.inactive}>{projectPath}</text>
+        <text fg={colors.accent.logo}>{LOGO_LINES[2]}</text>
+        <text fg={colors.text.secondary}>{projectPath}</text>
       </box>
     </box>
   )

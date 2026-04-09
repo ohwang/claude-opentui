@@ -69,7 +69,7 @@ function ErrorFallback(props: { error: Error; reset: () => void }) {
         Fatal Error
       </text>
       <text fg={colors.status.error}>{props.error.message}</text>
-      <text fg={colors.text.inactive}>Press Ctrl+D to exit.</text>
+      <text fg={colors.text.secondary}>Press Ctrl+D to exit.</text>
     </box>
   )
 }

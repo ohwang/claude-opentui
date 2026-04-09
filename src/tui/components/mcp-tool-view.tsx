@@ -87,8 +87,6 @@ function getLastNLines(text: string, n: number): string {
   return "...\n" + lines.slice(-n).join("\n")
 }
 
-// MCP accent color — bright cyan for external integrations
-const MCP_COLOR = colors.accent.highlight
 
 // ---------------------------------------------------------------------------
 // McpToolView — expanded / show_all view
@@ -173,27 +171,27 @@ export function McpToolView(props: {
         <box width={2} flexShrink={0}>
           <BlinkingDot status={dotStatus()} />
         </box>
-        <text fg={MCP_COLOR} attributes={TextAttributes.DIM}>
+        <text fg={colors.accent.highlight} attributes={TextAttributes.DIM}>
           {parsed().server}
         </text>
-        <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>
+        <text fg={colors.text.muted}>
           {" \u203A "}
         </text>
         <text fg={colors.text.primary}>
           {displayTool()}
         </text>
         <Show when={primaryArg()}>
-          <text fg={colors.text.inactive}>
+          <text fg={colors.text.secondary}>
             {"(" + primaryArg() + ")"}
           </text>
         </Show>
         <Show when={status() === "running" && elapsed() > 0}>
-          <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>
+          <text fg={colors.text.muted}>
             {" " + formatDuration(elapsed() * 1000, { hideTrailingZeros: true })}
           </text>
         </Show>
         <Show when={status() !== "running" && b().duration !== undefined && b().duration! >= 1000}>
-          <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>
+          <text fg={colors.text.muted}>
             {" " + formatDuration(b().duration!, { hideTrailingZeros: true })}
           </text>
         </Show>
@@ -202,7 +200,7 @@ export function McpToolView(props: {
       {/* Progress output — last few lines while tool is running */}
       <Show when={props.viewLevel !== "collapsed" && status() === "running" && progressText()}>
         <box paddingLeft={4}>
-          <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>
+          <text fg={colors.text.muted}>
             {progressText()}
           </text>
         </box>
@@ -211,7 +209,7 @@ export function McpToolView(props: {
       {/* Completion result (expanded/show_all, done only) */}
       <Show when={props.viewLevel !== "collapsed" && status() !== "running" && completionSummary()}>
         <box paddingLeft={2}>
-          <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>
+          <text fg={colors.text.muted}>
             {"\u23BF  " + completionSummary()}
           </text>
         </box>
@@ -220,7 +218,7 @@ export function McpToolView(props: {
       {/* Full output (show_all mode) */}
       <Show when={props.viewLevel === "show_all" && b().output}>
         <box paddingLeft={4}>
-          <text fg={colors.text.inactive}>
+          <text fg={colors.text.secondary}>
             {b().output}
           </text>
         </box>
@@ -239,7 +237,7 @@ export function McpToolView(props: {
       {/* User-initiated decline */}
       <Show when={b().error && isUserDecline(b().error!)}>
         <box paddingLeft={2}>
-          <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>
+          <text fg={colors.text.muted}>
             {"\u21B3 " + b().error!.split("\n")[0]}
           </text>
         </box>
@@ -310,15 +308,14 @@ export function CollapsedMcpLine(props: {
       <box width={2} flexShrink={0}>
         <BlinkingDot status={dotStatus()} />
       </box>
-      <text fg={MCP_COLOR} attributes={TextAttributes.DIM}>
+      <text fg={colors.accent.highlight} attributes={TextAttributes.DIM}>
         {parsed().server}
       </text>
-      <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>
+      <text fg={colors.text.muted}>
         {" \u203A "}
       </text>
       <text
-        fg={b().error && !isUserDecline(b().error!) ? colors.status.error : colors.text.inactive}
-        attributes={TextAttributes.DIM}
+        fg={b().error && !isUserDecline(b().error!) ? colors.status.error : colors.text.muted}
       >
         {displayTool() + hint()}
       </text>

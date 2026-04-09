@@ -5,7 +5,6 @@
  * Uses dim muted styling consistent with the rest of the TUI hint system.
  */
 
-import { TextAttributes } from "@opentui/core"
 import { colors } from "../../theme/tokens"
 
 export interface ShortcutHintProps {
@@ -24,7 +23,7 @@ export function ShortcutHint(props: ShortcutHintProps) {
   }
 
   return (
-    <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>
+    <text fg={colors.text.muted}>
       {text()}
     </text>
   )

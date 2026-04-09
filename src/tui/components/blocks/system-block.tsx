@@ -32,7 +32,7 @@ function systemMessageStyle(text: string): { icon: string; color: string; attrs:
     case "denial":    return { icon: "\u2717", color: colors.status.warning, attrs: TextAttributes.DIM }
     case "error":     return { icon: "\u2717", color: colors.status.error,   attrs: 0 }
     case "success":   return { icon: "\u2713", color: colors.status.success, attrs: TextAttributes.DIM }
-    default:          return { icon: "\u00B7", color: colors.text.inactive,  attrs: TextAttributes.DIM }
+    default:          return { icon: "\u00B7", color: colors.text.muted,     attrs: 0 }
   }
 }
 

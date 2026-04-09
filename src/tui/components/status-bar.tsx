@@ -558,7 +558,7 @@ export function StatusBar(props: { hint?: string | null }) {
             {projectName}
           </text>
 
-          <text fg={colors.text.inactive}>{"  "}</text>
+          <text fg={colors.text.secondary}>{"  "}</text>
 
           <text fg={colors.text.primary} attributes={TextAttributes.BOLD}>
             {modelName()}
@@ -567,13 +567,13 @@ export function StatusBar(props: { hint?: string | null }) {
           {/* Effort level (hidden when default/high) */}
           {effortBadge() && (
             <box flexDirection="row">
-              <text fg={colors.text.inactive}>{" "}</text>
+              <text fg={colors.text.secondary}>{" "}</text>
               <text fg={colors.status.warning} attributes={TextAttributes.DIM}>{effortBadge()}</text>
             </box>
           )}
 
           {/* State icon + backgrounded label */}
-          <text fg={colors.text.inactive}>{"  "}</text>
+          <text fg={colors.text.secondary}>{"  "}</text>
           <text fg={stateColor()}>{stateIcon()}</text>
           {messagesState.backgrounded && (
             <text fg={colors.status.warning}>{" Backgrounded"}</text>
@@ -582,7 +582,7 @@ export function StatusBar(props: { hint?: string | null }) {
           {/* Cost (hidden below 60 cols) */}
           {showCost() && costStr() && (
             <box flexDirection="row">
-              <text fg={colors.text.inactive}>{"  "}</text>
+              <text fg={colors.text.secondary}>{"  "}</text>
               <text fg={colors.status.success}>{costStr()}</text>
             </box>
           )}
@@ -590,7 +590,7 @@ export function StatusBar(props: { hint?: string | null }) {
           {/* Git branch + status (hidden below 80 cols) */}
           {showGit() && gitStr() && (
             <box flexDirection="row">
-              <text fg={colors.text.inactive}>{"  "}</text>
+              <text fg={colors.text.secondary}>{"  "}</text>
               <text fg={colors.status.info}>{gitStr()}</text>
             </box>
           )}
@@ -598,11 +598,11 @@ export function StatusBar(props: { hint?: string | null }) {
           {/* Context window usage (hidden below 100 cols) */}
           {showCtx() && ctxStr() && (
             <box flexDirection="row">
-              <text fg={colors.text.inactive}>{"  "}</text>
+              <text fg={colors.text.secondary}>{"  "}</text>
               <text fg={ctxColor()}>{ctxStr()}</text>
               {ctxBar() && (
                 <>
-                  <text fg={colors.text.inactive}>{" "}</text>
+                  <text fg={colors.text.secondary}>{" "}</text>
                   <text fg={ctxColor()}>{ctxBar()}</text>
                 </>
               )}
@@ -631,15 +631,15 @@ export function StatusBar(props: { hint?: string | null }) {
       <box height={1} flexDirection="row" paddingLeft={2} paddingRight={1}>
         <text fg={permModeColor()}>{"\u25CF "}</text>
         <text fg={colors.permission.modeLabel}>{permissionModeLabel(permMode())}</text>
-        <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>{" \u00B7 shift+tab"}</text>
+        <text fg={colors.text.muted}>{" \u00B7 shift+tab"}</text>
 
         <box flexGrow={1} />
 
         <box flexDirection="row" visible={rateLimitDisplays().length > 0}>
           {rateLimitDisplays().map((entry, index) => (
             <>
-              {index > 0 && <text fg={colors.text.inactive}>{"  "}</text>}
-              <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>{`${entry.label}:`}</text>
+              {index > 0 && <text fg={colors.text.secondary}>{"  "}</text>}
+              <text fg={colors.text.muted}>{`${entry.label}:`}</text>
               <text fg={rateLimitColor(entry.usedPercentage)}>{`${Math.round(entry.usedPercentage)}%`}</text>
             </>
           ))}

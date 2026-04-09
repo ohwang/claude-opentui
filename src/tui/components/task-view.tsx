@@ -53,19 +53,19 @@ export function TaskView(props: { tasks: [string, TaskInfo][] }) {
             return (
               <box flexDirection="column">
                 <box flexDirection="row" paddingLeft={3}>
-                  <text fg={colors.text.inactive}>{prefix()} </text>
+                  <text fg={colors.text.secondary}>{prefix()} </text>
                   <BlinkingDot status={dotStatus()} />
                   <text fg={colors.text.primary}>{" " + task.description}</text>
                   <Show when={task.status === "running"}>
-                    <text fg={colors.text.inactive}>
+                    <text fg={colors.text.secondary}>
                       {" (" + (() => { tick(); return Math.max(0, Math.round((Date.now() - task.startTime) / 1000)) })() + "s)"}
                     </text>
                   </Show>
                 </box>
                 <Show when={task.status === "completed" && task.output}>
                   <box flexDirection="row" paddingLeft={3}>
-                    <text fg={colors.text.inactive}>{isLast() ? "     " : "\u2502    "}</text>
-                    <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>
+                    <text fg={colors.text.secondary}>{isLast() ? "     " : "\u2502    "}</text>
+                    <text fg={colors.text.muted}>
                       {task.output!.length > 80
                         ? task.output!.slice(0, 77) + "..."
                         : task.output}
@@ -77,7 +77,7 @@ export function TaskView(props: { tasks: [string, TaskInfo][] }) {
           }}
         </For>
         <Show when={props.tasks.length > MAX_VISIBLE_TASKS}>
-          <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>
+          <text fg={colors.text.muted}>
             {"    ... and " + (props.tasks.length - MAX_VISIBLE_TASKS) + " more"}
           </text>
         </Show>

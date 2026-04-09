@@ -17,18 +17,18 @@ export function CompactBlock(props: { block?: CompactBlockType }) {
 
   return (
     <box flexDirection="column" paddingBottom={1} paddingLeft={2}>
-      <text fg={colors.text.inactive} attributes={TextAttributes.BOLD}>
+      <text fg={colors.text.secondary} attributes={TextAttributes.BOLD}>
         {"── Summarized conversation ──"}
       </text>
       <Show when={summary()}>
         <box paddingLeft={2} marginTop={0}>
-          <text fg={colors.text.inactive}>
+          <text fg={colors.text.secondary}>
             {summary()}
           </text>
         </box>
       </Show>
       <box paddingLeft={2}>
-        <text fg={colors.text.inactive}>
+        <text fg={colors.text.secondary}>
           {"(ctrl+o to expand history)"}
         </text>
       </box>

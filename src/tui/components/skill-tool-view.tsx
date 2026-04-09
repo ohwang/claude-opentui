@@ -106,22 +106,22 @@ export function SkillToolView(props: {
           {"Skill"}
         </text>
         <Show when={skillName()}>
-          <text fg={colors.text.inactive}>
+          <text fg={colors.text.secondary}>
             {" " + skillName()}
           </text>
         </Show>
         <Show when={skillArgs()}>
-          <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>
+          <text fg={colors.text.muted}>
             {" " + truncateToWidth(skillArgs(), 60)}
           </text>
         </Show>
         <Show when={status() === "running" && elapsed() > 0}>
-          <text fg={colors.text.inactive}>
+          <text fg={colors.text.secondary}>
             {" " + formatDuration(elapsed() * 1000, { hideTrailingZeros: true })}
           </text>
         </Show>
         <Show when={status() !== "running" && b().duration !== undefined && b().duration! >= 1000}>
-          <text fg={colors.text.inactive}>
+          <text fg={colors.text.secondary}>
             {" " + formatDuration(b().duration!, { hideTrailingZeros: true })}
           </text>
         </Show>
@@ -130,7 +130,7 @@ export function SkillToolView(props: {
       {/* Progress output — last few lines while skill is loading */}
       <Show when={props.viewLevel !== "collapsed" && status() === "running" && progressText()}>
         <box paddingLeft={4}>
-          <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>
+          <text fg={colors.text.muted}>
             {progressText()}
           </text>
         </box>
@@ -139,7 +139,7 @@ export function SkillToolView(props: {
       {/* Completion result (expanded/show_all, done only) */}
       <Show when={props.viewLevel !== "collapsed" && status() !== "running" && completionSummary()}>
         <box paddingLeft={2}>
-          <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>
+          <text fg={colors.text.muted}>
             {"\u23BF  " + completionSummary()}
           </text>
         </box>
@@ -148,7 +148,7 @@ export function SkillToolView(props: {
       {/* Full output (show_all mode) */}
       <Show when={props.viewLevel === "show_all" && b().output}>
         <box paddingLeft={4}>
-          <text fg={colors.text.inactive}>
+          <text fg={colors.text.secondary}>
             {b().output}
           </text>
         </box>
@@ -167,7 +167,7 @@ export function SkillToolView(props: {
       {/* User-initiated decline */}
       <Show when={b().error && isUserDecline(b().error!)}>
         <box paddingLeft={2}>
-          <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>
+          <text fg={colors.text.muted}>
             {"\u21B3 " + b().error!.split("\n")[0]}
           </text>
         </box>

@@ -135,7 +135,7 @@ function QuestionView(props: {
       paddingRight={1}
     >
       <Show when={props.question.header}>
-        <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>
+        <text fg={colors.text.muted}>
           {props.question.header}
         </text>
       </Show>
@@ -156,20 +156,20 @@ function QuestionView(props: {
                 </text>
               </box>
               <Show when={!option().isOther && option().description}>
-                <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>
+                <text fg={colors.text.muted}>
                   {"      "}{option().description}
                 </text>
               </Show>
             </box>
           )}
         </Index>
-        <text fg={colors.text.inactive}>
+        <text fg={colors.text.secondary}>
           {"  "}Arrow keys to navigate, Enter to select, Esc to cancel
         </text>
       </Show>
 
       <Show when={showFreeText() || freeTextOnly()}>
-        <text fg={colors.text.inactive}>Type your answer · Enter to submit · Shift+Enter for newline · Esc to go back</text>
+        <text fg={colors.text.secondary}>Type your answer · Enter to submit · Shift+Enter for newline · Esc to go back</text>
         <textarea
           ref={(el: TextareaRenderable) => { freeTextRef = el }}
           focused
@@ -239,7 +239,7 @@ export function ElicitationDialog() {
           handleCancel()
           return (
             <box flexDirection="column">
-              <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>
+              <text fg={colors.text.muted}>
                 {"  No options available"}
               </text>
             </box>
@@ -261,7 +261,7 @@ export function ElicitationDialog() {
           <box flexDirection="column">
             {/* Progress indicator for multi-question elicitations */}
             <Show when={questions.length > 1}>
-              <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>
+              <text fg={colors.text.muted}>
                 {"  Question " + (Math.min(currentIdx(), questions.length - 1) + 1) + "/" + questions.length}
               </text>
             </Show>

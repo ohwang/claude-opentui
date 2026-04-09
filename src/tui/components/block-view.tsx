@@ -6,7 +6,6 @@
  */
 
 import { Show, createSignal, createEffect, onCleanup, type Accessor } from "solid-js"
-import { TextAttributes } from "@opentui/core"
 import { ThinkingBlock } from "./thinking-block"
 import { ToolBlockView, isUserDecline } from "./tool-view"
 import { AgentToolView, CollapsedAgentLine } from "./agent-tool-view"
@@ -224,8 +223,7 @@ function CollapsedToolLine(props: { block: Extract<Block, { type: "tool" }> }) {
         <BlinkingDot status={dotStatus()} />
       </box>
       <text
-        fg={isError() ? colors.status.error : colors.text.inactive}
-        attributes={TextAttributes.DIM}
+        fg={isError() ? colors.status.error : colors.text.muted}
       >
         {b().tool + primaryArg() + hint()}
       </text>

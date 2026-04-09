@@ -185,7 +185,7 @@ export function StorybookApp() {
           </box>
         </StoryContextProvider>
         <box height={1} flexShrink={0} paddingLeft={1}>
-          <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>
+          <text fg={colors.text.muted}>
             {"Esc to exit fullscreen"}
           </text>
         </box>
@@ -257,7 +257,7 @@ export function StorybookApp() {
             {" opentui storybook "}
           </text>
           <box flexGrow={1} />
-          <text fg={colors.text.inactive}>
+          <text fg={colors.text.secondary}>
             {" j/k:nav  [/]:variant  f:fullscreen  /:filter  q:quit "}
           </text>
         </box>
@@ -272,7 +272,7 @@ export function StorybookApp() {
           <box height={1} flexShrink={0} paddingLeft={1}>
             <text fg={colors.status.info}>{"/ "}</text>
             <text fg={colors.text.primary}>{filterText()}</text>
-            <text fg={colors.text.inactive}>{"_"}</text>
+            <text fg={colors.text.secondary}>{"_"}</text>
           </box>
         </Show>
 
@@ -290,7 +290,7 @@ export function StorybookApp() {
                 return (
                   <Show when={catStories().length > 0}>
                     <box height={1} paddingLeft={1}>
-                      <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>{cat}</text>
+                      <text fg={colors.text.muted}>{cat}</text>
                     </box>
                     <For each={catStories()}>
                       {(story) => {
@@ -300,7 +300,7 @@ export function StorybookApp() {
                         return (
                           <box height={1} paddingLeft={3}>
                             <text
-                              fg={isFocused() ? colors.accent.primary : isSelected() ? colors.text.primary : colors.text.inactive}
+                              fg={isFocused() ? colors.accent.primary : isSelected() ? colors.text.primary : colors.text.secondary}
                               attributes={isFocused() ? TextAttributes.BOLD : isSelected() ? TextAttributes.BOLD : 0}
                             >
                               {(isFocused() ? "▸" : " ") + story.title}
@@ -324,14 +324,14 @@ export function StorybookApp() {
         {/* Controls bar (only when story has variants) */}
         <Show when={selectedStory()?.variants?.length}>
           <box height={1} flexShrink={0} flexDirection="row" paddingLeft={1}>
-            <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>{"state: "}</text>
+            <text fg={colors.text.muted}>{"state: "}</text>
             <For each={selectedStory()?.variants ?? []}>
               {(variant, i) => {
                 const active = createMemo(() => i() === variantIdx())
                 return (
                   <box paddingRight={1}>
                     <text
-                      fg={active() ? colors.accent.primary : colors.text.inactive}
+                      fg={active() ? colors.accent.primary : colors.text.secondary}
                       attributes={active() ? TextAttributes.BOLD : TextAttributes.DIM}
                     >
                       {`${active() ? "▸" : " "}${i() + 1}.${variant.label}`}
@@ -350,7 +350,7 @@ export function StorybookApp() {
             keyed
             fallback={
               <box flexGrow={1} justifyContent="center" alignItems="center">
-                <text fg={colors.text.inactive}>Select a story to preview</text>
+                <text fg={colors.text.secondary}>Select a story to preview</text>
               </box>
             }
           >
@@ -376,19 +376,19 @@ export function StorybookApp() {
 
         {/* Info bar */}
         <box height={1} flexShrink={0} flexDirection="row" paddingLeft={1}>
-          <Show when={selectedStory()} keyed fallback={<text fg={colors.text.inactive}>No story selected</text>}>
+          <Show when={selectedStory()} keyed fallback={<text fg={colors.text.secondary}>No story selected</text>}>
             {(story: Story) => (
               <>
                 <text fg={colors.accent.primary}>{story.category}</text>
-                <text fg={colors.text.inactive}>{" > "}</text>
+                <text fg={colors.text.secondary}>{" > "}</text>
                 <text fg={colors.text.primary}>{story.title}</text>
                 <Show when={story.variants?.length}>
-                  <text fg={colors.text.inactive}>{" ["}</text>
+                  <text fg={colors.text.secondary}>{" ["}</text>
                   <text fg={colors.accent.highlight}>{story.variants?.[variantIdx()]?.label ?? ""}</text>
-                  <text fg={colors.text.inactive}>{"]"}</text>
+                  <text fg={colors.text.secondary}>{"]"}</text>
                 </Show>
-                <text fg={colors.text.inactive}>{" — "}</text>
-                <text fg={colors.text.inactive}>{story.description}</text>
+                <text fg={colors.text.secondary}>{" — "}</text>
+                <text fg={colors.text.secondary}>{story.description}</text>
               </>
             )}
           </Show>

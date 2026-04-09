@@ -40,14 +40,14 @@ export function AssistantBlock(props: { block: AssistantBlockType }) {
     if (reducedMotion()) return colors.text.primary
     const t = progress()
     if (t >= 1) return colors.text.primary
-    return lerpHex(colors.text.inactive, colors.text.primary, t)
+    return lerpHex(colors.text.secondary, colors.text.primary, t)
   }
 
   const iconColor = () => {
     if (reducedMotion()) return colors.text.primary
     const t = progress()
     if (t >= 1) return colors.text.primary
-    return lerpHex(colors.text.inactive, colors.text.primary, t)
+    return lerpHex(colors.text.secondary, colors.text.primary, t)
   }
 
   return (

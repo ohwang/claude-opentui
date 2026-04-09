@@ -109,7 +109,7 @@ function HelpModal(props: { commands: SlashCommand[] }) {
                 </text>
                 <For each={section.items}>
                   {(entry) => (
-                    <text fg={colors.text.inactive}>{formatEntry(entry)}</text>
+                    <text fg={colors.text.secondary}>{formatEntry(entry)}</text>
                   )}
                 </For>
               </box>
@@ -134,8 +134,7 @@ function HelpModal(props: { commands: SlashCommand[] }) {
           <Show when={promptCmds().length > 0}>
             <box flexDirection="column" marginTop={1}>
               <text
-                fg={colors.text.inactive}
-                attributes={TextAttributes.DIM}
+                fg={colors.text.muted}
               >
                 {"Prompt shortcuts (sent to model)"}
               </text>
@@ -150,8 +149,7 @@ function HelpModal(props: { commands: SlashCommand[] }) {
           {/* Footer */}
           <box flexDirection="column" marginTop={1}>
             <text
-              fg={colors.text.inactive}
-              attributes={TextAttributes.DIM}
+              fg={colors.text.muted}
             >
               {"  Press Escape to close"}
             </text>

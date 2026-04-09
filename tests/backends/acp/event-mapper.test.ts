@@ -551,29 +551,32 @@ describe("ACP Event Mapper", () => {
   })
 
   // ---------------------------------------------------------------------------
-  // plan → thinking_delta
+  // plan → plan_update (structured plan entries)
   // ---------------------------------------------------------------------------
 
-  describe("plan → thinking_delta", () => {
-    it("maps plan entries with text to thinking_delta with joined text", () => {
+  describe("plan → plan_update", () => {
+    it("maps plan entries with text to plan_update with structured entries", () => {
       const events = mapAcpUpdate(
         makeParams({
           sessionUpdate: "plan",
           entries: [
-            { text: "Step 1: Read the file" },
-            { text: "Step 2: Edit the function" },
+            { text: "Step 1: Read the file", status: "completed" },
+            { text: "Step 2: Edit the function", status: "in_progress" },
           ],
         }),
       )
 
       expect(events).toHaveLength(1)
       expect(events[0]!).toEqual({
-        type: "thinking_delta",
-        text: "Step 1: Read the file\nStep 2: Edit the function",
+        type: "plan_update",
+        entries: [
+          { content: "Step 1: Read the file", priority: undefined, status: "completed" },
+          { content: "Step 2: Edit the function", priority: undefined, status: "in_progress" },
+        ],
       })
     })
 
-    it("maps plan entries with title to thinking_delta using title", () => {
+    it("maps plan entries with title to plan_update using title as content", () => {
       const events = mapAcpUpdate(
         makeParams({
           sessionUpdate: "plan",
@@ -583,24 +586,24 @@ describe("ACP Event Mapper", () => {
 
       expect(events).toHaveLength(1)
       expect(events[0]!).toEqual({
-        type: "thinking_delta",
-        text: "Investigate the bug",
+        type: "plan_update",
+        entries: [{ content: "Investigate the bug", priority: undefined, status: undefined }],
       })
     })
 
-    it("prefers text over title when both are present", () => {
+    it("prefers content over text over title", () => {
       const events = mapAcpUpdate(
         makeParams({
           sessionUpdate: "plan",
-          entries: [{ text: "Detailed step", title: "Summary" }],
+          entries: [{ content: "Primary", text: "Secondary", title: "Tertiary" }],
         }),
       )
 
       expect(events).toHaveLength(1)
-      expect((events[0]! as any).text).toBe("Detailed step")
+      expect((events[0]! as any).entries[0].content).toBe("Primary")
     })
 
-    it("JSON-stringifies entries without text or title", () => {
+    it("JSON-stringifies entries without content, text, or title", () => {
       const entry = { status: "pending", priority: 1 }
       const events = mapAcpUpdate(
         makeParams({
@@ -610,7 +613,7 @@ describe("ACP Event Mapper", () => {
       )
 
       expect(events).toHaveLength(1)
-      expect((events[0]! as any).text).toBe(JSON.stringify(entry))
+      expect((events[0]! as any).entries[0].content).toBe(JSON.stringify(entry))
     })
 
     it("returns empty array for empty entries", () => {
@@ -634,22 +637,27 @@ describe("ACP Event Mapper", () => {
       expect(events).toHaveLength(0)
     })
 
-    it("mixes text, title, and object entries", () => {
+    it("preserves priority and status fields", () => {
       const events = mapAcpUpdate(
         makeParams({
           sessionUpdate: "plan",
           entries: [
-            { text: "First" },
-            { title: "Second" },
+            { text: "First", priority: "high", status: "completed" },
+            { title: "Second", priority: "low", status: "pending" },
             { status: "done" },
           ],
         }),
       )
 
       expect(events).toHaveLength(1)
-      expect((events[0]! as any).text).toBe(
-        'First\nSecond\n{"status":"done"}',
-      )
+      const entries = (events[0]! as any).entries
+      expect(entries).toHaveLength(3)
+      expect(entries[0].content).toBe("First")
+      expect(entries[0].priority).toBe("high")
+      expect(entries[0].status).toBe("completed")
+      expect(entries[1].content).toBe("Second")
+      expect(entries[1].priority).toBe("low")
+      expect(entries[2].content).toBe('{"status":"done"}')
     })
   })
 

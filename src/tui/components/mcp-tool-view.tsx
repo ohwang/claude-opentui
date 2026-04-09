@@ -18,6 +18,7 @@ import { BlinkingDot } from "./primitives"
 import { truncateToWidth } from "../../utils/truncate"
 import { formatDuration } from "../../utils/format"
 import { isUserDecline } from "./tool-view"
+import { createThrottledValue } from "../../utils/throttled-value"
 import type { ViewLevel } from "./tool-view"
 
 export type McpToolBlock = Extract<Block, { type: "tool" }>
@@ -98,13 +99,14 @@ export function McpToolView(props: {
   viewLevel: ViewLevel
 }) {
   const b = () => props.block
+  const status = createThrottledValue(() => b().status)
 
   // Elapsed time for running tools
   const [elapsed, setElapsed] = createSignal(0)
   let elapsedTimer: ReturnType<typeof setInterval> | undefined
 
   createEffect(() => {
-    if (b().status === "running") {
+    if (status() === "running") {
       setElapsed(Math.floor((Date.now() - b().startTime) / 1000))
       elapsedTimer = setInterval(() => {
         setElapsed(Math.floor((Date.now() - b().startTime) / 1000))
@@ -142,14 +144,14 @@ export function McpToolView(props: {
   })
 
   const dotStatus = (): "active" | "success" | "error" => {
-    if (b().status === "running") return "active"
-    if (b().status === "error" || b().error) return "error"
+    if (status() === "running") return "active"
+    if (status() === "error" || b().error) return "error"
     return "success"
   }
 
   // Progress: last few lines of output while running
   const progressText = createMemo(() => {
-    if (b().status !== "running") return ""
+    if (status() !== "running") return ""
     const out = b().output ?? ""
     if (!out) return ""
     return getLastNLines(out, 3)
@@ -157,7 +159,7 @@ export function McpToolView(props: {
 
   // Completion summary: first meaningful line of output
   const completionSummary = createMemo(() => {
-    if (b().status === "running") return ""
+    if (status() === "running") return ""
     const out = b().output ?? ""
     if (!out) return ""
     const firstLine = out.split("\n").find(l => l.trim()) ?? ""
@@ -185,12 +187,12 @@ export function McpToolView(props: {
             {"(" + primaryArg() + ")"}
           </text>
         </Show>
-        <Show when={b().status === "running" && elapsed() > 0}>
+        <Show when={status() === "running" && elapsed() > 0}>
           <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>
             {" " + formatDuration(elapsed() * 1000, { hideTrailingZeros: true })}
           </text>
         </Show>
-        <Show when={b().status !== "running" && b().duration !== undefined && b().duration! >= 1000}>
+        <Show when={status() !== "running" && b().duration !== undefined && b().duration! >= 1000}>
           <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>
             {" " + formatDuration(b().duration!, { hideTrailingZeros: true })}
           </text>
@@ -198,7 +200,7 @@ export function McpToolView(props: {
       </box>
 
       {/* Progress output — last few lines while tool is running */}
-      <Show when={props.viewLevel !== "collapsed" && b().status === "running" && progressText()}>
+      <Show when={props.viewLevel !== "collapsed" && status() === "running" && progressText()}>
         <box paddingLeft={4}>
           <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>
             {progressText()}
@@ -207,7 +209,7 @@ export function McpToolView(props: {
       </Show>
 
       {/* Completion result (expanded/show_all, done only) */}
-      <Show when={props.viewLevel !== "collapsed" && b().status !== "running" && completionSummary()}>
+      <Show when={props.viewLevel !== "collapsed" && status() !== "running" && completionSummary()}>
         <box paddingLeft={2}>
           <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>
             {"\u23BF  " + completionSummary()}
@@ -254,13 +256,14 @@ export function CollapsedMcpLine(props: {
   block: McpToolBlock
 }) {
   const b = () => props.block
+  const status = createThrottledValue(() => b().status)
 
   // Elapsed time
   const [elapsed, setElapsed] = createSignal(0)
   let elapsedTimer: ReturnType<typeof setInterval> | undefined
 
   createEffect(() => {
-    if (b().status === "running") {
+    if (status() === "running") {
       setElapsed(Math.floor((Date.now() - b().startTime) / 1000))
       elapsedTimer = setInterval(() => {
         setElapsed(Math.floor((Date.now() - b().startTime) / 1000))
@@ -278,7 +281,7 @@ export function CollapsedMcpLine(props: {
   const displayTool = createMemo(() => formatToolName(parsed().tool))
 
   const dotStatus = (): "active" | "success" | "error" | "declined" => {
-    if (b().status === "running") return "active"
+    if (status() === "running") return "active"
     if (b().error) {
       if (isUserDecline(b().error!)) return "declined"
       return "error"
@@ -287,7 +290,7 @@ export function CollapsedMcpLine(props: {
   }
 
   const hint = createMemo(() => {
-    if (b().status === "running") {
+    if (status() === "running") {
       return elapsed() > 0 ? ` (${elapsed()}s)` : ""
     }
     if (b().error) {

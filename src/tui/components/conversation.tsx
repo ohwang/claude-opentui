@@ -39,6 +39,7 @@ import { ToastDisplay } from "./toast"
 import { groupConsecutiveTools, isToolGroup, type GroupedItem, type ToolGroup } from "../utils/tool-grouping"
 import { TurnSummary } from "./turn-summary"
 import { QueuedMessage } from "./blocks/queued-message"
+import { createThrottledValue } from "../../utils/throttled-value"
 
 export type { ViewLevel }
 
@@ -107,13 +108,19 @@ export function ConversationView(props: { children?: JSX.Element; footerHint?: s
   // char-by-char. This prevents layout reflow jitter (partial lines constantly
   // change width), markdown mis-parsing of incomplete lines, and gives a
   // polished visual cadence. Same approach as Claude Code (REPL.tsx).
-  const visibleStreamingText = createMemo(() => {
+  const lineBufferedText = createMemo(() => {
     const raw = state.streamingText
     if (!raw) return null
     const lastNewline = raw.lastIndexOf("\n")
     if (lastNewline === -1) return null // No complete line yet
     return raw.substring(0, lastNewline + 1) || null
   })
+
+  // Render throttle: decouple state-update rate (16ms) from visual-update
+  // rate (~100ms). Prevents intermediate states that flash for <100ms from
+  // ever being painted. Same approach as OpenCode (message-part.tsx).
+  const visibleStreamingText = createThrottledValue<string | null>(() => lineBufferedText())
+  const visibleThinking = createThrottledValue<string>(() => state.streamingThinking)
 
   // Tasks that have NO matching Agent tool block — these are "orphan" tasks
   // that should still be shown in the TaskView (e.g., background tasks started
@@ -368,9 +375,9 @@ export function ConversationView(props: { children?: JSX.Element; footerHint?: s
 
           {/* Streaming thinking (transient) — hidden when backgrounded, collapsed view, or thinking toggle off */}
           <box flexDirection="column">
-            <Show when={!state.backgrounded && showThinking() && state.streamingThinking && viewLevel() !== "collapsed"}>
+            <Show when={!state.backgrounded && showThinking() && visibleThinking() && viewLevel() !== "collapsed"}>
               <box marginTop={1}>
-                <ThinkingBlock text={state.streamingThinking} collapsed={false} />
+                <ThinkingBlock text={visibleThinking()} collapsed={false} />
               </box>
             </Show>
           </box>

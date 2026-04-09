@@ -18,6 +18,7 @@ import { truncateToWidth } from "../../utils/truncate"
 import { formatDuration } from "../../utils/format"
 import { useMessages } from "../context/messages"
 import type { ViewLevel } from "./tool-view"
+import { createThrottledValue } from "../../utils/throttled-value"
 
 export type AgentToolBlock = Extract<Block, { type: "tool" }>
 
@@ -64,6 +65,7 @@ export function AgentToolView(props: {
   viewLevel: ViewLevel
 }) {
   const b = () => props.block
+  const status = createThrottledValue(() => b().status)
   const { state } = useMessages()
   const task = createMemo(() => findMatchingTask(state.activeTasks, b()))
 
@@ -72,7 +74,7 @@ export function AgentToolView(props: {
   let elapsedTimer: ReturnType<typeof setInterval> | undefined
 
   createEffect(() => {
-    if (b().status === "running") {
+    if (status() === "running") {
       setElapsed(Math.floor((Date.now() - b().startTime) / 1000))
       elapsedTimer = setInterval(() => {
         setElapsed(Math.floor((Date.now() - b().startTime) / 1000))
@@ -95,8 +97,8 @@ export function AgentToolView(props: {
 
   // Status indicator
   const dotStatus = (): "active" | "success" | "error" => {
-    if (b().status === "running") return "active"
-    if (b().status === "error" || b().error) return "error"
+    if (status() === "running") return "active"
+    if (status() === "error" || b().error) return "error"
     return "success"
   }
 
@@ -121,7 +123,7 @@ export function AgentToolView(props: {
 
   // Completion summary for done agents
   const completionSummary = createMemo(() => {
-    if (b().status === "running") return ""
+    if (status() === "running") return ""
     const out = b().output ?? ""
     if (!out) return ""
     // Show first meaningful line, truncated
@@ -152,12 +154,12 @@ export function AgentToolView(props: {
             {" " + truncateToWidth(description(), 70)}
           </text>
         </Show>
-        <Show when={b().status === "running" && elapsed() > 0}>
+        <Show when={status() === "running" && elapsed() > 0}>
           <text fg={colors.text.inactive}>
             {" " + formatDuration(elapsed() * 1000, { hideTrailingZeros: true })}
           </text>
         </Show>
-        <Show when={b().status !== "running" && b().duration !== undefined && b().duration! >= 1000}>
+        <Show when={status() !== "running" && b().duration !== undefined && b().duration! >= 1000}>
           <text fg={colors.text.inactive}>
             {" " + formatDuration(b().duration!, { hideTrailingZeros: true })}
           </text>
@@ -177,7 +179,7 @@ export function AgentToolView(props: {
       </Show>
 
       {/* Activity line: what the subagent is currently doing (running only) */}
-      <Show when={b().status === "running" && activityText()}>
+      <Show when={status() === "running" && activityText()}>
         <box flexDirection="row" paddingLeft={4}>
           <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>
             {activityText()}
@@ -186,7 +188,7 @@ export function AgentToolView(props: {
       </Show>
 
       {/* Progress: AI summary or output snippet (expanded/show_all, running only) */}
-      <Show when={props.viewLevel !== "collapsed" && b().status === "running" && progressText()}>
+      <Show when={props.viewLevel !== "collapsed" && status() === "running" && progressText()}>
         <box paddingLeft={4}>
           <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>
             {progressText()}
@@ -195,7 +197,7 @@ export function AgentToolView(props: {
       </Show>
 
       {/* Completion result (expanded/show_all, done only) */}
-      <Show when={props.viewLevel !== "collapsed" && b().status !== "running" && completionSummary()}>
+      <Show when={props.viewLevel !== "collapsed" && status() !== "running" && completionSummary()}>
         <box paddingLeft={2}>
           <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>
             {"\u23BF  " + completionSummary()}
@@ -231,6 +233,7 @@ export function CollapsedAgentLine(props: {
   block: AgentToolBlock
 }) {
   const b = () => props.block
+  const status = createThrottledValue(() => b().status)
   const { state } = useMessages()
   const task = createMemo(() => findMatchingTask(state.activeTasks, b()))
 
@@ -239,7 +242,7 @@ export function CollapsedAgentLine(props: {
   let elapsedTimer: ReturnType<typeof setInterval> | undefined
 
   createEffect(() => {
-    if (b().status === "running") {
+    if (status() === "running") {
       setElapsed(Math.floor((Date.now() - b().startTime) / 1000))
       elapsedTimer = setInterval(() => {
         setElapsed(Math.floor((Date.now() - b().startTime) / 1000))
@@ -256,13 +259,13 @@ export function CollapsedAgentLine(props: {
   const description = createMemo(() => extractAgentDescription(b().input))
 
   const dotStatus = (): "active" | "success" | "error" | "declined" => {
-    if (b().status === "running") return "active"
+    if (status() === "running") return "active"
     if (b().error) return "error"
     return "success"
   }
 
   const hint = createMemo(() => {
-    if (b().status === "running") {
+    if (status() === "running") {
       const t = task()
       const parts: string[] = []
       if (t?.lastToolName) parts.push(t.lastToolName)

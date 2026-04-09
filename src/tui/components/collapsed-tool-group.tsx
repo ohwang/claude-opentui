@@ -12,12 +12,14 @@ import { BlinkingDot } from "./primitives"
 import { colors } from "../theme/tokens"
 import type { ToolGroup } from "../utils/tool-grouping"
 import { formatGroupSummary, formatDuration } from "../utils/tool-grouping"
+import { createThrottledValue } from "../../utils/throttled-value"
 
 export function CollapsedToolGroup(props: { group: ToolGroup }) {
   const g = () => props.group
+  const groupStatus = createThrottledValue(() => g().status)
 
   const dotStatus = (): "active" | "success" | "error" | "declined" => {
-    const s = g().status
+    const s = groupStatus()
     if (s === "running") return "active"
     if (s === "error") return "error"
     return "success"
@@ -30,7 +32,7 @@ export function CollapsedToolGroup(props: { group: ToolGroup }) {
   }
 
   const textColor = () => {
-    if (g().status === "error") return colors.status.error
+    if (groupStatus() === "error") return colors.status.error
     return colors.text.inactive
   }
 

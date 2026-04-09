@@ -13,6 +13,7 @@ import { formatDuration } from "../../utils/format"
 import { syntaxStyle } from "../theme/syntax"
 import { getStatusConfig } from "./primitives"
 import { truncatePathMiddle, truncateToWidth } from "../../utils/truncate"
+import { createThrottledValue } from "../../utils/throttled-value"
 import { isMcpTool, parseMcpToolName } from "./mcp-tool-view"
 
 export type ViewLevel = "collapsed" | "expanded" | "show_all"
@@ -81,12 +82,17 @@ const BASH_MAX_LINES = 10
 export function ToolBlockView(props: { block: Extract<Block, { type: "tool" }>; viewLevel: ViewLevel }) {
   const b = () => props.block
 
+  // Throttled status: prevents intermediate states that flash for <100ms
+  // from being painted. The raw b().status updates at 16ms batch rate;
+  // the throttled version updates at most every 100ms.
+  const status = createThrottledValue(() => b().status)
+
   // Elapsed time signal for running tools — updates every second
   const [elapsed, setElapsed] = createSignal(0)
   let elapsedTimer: ReturnType<typeof setInterval> | undefined
 
   createEffect(() => {
-    if (b().status === "running") {
+    if (status() === "running") {
       // Start ticking
       setElapsed(Math.floor((Date.now() - b().startTime) / 1000))
       elapsedTimer = setInterval(() => {
@@ -133,14 +139,14 @@ export function ToolBlockView(props: { block: Extract<Block, { type: "tool" }>; 
 
   // Status-aware prefix color: green for success, red for error, accent for running
   const prefixColor = () => {
-    if (b().status === "running") return colors.accent.primary
+    if (status() === "running") return colors.accent.primary
     if (b().error && !isUserDecline(b().error!)) return colors.status.error
     return colors.status.success
   }
 
   /** Brief result summary for the ⎿ line */
   const resultSummary = createMemo(() => {
-    if (b().status === "running") return ""
+    if (status() === "running") return ""
     if (b().error) return ""
     const out = b().output ?? ""
     if (!out) return ""
@@ -182,14 +188,14 @@ export function ToolBlockView(props: { block: Extract<Block, { type: "tool" }>; 
           <text fg={colors.text.inactive}>{"(" + primaryArg() + ")"}</text>
         </Show>
         {/* Duration for completed tools (expanded/show_all views) */}
-        <Show when={b().status !== "running" && props.viewLevel !== "collapsed" && b().duration !== undefined && b().duration! >= 1000}>
+        <Show when={status() !== "running" && props.viewLevel !== "collapsed" && b().duration !== undefined && b().duration! >= 1000}>
           <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>
             {" " + formatDuration(b().duration!, { hideTrailingZeros: true })}
           </text>
         </Show>
       </box>
       {/* Critical warning — only shown after 5 minutes (streaming spinner handles normal elapsed display) */}
-      <Show when={b().status === "running" && elapsed() >= TOOL_CRITICAL_THRESHOLD}>
+      <Show when={status() === "running" && elapsed() >= TOOL_CRITICAL_THRESHOLD}>
         <box paddingLeft={2}>
           <text fg={colors.status.error} attributes={TextAttributes.DIM}>
             {"\u23BF  Tool may be stuck. Press Ctrl+C to interrupt."}
@@ -197,7 +203,7 @@ export function ToolBlockView(props: { block: Extract<Block, { type: "tool" }>; 
         </box>
       </Show>
       {/* Progress output — last 5 lines shown while tool is running */}
-      <Show when={props.viewLevel !== "collapsed" && b().status === "running" && b().output}>
+      <Show when={props.viewLevel !== "collapsed" && status() === "running" && b().output}>
         <box paddingLeft={4} flexDirection="column">
           <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>
             {getLastNLines(b().output!, 5)}

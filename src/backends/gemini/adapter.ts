@@ -67,6 +67,10 @@ export class GeminiAdapter implements AgentBackend {
   /** True when abort was triggered by user (Ctrl+C), false for timeout aborts */
   private userInitiatedAbort = false
 
+  // Accumulate token usage across SDK internal turns (multiple Finished events)
+  // so we can attach totals to the single turn_complete event.
+  private turnUsage = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0 }
+
   // Session config for reference
   private config: SessionConfig | null = null
 
@@ -580,6 +584,13 @@ export class GeminiAdapter implements AgentBackend {
             log.debug("Gemini event produced no mapped events", { type: event.type })
           }
           for (const agentEvent of mapped) {
+            // Accumulate token usage from cost_update events so we can
+            // attach totals to the single turn_complete at stream end.
+            if (agentEvent.type === "cost_update") {
+              this.turnUsage.inputTokens += agentEvent.inputTokens ?? 0
+              this.turnUsage.outputTokens += agentEvent.outputTokens ?? 0
+              this.turnUsage.cacheReadTokens += agentEvent.cacheReadTokens ?? 0
+            }
             trace.write({
               dir: "internal",
               stage: "mapped_event",
@@ -602,8 +613,12 @@ export class GeminiAdapter implements AgentBackend {
       // allowing Ctrl+C interrupt to work at any point.
       // Skip if user already interrupted — interrupt() already pushed turn_complete.
       if (!this.closed && !this.userInitiatedAbort && this.eventChannel) {
-        this.eventChannel.push({ type: "turn_complete" })
+        const usage = this.turnUsage.inputTokens > 0 || this.turnUsage.outputTokens > 0
+          ? { ...this.turnUsage }
+          : undefined
+        this.eventChannel.push({ type: "turn_complete", usage })
       }
+      this.turnUsage = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0 }
     } catch (err) {
       // AbortError is expected on interrupt (user Ctrl+C or first-event timeout)
       if (err instanceof Error && err.name === "AbortError") {

@@ -33,6 +33,19 @@ import { backendTrace } from "../../utils/backend-trace"
 
 const trace = backendTrace.scoped("gemini")
 
+/** Check if an error is an abort error (AbortError or wrapped abort from the SDK). */
+function isAbortError(err: unknown): boolean {
+  if (!(err instanceof Error)) return false
+  if (err.name === "AbortError") return true
+  // The Gemini SDK (and Bun's fetch internals) sometimes wrap the DOMException
+  // into a plain Error with message "The operation was aborted".
+  if (err.message === "The operation was aborted") return true
+  if (err.message === "The operation was aborted.") return true
+  // signal.reason can also propagate as "This operation was aborted"
+  if (err.message.includes("operation was aborted")) return true
+  return false
+}
+
 import { GeminiEventMapper } from "./event-mapper"
 import type {
   IGeminiCliAgent,
@@ -67,6 +80,15 @@ export class GeminiAdapter implements AgentBackend {
   /** True when abort was triggered by user (Ctrl+C), false for timeout aborts */
   private userInitiatedAbort = false
 
+  /**
+   * Handler for unhandled rejections caused by the Gemini SDK's internal
+   * promise chains when we abort a stream. Without this, Bun prints the
+   * rejection to stderr, which surfaces in OpenTUI's console panel and
+   * corrupts the display.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private unhandledRejectionHandler: ((reason: any, promise: Promise<any>) => void) | null = null
+
   // Accumulate token usage across SDK internal turns (multiple Finished events)
   // so we can attach totals to the single turn_complete event.
   private turnUsage = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0 }
@@ -95,7 +117,22 @@ export class GeminiAdapter implements AgentBackend {
     this.config = config
     this.eventChannel = new EventChannel<AgentEvent>()
 
+    // Install a process-level handler that suppresses unhandled rejections
+    // from the Gemini SDK's internal abort cleanup. Without this, Bun prints
+    // the rejection to stderr which pops open OpenTUI's console panel.
+    this.unhandledRejectionHandler = (reason: unknown) => {
+      if (isAbortError(reason)) {
+        log.debug("Suppressed Gemini SDK unhandled abort rejection", { error: String(reason) })
+        return  // swallow — prevents Bun from printing to stderr
+      }
+    }
+    process.on("unhandledRejection", this.unhandledRejectionHandler)
+
     this.runSession(config).catch((err) => {
+      if (isAbortError(err)) {
+        log.info("Gemini session promise: swallowed abort error", { error: String(err) })
+        return
+      }
       if (!this.closed && this.eventChannel) {
         this.eventChannel.push({
           type: "error",
@@ -115,6 +152,10 @@ export class GeminiAdapter implements AgentBackend {
     this.eventChannel = new EventChannel<AgentEvent>()
 
     this.runSession(this.config, sessionId).catch((err) => {
+      if (isAbortError(err)) {
+        log.info("Gemini resume promise: swallowed abort error", { error: String(err) })
+        return
+      }
       if (!this.closed && this.eventChannel) {
         this.eventChannel.push({
           type: "error",
@@ -168,11 +209,27 @@ export class GeminiAdapter implements AgentBackend {
       const controller = this.abortController
       this.abortController = null
       queueMicrotask(() => {
+        // Temporarily suppress console.error during abort. The Gemini SDK's
+        // internal promise chains produce unhandled rejections when aborted,
+        // and Bun prints them to stderr which pops open OpenTUI's console
+        // panel. We restore console.error after a tick to allow the SDK's
+        // microtask-queued rejections to be silently swallowed.
+        const origError = console.error
+        console.error = (...args: unknown[]) => {
+          const msg = String(args[0] ?? "")
+          if (msg.includes("operation was aborted") || msg.includes("AbortError")) {
+            log.debug("Suppressed abort error from console.error", { msg })
+            return
+          }
+          origError.apply(console, args)
+        }
         try {
           controller.abort()
         } catch {
           // AbortController.abort() itself shouldn't throw, but guard anyway
         }
+        // Restore after a generous window for SDK cleanup microtasks
+        setTimeout(() => { console.error = origError }, 100)
       })
     }
   }
@@ -400,6 +457,12 @@ export class GeminiAdapter implements AgentBackend {
       this.eventChannel = null
     }
 
+    // Remove the unhandled rejection suppressor
+    if (this.unhandledRejectionHandler) {
+      process.removeListener("unhandledRejection", this.unhandledRejectionHandler)
+      this.unhandledRejectionHandler = null
+    }
+
     this.agent = null
     this.session = null
   }
@@ -483,18 +546,9 @@ export class GeminiAdapter implements AgentBackend {
       }
 
       // 5. Main message loop
-      while (!this.closed) {
-        try {
-          const message = await this.messageQueue.pull()
-          if (this.closed) break
-          await this.runTurn(message.text)
-        } catch (err) {
-          if (this.closed) break
-          throw err
-        }
-      }
+      await this.messageLoop()
     } catch (err) {
-      if (!this.closed && this.eventChannel) {
+      if (!isAbortError(err) && !this.closed && this.eventChannel) {
         this.eventChannel.push({
           type: "error",
           code: "adapter_error",
@@ -505,6 +559,34 @@ export class GeminiAdapter implements AgentBackend {
     }
 
     this.eventChannel?.close()
+  }
+
+  // -----------------------------------------------------------------------
+  // Private: Message loop (survives interrupt-induced abort errors)
+  // -----------------------------------------------------------------------
+
+  /**
+   * Pull messages from the queue and run turns. AbortError from user
+   * interrupts is swallowed so the loop stays alive for subsequent messages.
+   * Only a non-abort error or `this.closed` will exit the loop.
+   */
+  private async messageLoop(): Promise<void> {
+    while (!this.closed) {
+      try {
+        const message = await this.messageQueue.pull()
+        if (this.closed) break
+        await this.runTurn(message.text)
+      } catch (err) {
+        if (this.closed) break
+        if (isAbortError(err)) {
+          log.info("Gemini message loop: swallowed abort error", { error: String(err) })
+          continue
+        }
+        // Non-abort error — propagate to caller as fatal
+        log.error("Gemini message loop: fatal error", { error: String(err) })
+        throw err
+      }
+    }
   }
 
   // -----------------------------------------------------------------------
@@ -635,8 +717,10 @@ export class GeminiAdapter implements AgentBackend {
       }
       this.turnUsage = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0 }
     } catch (err) {
-      // AbortError is expected on interrupt (user Ctrl+C or first-event timeout)
-      if (err instanceof Error && err.name === "AbortError") {
+      // AbortError is expected on interrupt (user Ctrl+C or first-event timeout).
+      // The Gemini SDK sometimes wraps the DOMException into a plain Error with
+      // message "The operation was aborted", so we check the message too.
+      if (isAbortError(err)) {
         if (this.userInitiatedAbort) {
           log.info("Gemini turn aborted by user")
           // interrupt() already pushed turn_complete

@@ -560,7 +560,10 @@ export function PermissionDialog() {
 
             {/* Content preview between dashed borders — scrollable to fit small terminals */}
             <Show when={previewLines()}>
-              {(lines: Accessor<PreviewLine[]>) => (
+              {(lines: Accessor<PreviewLine[]>) => {
+                const isTruncated = createMemo(() => lines().length > maxPreviewHeight())
+                const extraLineCount = createMemo(() => lines().length - maxPreviewHeight())
+                return (
                 <box flexDirection="column">
                   <Divider char={"\u254C"} fg={ACCENT} paddingLeft={0} />
                   <scrollbox
@@ -584,14 +587,15 @@ export function PermissionDialog() {
                       </For>
                     </box>
                   </scrollbox>
-                  <Show when={lines().length > maxPreviewHeight()}>
+                  <Show when={isTruncated()}>
                     <box height={1} paddingLeft={2}>
-                      <text fg={MUTED} attributes={TextAttributes.DIM}>{`... ${lines().length - maxPreviewHeight()} more line${lines().length - maxPreviewHeight() === 1 ? "" : "s"}`}</text>
+                      <text fg={MUTED} attributes={TextAttributes.DIM}>{`... ${extraLineCount()} more line${extraLineCount() === 1 ? "" : "s"}`}</text>
                     </box>
                   </Show>
                   <Divider char={"\u254C"} fg={ACCENT} paddingLeft={0} />
                 </box>
-              )}
+                )
+              }}
             </Show>
 
             {/* Question prompt — always visible */}

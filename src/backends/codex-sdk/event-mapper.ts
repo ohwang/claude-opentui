@@ -66,6 +66,7 @@ export class CodexSdkEventMapper {
         // Suppressed — the adapter emits a synthetic turn_start before
         // calling runStreamed() to avoid a gap where the TUI doesn't
         // know a turn has begun.
+        log.debug("Codex SDK turn.started suppressed (adapter emits synthetic)")
         return []
 
       case "turn.completed":
@@ -133,10 +134,12 @@ export class CodexSdkEventMapper {
     switch (item.type) {
       case "agent_message":
         // Text arrives via item.updated — no start event
+        log.debug("Codex SDK item streaming started", { type: item.type, id: item.id })
         return []
 
       case "reasoning":
         // Reasoning text arrives via item.updated — no start event
+        log.debug("Codex SDK item streaming started", { type: item.type, id: item.id })
         return []
 
       case "command_execution":
@@ -221,6 +224,7 @@ export class CodexSdkEventMapper {
         }]
 
       default:
+        log.debug("Codex SDK item.updated not handled", { type: (item as any).type, id: item.id })
         return []
     }
   }
@@ -239,6 +243,7 @@ export class CodexSdkEventMapper {
 
       case "reasoning":
         // Reasoning already streamed via deltas — no end event needed
+        log.debug("Codex SDK reasoning completed (streamed via deltas)", { id: item.id })
         return []
 
       case "command_execution":
@@ -285,6 +290,7 @@ export class CodexSdkEventMapper {
         }]
 
       default:
+        log.warn("Unhandled Codex SDK item type in item.completed", { type: (item as any).type, id: (item as any).id })
         return []
     }
   }

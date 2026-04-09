@@ -95,6 +95,8 @@ export function mapSDKMessage(msg: any, streamState: ToolStreamState, options?: 
         // is the one that should produce the separator.
         if (msg.status === "compacting") {
           log.debug("Ignoring transient compacting status event")
+        } else {
+          log.debug("Unhandled system status", { status: msg.status })
         }
       } else if (msg.subtype === "compact_boundary") {
         const meta = msg.compact_metadata ?? {}
@@ -397,7 +399,7 @@ export function mapAssistantMessage(msg: any): AgentEvent[] {
         break
 
       default:
-        log.debug("Unhandled assistant content block type", { type: block.type, blockId: block.id })
+        log.warn("Unhandled assistant content block type", { type: block.type, blockId: block.id })
     }
   }
 
@@ -496,10 +498,11 @@ export function mapStreamEvent(
 
     case "message_stop":
       // Message is complete. The result message follows with full usage.
+      log.debug("Stream message_stop received")
       break
 
     default:
-      log.debug("Unhandled stream event type", { type: event.type })
+      log.warn("Unhandled stream event type", { type: event.type })
   }
 
   return events

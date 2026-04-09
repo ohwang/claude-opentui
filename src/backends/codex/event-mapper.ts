@@ -82,7 +82,7 @@ export function mapCodexNotification(
     }
 
     case "thread/name/updated":
-      // Informational — no AgentEvent equivalent needed
+      log.debug("Codex thread renamed", { name: params?.name })
       break
 
     case "thread/tokenUsage/updated": {
@@ -243,7 +243,7 @@ export function mapCodexNotification(
     // ----- Server request resolved (after approval response) -----
 
     case "serverRequest/resolved":
-      // The approval was processed — no AgentEvent needed
+      log.debug("Codex approval request resolved", { requestId: params?.requestId })
       break
 
     // ----- Account/model/skills updates -----
@@ -356,14 +356,17 @@ function mapItemStarted(item: CodexItem): AgentEvent[] {
   switch (item.type) {
     case "agentMessage":
       // Agent text will stream via item/agentMessage/delta — no start event needed
+      log.debug("Codex item streaming started", { type: item.type, id: item.id })
       break
 
     case "reasoning":
       // Reasoning will stream via delta events — no start event needed
+      log.debug("Codex item streaming started", { type: item.type, id: item.id })
       break
 
     case "plan":
       // Plan will stream via item/plan/delta — no start event needed
+      log.debug("Codex item streaming started", { type: item.type, id: item.id })
       break
 
     case "commandExecution":
@@ -409,6 +412,7 @@ function mapItemStarted(item: CodexItem): AgentEvent[] {
 
     case "userMessage":
       // User's own message echoed back — no event needed
+      log.debug("Codex user message echo suppressed", { id: item.id })
       break
 
     case "todoList":
@@ -538,7 +542,8 @@ function mapItemCompleted(item: CodexItem): AgentEvent[] {
     case "userMessage":
     case "todoList":
     case "contextCompaction":
-      // No end event needed for these types
+      // No end event needed — content was streamed via deltas or captured at start
+      log.debug("Codex item completed (no end event)", { type: item.type, id: item.id })
       break
 
     default:

@@ -409,8 +409,12 @@ export function ConversationView(props: { children?: JSX.Element; footerHint?: s
             </For>
           </box>
 
-          {/* Transient view-level hint — replaces itself, auto-clears after 3s */}
-          <EphemeralLine message={viewLevelHint()} />
+          {/* Transient view-level hint — replaces itself, auto-clears after 3s.
+              Wrapped in Show so it takes 0 space when empty — the spinner's
+              marginTop={1} provides the single blank-line gap. */}
+          <Show when={viewLevelHint()}>
+            <EphemeralLine message={viewLevelHint()} />
+          </Show>
 
           {/* Background task indicator — compact single-line when backgrounded */}
           <box flexDirection="column">

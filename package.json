@@ -16,11 +16,11 @@
     "dev:storybook": "bun run --conditions=browser --watch ./src/storybook/index.tsx",
     "typecheck": "tsc --noEmit",
     "lint": "bun run lint:opentui && tsc --noEmit",
-    "lint:opentui": "bash scripts/lint-opentui.sh"
+    "lint:opentui": "bash scripts/lint-opentui.sh",
+    "check:tests": "bash scripts/check-test-coverage.sh"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.97",
-    "@google/gemini-cli-sdk": "../gemini-cli/packages/sdk",
     "@openai/codex-sdk": "^0.118.0",
     "@opentui/core": "0.1.97",
     "@opentui/solid": "0.1.97",

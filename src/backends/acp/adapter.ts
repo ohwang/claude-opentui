@@ -38,6 +38,7 @@ import { AcpTerminalManager } from "./terminal-manager"
 import { mapAcpUpdate } from "./event-mapper"
 import type {
   AcpInitializeResult,
+  AcpAgentCapabilities,
   AcpSessionNewResult,
   AcpSessionUpdateParams,
   AcpPermissionRequestParams,
@@ -46,14 +47,33 @@ import type {
   AcpTerminalWaitParams,
   AcpTerminalKillParams,
   AcpTerminalReleaseParams,
+  AcpFsReadParams,
+  AcpFsWriteParams,
   AcpContentBlock,
   AcpModel,
   AcpMode,
   AcpConfigOption,
   AcpConfigOptionUpdateNotification,
 } from "./types"
+import nodePath from "path"
 
 const trace = backendTrace.scoped("acp")
+
+// ---------------------------------------------------------------------------
+// Path validation (exported for testing)
+// ---------------------------------------------------------------------------
+
+/** Validate that a path is within the allowed working directory */
+export function validatePathWithinCwd(
+  filePath: string,
+  cwd: string,
+): { valid: boolean; resolved: string; error?: string } {
+  const resolved = nodePath.resolve(filePath)
+  if (!resolved.startsWith(cwd + "/") && resolved !== cwd) {
+    return { valid: false, resolved, error: `Path outside working directory: ${filePath}` }
+  }
+  return { valid: true, resolved }
+}
 
 // ---------------------------------------------------------------------------
 // ACP Adapter
@@ -65,6 +85,7 @@ export class AcpAdapter extends BaseAdapter {
 
   // Session state
   private sessionId: string | null = null
+  private agentCapabilities: AcpAgentCapabilities | null = null
   private currentModel: string | null = null
   private discoveredModels: AcpModel[] = []
   private discoveredModes: AcpMode[] = []
@@ -98,7 +119,7 @@ export class AcpAdapter extends BaseAdapter {
       name: this.presetName,
       supportsThinking: false,
       supportsToolApproval: true,
-      supportsResume: false,
+      supportsResume: !!this.agentCapabilities?.loadSession,
       supportsFork: false,
       supportsStreaming: true,
       supportsSubagents: false,
@@ -392,25 +413,47 @@ export class AcpAdapter extends BaseAdapter {
         },
         clientCapabilities: {
           terminal: true,
+          fs: {
+            readTextFile: true,
+            writeTextFile: true,
+          },
         },
       })) as AcpInitializeResult
 
       this.agentName = initResult.agentInfo?.title ?? initResult.agentInfo?.name ?? this.agentName
+      this.agentCapabilities = initResult.agentCapabilities ?? null
       log.info("ACP agent initialized", {
         agent: this.agentName,
         version: initResult.agentInfo?.version,
         protocolVersion: initResult.protocolVersion,
+        loadSession: !!this.agentCapabilities?.loadSession,
       })
 
       // Send initialized notification (harmless if agent doesn't recognize it)
       this.transport.notify("initialized")
 
-      // 4. Create session
+      // 4. Create or load session
       const cwd = config.cwd ?? process.cwd()
-      const sessionResult = (await this.transport.request("session/new", {
-        cwd,
-        mcpServers: [],
-      })) as AcpSessionNewResult
+      let sessionResult: AcpSessionNewResult
+      if (config.resume && this.agentCapabilities?.loadSession) {
+        try {
+          sessionResult = (await this.transport.request("session/load", {
+            sessionId: config.resume,
+          })) as AcpSessionNewResult
+          log.info("ACP session loaded", { sessionId: config.resume })
+        } catch (err) {
+          log.warn("session/load failed, creating new session", { error: String(err) })
+          sessionResult = (await this.transport.request("session/new", {
+            cwd,
+            mcpServers: [],
+          })) as AcpSessionNewResult
+        }
+      } else {
+        sessionResult = (await this.transport.request("session/new", {
+          cwd,
+          mcpServers: [],
+        })) as AcpSessionNewResult
+      }
 
       this.sessionId = sessionResult.sessionId
       if (sessionResult.models) {
@@ -695,29 +738,87 @@ export class AcpAdapter extends BaseAdapter {
       }
 
       case "fs/read_text_file": {
-        // Client filesystem read — not implemented in v1
-        log.warn("ACP fs/read_text_file requested but not supported", { path: params?.path })
-        this.transport?.respondError(
-          rpcId,
-          -32601,
-          "Client-side filesystem access not supported",
-        )
+        const p = params as AcpFsReadParams
+        this.handleFsRead(rpcId, p)
         break
       }
 
       case "fs/write_text_file": {
-        log.warn("ACP fs/write_text_file requested but not supported", { path: params?.path })
-        this.transport?.respondError(
-          rpcId,
-          -32601,
-          "Client-side filesystem access not supported",
-        )
+        const p = params as AcpFsWriteParams
+        this.handleFsWrite(rpcId, p)
         break
       }
 
       default:
         log.warn("Unhandled ACP server request", { method })
         this.transport?.respondError(rpcId, -32601, `Method not supported: ${method}`)
+    }
+  }
+
+  // -----------------------------------------------------------------------
+  // Private: Filesystem handlers
+  // -----------------------------------------------------------------------
+
+  private async handleFsRead(rpcId: number | string, params: AcpFsReadParams): Promise<void> {
+    const { path: filePath, line, limit } = params
+
+    // Security: validate path is within the session's working directory
+    const cwd = process.cwd()
+    const check = validatePathWithinCwd(filePath, cwd)
+    if (!check.valid) {
+      log.warn("ACP fs/read_text_file blocked: path outside cwd", { path: filePath, cwd })
+      this.transport?.respondError(rpcId, -32602, check.error!)
+      return
+    }
+
+    try {
+      const fs = await import("fs/promises")
+      const content = await fs.readFile(check.resolved, "utf-8")
+
+      // Apply line/limit filtering if specified
+      if (line !== undefined || limit !== undefined) {
+        const lines = content.split("\n")
+        const startLine = (line ?? 1) - 1  // 1-indexed
+        const endLine = limit ? startLine + limit : lines.length
+        const sliced = lines.slice(Math.max(0, startLine), endLine).join("\n")
+        this.transport?.respond(rpcId, { content: sliced })
+      } else {
+        this.transport?.respond(rpcId, { content })
+      }
+
+      log.info("ACP fs/read_text_file", { path: filePath })
+    } catch (err: any) {
+      if (err.code === "ENOENT") {
+        this.transport?.respondError(rpcId, -32602, `File not found: ${filePath}`)
+      } else if (err.code === "EACCES") {
+        this.transport?.respondError(rpcId, -32602, `Permission denied: ${filePath}`)
+      } else {
+        this.transport?.respondError(rpcId, -32603, `Read failed: ${String(err)}`)
+      }
+    }
+  }
+
+  private async handleFsWrite(rpcId: number | string, params: AcpFsWriteParams): Promise<void> {
+    const { path: filePath, content } = params
+
+    // Security: validate path is within the session's working directory
+    const cwd = process.cwd()
+    const check = validatePathWithinCwd(filePath, cwd)
+    if (!check.valid) {
+      log.warn("ACP fs/write_text_file blocked: path outside cwd", { path: filePath, cwd })
+      this.transport?.respondError(rpcId, -32602, check.error!)
+      return
+    }
+
+    try {
+      const fs = await import("fs/promises")
+      // Ensure parent directory exists
+      await fs.mkdir(nodePath.dirname(check.resolved), { recursive: true })
+      await fs.writeFile(check.resolved, content, "utf-8")
+      this.transport?.respond(rpcId, {})
+      log.info("ACP fs/write_text_file", { path: filePath })
+    } catch (err: any) {
+      this.transport?.respondError(rpcId, -32603, `Write failed: ${String(err)}`)
     }
   }
 }

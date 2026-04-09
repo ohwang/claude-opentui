@@ -371,6 +371,15 @@ export interface AcpTerminalReleaseParams {
 }
 
 // ---------------------------------------------------------------------------
+// Session Load (resume previous session)
+// ---------------------------------------------------------------------------
+
+export interface AcpSessionLoadParams {
+  sessionId: string
+}
+// Result is AcpSessionNewResult (same shape)
+
+// ---------------------------------------------------------------------------
 // ACP presets for known agents
 // ---------------------------------------------------------------------------
 

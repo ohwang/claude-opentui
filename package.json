@@ -17,15 +17,15 @@
     "lint:opentui": "bash scripts/lint-opentui.sh"
   },
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "^0.2.92",
+    "@anthropic-ai/claude-agent-sdk": "^0.2.97",
     "@google/gemini-cli-sdk": "../gemini-cli/packages/sdk",
     "@openai/codex-sdk": "^0.118.0",
-    "@opentui/core": "0.1.93",
-    "@opentui/solid": "0.1.93",
+    "@opentui/core": "0.1.97",
+    "@opentui/solid": "0.1.97",
     "solid-js": "^1.9.0"
   },
   "devDependencies": {
     "@types/bun": "latest",
-    "typescript": "^5.8.0"
+    "typescript": "^6.0.2"
   }
 }

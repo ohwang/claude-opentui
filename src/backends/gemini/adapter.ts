@@ -171,11 +171,7 @@ export class GeminiAdapter implements AgentBackend {
   }
 
   async setModel(_model: string): Promise<void> {
-    log.warn("setModel() on Gemini adapter — model is fixed at session creation")
-    this.eventChannel?.push({
-      type: "system_message",
-      text: "Model switching is not supported by the Gemini backend. Restart with --model <name> to change.",
-    })
+    throw new Error("Model switching is not supported by the Gemini backend. Restart with --model <name> to change.")
   }
 
   async setPermissionMode(_mode: PermissionMode): Promise<void> {

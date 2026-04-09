@@ -77,6 +77,7 @@ export interface AcpSessionNewResult {
   sessionId: string
   modes?: AcpModeState
   models?: AcpModelState
+  configOptions?: AcpConfigOption[]
 }
 
 export interface AcpModeState {
@@ -99,6 +100,35 @@ export interface AcpModel {
   modelId: string
   name: string
   description?: string
+}
+
+// ---------------------------------------------------------------------------
+// Config Options
+// ---------------------------------------------------------------------------
+
+export interface AcpConfigOption {
+  id: string
+  name: string
+  description?: string
+  type: "string" | "boolean" | "enum"
+  value: unknown
+  options?: AcpConfigOptionChoice[]  // for enum type
+}
+
+export interface AcpConfigOptionChoice {
+  id: string
+  name: string
+  description?: string
+}
+
+export interface AcpConfigOptionUpdateNotification {
+  configOption: AcpConfigOption
+}
+
+export interface AcpSetConfigOptionParams {
+  sessionId: string
+  configOptionId: string
+  value: unknown
 }
 
 // ---------------------------------------------------------------------------

@@ -43,6 +43,8 @@ import type {
   AcpContentBlock,
   AcpModel,
   AcpMode,
+  AcpConfigOption,
+  AcpConfigOptionUpdateNotification,
 } from "./types"
 
 const trace = backendTrace.scoped("acp")
@@ -59,6 +61,7 @@ export class AcpAdapter extends BaseAdapter {
   private currentModel: string | null = null
   private discoveredModels: AcpModel[] = []
   private discoveredModes: AcpMode[] = []
+  private discoveredConfigOptions: AcpConfigOption[] = []
   private agentName = "ACP Agent"
 
   // Config
@@ -202,7 +205,41 @@ export class AcpAdapter extends BaseAdapter {
   }
 
   async setModel(model: string): Promise<void> {
-    log.debug("setModel not yet implemented for ACP backend", { model })
+    if (!this.transport?.isAlive || !this.sessionId) return
+
+    // Strategy 1: Try config option if a model config option exists
+    const modelOption = this.discoveredConfigOptions.find(
+      o => o.id === "model" || o.name.toLowerCase().includes("model"),
+    )
+    if (modelOption) {
+      try {
+        await this.transport.request("session/set_config_option", {
+          sessionId: this.sessionId,
+          configOptionId: modelOption.id,
+          value: model,
+        })
+        this.currentModel = model
+        this.eventChannel?.push({ type: "model_changed", model })
+        log.info("ACP model set via config option", { model })
+        return
+      } catch (err) {
+        log.warn("session/set_config_option failed for model", { error: String(err) })
+      }
+    }
+
+    // Strategy 2: Try session/set_model if agent exposes it
+    // (Some agents support this as a direct method)
+    try {
+      await this.transport.request("session/set_model", {
+        sessionId: this.sessionId,
+        modelId: model,
+      })
+      this.currentModel = model
+      this.eventChannel?.push({ type: "model_changed", model })
+      log.info("ACP model set via session/set_model", { model })
+    } catch (err) {
+      log.warn("Model switching not supported by this ACP agent", { error: String(err), model })
+    }
   }
 
   async setPermissionMode(mode: PermissionMode): Promise<void> {
@@ -266,6 +303,9 @@ export class AcpAdapter extends BaseAdapter {
       }
       if (result.modes) {
         this.discoveredModes = result.modes.availableModes
+      }
+      if (result.configOptions) {
+        this.discoveredConfigOptions = result.configOptions
       }
 
       this.eventChannel?.push({
@@ -367,6 +407,9 @@ export class AcpAdapter extends BaseAdapter {
       }
       if (sessionResult.modes) {
         this.discoveredModes = sessionResult.modes.availableModes
+      }
+      if (sessionResult.configOptions) {
+        this.discoveredConfigOptions = sessionResult.configOptions
       }
 
       log.info("ACP session created", {
@@ -493,6 +536,11 @@ export class AcpAdapter extends BaseAdapter {
       return
     }
 
+    if (method === "config_option_update") {
+      this.handleConfigOptionUpdate(params)
+      return
+    }
+
     // Unknown notification — pass through
     log.warn("Unhandled ACP notification", { method })
     this.eventChannel?.push({
@@ -500,6 +548,52 @@ export class AcpAdapter extends BaseAdapter {
       backend: "acp",
       data: { method, params },
     })
+  }
+
+  // -----------------------------------------------------------------------
+  // Private: Handle config option updates from agent
+  // -----------------------------------------------------------------------
+
+  private handleConfigOptionUpdate(params: unknown): void {
+    const update = params as AcpConfigOptionUpdateNotification | undefined
+    if (!update?.configOption) return
+
+    const option = update.configOption
+    log.info("ACP config option updated by agent", { id: option.id, value: option.value })
+
+    // Update our stored config options
+    const idx = this.discoveredConfigOptions.findIndex(o => o.id === option.id)
+    if (idx >= 0) {
+      this.discoveredConfigOptions[idx] = option
+    } else {
+      this.discoveredConfigOptions.push(option)
+    }
+
+    // Map to AgentEvents based on the option type
+    if (option.id === "model" || option.name.toLowerCase().includes("model")) {
+      const model = String(option.value)
+      this.currentModel = model
+      this.eventChannel?.push({ type: "model_changed", model })
+    } else if (
+      option.id === "thinking" ||
+      option.name.toLowerCase().includes("thinking") ||
+      option.name.toLowerCase().includes("effort")
+    ) {
+      const effort = String(option.value)
+      if (["low", "medium", "high", "max"].includes(effort)) {
+        this.eventChannel?.push({
+          type: "effort_changed",
+          effort: effort as EffortLevel,
+        })
+      }
+    } else {
+      // Unknown config option — pass through as backend_specific
+      this.eventChannel?.push({
+        type: "backend_specific",
+        backend: "acp",
+        data: { type: "config_option_update", option },
+      })
+    }
   }
 
   // -----------------------------------------------------------------------

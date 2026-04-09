@@ -631,6 +631,14 @@ export function reduce(
       if (!state.backgrounded) return next
       return { ...next, backgrounded: false }
 
+    // ----- Config options -----
+
+    case "config_options":
+      return {
+        ...next,
+        configOptions: event.options,
+      }
+
     // ----- Informational / passthrough -----
 
     case "session_state":

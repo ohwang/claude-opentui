@@ -227,6 +227,12 @@ export interface PlanEntry {
   status?: "pending" | "in_progress" | "completed"
 }
 
+/** Config options update (from agent capability negotiation) */
+export type ConfigOptionsEvent = {
+  type: "config_options"
+  options: ConfigOption[]
+}
+
 /** Backend escape hatch */
 export type BackendSpecificEvent = {
   type: "backend_specific"
@@ -268,6 +274,7 @@ export type AgentEvent =
   | ShellStartEvent
   | ShellEndEvent
   | PlanUpdateEvent
+  | ConfigOptionsEvent
 
 // ---------------------------------------------------------------------------
 // Agent Backend — the unified adapter interface
@@ -321,6 +328,9 @@ export interface AgentBackend {
 
   /** List available models. */
   availableModels(): Promise<ModelInfo[]>
+
+  /** Set a backend config option. Only valid for backends that expose config options. */
+  setConfigOption?(id: string, value: unknown): Promise<void>
 
   /** Reset the backend session (create a fresh session without restarting).
    *  Used by /new to clear server-side conversation history.
@@ -437,6 +447,9 @@ export interface ConversationState {
 
   /** Agent-advertised slash commands (from ACP available_commands_update) */
   agentCommands: AgentSlashCommand[]
+
+  /** Config options exposed by the backend agent */
+  configOptions: ConfigOption[]
 }
 
 // ---------------------------------------------------------------------------
@@ -663,6 +676,16 @@ export interface AgentSlashCommand {
   description?: string
 }
 
+/** Backend-agnostic config option — exposed by ACP agents, potentially other backends in the future */
+export interface ConfigOption {
+  id: string
+  name: string
+  description?: string
+  type: "string" | "boolean" | "enum"
+  value: unknown
+  choices?: { id: string; name: string; description?: string }[]
+}
+
 // ---------------------------------------------------------------------------
 // Initial state factory
 // ---------------------------------------------------------------------------
@@ -697,5 +720,6 @@ export function createInitialState(): ConversationState {
     lastTurnFiles: undefined,
     rateLimits: null,
     agentCommands: [],
+    configOptions: [],
   }
 }

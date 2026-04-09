@@ -99,7 +99,7 @@ export async function startMcpHttpServer(): Promise<{ port: number; url: string 
   registerHttpTools(mcpServer)
 
   const transport = new WebStandardStreamableHTTPServerTransport({
-    sessionIdGenerator: undefined, // stateless
+    sessionIdGenerator: () => crypto.randomUUID(),
     enableJsonResponse: true,
   })
 

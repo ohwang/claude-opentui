@@ -449,7 +449,10 @@ export function StatusBar(props: { hint?: string | null }) {
   // -- Toast warnings when context crosses 80% and 95% thresholds --
   let lastWarningLevel = 0
   createEffect(on(ctxPct, (pct) => {
-    if (pct >= 95 && lastWarningLevel < 2) {
+    if (pct === 0) {
+      // Reset warning level when context resets (e.g., /clear, /new)
+      lastWarningLevel = 0
+    } else if (pct >= 95 && lastWarningLevel < 2) {
       lastWarningLevel = 2
       toast.error("Context window 95% full \u2014 /compact recommended")
     } else if (pct >= 80 && lastWarningLevel < 1) {

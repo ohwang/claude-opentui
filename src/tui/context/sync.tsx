@@ -142,7 +142,6 @@ export function SyncProvider(props: ParentProps) {
       sessionState: conversationState.sessionState,
       session: conversationState.session,
       cost: { ...conversationState.cost },
-      turnNumber: conversationState.turnNumber,
       currentModel: conversationState.currentModel,
     }
 
@@ -156,10 +155,12 @@ export function SyncProvider(props: ParentProps) {
       messages.setState("streamingOutputTokens", 0)
       messages.setState("lastTurnFiles", undefined)
       session.setState("lastTurnInputTokens", 0)
+      session.setState("turnNumber", 0)
+      session.setState("rateLimits", null)
     })
   }
 
-  // Reset session cost counters to zero
+  // Reset session cost counters to zero (also resets context fill + turn number)
   const resetCost = () => {
     const zeroCost = {
       inputTokens: 0,
@@ -171,9 +172,14 @@ export function SyncProvider(props: ParentProps) {
     conversationState = {
       ...conversationState,
       cost: zeroCost,
+      lastTurnInputTokens: 0,
+      _contextFromStream: false,
+      turnNumber: 0,
     }
     batch(() => {
       session.setState("cost", reconcile(zeroCost))
+      session.setState("lastTurnInputTokens", 0)
+      session.setState("turnNumber", 0)
     })
   }
 

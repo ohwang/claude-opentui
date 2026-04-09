@@ -14,7 +14,6 @@ process.on("SIGINT", () => {})
 import { parseFlags, printHelp } from "./cli/flags"
 import { ClaudeAdapter } from "./backends/claude/adapter"
 import { CodexAdapter } from "./backends/codex/adapter"
-import { GeminiAdapter } from "./backends/gemini/adapter"
 import { AcpAdapter } from "./backends/acp/adapter"
 import { ACP_PRESETS } from "./backends/acp/types"
 import { MockAdapter } from "./backends/mock/adapter"
@@ -72,12 +71,12 @@ async function main() {
       backend = new CodexAdapter()
       break
     case "gemini":
-      backend = new GeminiAdapter()
-      break
     case "gemini-acp":
     case "copilot-acp": {
-      const preset = ACP_PRESETS[flags.backend]!
-      backend = new AcpAdapter({ ...preset, presetName: flags.backend })
+      // "gemini" is now handled by the ACP adapter (same as gemini-acp)
+      const backendName = flags.backend === "gemini" ? "gemini-acp" : flags.backend
+      const preset = ACP_PRESETS[backendName]!
+      backend = new AcpAdapter({ ...preset, presetName: backendName })
       break
     }
     case "acp": {
@@ -159,7 +158,7 @@ async function main() {
 
   process.on("unhandledRejection", (err) => {
     // AbortErrors are expected during user-initiated interrupt (Ctrl+C).
-    // The Gemini SDK's internal promises reject when the AbortController fires,
+    // Backend SDK promises reject when the AbortController fires,
     // producing many simultaneous unhandled rejections. Swallow silently.
     if (err instanceof Error && err.name === "AbortError") {
       log.debug("Suppressed AbortError rejection (expected during interrupt)")

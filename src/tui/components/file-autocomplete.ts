@@ -408,11 +408,50 @@ export function invalidateFileCache(): void {
   }
 }
 
+// ── Shallow directory listing ─────────────────────────────────────────
+
+/**
+ * List immediate children of a directory (dirs first, then files).
+ * Used when the fuzzy query is empty to show a browsable directory view
+ * instead of a flat recursive dump. Matches Claude Code's UX.
+ */
+function listShallow(root: string, limit: number): string[] {
+  const dirs: string[] = []
+  const files: string[] = []
+  try {
+    const entries = readdirSync(root)
+    for (const entry of entries) {
+      if (EXCLUDE_DIRS.has(entry)) continue
+      if (entry.startsWith(".") && entry.length > 1) continue
+      try {
+        const stat = statSync(join(root, entry))
+        if (stat.isDirectory()) {
+          dirs.push(entry + "/")
+        } else {
+          files.push(entry)
+        }
+      } catch {
+        /* skip unreadable */
+      }
+      if (dirs.length + files.length >= limit * 2) break // enough candidates
+    }
+  } catch {
+    /* root doesn't exist or unreadable */
+  }
+  // Directories first (sorted), then files (sorted)
+  dirs.sort()
+  files.sort()
+  return [...dirs, ...files].slice(0, limit)
+}
+
 // ── Search ───────────────────────────────────────────────────────────
 
 /**
  * Search files using fuzzysort. Returns up to `limit` file paths relative
  * to the resolved search root. Handles path prefix resolution internally.
+ *
+ * When the fuzzy query is empty, shows a shallow directory listing (dirs
+ * first) instead of a recursive file dump — enables interactive drill-down.
  */
 export function searchFiles(
   query: string,
@@ -420,12 +459,14 @@ export function searchFiles(
   limit = MAX_SUGGESTIONS,
 ): string[] {
   const { root, fuzzyQuery } = parsePathPrefix(query, cwd)
-  const { files, dirs } = getFilesForRoot(root)
 
+  // Empty query: show shallow browsable listing (dirs first, like Claude Code)
+  if (!fuzzyQuery) return listShallow(root, limit)
+
+  // Non-empty query: full recursive fuzzy search
+  const { files, dirs } = getFilesForRoot(root)
   const allEntries =
     dirs.length > 0 ? [...new Set([...files, ...dirs])] : files
-
-  if (!fuzzyQuery) return allEntries.slice(0, limit)
 
   const candidates =
     allEntries.length > MAX_FUZZY_CANDIDATES

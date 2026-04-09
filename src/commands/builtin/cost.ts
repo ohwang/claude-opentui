@@ -26,6 +26,17 @@ export const costCommand: SlashCommand = {
     const totalTokens = cost.inputTokens + cost.outputTokens
     const cacheTokens = cost.cacheReadTokens + cost.cacheWriteTokens
 
+    // If no cost data has been received after at least one turn, show a helpful message
+    const hasCostData = totalTokens > 0 || cost.totalCostUsd > 0
+    if (!hasCostData && turnNumber > 0) {
+      ctx.pushEvent({
+        type: "system_message",
+        text: `Session Usage (${turnNumber} turn${turnNumber !== 1 ? "s" : ""})\n\n  Model: ${currentModel ? friendlyModelName(currentModel) : "unknown"}\n\n  Token and cost data is not available for this backend.`,
+        ephemeral: true,
+      })
+      return
+    }
+
     const lines = [
       `Session Usage (${turnNumber} turn${turnNumber !== 1 ? "s" : ""})`,
       ``,

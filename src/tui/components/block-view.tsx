@@ -6,6 +6,7 @@
  */
 
 import { Show, createSignal, createEffect, onCleanup, type Accessor } from "solid-js"
+import { PlanBlock } from "./plan-block"
 import { ThinkingBlock } from "./thinking-block"
 import { ToolBlockView, isUserDecline } from "./tool-view"
 import { AgentToolView, CollapsedAgentLine } from "./agent-tool-view"
@@ -39,6 +40,7 @@ export function BlockView(props: { block: Block; viewLevel: ViewLevel; prevType?
   const compactBlock = () => b().type === "compact" ? b() as Extract<Block, { type: "compact" }> : null
   const shellBlock = () => b().type === "shell" ? b() as Extract<Block, { type: "shell" }> : null
   const errorBlock = () => b().type === "error" ? b() as Extract<Block, { type: "error" }> : null
+  const planBlock = () => b().type === "plan" ? b() as Extract<Block, { type: "plan" }> : null
 
   return (
     <box flexDirection="column">
@@ -111,6 +113,11 @@ export function BlockView(props: { block: Block; viewLevel: ViewLevel; prevType?
       <Show when={shellBlock()}>{(sb: Accessor<Extract<Block, { type: "shell" }>>) => <box marginTop={1}><ShellBlock block={sb()} viewLevel={props.viewLevel} /></box>}</Show>
       <Show when={compactBlock()}>{(cb: Accessor<Extract<Block, { type: "compact" }>>) => <box marginTop={1}><CompactBlock block={cb()} /></box>}</Show>
       <Show when={errorBlock()}>{(eb: Accessor<Extract<Block, { type: "error" }>>) => <box marginTop={1}><ErrorBlock block={eb()} /></box>}</Show>
+      <Show when={planBlock()}>{(pb: Accessor<Extract<Block, { type: "plan" }>>) =>
+        <box marginTop={1}>
+          <PlanBlock entries={pb().entries} />
+        </box>
+      }</Show>
     </box>
   )
 }

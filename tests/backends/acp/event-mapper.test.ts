@@ -40,7 +40,7 @@ describe("ACP Event Mapper", () => {
       expect(events).toHaveLength(0)
     })
 
-    it("maps text content with empty string to backend_specific (falsy text falls through)", () => {
+    it("maps text content with empty string to empty array (keep-alive skip)", () => {
       const events = mapAcpUpdate(
         makeParams({
           sessionUpdate: "agent_message_chunk",
@@ -48,9 +48,8 @@ describe("ACP Event Mapper", () => {
         }),
       )
 
-      // Empty string is falsy → falls through to non-text content branch
-      expect(events).toHaveLength(1)
-      expect(events[0]!.type).toBe("backend_specific")
+      // Empty string is a keep-alive — should be silently dropped, not backend_specific
+      expect(events).toHaveLength(0)
     })
 
     it("maps image content to backend_specific", () => {
@@ -292,6 +291,169 @@ describe("ACP Event Mapper", () => {
       expect(start.input.kind).toBe("read")
       expect(start.input.locations).toEqual(locations)
       expect(start.input.rawInput).toEqual(rawInput)
+      // Normalized field extracted from rawInput
+      expect(start.input.file_path).toBe("/project/src/foo.ts")
+    })
+
+    it("extracts file_path from rawInput object", () => {
+      const events = mapAcpUpdate(
+        makeParams({
+          sessionUpdate: "tool_call",
+          toolCallId: "tc-13",
+          kind: "read",
+          status: "in_progress",
+          content: [],
+          rawInput: { file_path: "/project/src/bar.ts" },
+        }),
+      )
+
+      const start = events[0]! as any
+      expect(start.input.file_path).toBe("/project/src/bar.ts")
+    })
+
+    it("extracts command from rawInput object", () => {
+      const events = mapAcpUpdate(
+        makeParams({
+          sessionUpdate: "tool_call",
+          toolCallId: "tc-14",
+          kind: "execute",
+          status: "in_progress",
+          content: [],
+          rawInput: { command: "ls -la" },
+        }),
+      )
+
+      const start = events[0]! as any
+      expect(start.input.command).toBe("ls -la")
+    })
+
+    it("extracts pattern from rawInput object", () => {
+      const events = mapAcpUpdate(
+        makeParams({
+          sessionUpdate: "tool_call",
+          toolCallId: "tc-15",
+          kind: "search",
+          status: "in_progress",
+          content: [],
+          rawInput: { pattern: "TODO" },
+        }),
+      )
+
+      const start = events[0]! as any
+      expect(start.input.pattern).toBe("TODO")
+    })
+
+    it("extracts query from rawInput object", () => {
+      const events = mapAcpUpdate(
+        makeParams({
+          sessionUpdate: "tool_call",
+          toolCallId: "tc-16",
+          kind: "fetch",
+          status: "in_progress",
+          content: [],
+          rawInput: { query: "how to use bun" },
+        }),
+      )
+
+      const start = events[0]! as any
+      expect(start.input.query).toBe("how to use bun")
+    })
+
+    it("extracts command from rawInput string for Bash tool", () => {
+      const events = mapAcpUpdate(
+        makeParams({
+          sessionUpdate: "tool_call",
+          toolCallId: "tc-17",
+          kind: "execute",
+          status: "in_progress",
+          content: [],
+          rawInput: "git status",
+        }),
+      )
+
+      const start = events[0]! as any
+      expect(start.input.command).toBe("git status")
+    })
+
+    it("extracts file_path from rawInput string for Read tool", () => {
+      const events = mapAcpUpdate(
+        makeParams({
+          sessionUpdate: "tool_call",
+          toolCallId: "tc-18",
+          kind: "read",
+          status: "in_progress",
+          content: [],
+          rawInput: "/project/src/main.ts",
+        }),
+      )
+
+      const start = events[0]! as any
+      expect(start.input.file_path).toBe("/project/src/main.ts")
+    })
+
+    it("extracts file_path from locations when rawInput has no file_path", () => {
+      const events = mapAcpUpdate(
+        makeParams({
+          sessionUpdate: "tool_call",
+          toolCallId: "tc-19",
+          kind: "read",
+          status: "in_progress",
+          content: [],
+          locations: [{ path: "/project/src/index.ts", line: 1 }],
+        }),
+      )
+
+      const start = events[0]! as any
+      expect(start.input.file_path).toBe("/project/src/index.ts")
+    })
+
+    it("prefers rawInput.file_path over locations[0].path", () => {
+      const events = mapAcpUpdate(
+        makeParams({
+          sessionUpdate: "tool_call",
+          toolCallId: "tc-20a",
+          kind: "read",
+          status: "in_progress",
+          content: [],
+          rawInput: { file_path: "/from/rawInput.ts" },
+          locations: [{ path: "/from/locations.ts" }],
+        }),
+      )
+
+      const start = events[0]! as any
+      expect(start.input.file_path).toBe("/from/rawInput.ts")
+    })
+
+    it("falls back to rawInput.path for file_path", () => {
+      const events = mapAcpUpdate(
+        makeParams({
+          sessionUpdate: "tool_call",
+          toolCallId: "tc-20b",
+          kind: "read",
+          status: "in_progress",
+          content: [],
+          rawInput: { path: "/project/src/alt.ts" },
+        }),
+      )
+
+      const start = events[0]! as any
+      expect(start.input.file_path).toBe("/project/src/alt.ts")
+    })
+
+    it("extracts pattern from rawInput string for Search tool", () => {
+      const events = mapAcpUpdate(
+        makeParams({
+          sessionUpdate: "tool_call",
+          toolCallId: "tc-20c",
+          kind: "search",
+          status: "in_progress",
+          content: [],
+          rawInput: "function.*export",
+        }),
+      )
+
+      const start = events[0]! as any
+      expect(start.input.pattern).toBe("function.*export")
     })
   })
 

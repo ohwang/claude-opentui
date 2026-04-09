@@ -77,7 +77,11 @@ function mapAgentMessageChunk(update: AcpAgentMessageChunk): AgentEvent[] {
   const content = update.content
   if (!content) return []
 
-  if (content.type === "text" && content.text) {
+  if (content.type === "text" && content.text != null) {
+    if (content.text === "") {
+      log.debug("ACP agent_message_chunk with empty text (keep-alive), skipping")
+      return []
+    }
     return [{ type: "text_delta", text: content.text }]
   }
 
@@ -97,16 +101,43 @@ function mapAgentMessageChunk(update: AcpAgentMessageChunk): AgentEvent[] {
 function mapToolCall(update: AcpToolCall): AgentEvent[] {
   const toolName = deriveToolName(update.kind, update.title)
 
+  // Normalize input to include fields tool-view.tsx expects
+  const input: Record<string, unknown> = {
+    // Preserve ACP metadata
+    title: update.title,
+    kind: update.kind,
+    locations: update.locations,
+    rawInput: update.rawInput,
+  }
+
+  // Extract standard fields from rawInput (may be string or object)
+  const raw = update.rawInput
+  if (raw && typeof raw === "object") {
+    const rawObj = raw as Record<string, unknown>
+    // Pass through any standard fields from rawInput
+    if (rawObj.file_path) input.file_path = rawObj.file_path
+    if (rawObj.command) input.command = rawObj.command
+    if (rawObj.pattern) input.pattern = rawObj.pattern
+    if (rawObj.query) input.query = rawObj.query
+    if (rawObj.path) input.file_path = input.file_path ?? rawObj.path
+  } else if (raw && typeof raw === "string") {
+    // rawInput is a string — likely a command or file path
+    if (toolName === "Bash") input.command = raw
+    else if (toolName === "Read" || toolName === "Edit" || toolName === "Delete" || toolName === "Move") input.file_path = raw
+    else if (toolName === "Search") input.pattern = raw
+  }
+
+  // Extract file_path from locations if not already set
+  if (!input.file_path && update.locations && update.locations.length > 0) {
+    const loc = update.locations[0]
+    if (loc?.path) input.file_path = loc.path
+  }
+
   return [{
     type: "tool_use_start",
     id: update.toolCallId,
     tool: toolName,
-    input: {
-      title: update.title,
-      kind: update.kind,
-      locations: update.locations,
-      rawInput: update.rawInput,
-    },
+    input,
   }]
 }
 

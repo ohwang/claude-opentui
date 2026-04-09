@@ -170,6 +170,43 @@ export class GeminiAdapter implements AgentBackend {
     log.debug("cancelElicitation called on Gemini adapter — not supported")
   }
 
+  async resetSession(): Promise<void> {
+    if (!this.agent) {
+      log.warn("resetSession() called but no agent exists")
+      return
+    }
+
+    trace.write({
+      dir: "out",
+      stage: "sdk_call",
+      type: "resetSession",
+      payload: { oldSessionId: this.session?.id },
+    })
+
+    // Create a fresh session from the existing agent
+    const newSession = this.agent.session()
+    this.session = newSession
+    this.turnCount = 0
+    this.eventMapper.reset()
+
+    log.info("Gemini session reset", { newSessionId: newSession.id })
+    trace.write({
+      dir: "internal",
+      stage: "adapter_event",
+      type: "session_reset",
+      payload: { newSessionId: newSession.id },
+    })
+
+    // Emit a new session_init so the TUI knows about the fresh session
+    const modelName = this.config?.model || "gemini-2.5-pro"
+    this.eventChannel?.push({
+      type: "session_init",
+      sessionId: newSession.id,
+      tools: [],
+      models: [{ id: modelName, name: modelName, provider: "google" }],
+    })
+  }
+
   async setModel(_model: string): Promise<void> {
     throw new Error("Model switching is not supported by the Gemini backend. Restart with --model <name> to change.")
   }

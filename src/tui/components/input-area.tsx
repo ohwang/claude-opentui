@@ -660,6 +660,7 @@ export function InputArea() {
       pushEvent: sync.pushEvent,
       clearConversation: sync.clearConversation,
       resetCost: sync.resetCost,
+      resetSession: async () => { await agent.backend.resetSession?.() },
       setModel: (model: string) => agent.backend.setModel(model),
       exit: triggerCleanExit,
       toggleDiagnostics,

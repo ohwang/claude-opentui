@@ -286,6 +286,11 @@ export interface AgentBackend {
   /** List available models. */
   availableModels(): Promise<ModelInfo[]>
 
+  /** Reset the backend session (create a fresh session without restarting).
+   *  Used by /new to clear server-side conversation history.
+   *  Backends that don't support this can leave it unimplemented. */
+  resetSession?(): Promise<void>
+
   /** Gracefully close the backend and clean up child processes. */
   close(): void
 }

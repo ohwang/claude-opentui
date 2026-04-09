@@ -17,6 +17,7 @@ function makeCtx(overrides: Partial<CommandContext> = {}): CommandContext & { ev
     pushEvent: (e: any) => events.push(e),
     clearConversation: () => {},
     resetCost: () => {},
+    resetSession: async () => {},
     setModel: async () => {},
     exit: () => {},
     toggleDiagnostics: () => {},
@@ -118,6 +119,7 @@ describe("CommandRegistry", () => {
       pushEvent: () => {},
       clearConversation: () => {},
       resetCost: () => {},
+      resetSession: async () => {},
       setModel: async () => {},
     }
 
@@ -133,6 +135,7 @@ describe("CommandRegistry", () => {
       pushEvent: () => {},
       clearConversation: () => {},
       resetCost: () => {},
+      resetSession: async () => {},
       setModel: async () => {},
     }
 
@@ -146,6 +149,7 @@ describe("CommandRegistry", () => {
       pushEvent: () => {},
       clearConversation: () => {},
       resetCost: () => {},
+      resetSession: async () => {},
       setModel: async () => {},
     }
 
@@ -354,18 +358,21 @@ describe("/compact command", () => {
 })
 
 describe("/new command", () => {
-  it("clears conversation and resets cost", async () => {
+  it("clears conversation, resets cost, and resets backend session", async () => {
     const registry = createCommandRegistry()
     let cleared = false
     let costReset = false
+    let sessionReset = false
     const ctx = makeCtx({
       clearConversation: () => { cleared = true },
       resetCost: () => { costReset = true },
+      resetSession: async () => { sessionReset = true },
     })
     const handled = await registry.tryExecute("/new", ctx)
     expect(handled).toBe(true)
     expect(cleared).toBe(true)
     expect(costReset).toBe(true)
+    expect(sessionReset).toBe(true)
     expect(ctx.events.some(e => e.type === "system_message")).toBe(false)
   })
 })

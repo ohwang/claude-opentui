@@ -15,6 +15,8 @@ export interface CommandContext {
   pushEvent: (event: any) => void
   clearConversation: () => void
   resetCost: () => void
+  /** Reset the backend session (create a fresh server-side session). */
+  resetSession: () => Promise<void>
   setModel: (model: string) => Promise<void>
   exit?: () => void
   toggleDiagnostics?: () => void

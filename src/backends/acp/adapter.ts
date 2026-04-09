@@ -197,7 +197,7 @@ export class AcpAdapter extends BaseAdapter {
   capabilities(): BackendCapabilities {
     // Derive thinking support from discovered config options
     const hasThinkingOption = this.discoveredConfigOptions.some(
-      o => o.id === "thinking" || o.name.toLowerCase().includes("thinking") || o.name.toLowerCase().includes("effort"),
+      o => o.category === "thought_level" || o.id === "thinking" || o.name.toLowerCase().includes("thinking") || o.name.toLowerCase().includes("effort"),
     )
 
     return {
@@ -326,7 +326,7 @@ export class AcpAdapter extends BaseAdapter {
 
     // Strategy 1: Try config option if a model config option exists
     const modelOption = this.discoveredConfigOptions.find(
-      o => o.id === "model" || o.name.toLowerCase().includes("model"),
+      o => o.category === "model" || o.id === "model" || o.name.toLowerCase().includes("model"),
     )
     if (modelOption) {
       try {
@@ -438,7 +438,7 @@ export class AcpAdapter extends BaseAdapter {
 
     // Try config option if a thinking/effort config option exists
     const effortOption = this.discoveredConfigOptions.find(
-      o => o.id === "thinking" || o.name.toLowerCase().includes("thinking") || o.name.toLowerCase().includes("effort"),
+      o => o.category === "thought_level" || o.id === "thinking" || o.name.toLowerCase().includes("thinking") || o.name.toLowerCase().includes("effort"),
     )
     if (effortOption) {
       try {
@@ -808,12 +808,13 @@ export class AcpAdapter extends BaseAdapter {
     // Emit refreshed config options list to update TUI state
     this.emitConfigOptions()
 
-    // Map to AgentEvents based on the option type
-    if (option.id === "model" || option.name.toLowerCase().includes("model")) {
+    // Map to AgentEvents based on the option type — check category first
+    if (option.category === "model" || option.id === "model" || option.name.toLowerCase().includes("model")) {
       const model = String(option.value)
       this.currentModel = model
       this.eventChannel?.push({ type: "model_changed", model })
     } else if (
+      option.category === "thought_level" ||
       option.id === "thinking" ||
       option.name.toLowerCase().includes("thinking") ||
       option.name.toLowerCase().includes("effort")

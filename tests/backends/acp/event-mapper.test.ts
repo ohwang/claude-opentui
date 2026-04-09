@@ -52,7 +52,27 @@ describe("ACP Event Mapper", () => {
       expect(events).toHaveLength(0)
     })
 
-    it("maps image content to backend_specific", () => {
+    it("maps image with uri to text_delta with filename link", () => {
+      const events = mapAcpUpdate(
+        makeParams({
+          sessionUpdate: "agent_message_chunk",
+          content: {
+            type: "image",
+            mimeType: "image/png",
+            data: "iVBORw0KGgo=",
+            uri: "https://example.com/assets/screenshot.png",
+          },
+        }),
+      )
+
+      expect(events).toHaveLength(1)
+      expect(events[0]!).toEqual({
+        type: "text_delta",
+        text: "\n[Image: screenshot.png](https://example.com/assets/screenshot.png)\n",
+      })
+    })
+
+    it("maps image without uri to text_delta with mimeType", () => {
       const events = mapAcpUpdate(
         makeParams({
           sessionUpdate: "agent_message_chunk",
@@ -65,13 +85,13 @@ describe("ACP Event Mapper", () => {
       )
 
       expect(events).toHaveLength(1)
-      expect(events[0]!.type).toBe("backend_specific")
-      const bs = events[0]! as any
-      expect(bs.backend).toBe("acp")
-      expect(bs.data.update.content.type).toBe("image")
+      expect(events[0]!).toEqual({
+        type: "text_delta",
+        text: "\n[Image: image/png]\n",
+      })
     })
 
-    it("maps resource_link content to backend_specific", () => {
+    it("maps resource_link to text_delta with markdown link", () => {
       const events = mapAcpUpdate(
         makeParams({
           sessionUpdate: "agent_message_chunk",
@@ -84,10 +104,29 @@ describe("ACP Event Mapper", () => {
       )
 
       expect(events).toHaveLength(1)
-      expect(events[0]!.type).toBe("backend_specific")
-      const bs = events[0]! as any
-      expect(bs.backend).toBe("acp")
-      expect(bs.data.method).toBe("session/update")
+      expect(events[0]!).toEqual({
+        type: "text_delta",
+        text: "[foo.ts](file:///project/src/foo.ts)",
+      })
+    })
+
+    it("maps resource_link without name to text_delta using uri as label", () => {
+      const events = mapAcpUpdate(
+        makeParams({
+          sessionUpdate: "agent_message_chunk",
+          content: {
+            type: "resource_link",
+            uri: "file:///project/src/bar.ts",
+            name: "",
+          },
+        }),
+      )
+
+      expect(events).toHaveLength(1)
+      expect(events[0]!).toEqual({
+        type: "text_delta",
+        text: "[file:///project/src/bar.ts](file:///project/src/bar.ts)",
+      })
     })
   })
 

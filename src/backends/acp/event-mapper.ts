@@ -77,21 +77,46 @@ function mapAgentMessageChunk(update: AcpAgentMessageChunk): AgentEvent[] {
   const content = update.content
   if (!content) return []
 
-  if (content.type === "text" && content.text != null) {
-    if (content.text === "") {
-      log.debug("ACP agent_message_chunk with empty text (keep-alive), skipping")
-      return []
+  switch (content.type) {
+    case "text": {
+      if (content.text == null) return []
+      if (content.text === "") {
+        log.debug("ACP agent_message_chunk with empty text (keep-alive), skipping")
+        return []
+      }
+      return [{ type: "text_delta", text: content.text }]
     }
-    return [{ type: "text_delta", text: content.text }]
-  }
 
-  // Non-text content in message chunk — pass through
-  log.debug("ACP agent_message_chunk with non-text content", { type: content.type })
-  return [{
-    type: "backend_specific",
-    backend: "acp",
-    data: { method: "session/update", update },
-  }]
+    case "resource_link": {
+      // Render resource links as markdown-style links
+      // Terminal emulators with OSC 8 support will make these clickable
+      const link = content as { type: "resource_link"; uri: string; name: string; mimeType?: string }
+      const label = link.name || link.uri
+      const text = `[${label}](${link.uri})`
+      return [{ type: "text_delta", text }]
+    }
+
+    case "image": {
+      // Render images as descriptive placeholder text
+      // Full image rendering needs TUI infrastructure that doesn't exist yet
+      const img = content as { type: "image"; mimeType: string; data: string; uri?: string }
+      const desc = img.uri
+        ? `\n[Image: ${img.uri.split("/").pop() ?? "image"}](${img.uri})\n`
+        : `\n[Image: ${img.mimeType}]\n`
+      return [{ type: "text_delta", text: desc }]
+    }
+
+    default: {
+      // Unknown content type — pass through
+      const unknown = content as { type: string }
+      log.debug("ACP agent_message_chunk with unhandled content type", { type: unknown.type })
+      return [{
+        type: "backend_specific",
+        backend: "acp",
+        data: { method: "session/update", update },
+      }]
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------

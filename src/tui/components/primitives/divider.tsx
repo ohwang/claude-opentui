@@ -26,7 +26,7 @@ export function Divider(props: {
   const line = () => char().repeat(Math.max(width(), 20))
 
   return (
-    <box height={1}>
+    <box height={1} width="100%">
       <text fg={color()}>{line()}</text>
     </box>
   )

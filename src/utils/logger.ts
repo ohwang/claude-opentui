@@ -118,7 +118,6 @@ class Logger {
       case "claude-v1":
         return "Claude Code Session"
       case "codex":
-      case "codex-sdk":
         return "Codex Session"
       case "gemini":
         return "Gemini Session"

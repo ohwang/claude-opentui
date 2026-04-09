@@ -555,7 +555,7 @@ describe("ACP Event Mapper", () => {
       expect(events).toHaveLength(0)
     })
 
-    it("produces additional backend_specific for diff content", () => {
+    it("includes diff content as unified diff in tool_use_progress output", () => {
       const events = mapAcpUpdate(
         makeParams({
           sessionUpdate: "tool_call_update",
@@ -576,21 +576,20 @@ describe("ACP Event Mapper", () => {
         }),
       )
 
-      expect(events).toHaveLength(2)
+      // Single tool_use_progress with combined text + diff output (no backend_specific for diffs)
+      expect(events).toHaveLength(1)
 
       const progress = events[0]! as any
       expect(progress.type).toBe("tool_use_progress")
-      expect(progress.output).toBe("Editing file...")
-
-      const bs = events[1]! as any
-      expect(bs.type).toBe("backend_specific")
-      expect(bs.backend).toBe("acp")
-      expect(bs.data.type).toBe("tool_call_rich_content")
-      expect(bs.data.toolCallId).toBe("tc-25")
-      expect(bs.data.content).toHaveLength(2)
+      expect(progress.output).toContain("Editing file...")
+      expect(progress.output).toContain("--- a//project/src/foo.ts")
+      expect(progress.output).toContain("+++ b//project/src/foo.ts")
+      expect(progress.output).toContain("@@ -1,1 +1,1 @@")
+      expect(progress.output).toContain("-const x = 1")
+      expect(progress.output).toContain("+const x = 2")
     })
 
-    it("produces additional backend_specific for terminal content", () => {
+    it("produces additional backend_specific for terminal content (terminal only)", () => {
       const events = mapAcpUpdate(
         makeParams({
           sessionUpdate: "tool_call_update",
@@ -611,6 +610,9 @@ describe("ACP Event Mapper", () => {
       expect(events[1]!.type).toBe("backend_specific")
       const bs = events[1]! as any
       expect(bs.data.type).toBe("tool_call_rich_content")
+      // Only terminal content in the backend_specific, not diffs
+      expect(bs.data.content).toHaveLength(1)
+      expect(bs.data.content[0].type).toBe("terminal")
     })
 
     it("uses 'Tool completed' fallback when completed with empty content", () => {
@@ -685,7 +687,7 @@ describe("ACP Event Mapper", () => {
       expect(end.output).toBe("Line 1\nLine 2")
     })
 
-    it("skips non-text content items when extracting output text", () => {
+    it("combines text and diff content in output for completed status", () => {
       const events = mapAcpUpdate(
         makeParams({
           sessionUpdate: "tool_call_update",
@@ -708,7 +710,11 @@ describe("ACP Event Mapper", () => {
 
       expect(events).toHaveLength(1)
       const end = events[0]! as any
-      expect(end.output).toBe("Useful output")
+      expect(end.output).toContain("Useful output")
+      expect(end.output).toContain("--- a//project/src/bar.ts")
+      expect(end.output).toContain("+++ b//project/src/bar.ts")
+      expect(end.output).toContain("-a")
+      expect(end.output).toContain("+b")
     })
   })
 
@@ -923,7 +929,7 @@ describe("ACP Event Mapper", () => {
       expect(events).toHaveLength(0)
     })
 
-    it("handles tool_call_update with completed status and non-text content only", () => {
+    it("handles tool_call_update with completed status and diff-only content", () => {
       const events = mapAcpUpdate(
         makeParams({
           sessionUpdate: "tool_call_update",
@@ -940,11 +946,15 @@ describe("ACP Event Mapper", () => {
         }),
       )
 
-      // extractToolContentText returns "" for diff-only content → fallback to "Tool completed"
+      // Diff content is now included in output as unified diff
       expect(events).toHaveLength(1)
       const end = events[0]! as any
       expect(end.type).toBe("tool_use_end")
-      expect(end.output).toBe("Tool completed")
+      expect(end.output).toContain("--- a//project/src/a.ts")
+      expect(end.output).toContain("+++ b//project/src/a.ts")
+      expect(end.output).toContain("-old")
+      expect(end.output).toContain("+new")
+      expect(end.error).toBeUndefined()
     })
 
     it("handles tool_call_update with failed status and non-text content only", () => {
@@ -966,7 +976,7 @@ describe("ACP Event Mapper", () => {
       expect(end.error).toBe("Tool call failed")
     })
 
-    it("in_progress with only diff content produces backend_specific but no progress", () => {
+    it("in_progress with only diff content produces tool_use_progress with unified diff", () => {
       const events = mapAcpUpdate(
         makeParams({
           sessionUpdate: "tool_call_update",
@@ -983,14 +993,18 @@ describe("ACP Event Mapper", () => {
         }),
       )
 
-      // No text → no tool_use_progress, but diff → backend_specific
+      // Diff content now included in tool_use_progress (no backend_specific)
       expect(events).toHaveLength(1)
-      expect(events[0]!.type).toBe("backend_specific")
-      const bs = events[0]! as any
-      expect(bs.data.type).toBe("tool_call_rich_content")
+      expect(events[0]!.type).toBe("tool_use_progress")
+      const progress = events[0]! as any
+      expect(progress.output).toContain("--- a//project/src/b.ts")
+      expect(progress.output).toContain("+++ b//project/src/b.ts")
+      expect(progress.output).toContain("@@ -1,1 +1,1 @@")
+      expect(progress.output).toContain("-x")
+      expect(progress.output).toContain("+y")
     })
 
-    it("in_progress with text + diff produces both progress and backend_specific", () => {
+    it("in_progress with text + diff produces single progress with combined output", () => {
       const events = mapAcpUpdate(
         makeParams({
           sessionUpdate: "tool_call_update",
@@ -1011,9 +1025,13 @@ describe("ACP Event Mapper", () => {
         }),
       )
 
-      expect(events).toHaveLength(2)
+      // Single tool_use_progress with combined text + unified diff
+      expect(events).toHaveLength(1)
       expect(events[0]!.type).toBe("tool_use_progress")
-      expect(events[1]!.type).toBe("backend_specific")
+      const progress = events[0]! as any
+      expect(progress.output).toContain("Applying edit")
+      expect(progress.output).toContain("--- a//project/src/c.ts")
+      expect(progress.output).toContain("+++ b//project/src/c.ts")
     })
 
     it("in_progress with content that has non-text inner type returns no progress", () => {
@@ -1039,6 +1057,108 @@ describe("ACP Event Mapper", () => {
       // extractToolContentText returns "" for image content → no progress event
       // No diff/terminal → no backend_specific
       expect(events).toHaveLength(0)
+    })
+
+    it("diff format includes markers recognized by tool-view for rendering", () => {
+      const events = mapAcpUpdate(
+        makeParams({
+          sessionUpdate: "tool_call_update",
+          toolCallId: "tc-50",
+          status: "completed",
+          content: [
+            {
+              type: "diff",
+              path: "src/utils/helper.ts",
+              oldText: "function foo() {\n  return 1\n}",
+              newText: "function foo() {\n  return 2\n}",
+            },
+          ],
+        }),
+      )
+
+      expect(events).toHaveLength(1)
+      const end = events[0]! as any
+      // tool-view.tsx detects unified diff by looking for these three markers
+      expect(end.output).toMatch(/^--- a\//)
+      expect(end.output).toContain("+++ b/")
+      expect(end.output).toContain("@@ -1,3 +1,3 @@")
+    })
+
+    it("multiple diff blocks are separated by blank lines", () => {
+      const events = mapAcpUpdate(
+        makeParams({
+          sessionUpdate: "tool_call_update",
+          toolCallId: "tc-51",
+          status: "completed",
+          content: [
+            {
+              type: "diff",
+              path: "a.ts",
+              oldText: "x",
+              newText: "y",
+            },
+            {
+              type: "diff",
+              path: "b.ts",
+              oldText: "1",
+              newText: "2",
+            },
+          ],
+        }),
+      )
+
+      expect(events).toHaveLength(1)
+      const end = events[0]! as any
+      // Both diffs present
+      expect(end.output).toContain("--- a/a.ts")
+      expect(end.output).toContain("--- a/b.ts")
+      // Separated by double newline
+      expect(end.output).toContain("+y\n\n--- a/b.ts")
+    })
+
+    it("failed status with diff content includes diff in error", () => {
+      const events = mapAcpUpdate(
+        makeParams({
+          sessionUpdate: "tool_call_update",
+          toolCallId: "tc-52",
+          status: "failed",
+          content: [
+            {
+              type: "diff",
+              path: "broken.ts",
+              oldText: "old code",
+              newText: "new code",
+            },
+          ],
+        }),
+      )
+
+      expect(events).toHaveLength(1)
+      const end = events[0]! as any
+      expect(end.type).toBe("tool_use_end")
+      expect(end.output).toContain("--- a/broken.ts")
+      expect(end.error).toContain("--- a/broken.ts")
+    })
+
+    it("terminal-only content still emits backend_specific without diff interference", () => {
+      const events = mapAcpUpdate(
+        makeParams({
+          sessionUpdate: "tool_call_update",
+          toolCallId: "tc-53",
+          status: "in_progress",
+          content: [
+            { type: "terminal", terminalId: "term-5" },
+          ],
+        }),
+      )
+
+      // No text or diff → no tool_use_progress, just backend_specific for terminal
+      expect(events).toHaveLength(1)
+      expect(events[0]!.type).toBe("backend_specific")
+      const bs = events[0]! as any
+      expect(bs.data.type).toBe("tool_call_rich_content")
+      expect(bs.data.content).toHaveLength(1)
+      expect(bs.data.content[0].type).toBe("terminal")
     })
 
     it("preserves sessionId through params but does not appear in events", () => {

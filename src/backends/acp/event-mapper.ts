@@ -148,40 +148,40 @@ function mapToolCall(update: AcpToolCall): AgentEvent[] {
 function mapToolCallUpdate(update: AcpToolCallUpdate): AgentEvent[] {
   const events: AgentEvent[] = []
 
+  // Extract text + diff content
+  const textOutput = extractToolContentText(update.content)
+  const diffOutput = extractDiffContent(update.content)
+  const combinedOutput = [textOutput, diffOutput].filter(Boolean).join("\n")
+
   // Completed or failed → tool_use_end
   if (update.status === "completed" || update.status === "failed") {
-    const output = extractToolContentText(update.content)
     events.push({
       type: "tool_use_end",
       id: update.toolCallId,
-      output: output || `Tool ${update.status}`,
-      error: update.status === "failed" ? (output || "Tool call failed") : undefined,
+      output: combinedOutput || `Tool ${update.status}`,
+      error: update.status === "failed" ? (combinedOutput || "Tool call failed") : undefined,
     })
     return events
   }
 
   // In-progress → tool_use_progress
-  if (update.content && update.content.length > 0) {
-    const output = extractToolContentText(update.content)
-    if (output) {
-      events.push({
-        type: "tool_use_progress",
-        id: update.toolCallId,
-        output,
-      })
-    }
+  if (combinedOutput) {
+    events.push({
+      type: "tool_use_progress",
+      id: update.toolCallId,
+      output: combinedOutput,
+    })
   }
 
-  // If there's rich content (diffs, terminals) not captured in text,
-  // pass through as backend_specific
-  if (update.content?.some(c => c.type === "diff" || c.type === "terminal")) {
+  // Terminal content still passes through as backend_specific
+  if (update.content?.some(c => c.type === "terminal")) {
     events.push({
       type: "backend_specific",
       backend: "acp",
       data: {
         type: "tool_call_rich_content",
         toolCallId: update.toolCallId,
-        content: update.content,
+        content: update.content?.filter(c => c.type === "terminal"),
       },
     })
   }
@@ -263,4 +263,45 @@ function extractToolContentText(content?: AcpToolContent[]): string {
     )
     .map(c => c.content.text)
     .join("\n")
+}
+
+/**
+ * Extract diff content from ACP tool content array and format as unified diff.
+ * The unified diff format is recognized by tool-view.tsx for color-coded rendering.
+ */
+function extractDiffContent(content?: AcpToolContent[]): string {
+  if (!content || content.length === 0) return ""
+
+  return content
+    .filter((c): c is { type: "diff"; path: string; oldText: string; newText: string } =>
+      c.type === "diff",
+    )
+    .map(c => formatDiffContent(c))
+    .join("\n\n")
+}
+
+/**
+ * Convert an ACP diff content block to unified diff text format.
+ * Produces `--- a/path` + `+++ b/path` + `@@ ` hunk headers that
+ * tool-view.tsx detects for rendering with the `<diff>` component.
+ */
+function formatDiffContent(diff: { path: string; oldText: string; newText: string }): string {
+  const oldLines = diff.oldText.split("\n")
+  const newLines = diff.newText.split("\n")
+
+  const lines: string[] = []
+  lines.push(`--- a/${diff.path}`)
+  lines.push(`+++ b/${diff.path}`)
+
+  // Simple unified diff: show full file as one hunk
+  lines.push(`@@ -1,${oldLines.length} +1,${newLines.length} @@`)
+
+  for (const line of oldLines) {
+    lines.push(`-${line}`)
+  }
+  for (const line of newLines) {
+    lines.push(`+${line}`)
+  }
+
+  return lines.join("\n")
 }

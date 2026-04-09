@@ -39,9 +39,8 @@ export function ThinkingBlock(props: { text: string; collapsed?: boolean }) {
           {"\ud83d\udca1 Thinking\u2026"}
         </text>
         <box flexDirection="row">
-          <box width={2} flexShrink={0}>
-            <text fg={colors.border.default}>{"\u2503"}</text>
-          </box>
+          <box width={1} flexShrink={0} backgroundColor={colors.border.default} />
+          <box width={1} flexShrink={0} />
           <box flexGrow={1}>
             <markdown
               content={truncatedText()}

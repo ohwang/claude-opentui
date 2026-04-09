@@ -3,9 +3,12 @@
  *
  * Positioned above the input area.
  * Each toast is a single-line <text> with type-appropriate prefix and color.
+ * Styled to blend with the conversation: colored icon for semantic meaning,
+ * dimmed inactive text for the message body.
  */
 
 import { For } from "solid-js"
+import { TextAttributes } from "@opentui/core"
 import { useToast, type ToastType } from "../context/toast"
 import { colors } from "../theme/tokens"
 
@@ -43,10 +46,9 @@ export function ToastDisplay() {
       <box flexDirection="column" paddingLeft={2}>
         <For each={ctx.toasts}>
           {(t) => (
-            <box height={1}>
-              <text fg={TOAST_COLOR[t.type]}>
-                {`${TOAST_PREFIX[t.type]} ${t.message}`}
-              </text>
+            <box height={1} flexDirection="row">
+              <text fg={TOAST_COLOR[t.type]} attributes={TextAttributes.DIM}>{TOAST_PREFIX[t.type]}</text>
+              <text fg={colors.text.inactive} attributes={TextAttributes.DIM}>{` ${t.message}`}</text>
             </box>
           )}
         </For>

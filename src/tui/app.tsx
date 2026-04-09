@@ -124,7 +124,7 @@ function Layout(props: { onExit?: () => void }) {
       return { toolCount, assistantCount }
     },
     onShowSummary: (summary) => {
-      toast.info(summary, 6000)
+      showTransientHint(summary, 6000)
     },
   })
 

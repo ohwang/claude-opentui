@@ -254,24 +254,36 @@ export function ConversationView(props: { children?: JSX.Element; footerHint?: s
     if (event.ctrl && event.name === "o") {
       event.preventDefault()
       const next: ViewLevel = viewLevel() === "collapsed" ? "expanded" : "collapsed"
+      // Snapshot whether the user was at the bottom before the content
+      // height changes. After layout recalculates, re-anchor to bottom
+      // so the viewport doesn't jump to earlier messages.
+      const wasAtBottom = !userScrolledAway() || (scrollboxRef ? isNearBottom(scrollboxRef) : false)
       // Batch both signal updates so the block list and hint re-render
       // in a single reactive pass, preventing a flash between states.
       batch(() => {
         setViewLevel(next)
         showViewLevelHint(next)
       })
+      if (wasAtBottom) {
+        queueMicrotask(() => scrollboxRef?.scrollBy(999999))
+      }
     }
     if (event.ctrl && event.shift && event.name === "e") {
       event.preventDefault()
       const next: ViewLevel = viewLevel() === "show_all" ? "collapsed" : "show_all"
+      const wasAtBottom = !userScrolledAway() || (scrollboxRef ? isNearBottom(scrollboxRef) : false)
       batch(() => {
         setViewLevel(next)
         showViewLevelHint(next)
       })
+      if (wasAtBottom) {
+        queueMicrotask(() => scrollboxRef?.scrollBy(999999))
+      }
     }
     if (event.ctrl && event.shift && event.name === "t") {
       event.preventDefault()
       const next = !showThinking()
+      const wasAtBottom = !userScrolledAway() || (scrollboxRef ? isNearBottom(scrollboxRef) : false)
       batch(() => {
         setShowThinking(next)
         const text = next ? "Thinking: visible" : "Thinking: hidden"
@@ -279,6 +291,9 @@ export function ConversationView(props: { children?: JSX.Element; footerHint?: s
       })
       clearTimeout(viewLevelHintTimer)
       viewLevelHintTimer = setTimeout(() => setViewLevelHint(null), 2000)
+      if (wasAtBottom) {
+        queueMicrotask(() => scrollboxRef?.scrollBy(999999))
+      }
     }
     if (event.ctrl && event.name === "up") {
       event.preventDefault()

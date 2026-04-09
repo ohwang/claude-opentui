@@ -17,6 +17,7 @@ interface ManagedTerminal {
   exitPromise: Promise<number>
   killed: boolean
   timeoutTimer?: ReturnType<typeof setTimeout>
+  forceKillTimer?: ReturnType<typeof setTimeout>
 }
 
 export class AcpTerminalManager {
@@ -101,6 +102,9 @@ export class AcpTerminalManager {
     const terminal = this.terminals.get(terminalId)
     if (!terminal || terminal.killed) return
 
+    // Clear any existing force-kill timer
+    if (terminal.forceKillTimer) clearTimeout(terminal.forceKillTimer)
+
     terminal.killed = true
     try {
       if (signal === "SIGKILL") {
@@ -108,7 +112,7 @@ export class AcpTerminalManager {
       } else {
         terminal.process.kill("SIGTERM")
         // Force kill after 3 seconds if still alive
-        setTimeout(() => {
+        terminal.forceKillTimer = setTimeout(() => {
           if (terminal.exitCode === null) {
             terminal.process.kill("SIGKILL")
           }
@@ -128,6 +132,7 @@ export class AcpTerminalManager {
 
     // Clear timers
     if (terminal.timeoutTimer) clearTimeout(terminal.timeoutTimer)
+    if (terminal.forceKillTimer) clearTimeout(terminal.forceKillTimer)
 
     // Kill if still running
     if (terminal.exitCode === null) {

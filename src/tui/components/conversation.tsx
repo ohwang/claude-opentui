@@ -24,6 +24,7 @@ import { useMessages } from "../context/messages"
 import { useSession } from "../context/session"
 import { ThinkingBlock } from "./thinking-block"
 import { TaskView } from "./task-view"
+import { NativeSubagentView } from "./native-subagent-view"
 import { syntaxStyle } from "../theme"
 import { colors } from "../theme/tokens"
 import { HeaderBar } from "./header-bar"
@@ -122,9 +123,7 @@ export function ConversationView(props: { children?: JSX.Element; footerHint?: s
   const visibleStreamingText = createThrottledValue<string | null>(() => lineBufferedText())
   const visibleThinking = createThrottledValue<string>(() => state.streamingThinking)
 
-  // Tasks that have NO matching Agent tool block — these are "orphan" tasks
-  // that should still be shown in the TaskView (e.g., background tasks started
-  // before the tool block was created, or tasks from other sources).
+  // Split active tasks: native subagents get their own component, backend tasks use TaskView
   const orphanTasks = createMemo((): [string, import("../../protocol/types").TaskInfo][] => {
     const tasks = state.activeTasks
     if (tasks.length === 0) return []
@@ -136,9 +135,19 @@ export function ConversationView(props: { children?: JSX.Element; footerHint?: s
       }
     }
     return tasks.filter(([, task]) => {
+      // Skip tasks correlated with an Agent tool block
       if (task.toolUseId && agentToolIds.has(task.toolUseId)) return false
+      // Skip native subagents — they have their own view
+      if (task.source === "native") return false
       return true
     })
+  })
+
+  // Native subagent tasks — rendered by NativeSubagentView with distinct styling
+  const nativeSubagentTasks = createMemo((): [string, import("../../protocol/types").TaskInfo][] => {
+    const tasks = state.activeTasks
+    if (tasks.length === 0) return []
+    return tasks.filter(([, task]) => task.source === "native")
   })
 
   // -- Turn elapsed time for the spinner --
@@ -433,6 +442,13 @@ export function ConversationView(props: { children?: JSX.Element; footerHint?: s
               <box marginTop={1} paddingLeft={2}>
                 <StreamingSpinner label={spinnerLabel()} elapsedSeconds={turnElapsed()} outputTokens={state.streamingOutputTokens || session.cost.outputTokens} />
               </box>
+            </Show>
+          </box>
+
+          {/* Native subagents — cross-backend, visually distinct from backend tasks */}
+          <box flexDirection="column">
+            <Show when={nativeSubagentTasks().length > 0}>
+              <NativeSubagentView tasks={nativeSubagentTasks()} />
             </Show>
           </box>
 

@@ -88,4 +88,6 @@ export interface RunningSubagent {
   backend: AgentBackend
   /** Queued messages to send on next turn_complete */
   messageQueue: string[]
+  /** True while a turn is in progress (between turn_start and turn_complete) */
+  midTurn: boolean
 }

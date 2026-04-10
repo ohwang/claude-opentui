@@ -64,6 +64,7 @@ export class SubagentManager {
       status,
       backend,
       messageQueue: [],
+      midTurn: false,
     }
 
     this.subagents.set(subagentId, running)
@@ -104,8 +105,14 @@ export class SubagentManager {
   sendMessage(subagentId: string, text: string): void {
     const running = this.subagents.get(subagentId)
     if (!running || running.status.state !== "running") return
-    // Queue the message — it will be sent on the next turn_complete
-    running.messageQueue.push(text)
+
+    if (running.midTurn) {
+      // Queue the message — it will be sent on the next turn_complete
+      running.messageQueue.push(text)
+    } else {
+      // No turn in progress — forward directly to the backend
+      running.backend.sendMessage({ text })
+    }
   }
 
   /** Get status of a specific subagent. */
@@ -177,6 +184,7 @@ export class SubagentManager {
             break
 
           case "turn_start":
+            running.midTurn = true
             log.debug("Subagent turn started", { subagentId })
             break
 
@@ -211,6 +219,7 @@ export class SubagentManager {
           case "turn_complete":
             running.status.turnCount++
             running.status.thinkingActive = false
+            running.midTurn = false
             // Check message queue for follow-ups
             if (running.messageQueue.length > 0) {
               const msg = running.messageQueue.shift()!

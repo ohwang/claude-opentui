@@ -16,8 +16,9 @@ const ACCENT = "#00d7d7"
 const DIM = "#808080"
 
 /** Format elapsed time as human-readable string */
-function formatElapsed(startTime: number): string {
-  const elapsed = Math.floor((Date.now() - startTime) / 1000)
+function formatElapsed(startTime: number, endTime?: number): string {
+  const now = endTime ?? Date.now()
+  const elapsed = Math.floor((now - startTime) / 1000)
   if (elapsed < 60) return `${elapsed}s`
   const mins = Math.floor(elapsed / 60)
   const secs = elapsed % 60
@@ -147,7 +148,7 @@ function NativeSubagentItem(props: { task: TaskInfo; tick: () => number }) {
         <box flexDirection="row" paddingLeft={2}>
           <text fg={statusColor()}>{statusChar() + " "}</text>
           <text fg={colors.text.secondary}>
-            {"Completed in " + formatElapsed(props.task.startTime)}
+            {"Completed in " + formatElapsed(props.task.startTime, props.task.endTime)}
           </text>
         </box>
         <Show when={props.task.output}>

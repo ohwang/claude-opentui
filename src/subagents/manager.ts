@@ -253,6 +253,21 @@ export class SubagentManager {
             if (running.messageQueue.length > 0) {
               const msg = running.messageQueue.shift()!
               backend.sendMessage({ text: msg })
+            } else {
+              // No queued messages — the subagent's work is done.
+              // Close the backend so the SDK query terminates (it would
+              // otherwise block forever waiting for the next user message
+              // via createMessageIterable).
+              log.info("Subagent turn complete with no follow-ups, completing", { subagentId, turnCount: running.status.turnCount })
+              running.status.state = "completed"
+              running.status.endTime = Date.now()
+              running.backend.close()
+              this.emit({
+                type: "task_complete",
+                taskId: subagentId,
+                output: running.status.output,
+                state: "completed",
+              } as AgentEvent)
             }
             this.emitProgress(running)
             break

@@ -12,11 +12,7 @@ process.on("SIGINT", () => {})
  */
 
 import { parseFlags, printHelp } from "./cli/flags"
-import { ClaudeAdapter } from "./backends/claude/adapter"
-import { CodexAdapter } from "./backends/codex/adapter"
-import { AcpAdapter } from "./backends/acp/adapter"
-import { ACP_PRESETS } from "./backends/acp/types"
-import { MockAdapter } from "./backends/mock/adapter"
+import { createBackend } from "./subagents/backend-factory"
 import { startApp } from "./tui/app"
 import { log } from "./utils/logger"
 import { backendTrace } from "./utils/backend-trace"
@@ -61,41 +57,17 @@ async function main() {
 
   // Create backend
   let backend: AgentBackend
-
-  switch (flags.backend) {
-    case "claude":
-    case "claude-v1":
-      backend = new ClaudeAdapter()
-      break
-    case "codex":
-      backend = new CodexAdapter()
-      break
-    case "gemini":
-    case "copilot": {
-      const preset = ACP_PRESETS[flags.backend]!
-      backend = new AcpAdapter({ ...preset, presetName: flags.backend })
-      break
-    }
-    case "acp": {
-      if (!flags.acpCommand) {
-        console.error("Error: --backend acp requires --acp-command <cmd>")
-        process.exit(1)
-      }
-      backend = new AcpAdapter({
-        command: flags.acpCommand,
-        args: flags.acpArgs ?? [],
-        displayName: `ACP (${flags.acpCommand})`,
-        presetName: "acp",
-      })
-      break
-    }
-    case "mock":
-      backend = new MockAdapter()
-      break
-    default:
-      log.error("Unknown backend", { backend: flags.backend })
-      console.error(`Unknown backend: ${flags.backend}`)
-      process.exit(1)
+  try {
+    backend = createBackend({
+      backend: flags.backend,
+      acpCommand: flags.acpCommand,
+      acpArgs: flags.acpArgs,
+    })
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    log.error("Failed to create backend", { error: msg })
+    console.error(`Error: ${msg}`)
+    process.exit(1)
   }
 
   log.info("Backend created", { backend: flags.backend })

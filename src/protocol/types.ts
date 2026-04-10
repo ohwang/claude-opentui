@@ -160,6 +160,8 @@ export type TaskProgressEvent = {
   tokenUsage?: { inputTokens: number; outputTokens: number }
   /** Currently in a thinking block */
   thinkingActive?: boolean
+  /** True while a turn is in progress (between turn_start and turn_complete) */
+  activeTurn?: boolean
   /** Last N tool names used (rolling window) */
   recentTools?: string[]
 }
@@ -604,6 +606,8 @@ export interface TaskInfo {
   tokenUsage?: { inputTokens: number; outputTokens: number }
   /** Currently in a thinking block */
   thinkingActive?: boolean
+  /** True while a turn is in progress (between turn_start and turn_complete) */
+  activeTurn?: boolean
   /** Last N tool names used (rolling window) */
   recentTools?: string[]
   /** Timestamp when the task completed or errored */

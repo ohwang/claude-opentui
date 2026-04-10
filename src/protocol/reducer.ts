@@ -556,6 +556,7 @@ export function reduce(
           toolUseCount: event.toolUseCount ?? task.toolUseCount,
           tokenUsage: event.tokenUsage ?? task.tokenUsage,
           thinkingActive: event.thinkingActive ?? task.thinkingActive,
+          activeTurn: event.activeTurn ?? task.activeTurn,
           recentTools: event.recentTools ?? task.recentTools,
         })
       }

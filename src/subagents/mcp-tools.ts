@@ -103,7 +103,7 @@ export function getCrossagentSdkMcpConfig(): McpSdkServerConfigWithInstance | nu
 
       tool(
         "crossagent_status",
-        "Get detailed status of a specific cross-backend subagent. Shows state, output, tool usage, turn count, and token consumption.",
+        "Get detailed status of a specific cross-backend subagent. Shows state, output, tool usage, turn count, and token consumption. During tool-heavy runs (common with Codex), output may be empty while the model works — check toolUseCount, recentTools, and activeTurn for progress.",
         {
           subagent_id: z.string().describe("The subagent ID returned by crossagent_spawn"),
         },

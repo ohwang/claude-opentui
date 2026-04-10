@@ -22,6 +22,7 @@ export class SubagentManager {
   private subagents = new Map<string, RunningSubagent>()
   private pushEvent: ((event: AgentEvent) => void) | null = null
   private nextId = 1
+  private lastTextProgressTime = new Map<string, number>()
 
   /** Wire up the event relay. Called by SyncProvider on mount. */
   setPushEvent(fn: (event: AgentEvent) => void): void {
@@ -56,6 +57,7 @@ export class SubagentManager {
       turnCount: 0,
       toolUseCount: 0,
       thinkingActive: false,
+      activeTurn: false,
       recentTools: [],
     }
 
@@ -214,12 +216,22 @@ export class SubagentManager {
 
           case "turn_start":
             running.midTurn = true
+            running.status.activeTurn = true
+            this.emitProgress(running)
             log.debug("Subagent turn started", { subagentId })
             break
 
-          case "text_delta":
+          case "text_delta": {
             running.status.output += event.text
+            // Throttle progress emissions during text streaming (max every 500ms)
+            const now = Date.now()
+            const lastEmit = this.lastTextProgressTime.get(running.subagentId) ?? 0
+            if (now - lastEmit >= 500) {
+              this.lastTextProgressTime.set(running.subagentId, now)
+              this.emitProgress(running)
+            }
             break
+          }
 
           case "text_complete":
             running.status.output = event.text
@@ -248,6 +260,7 @@ export class SubagentManager {
           case "turn_complete":
             running.status.turnCount++
             running.status.thinkingActive = false
+            running.status.activeTurn = false
             running.midTurn = false
             // Check message queue for follow-ups
             if (running.messageQueue.length > 0) {
@@ -322,6 +335,7 @@ export class SubagentManager {
       running.status.state = "completed"
       running.status.endTime = Date.now()
       running.backend.close()
+      this.lastTextProgressTime.delete(running.subagentId)
       this.emit({
         type: "task_complete",
         taskId: subagentId,
@@ -337,6 +351,7 @@ export class SubagentManager {
     running.status.endTime = Date.now()
     running.status.errorMessage = message
     running.backend.close()
+    this.lastTextProgressTime.delete(running.subagentId)
     this.emit({
       type: "task_complete",
       taskId: running.subagentId,
@@ -357,6 +372,7 @@ export class SubagentManager {
       toolUseCount: running.status.toolUseCount,
       tokenUsage: running.status.tokenUsage,
       thinkingActive: running.status.thinkingActive,
+      activeTurn: running.status.activeTurn,
       recentTools: running.status.recentTools,
     } as AgentEvent)
   }

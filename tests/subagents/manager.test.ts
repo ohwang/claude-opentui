@@ -405,6 +405,18 @@ describe("SubagentManager", () => {
       manager.closeAll()
     })
 
+    test("status includes activeTurn field", () => {
+      const id = manager.spawn({
+        definition: mockDef,
+        prompt: "hello",
+        backendOverride: "mock",
+      })
+      const status = manager.getStatus(id)
+      expect(status).toBeDefined()
+      expect(typeof status!.activeTurn).toBe("boolean")
+      manager.closeAll()
+    })
+
     test("increments turnCount on turn_complete", async () => {
       const id = manager.spawn({
         definition: mockDef,

@@ -72,6 +72,7 @@ export interface SubagentStatus {
     outputTokens: number
   }
   thinkingActive: boolean // currently in a thinking block
+  activeTurn: boolean // true while a turn is in progress (between turn_start and turn_complete)
   recentTools: string[] // last N tool names (rolling window, e.g. last 5)
 }
 

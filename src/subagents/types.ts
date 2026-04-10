@@ -89,4 +89,8 @@ export interface RunningSubagent {
   messageQueue: string[]
   /** True while a turn is in progress (between turn_start and turn_complete) */
   midTurn: boolean
+  /** Resolves when the subagent reaches a terminal state (completed/error). */
+  completion: Promise<SubagentStatus>
+  /** Call to resolve the completion promise. Set at spawn time. */
+  resolveCompletion: (status: SubagentStatus) => void
 }

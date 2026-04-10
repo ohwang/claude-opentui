@@ -542,6 +542,9 @@ describe("SubagentManager", () => {
         recentTools: [],
       }
 
+      let resolveCompletion!: (s: SubagentStatus) => void
+      const completion = new Promise<SubagentStatus>((resolve) => { resolveCompletion = resolve })
+
       const running = {
         subagentId: "subagent-timeout-test",
         definition: mockDef,
@@ -549,6 +552,8 @@ describe("SubagentManager", () => {
         backend,
         messageQueue: [] as string[],
         midTurn: false,
+        completion,
+        resolveCompletion,
       }
 
       // Call startEventLoop directly via cast to access private method

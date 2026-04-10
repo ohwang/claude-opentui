@@ -45,8 +45,27 @@ function flushBuffers(state: ConversationState): ConversationState {
     streamingThinking = ""
   }
   if (streamingText) {
-    flushed.push({ type: "assistant", text: stripImagePlaceholders(stripSDKXmlTags(streamingText)), timestamp: Date.now(), model: state.currentModel ?? undefined })
-    streamingText = ""
+    const cleanedText = stripImagePlaceholders(stripSDKXmlTags(streamingText))
+    // Dedup guard: don't create a duplicate assistant block if the same text
+    // already exists in the current turn. Scan backwards until hitting a user
+    // block (turn boundary). This prevents double-flush scenarios where
+    // multiple triggers (tool_use_start, text_complete, turn_complete) each
+    // try to flush the same accumulated text.
+    let alreadyFlushed = false
+    for (let i = state.blocks.length - 1; i >= 0; i--) {
+      const b = state.blocks[i]!
+      if (b.type === "user") break // turn boundary
+      if (b.type === "assistant" && b.text === cleanedText) {
+        alreadyFlushed = true
+        break
+      }
+    }
+    if (alreadyFlushed) {
+      streamingText = ""
+    } else {
+      flushed.push({ type: "assistant", text: cleanedText, timestamp: Date.now(), model: state.currentModel ?? undefined })
+      streamingText = ""
+    }
   }
 
   if (flushed.length === 0) return state // no changes
@@ -321,8 +340,24 @@ export function reduce(
       }
 
     case "text_complete": {
+      const cleanedText = stripImagePlaceholders(stripSDKXmlTags(event.text))
+
+      // If streamingText is empty, a prior trigger (tool_use_start, interrupt, etc.)
+      // may have already flushed and committed the text as a block. Check the current
+      // turn's blocks to avoid creating a duplicate assistant block.
+      if (!next.streamingText) {
+        for (let i = state.blocks.length - 1; i >= 0; i--) {
+          const b = state.blocks[i]!
+          if (b.type === "user") break // turn boundary
+          if (b.type === "assistant" && b.text === cleanedText) {
+            // Already flushed — skip to prevent duplicate
+            return next
+          }
+        }
+      }
+
       // Flush buffers with the finalized text — commits as an assistant block
-      const withFinalText = { ...next, streamingText: stripImagePlaceholders(stripSDKXmlTags(event.text)) }
+      const withFinalText = { ...next, streamingText: cleanedText }
       return flushBuffers(withFinalText)
     }
 

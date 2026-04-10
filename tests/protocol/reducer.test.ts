@@ -1879,4 +1879,126 @@ describe("ConversationState reducer", () => {
       expect(state.lastTurnFiles).toBeUndefined()
     })
   })
+
+  // -----------------------------------------------------------------------
+  // Duplicate assistant block prevention
+  // -----------------------------------------------------------------------
+
+  describe("duplicate assistant block prevention", () => {
+    it("text_complete after tool_use_start does not create duplicate assistant block", () => {
+      // Scenario: Codex adapter emits text_delta during streaming, tool_use_start
+      // flushes the text, then text_complete arrives with the same finalized text.
+      // The text_complete should NOT create a second assistant block.
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "turn_start" },
+        { type: "text_delta", text: "Let me check the diagnostics." },
+        { type: "tool_use_start", id: "t1", tool: "ToolSearch", input: {} },
+        // text_complete arrives after tool_use_start already flushed the text
+        { type: "text_complete", text: "Let me check the diagnostics." },
+        { type: "tool_use_end", id: "t1", output: "results" },
+        { type: "turn_complete" },
+      ])
+      // Should be exactly 2 blocks: one assistant + one tool
+      const assistantBlocks = state.blocks.filter(b => b.type === "assistant")
+      expect(assistantBlocks).toHaveLength(1)
+      expect(assistantBlocks[0]!).toMatchObject({ type: "assistant", text: "Let me check the diagnostics." })
+      expect(state.blocks).toHaveLength(2)
+    })
+
+    it("text_complete after tool_use_start with different text keeps the original flushed text", () => {
+      // Edge case: text_complete finalizes with slightly different text than
+      // what was streamed. The original (already flushed) version should be kept.
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "turn_start" },
+        { type: "text_delta", text: "partial te" },
+        { type: "text_delta", text: "xt" },
+        { type: "tool_use_start", id: "t1", tool: "Read", input: {} },
+        // text_complete with finalized text — but text was already flushed
+        { type: "text_complete", text: "partial text" },
+        { type: "turn_complete" },
+      ])
+      const assistantBlocks = state.blocks.filter(b => b.type === "assistant")
+      expect(assistantBlocks).toHaveLength(1)
+      expect(state.blocks).toHaveLength(2)
+    })
+
+    it("multi-step turn with text_complete after each tool does not duplicate", () => {
+      // Simulates Codex-style flow: text + tool + text_complete per step
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "turn_start" },
+        // Step 1: text → tool → text_complete
+        { type: "text_delta", text: "Reading file..." },
+        { type: "tool_use_start", id: "t1", tool: "Read", input: {} },
+        { type: "text_complete", text: "Reading file..." },
+        { type: "tool_use_end", id: "t1", output: "contents" },
+        // Step 2: text → tool → text_complete
+        { type: "text_delta", text: "Now editing..." },
+        { type: "tool_use_start", id: "t2", tool: "Edit", input: {} },
+        { type: "text_complete", text: "Now editing..." },
+        { type: "tool_use_end", id: "t2", output: "done" },
+        { type: "turn_complete" },
+      ])
+      const assistantBlocks = state.blocks.filter(b => b.type === "assistant")
+      expect(assistantBlocks).toHaveLength(2)
+      expect(assistantBlocks[0]!).toMatchObject({ type: "assistant", text: "Reading file..." })
+      expect(assistantBlocks[1]!).toMatchObject({ type: "assistant", text: "Now editing..." })
+      expect(state.blocks).toHaveLength(4) // 2 assistant + 2 tool
+    })
+
+    it("consecutive identical text_delta sequences with tool_use_start produce one block each", () => {
+      // Guard against adjacent duplicate assistant blocks from separate flush triggers
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "turn_start" },
+        { type: "text_delta", text: "Same text" },
+        { type: "tool_use_start", id: "t1", tool: "Bash", input: {} },
+        { type: "tool_use_end", id: "t1", output: "ok" },
+        // Second step with different text
+        { type: "text_delta", text: "Different text" },
+        { type: "tool_use_start", id: "t2", tool: "Bash", input: {} },
+        { type: "tool_use_end", id: "t2", output: "ok" },
+        { type: "turn_complete" },
+      ])
+      const assistantBlocks = state.blocks.filter(b => b.type === "assistant")
+      expect(assistantBlocks).toHaveLength(2)
+      expect(assistantBlocks[0]!).toMatchObject({ text: "Same text" })
+      expect(assistantBlocks[1]!).toMatchObject({ text: "Different text" })
+    })
+
+    it("text_complete without prior text_delta still creates block", () => {
+      // text_complete alone (no streaming) should work normally
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "turn_start" },
+        { type: "text_complete", text: "Direct message" },
+        { type: "turn_complete" },
+      ])
+      expect(state.blocks).toHaveLength(1)
+      expect(state.blocks[0]!).toMatchObject({ type: "assistant", text: "Direct message" })
+    })
+
+    it("state is reconstructable without duplicate blocks", () => {
+      // Validates the event sequence from the "state is reconstructable" test
+      // doesn't produce duplicates
+      const events: AgentEvent[] = [
+        { type: "session_init", tools: [{ name: "Read" }], models: [] },
+        { type: "turn_start" },
+        { type: "text_delta", text: "Hello " },
+        { type: "text_delta", text: "world" },
+        { type: "tool_use_start", id: "t1", tool: "Read", input: { path: "/x" } },
+        { type: "tool_use_end", id: "t1", output: "contents" },
+        { type: "text_complete", text: "Hello world" },
+        { type: "turn_complete", usage: { inputTokens: 100, outputTokens: 50 } },
+      ]
+      const state = applyEvents(events)
+      // Must have exactly 2 blocks: 1 assistant + 1 tool (NOT 3 with duplicate assistant)
+      const assistantBlocks = state.blocks.filter(b => b.type === "assistant")
+      expect(assistantBlocks).toHaveLength(1)
+      expect(assistantBlocks[0]!).toMatchObject({ text: "Hello world" })
+      expect(state.blocks).toHaveLength(2)
+    })
+  })
 })

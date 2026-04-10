@@ -54,8 +54,9 @@ export function HeaderBar() {
     const model = state.session?.models?.[0]
     const raw = state.currentModel || (model?.name ?? agent.config.model ?? "")
 
-    // No model from session or config — genuinely unknown
-    if (!raw) return "Ready"
+    // No model from session or config yet — show backend name so the user
+    // knows which backend is active while waiting for session_init.
+    if (!raw) return `Auto (${agent.backend.capabilities().name})`
 
     const friendly = friendlyModelName(raw)
 

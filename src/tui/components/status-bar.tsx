@@ -417,7 +417,7 @@ export function StatusBar(props: { hint?: string | null }) {
   const modelName = () => {
     const model = state.session?.models?.[0]
     const raw = state.currentModel || (model?.name ?? agent.config.model ?? "")
-    if (!raw) return ""
+    if (!raw) return `Auto (${agent.backend.capabilities().name})`
     const friendly = friendlyModelName(raw)
     // Prefer dynamic context window from SDK, fall back to hardcoded
     const ctxWindow = model?.contextWindow ?? MODEL_CONTEXT_WINDOWS[raw] ?? DEFAULT_CONTEXT_WINDOW

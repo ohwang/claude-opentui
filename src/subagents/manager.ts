@@ -16,6 +16,7 @@ import type { AgentEvent, SessionConfig } from "../protocol/types"
 import type { SpawnOptions, SubagentStatus, RunningSubagent } from "./types"
 
 const MAX_RECENT_TOOLS = 5
+const DEFAULT_STARTUP_TIMEOUT_MS = 60_000
 
 export class SubagentManager {
   private subagents = new Map<string, RunningSubagent>()
@@ -92,7 +93,8 @@ export class SubagentManager {
     }
 
     // Start the backend event loop in the background
-    this.startEventLoop(running, config, opts.prompt).catch((err) => {
+    const startupTimeoutMs = opts.startupTimeoutMs ?? DEFAULT_STARTUP_TIMEOUT_MS
+    this.startEventLoop(running, config, opts.prompt, startupTimeoutMs).catch((err) => {
       log.error("Subagent event loop failed", { subagentId, error: String(err) })
       this.handleError(running, String(err))
     })
@@ -168,9 +170,22 @@ export class SubagentManager {
     running: RunningSubagent,
     config: SessionConfig,
     initialPrompt: string,
+    startupTimeoutMs: number,
   ): Promise<void> {
     const { subagentId, backend } = running
     const gen = backend.start(config)
+
+    // Startup timeout — if session_init never arrives, error out
+    let sessionInitReceived = false
+    const startupTimeout = setTimeout(() => {
+      if (!sessionInitReceived && running.status.state === "running") {
+        log.error("Subagent startup timeout", { subagentId })
+        this.handleError(
+          running,
+          `Subagent failed to initialize within ${startupTimeoutMs / 1000}s. The backend may require a TTY or have authentication issues.`,
+        )
+      }
+    }, startupTimeoutMs)
 
     try {
       for await (const event of gen) {
@@ -178,6 +193,8 @@ export class SubagentManager {
 
         switch (event.type) {
           case "session_init":
+            sessionInitReceived = true
+            clearTimeout(startupTimeout)
             running.status.sessionId = event.sessionId
             // Send the initial prompt now that the session is ready
             backend.sendMessage({ text: initialPrompt })
@@ -235,7 +252,25 @@ export class SubagentManager {
             }
             break
 
+          case "permission_request":
+            log.warn("Subagent permission request auto-denied (multi-requestor not supported)", {
+              subagentId,
+              tool: event.tool,
+            })
+            // Auto-deny to prevent child from hanging
+            backend.denyToolUse(event.id, "Subagent permissions not supported")
+            break
+
+          case "elicitation_request":
+            log.warn("Subagent elicitation request auto-dismissed (multi-requestor not supported)", {
+              subagentId,
+            })
+            // Auto-cancel to prevent child from hanging
+            backend.cancelElicitation(event.id)
+            break
+
           case "error":
+            clearTimeout(startupTimeout)
             this.handleError(running, event.message)
             return
 
@@ -245,11 +280,14 @@ export class SubagentManager {
         }
       }
     } catch (err) {
+      clearTimeout(startupTimeout)
       if (running.status.state === "running") {
         this.handleError(running, String(err))
       }
       return
     }
+
+    clearTimeout(startupTimeout)
 
     // Generator exhausted — subagent completed normally
     if (running.status.state === "running") {

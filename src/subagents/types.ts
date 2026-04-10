@@ -43,6 +43,8 @@ export interface SpawnOptions {
   backendOverride?: string
   modelOverride?: string
   cwd?: string
+  /** Timeout in ms for the backend to emit session_init. Defaults to 60_000. */
+  startupTimeoutMs?: number
 }
 
 // ---------------------------------------------------------------------------

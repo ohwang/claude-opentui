@@ -2,13 +2,14 @@
  * SubagentManager Tests
  *
  * Tests the orchestration engine using the MockAdapter backend.
- * Validates spawn, stop, closeAll, message queuing, and event relay.
+ * Validates spawn, stop, closeAll, message queuing, event relay,
+ * startup timeout, and permission/elicitation handling.
  */
 
 import { describe, test, expect, beforeEach } from "bun:test"
 import { SubagentManager } from "../../src/subagents/manager"
-import type { AgentEvent } from "../../src/protocol/types"
-import type { AgentDefinition } from "../../src/subagents/types"
+import type { AgentEvent, AgentBackend, SessionConfig } from "../../src/protocol/types"
+import type { AgentDefinition, SubagentStatus } from "../../src/subagents/types"
 
 const mockDef: AgentDefinition = {
   name: "test-agent",
@@ -19,6 +20,48 @@ const mockDef: AgentDefinition = {
 /** Wait for async event loop to process */
 function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+/**
+ * Create a minimal AgentBackend that never emits session_init.
+ * Its start() returns an async generator that hangs forever.
+ */
+function createHangingBackend(): { backend: AgentBackend; closeCalls: number[] } {
+  const closeCalls: number[] = []
+  const backend: AgentBackend = {
+    start(_config: SessionConfig): AsyncGenerator<AgentEvent> {
+      return (async function* () {
+        await new Promise(() => {}) // hang forever
+      })()
+    },
+    sendMessage(): void {},
+    interrupt(): void {},
+    resume(): AsyncGenerator<AgentEvent> { return (async function* () {})() },
+    listSessions() { return Promise.resolve([]) },
+    forkSession() { return Promise.reject(new Error("not supported")) },
+    approveToolUse(): void {},
+    denyToolUse(): void {},
+    respondToElicitation(): void {},
+    cancelElicitation(): void {},
+    setModel() { return Promise.resolve() },
+    setPermissionMode() { return Promise.resolve() },
+    setEffort() { return Promise.resolve() },
+    capabilities() {
+      return {
+        name: "hanging",
+        supportsThinking: false,
+        supportsToolApproval: false,
+        supportsResume: false,
+        supportsFork: false,
+        supportsStreaming: false,
+        supportsSubagents: false,
+        supportedPermissionModes: ["default" as const],
+      }
+    },
+    availableModels() { return Promise.resolve([]) },
+    close(): void { closeCalls.push(Date.now()) },
+  }
+  return { backend, closeCalls }
 }
 
 describe("SubagentManager", () => {
@@ -374,6 +417,119 @@ describe("SubagentManager", () => {
 
       const status = manager.getStatus(id)
       expect(status!.turnCount).toBeGreaterThanOrEqual(1)
+
+      manager.closeAll()
+    })
+  })
+
+  describe("startup timeout", () => {
+    test("mock backend with short timeout does not timeout (session_init is fast)", async () => {
+      const id = manager.spawn({
+        definition: mockDef,
+        prompt: "hello",
+        backendOverride: "mock",
+        startupTimeoutMs: 500,
+      })
+
+      await wait(300)
+      const status = manager.getStatus(id)
+      // Should have received session_init, so should still be running
+      expect(status!.state).toBe("running")
+      expect(status!.sessionId).toBeDefined()
+      manager.closeAll()
+    })
+
+    test("timeout fires when backend never emits session_init", async () => {
+      const testEvents: AgentEvent[] = []
+      const { backend, closeCalls } = createHangingBackend()
+
+      // Construct a RunningSubagent manually and call startEventLoop via cast
+      const testManager = new SubagentManager()
+      testManager.setPushEvent((event) => testEvents.push(event))
+
+      const status: SubagentStatus = {
+        subagentId: "subagent-timeout-test",
+        definitionName: mockDef.name,
+        backendName: "hanging",
+        state: "running",
+        description: mockDef.name,
+        output: "",
+        startTime: Date.now(),
+        turnCount: 0,
+        toolUseCount: 0,
+        thinkingActive: false,
+        recentTools: [],
+      }
+
+      const running = {
+        subagentId: "subagent-timeout-test",
+        definition: mockDef,
+        status,
+        backend,
+        messageQueue: [] as string[],
+        midTurn: false,
+      }
+
+      // Call startEventLoop directly via cast to access private method
+      const startEventLoop = (testManager as any).startEventLoop.bind(testManager)
+      // Use a 200ms timeout for fast test execution
+      void startEventLoop(running, {}, "hello", 200)
+
+      // Wait for timeout to fire
+      await wait(400)
+
+      expect(status.state).toBe("error")
+      expect(status.errorMessage).toContain("failed to initialize within")
+      expect(status.errorMessage).toContain("0.2s")
+      expect(status.endTime).toBeDefined()
+
+      // Should have emitted task_complete with error state
+      const errorCompletes = testEvents.filter(
+        (e) => e.type === "task_complete" && (e as any).state === "error",
+      )
+      expect(errorCompletes.length).toBeGreaterThanOrEqual(1)
+
+      // Backend should have been closed
+      expect(closeCalls.length).toBeGreaterThanOrEqual(1)
+    })
+  })
+
+  describe("permission and elicitation relay", () => {
+    test("permission_request from subagent does not crash the manager", async () => {
+      // Use the mock backend which emits permission_request for "bash" prompts
+      const id = manager.spawn({
+        definition: { ...mockDef, permissionMode: "default" },
+        prompt: "run a bash command",
+        backendOverride: "mock",
+      })
+
+      // Wait for the mock to process — it will emit permission_request
+      // The manager should auto-deny it and continue running
+      await wait(2000)
+
+      const status = manager.getStatus(id)
+      // Manager should still be running (not crashed)
+      expect(status).toBeDefined()
+      // State should be running or completed, not undefined/crashed
+      expect(["running", "completed", "error"]).toContain(status!.state)
+
+      manager.closeAll()
+    })
+
+    test("elicitation_request from subagent does not crash the manager", async () => {
+      // Use the mock backend which emits elicitation_request for "ask" prompts
+      const id = manager.spawn({
+        definition: mockDef,
+        prompt: "ask me a question",
+        backendOverride: "mock",
+      })
+
+      // Wait for the mock to process
+      await wait(2000)
+
+      const status = manager.getStatus(id)
+      expect(status).toBeDefined()
+      expect(["running", "completed", "error"]).toContain(status!.state)
 
       manager.closeAll()
     })

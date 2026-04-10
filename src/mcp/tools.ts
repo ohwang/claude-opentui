@@ -5,7 +5,7 @@
  * lifecycle for testability.
  */
 
-import { getSnapshot } from "./state-bridge"
+import { getSnapshot, getSubagentManagerBridge } from "./state-bridge"
 import { log } from "../utils/logger"
 import { friendlyModelName, MODEL_CONTEXT_WINDOWS, DEFAULT_CONTEXT_WINDOW } from "../tui/models"
 import type { Block } from "../protocol/types"
@@ -228,6 +228,33 @@ export function getDiagnostics(): CallToolResult {
       is_streaming: !!(s.streamingText || s.streamingThinking),
       active_tasks: s.activeTasks.size,
     } : null,
+    subagents: (() => {
+      const mgr = getSubagentManagerBridge()
+      if (!mgr) return null
+      const all = mgr.listAll()
+      if (all.length === 0) return { total: 0, running: 0, completed: 0, errored: 0 }
+      const running = all.filter(s => s.state === "running")
+      const completed = all.filter(s => s.state === "completed")
+      const errored = all.filter(s => s.state === "error")
+      return {
+        total: all.length,
+        running: running.length,
+        completed: completed.length,
+        errored: errored.length,
+        agents: all.map(s => ({
+          id: s.subagentId,
+          name: s.definitionName,
+          backend: s.backendName,
+          state: s.state,
+          elapsed_ms: (s.endTime ?? Date.now()) - s.startTime,
+          turns: s.turnCount,
+          tools_used: s.toolUseCount,
+          last_tool: s.lastToolName ?? null,
+          session_id: s.sessionId ?? null,
+          error: s.errorMessage ?? null,
+        })),
+      }
+    })(),
     git: gitBranch ? { branch: gitBranch, dirty_files: getGitDirtyCount() } : null,
     backend: caps ?? null,
     config: {

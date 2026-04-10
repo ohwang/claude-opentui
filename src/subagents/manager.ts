@@ -177,6 +177,12 @@ export class SubagentManager {
     const gen = backend.start(config)
     log.info("Subagent backend generator created", { subagentId })
 
+    // Send the initial prompt immediately — the Claude SDK's query() API is lazy
+    // and won't emit session_init until a message is provided via the message
+    // iterable. Waiting for session_init before sending creates a deadlock.
+    backend.sendMessage({ text: initialPrompt })
+    log.info("Subagent initial prompt sent", { subagentId })
+
     // Startup timeout — if session_init never arrives, error out
     let sessionInitReceived = false
     const startupTimeout = setTimeout(() => {
@@ -203,8 +209,7 @@ export class SubagentManager {
             sessionInitReceived = true
             clearTimeout(startupTimeout)
             running.status.sessionId = event.sessionId
-            // Send the initial prompt now that the session is ready
-            backend.sendMessage({ text: initialPrompt })
+            log.info("Subagent session initialized", { subagentId, sessionId: event.sessionId })
             break
 
           case "turn_start":

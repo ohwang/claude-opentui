@@ -538,6 +538,7 @@ export function reduce(
         taskType: event.taskType,
         source: event.source,
         backendName: event.backendName,
+        model: event.model,
         sessionId: event.sessionId,
       })
       return { ...next, activeTasks }

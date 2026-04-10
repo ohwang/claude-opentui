@@ -84,6 +84,7 @@ export class SubagentManager {
       description: status.description,
       source: "native",
       backendName,
+      model: opts.modelOverride ?? def.model,
     } as AgentEvent)
 
     // Subagents default to bypassPermissions because multi-requestor

@@ -190,15 +190,30 @@ export function mapSDKMessage(msg: any, streamState: ToolStreamState, options?: 
       })
       break
 
-    case "task_progress":
-      events.push({
+    case "task_progress": {
+      const progressEvent: AgentEvent = {
         type: "task_progress",
         taskId: msg.task_id ?? msg.uuid,
         output: msg.content ?? "",
         lastToolName: msg.last_tool_name ?? undefined,
         summary: msg.summary ?? undefined,
-      })
+      }
+      if (msg.usage?.total_tokens) {
+        (progressEvent as any).tokenUsage = {
+          inputTokens: msg.usage.input_tokens ?? 0,
+          outputTokens: msg.usage.output_tokens ?? 0,
+          totalTokens: msg.usage.total_tokens,
+        }
+      }
+      if (msg.tool_use_count != null) {
+        (progressEvent as any).toolUseCount = msg.tool_use_count
+      }
+      if (msg.turn_count != null) {
+        (progressEvent as any).turnCount = msg.turn_count
+      }
+      events.push(progressEvent)
       break
+    }
 
     case "task_notification":
       events.push({

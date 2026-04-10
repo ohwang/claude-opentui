@@ -141,6 +141,8 @@ export type TaskStartEvent = {
   source?: "native" | "backend"
   /** Which backend the subagent runs on (e.g., "gemini", "claude", "copilot") */
   backendName?: string
+  /** Model powering this subagent (when known) */
+  model?: string
   /** Subagent's session ID for log cross-referencing */
   sessionId?: string
 }
@@ -157,7 +159,7 @@ export type TaskProgressEvent = {
   /** Total tool invocations */
   toolUseCount?: number
   /** Token usage (when available) */
-  tokenUsage?: { inputTokens: number; outputTokens: number }
+  tokenUsage?: { inputTokens: number; outputTokens: number; totalTokens?: number }
   /** Currently in a thinking block */
   thinkingActive?: boolean
   /** True while a turn is in progress (between turn_start and turn_complete) */
@@ -603,13 +605,15 @@ export interface TaskInfo {
   /** Total tool invocations */
   toolUseCount?: number
   /** Token usage (when available) */
-  tokenUsage?: { inputTokens: number; outputTokens: number }
+  tokenUsage?: { inputTokens: number; outputTokens: number; totalTokens?: number }
   /** Currently in a thinking block */
   thinkingActive?: boolean
   /** True while a turn is in progress (between turn_start and turn_complete) */
   activeTurn?: boolean
   /** Last N tool names used (rolling window) */
   recentTools?: string[]
+  /** Model powering this subagent (when known) */
+  model?: string
   /** Timestamp when the task completed or errored */
   endTime?: number
   /** Error message if task ended with error */

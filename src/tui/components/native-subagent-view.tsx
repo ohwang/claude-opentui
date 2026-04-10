@@ -93,8 +93,9 @@ function NativeSubagentItem(props: { task: TaskInfo; tick: () => number }) {
       parts.push(`${props.task.toolUseCount} tools`)
     }
     if (props.task.tokenUsage) {
-      const total = props.task.tokenUsage.inputTokens + props.task.tokenUsage.outputTokens
-      parts.push(`${formatTokens(total)} tokens`)
+      const total = props.task.tokenUsage.totalTokens
+        ?? (props.task.tokenUsage.inputTokens + props.task.tokenUsage.outputTokens)
+      if (total > 0) parts.push(`${formatTokens(total)} tokens`)
     }
     if (props.task.lastToolName) {
       parts.push(`Running ${props.task.lastToolName}...`)
@@ -118,6 +119,11 @@ function NativeSubagentItem(props: { task: TaskInfo; tick: () => number }) {
         <text fg={ACCENT} attributes={TextAttributes.BOLD}>
           {agentName(props.task)}
         </text>
+        <Show when={props.task.model}>
+          <text fg={DIM} attributes={TextAttributes.DIM}>
+            {" (" + props.task.model + ")"}
+          </text>
+        </Show>
         <Show when={props.task.backendName}>
           <text fg={DIM} attributes={TextAttributes.DIM}>
             {" [" + props.task.backendName + "]"}
@@ -143,12 +149,22 @@ function NativeSubagentItem(props: { task: TaskInfo; tick: () => number }) {
         </box>
       </Show>
 
-      {/* Completed: summary line */}
+      {/* Completed: summary line with final stats */}
       <Show when={!isRunning() && !hasError()}>
         <box flexDirection="row" paddingLeft={2}>
           <text fg={statusColor()}>{statusChar() + " "}</text>
           <text fg={colors.text.secondary}>
-            {"Completed in " + formatElapsed(props.task.startTime, props.task.endTime)}
+            {(() => {
+              const parts: string[] = []
+              parts.push("Completed in " + formatElapsed(props.task.startTime, props.task.endTime))
+              if (props.task.tokenUsage) {
+                const total = props.task.tokenUsage.totalTokens
+                  ?? (props.task.tokenUsage.inputTokens + props.task.tokenUsage.outputTokens)
+                if (total > 0) parts.push(`${formatTokens(total)} tokens`)
+              }
+              if (props.task.toolUseCount) parts.push(`${props.task.toolUseCount} tools`)
+              return parts.join(" \u00B7 ")
+            })()}
           </text>
         </box>
         <Show when={props.task.output}>

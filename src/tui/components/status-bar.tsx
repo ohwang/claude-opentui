@@ -122,7 +122,7 @@ function permissionModeLabel(mode: PermissionMode | undefined): string {
     case "acceptEdits":
       return "accept edits"
     case "bypassPermissions":
-      return "YOLO"
+      return "bypass permissions on"
     case "plan":
       return "plan"
     case "dontAsk":
@@ -640,7 +640,7 @@ export function StatusBar(props: { hint?: string | null }) {
       <box height={1} flexDirection="row" paddingLeft={2} paddingRight={1}>
         <text fg={permModeColor()}>{"\u25CF "}</text>
         <text fg={colors.permission.modeLabel}>{permissionModeLabel(permMode())}</text>
-        <text fg={colors.text.muted}>{" \u00B7 shift+tab"}</text>
+        <text fg={colors.text.muted}>{" (shift+tab to cycle)"}</text>
 
         <box flexGrow={1} />
 

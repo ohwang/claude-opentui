@@ -83,7 +83,7 @@ export class SubagentManager {
       model: opts.modelOverride ?? def.model,
       permissionMode: def.permissionMode ?? "bypassPermissions",
       maxTurns: def.maxTurns,
-      cwd: opts.cwd,
+      cwd: opts.cwd ?? process.cwd(),
       systemPrompt: def.systemPrompt,
       persistSession: true,
       effort: def.effort,

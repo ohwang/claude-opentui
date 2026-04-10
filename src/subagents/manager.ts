@@ -173,7 +173,9 @@ export class SubagentManager {
     startupTimeoutMs: number,
   ): Promise<void> {
     const { subagentId, backend } = running
+    log.info("Subagent starting backend", { subagentId, backend: running.status.backendName, model: config.model, cwd: config.cwd })
     const gen = backend.start(config)
+    log.info("Subagent backend generator created", { subagentId })
 
     // Startup timeout — if session_init never arrives, error out
     let sessionInitReceived = false
@@ -187,8 +189,13 @@ export class SubagentManager {
       }
     }, startupTimeoutMs)
 
+    let firstEventReceived = false
     try {
       for await (const event of gen) {
+        if (!firstEventReceived) {
+          firstEventReceived = true
+          log.info("Subagent received first event", { subagentId, type: event.type })
+        }
         if (running.status.state !== "running") break
 
         switch (event.type) {
@@ -288,6 +295,7 @@ export class SubagentManager {
     }
 
     clearTimeout(startupTimeout)
+    log.info("Subagent event loop exited", { subagentId, eventsReceived: firstEventReceived, state: running.status.state })
 
     // Generator exhausted — subagent completed normally
     if (running.status.state === "running") {

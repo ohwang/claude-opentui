@@ -109,6 +109,7 @@ export class ClaudeAdapter implements AgentBackend {
     const messageIterable = this.createMessageIterable(config)
 
     // Start the query
+    log.info("ClaudeAdapter: creating SDK query", { model: options.model, permissionMode: options.permissionMode, hasMcpServers: !!(options.mcpServers && Object.keys(options.mcpServers).length) })
     trace.write({
       dir: "out",
       stage: "sdk_call",
@@ -119,6 +120,7 @@ export class ClaudeAdapter implements AgentBackend {
       prompt: messageIterable,
       options,
     })
+    log.info("ClaudeAdapter: SDK query created", { hasQuery: !!this.activeQuery })
 
     // Iterate SDK messages — let the underlying claude binary handle auth/errors
     yield* this.iterateQuery()
@@ -377,8 +379,14 @@ export class ClaudeAdapter implements AgentBackend {
     // same channel without waiting for the SDK to yield next.
     // fire-and-forget
     void (async () => {
+      log.info("ClaudeAdapter: background event loop starting")
+      let firstMsgLogged = false
       try {
         for await (const msg of this.activeQuery!) {
+          if (!firstMsgLogged) {
+            firstMsgLogged = true
+            log.info("ClaudeAdapter: first SDK message received", { type: msg.type })
+          }
           if (this.closed || !this.eventChannel) break
           // SDK messages are a wide union — extract optional fields for logging
           const msgRecord = msg as Record<string, unknown>
@@ -408,6 +416,7 @@ export class ClaudeAdapter implements AgentBackend {
           }
         }
       } catch (err) {
+        log.error("ClaudeAdapter: background event loop error", { error: err instanceof Error ? err.message : String(err) })
         if (!this.closed && this.eventChannel) {
           this.eventChannel.push({
             type: "error" as const,
@@ -417,8 +426,10 @@ export class ClaudeAdapter implements AgentBackend {
           })
         }
       }
+      log.info("ClaudeAdapter: background event loop ended", { closed: this.closed, firstMsgReceived: firstMsgLogged })
       this.eventChannel?.close()
     })().catch((err) => {
+      log.error("ClaudeAdapter: unhandled error in background loop", { error: String(err) })
       if (!this.closed && this.eventChannel) {
         this.eventChannel.push({
           type: "error" as const,
@@ -447,7 +458,7 @@ export class ClaudeAdapter implements AgentBackend {
       forkSession: !!config.forkSession,
       cwd: config.cwd,
     })
-    return {
+    const opts: SDKOptions = {
       model: config.model,
       systemPrompt: config.systemPrompt,
       permissionMode: config.permissionMode,
@@ -480,6 +491,16 @@ export class ClaudeAdapter implements AgentBackend {
       ...(config.thinking ? { thinking: config.thinking } : {}),
       ...(config.effort ? { effort: config.effort } : {}),
     }
+    log.info("ClaudeAdapter: options built", {
+      model: opts.model,
+      permissionMode: opts.permissionMode,
+      maxTurns: opts.maxTurns,
+      mcpServerCount: opts.mcpServers ? Object.keys(opts.mcpServers).length : 0,
+      hasCanUseTool: !!opts.canUseTool,
+      hasSystemPrompt: !!opts.systemPrompt,
+      persistSession: opts.persistSession,
+    })
+    return opts
   }
 
   // -----------------------------------------------------------------------
@@ -489,6 +510,7 @@ export class ClaudeAdapter implements AgentBackend {
   private async *createMessageIterable(
     config: SessionConfig,
   ): AsyncGenerator<SDKUserMsg> {
+    log.info("ClaudeAdapter: message iterable started", { resume: !!config.resume, continue: !!config.continue })
     // First message from config or wait for user
     if (config.resume || config.continue) {
       // Resuming: don't send an initial message, wait for user

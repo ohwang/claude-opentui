@@ -122,6 +122,10 @@ export class AcpAdapter extends BaseAdapter {
   private args: string[]
   private presetName: string
 
+  // System prompt state
+  private config: SessionConfig | null = null
+  private systemPromptApplied = false
+
   // Pending permission requests (server-initiated JSON-RPC requests awaiting our response)
   private pendingApprovals = new Map<
     string,
@@ -678,6 +682,8 @@ export class AcpAdapter extends BaseAdapter {
       )
     }
 
+    this.config = config
+
     try {
       // 1. Spawn transport
       this.transport = new AcpTransport()
@@ -774,6 +780,9 @@ export class AcpAdapter extends BaseAdapter {
       // 5b. Emit config options if the agent exposed any
       this.emitConfigOptions()
 
+      // 5c. Apply system prompt via config option if the agent exposes one
+      await this.applySystemPromptViaConfigOption()
+
       // 6. If there's an initial prompt, send the first turn
       if (config.initialPrompt) {
         await this.sendPrompt(config.initialPrompt)
@@ -796,6 +805,43 @@ export class AcpAdapter extends BaseAdapter {
   }
 
   // -----------------------------------------------------------------------
+  // Private: System prompt support
+  // -----------------------------------------------------------------------
+
+  /**
+   * Try to apply the system prompt via a discovered config option.
+   * Looks for config options with id/category matching "system_prompt",
+   * "system_instruction", or category "system".
+   */
+  private async applySystemPromptViaConfigOption(): Promise<void> {
+    if (!this.config?.systemPrompt || !this.transport?.isAlive || !this.sessionId) return
+
+    const systemOption = this.discoveredConfigOptions.find(
+      o =>
+        o.id === "system_prompt" ||
+        o.id === "system_instruction" ||
+        o.category === "system" ||
+        o.name.toLowerCase().includes("system prompt") ||
+        o.name.toLowerCase().includes("system instruction"),
+    )
+    if (!systemOption) return
+
+    try {
+      await this.transport.request("session/set_config_option", {
+        sessionId: this.sessionId,
+        configOptionId: systemOption.id,
+        value: this.config.systemPrompt,
+      })
+      this.systemPromptApplied = true
+      log.info("ACP system prompt set via config option", { configOptionId: systemOption.id })
+    } catch (err) {
+      log.warn("session/set_config_option failed for system prompt, will use fallback injection", {
+        error: String(err),
+      })
+    }
+  }
+
+  // -----------------------------------------------------------------------
   // Private: Prompt turn
   // -----------------------------------------------------------------------
 
@@ -805,8 +851,16 @@ export class AcpAdapter extends BaseAdapter {
   ): Promise<void> {
     if (!this.transport?.isAlive || !this.sessionId) return
 
-    // Build prompt content blocks
-    const prompt: AcpContentBlock[] = [{ type: "text", text }]
+    // Build prompt content blocks, prepending system prompt on first turn if needed
+    const applySystemPrompt = !this.systemPromptApplied && !!this.config?.systemPrompt
+    let promptText: string
+    if (applySystemPrompt) {
+      promptText = `[System Prompt]\n${this.config!.systemPrompt}\n\n[User Message]\n${text}`
+      this.systemPromptApplied = true
+    } else {
+      promptText = text
+    }
+    const prompt: AcpContentBlock[] = [{ type: "text", text: promptText }]
     if (images) {
       for (const img of images) {
         prompt.push({

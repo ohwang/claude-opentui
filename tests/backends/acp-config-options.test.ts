@@ -532,4 +532,300 @@ describe("ACP Config Options", () => {
       adapter.close()
     })
   })
+
+  describe("system prompt support", () => {
+    /** Set private config */
+    function setConfig(adapter: AcpAdapter, config: Record<string, unknown>): void {
+      ;(adapter as any).config = config
+    }
+
+    /** Get private systemPromptApplied */
+    function getSystemPromptApplied(adapter: AcpAdapter): boolean {
+      return (adapter as any).systemPromptApplied
+    }
+
+    describe("applySystemPromptViaConfigOption", () => {
+      it("sets system prompt via matching config option", async () => {
+        const { adapter } = createTestAdapter()
+
+        setConfig(adapter, { systemPrompt: "You are a test agent" })
+        setConfigOptions(adapter, [
+          { id: "system_prompt", name: "System Prompt", type: "string", value: "" },
+        ])
+
+        const requestedMethods: string[] = []
+        let requestedParams: unknown = null
+        ;(adapter as any).transport = {
+          isAlive: true,
+          request: async (method: string, params: unknown) => {
+            requestedMethods.push(method)
+            requestedParams = params
+            return {}
+          },
+          notify() {},
+          close() {},
+        }
+        ;(adapter as any).sessionId = "test-session"
+
+        await (adapter as any).applySystemPromptViaConfigOption()
+
+        expect(requestedMethods).toEqual(["session/set_config_option"])
+        expect(requestedParams).toMatchObject({
+          sessionId: "test-session",
+          configOptionId: "system_prompt",
+          value: "You are a test agent",
+        })
+        expect(getSystemPromptApplied(adapter)).toBe(true)
+
+        adapter.close()
+      })
+
+      it("matches system_instruction config option id", async () => {
+        const { adapter } = createTestAdapter()
+
+        setConfig(adapter, { systemPrompt: "Be helpful" })
+        setConfigOptions(adapter, [
+          { id: "system_instruction", name: "Instructions", type: "string", value: "" },
+        ])
+
+        const requests: { method: string; params: any }[] = []
+        ;(adapter as any).transport = {
+          isAlive: true,
+          request: async (method: string, params: any) => {
+            requests.push({ method, params })
+            return {}
+          },
+          notify() {},
+          close() {},
+        }
+        ;(adapter as any).sessionId = "test-session"
+
+        await (adapter as any).applySystemPromptViaConfigOption()
+
+        expect(requests).toHaveLength(1)
+        expect(requests[0]!.params.configOptionId).toBe("system_instruction")
+        expect(getSystemPromptApplied(adapter)).toBe(true)
+
+        adapter.close()
+      })
+
+      it("matches config option by category 'system'", async () => {
+        const { adapter } = createTestAdapter()
+
+        setConfig(adapter, { systemPrompt: "Be concise" })
+        setConfigOptions(adapter, [
+          { id: "persona", name: "Persona", type: "string", value: "", category: "system" },
+        ])
+
+        const requests: { method: string; params: any }[] = []
+        ;(adapter as any).transport = {
+          isAlive: true,
+          request: async (method: string, params: any) => {
+            requests.push({ method, params })
+            return {}
+          },
+          notify() {},
+          close() {},
+        }
+        ;(adapter as any).sessionId = "test-session"
+
+        await (adapter as any).applySystemPromptViaConfigOption()
+
+        expect(requests).toHaveLength(1)
+        expect(requests[0]!.params.configOptionId).toBe("persona")
+
+        adapter.close()
+      })
+
+      it("does nothing when no system prompt in config", async () => {
+        const { adapter } = createTestAdapter()
+
+        setConfig(adapter, {})
+        setConfigOptions(adapter, [
+          { id: "system_prompt", name: "System Prompt", type: "string", value: "" },
+        ])
+
+        ;(adapter as any).transport = {
+          isAlive: true,
+          request: async () => { throw new Error("should not be called") },
+          notify() {},
+          close() {},
+        }
+        ;(adapter as any).sessionId = "test-session"
+
+        await (adapter as any).applySystemPromptViaConfigOption()
+
+        expect(getSystemPromptApplied(adapter)).toBe(false)
+
+        adapter.close()
+      })
+
+      it("does nothing when no matching config option exists", async () => {
+        const { adapter } = createTestAdapter()
+
+        setConfig(adapter, { systemPrompt: "Test prompt" })
+        setConfigOptions(adapter, [
+          { id: "model", name: "Model", type: "enum", value: "gemini-2.5-pro" },
+        ])
+
+        ;(adapter as any).transport = {
+          isAlive: true,
+          request: async () => { throw new Error("should not be called") },
+          notify() {},
+          close() {},
+        }
+        ;(adapter as any).sessionId = "test-session"
+
+        await (adapter as any).applySystemPromptViaConfigOption()
+
+        expect(getSystemPromptApplied(adapter)).toBe(false)
+
+        adapter.close()
+      })
+
+      it("falls back gracefully when set_config_option fails", async () => {
+        const { adapter } = createTestAdapter()
+
+        setConfig(adapter, { systemPrompt: "Test prompt" })
+        setConfigOptions(adapter, [
+          { id: "system_prompt", name: "System Prompt", type: "string", value: "" },
+        ])
+
+        ;(adapter as any).transport = {
+          isAlive: true,
+          request: async () => { throw new Error("Not supported") },
+          notify() {},
+          close() {},
+        }
+        ;(adapter as any).sessionId = "test-session"
+
+        // Should not throw
+        await (adapter as any).applySystemPromptViaConfigOption()
+
+        // systemPromptApplied should remain false so fallback injection kicks in
+        expect(getSystemPromptApplied(adapter)).toBe(false)
+
+        adapter.close()
+      })
+    })
+
+    describe("sendPrompt fallback injection", () => {
+      it("prepends system prompt to first user message when no config option matched", async () => {
+        const { adapter } = createTestAdapter()
+
+        setConfig(adapter, { systemPrompt: "You are a test agent" })
+        // No system prompt config option — fallback should kick in
+
+        let sentPrompt: unknown = null
+        ;(adapter as any).transport = {
+          isAlive: true,
+          request: async (_method: string, params: any) => {
+            sentPrompt = params.prompt
+            return { stopReason: "end_turn" }
+          },
+          notify() {},
+          close() {},
+        }
+        ;(adapter as any).sessionId = "test-session"
+        ;(adapter as any).eventChannel = { push() {}, close() {} }
+
+        await (adapter as any).sendPrompt("Hello world")
+
+        expect(sentPrompt).toEqual([
+          { type: "text", text: "[System Prompt]\nYou are a test agent\n\n[User Message]\nHello world" },
+        ])
+        expect(getSystemPromptApplied(adapter)).toBe(true)
+
+        adapter.close()
+      })
+
+      it("does not prepend system prompt on second message", async () => {
+        const { adapter } = createTestAdapter()
+
+        setConfig(adapter, { systemPrompt: "You are a test agent" })
+
+        const sentPrompts: unknown[] = []
+        ;(adapter as any).transport = {
+          isAlive: true,
+          request: async (_method: string, params: any) => {
+            sentPrompts.push(params.prompt)
+            return { stopReason: "end_turn" }
+          },
+          notify() {},
+          close() {},
+        }
+        ;(adapter as any).sessionId = "test-session"
+        ;(adapter as any).eventChannel = { push() {}, close() {} }
+
+        await (adapter as any).sendPrompt("First message")
+        await (adapter as any).sendPrompt("Second message")
+
+        // First message should have system prompt
+        expect(sentPrompts[0]).toEqual([
+          { type: "text", text: "[System Prompt]\nYou are a test agent\n\n[User Message]\nFirst message" },
+        ])
+        // Second message should be plain
+        expect(sentPrompts[1]).toEqual([
+          { type: "text", text: "Second message" },
+        ])
+
+        adapter.close()
+      })
+
+      it("does not inject when systemPromptApplied is already true (config option succeeded)", async () => {
+        const { adapter } = createTestAdapter()
+
+        setConfig(adapter, { systemPrompt: "You are a test agent" })
+        ;(adapter as any).systemPromptApplied = true // Simulate config option success
+
+        let sentPrompt: unknown = null
+        ;(adapter as any).transport = {
+          isAlive: true,
+          request: async (_method: string, params: any) => {
+            sentPrompt = params.prompt
+            return { stopReason: "end_turn" }
+          },
+          notify() {},
+          close() {},
+        }
+        ;(adapter as any).sessionId = "test-session"
+        ;(adapter as any).eventChannel = { push() {}, close() {} }
+
+        await (adapter as any).sendPrompt("Hello")
+
+        expect(sentPrompt).toEqual([
+          { type: "text", text: "Hello" },
+        ])
+
+        adapter.close()
+      })
+
+      it("sends plain text when no system prompt configured", async () => {
+        const { adapter } = createTestAdapter()
+
+        setConfig(adapter, {})
+
+        let sentPrompt: unknown = null
+        ;(adapter as any).transport = {
+          isAlive: true,
+          request: async (_method: string, params: any) => {
+            sentPrompt = params.prompt
+            return { stopReason: "end_turn" }
+          },
+          notify() {},
+          close() {},
+        }
+        ;(adapter as any).sessionId = "test-session"
+        ;(adapter as any).eventChannel = { push() {}, close() {} }
+
+        await (adapter as any).sendPrompt("Hello")
+
+        expect(sentPrompt).toEqual([
+          { type: "text", text: "Hello" },
+        ])
+
+        adapter.close()
+      })
+    })
+  })
 })

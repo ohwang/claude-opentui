@@ -288,6 +288,11 @@ export function SyncProvider(props: ParentProps) {
   onCleanup(() => {
     log.info("SyncProvider cleanup")
     aborted = true
+    // Nullify SubagentManager's pushEvent to prevent events into a destroyed tree
+    const mgr = getSubagentManagerBridge()
+    if (mgr) {
+      mgr.setPushEvent(() => {})
+    }
     batcher.destroy()
     agent.backend.close()
   })

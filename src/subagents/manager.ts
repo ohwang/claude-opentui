@@ -86,6 +86,11 @@ export class SubagentManager {
       backendName,
     } as AgentEvent)
 
+    // Subagents default to bypassPermissions because multi-requestor
+    // permission flows are not supported — permission_request events from
+    // children are auto-denied (see switch case below). Setting a stricter
+    // mode on a definition is allowed but effectively a no-op since requests
+    // would still be auto-denied rather than surfaced to the user.
     const config: SessionConfig = {
       model: opts.modelOverride ?? def.model,
       permissionMode: def.permissionMode ?? "bypassPermissions",

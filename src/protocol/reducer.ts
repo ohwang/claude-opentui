@@ -500,6 +500,9 @@ export function reduce(
         startTime: Date.now(),
         toolUseId: event.toolUseId,
         taskType: event.taskType,
+        source: event.source,
+        backendName: event.backendName,
+        sessionId: event.sessionId,
       })
       return { ...next, activeTasks }
     }
@@ -513,6 +516,11 @@ export function reduce(
           output: event.output,
           lastToolName: event.lastToolName ?? task.lastToolName,
           summary: event.summary ?? task.summary,
+          turnCount: event.turnCount ?? task.turnCount,
+          toolUseCount: event.toolUseCount ?? task.toolUseCount,
+          tokenUsage: event.tokenUsage ?? task.tokenUsage,
+          thinkingActive: event.thinkingActive ?? task.thinkingActive,
+          recentTools: event.recentTools ?? task.recentTools,
         })
       }
       return { ...next, activeTasks }
@@ -526,6 +534,7 @@ export function reduce(
           ...task,
           output: event.output,
           status: "completed",
+          errorMessage: event.errorMessage,
         })
       }
       return { ...next, activeTasks }

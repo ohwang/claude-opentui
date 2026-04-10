@@ -137,6 +137,12 @@ export type TaskStartEvent = {
   toolUseId?: string
   /** Subagent type (e.g., "Explore", "general-purpose") */
   taskType?: string
+  /** "native" for crossagent-managed subagents, "backend" for backend's own (Claude SDK, etc.) */
+  source?: "native" | "backend"
+  /** Which backend the subagent runs on (e.g., "gemini", "claude", "copilot") */
+  backendName?: string
+  /** Subagent's session ID for log cross-referencing */
+  sessionId?: string
 }
 export type TaskProgressEvent = {
   type: "task_progress"
@@ -146,6 +152,16 @@ export type TaskProgressEvent = {
   lastToolName?: string
   /** AI-generated progress summary (requires agentProgressSummaries option) */
   summary?: string
+  /** Number of conversation turns completed */
+  turnCount?: number
+  /** Total tool invocations */
+  toolUseCount?: number
+  /** Token usage (when available) */
+  tokenUsage?: { inputTokens: number; outputTokens: number }
+  /** Currently in a thinking block */
+  thinkingActive?: boolean
+  /** Last N tool names used (rolling window) */
+  recentTools?: string[]
 }
 export type TaskCompleteEvent = {
   type: "task_complete"
@@ -153,6 +169,10 @@ export type TaskCompleteEvent = {
   output: string
   /** Correlates this task completion to the Agent ToolUseBlock that spawned it */
   toolUseId?: string
+  /** Final state -- "completed" or "error" */
+  state?: "completed" | "error"
+  /** Error message if state is "error" */
+  errorMessage?: string
 }
 
 /** Errors */
@@ -570,6 +590,24 @@ export interface TaskInfo {
   lastToolName?: string
   /** AI-generated progress summary */
   summary?: string
+  /** "native" for crossagent-managed subagents, "backend" for backend's own (Claude SDK, etc.) */
+  source?: "native" | "backend"
+  /** Which backend the subagent runs on (e.g., "gemini", "claude", "copilot") */
+  backendName?: string
+  /** Subagent's session ID for log cross-referencing */
+  sessionId?: string
+  /** Number of conversation turns completed */
+  turnCount?: number
+  /** Total tool invocations */
+  toolUseCount?: number
+  /** Token usage (when available) */
+  tokenUsage?: { inputTokens: number; outputTokens: number }
+  /** Currently in a thinking block */
+  thinkingActive?: boolean
+  /** Last N tool names used (rolling window) */
+  recentTools?: string[]
+  /** Error message if task ended with error */
+  errorMessage?: string
 }
 
 export interface CostTotals {

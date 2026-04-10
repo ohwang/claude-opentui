@@ -75,6 +75,14 @@ export class CodexAdapter extends BaseAdapter {
   private activeTurnId: string | null = null
   private modelName: string | null = null
 
+  // Guard against turn/completed arriving before waitForTurnComplete() is called.
+  // When both the turn/start response and turn/completed notification arrive in the
+  // same stdout chunk, handleLine() processes them synchronously — the response
+  // resolves the request promise (queuing a microtask), then turn/completed fires
+  // BEFORE the microtask resumes startTurn(). At that point turnCompleteResolve is
+  // still null, so the completion is silently lost. This flag captures it.
+  private turnCompletedEarly = false
+
   // Cached token usage from thread/tokenUsage/updated (arrives before turn/completed)
   private lastTokenUsage: { inputTokens: number; outputTokens: number; cacheReadTokens: number } | null = null
 
@@ -484,6 +492,12 @@ export class CodexAdapter extends BaseAdapter {
     log.info("Starting Codex turn", { threadId: this.threadId })
 
     try {
+      // Reset the early-completion flag before sending the request.
+      // If turn/completed arrives in the same stdout chunk as the turn/start
+      // response, it will set this flag so waitForTurnComplete() can resolve
+      // immediately instead of hanging.
+      this.turnCompletedEarly = false
+
       const result = (await this.transport.request(
         "turn/start",
         turnParams,
@@ -514,6 +528,14 @@ export class CodexAdapter extends BaseAdapter {
    * and resolve rather than hanging forever.
    */
   private waitForTurnComplete(): Promise<void> {
+    // If turn/completed already arrived (race: response + notification in same
+    // stdout chunk), resolve immediately instead of hanging forever.
+    if (this.turnCompletedEarly) {
+      log.info("Turn already completed (early signal), skipping wait")
+      this.turnCompletedEarly = false
+      return Promise.resolve()
+    }
+
     return new Promise<void>((resolve) => {
       this.turnCompleteResolve = resolve
 
@@ -599,6 +621,15 @@ export class CodexAdapter extends BaseAdapter {
         const resolve = this.turnCompleteResolve
         this.turnCompleteResolve = null
         resolve()
+      } else {
+        // turn/completed arrived before waitForTurnComplete() was called.
+        // This happens when the turn/start response and turn/completed
+        // notification arrive in the same stdout chunk — handleLine()
+        // processes both synchronously before the microtask from the
+        // request() resolution can run. Set the flag so
+        // waitForTurnComplete() resolves immediately.
+        this.turnCompletedEarly = true
+        log.info("turn/completed arrived before waitForTurnComplete (early signal set)")
       }
     }
   }

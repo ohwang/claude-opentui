@@ -900,6 +900,42 @@ describe("ConversationState reducer", () => {
       ])
       expect(state.activeTasks.get("t1")!.status).toBe("completed")
     })
+
+    it("defaults to completed when state is not provided", () => {
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "turn_start" },
+        { type: "task_start", taskId: "t1", description: "Searching" },
+        { type: "task_complete", taskId: "t1", output: "Done" },
+      ])
+      expect(state.activeTasks.get("t1")!.status).toBe("completed")
+    })
+
+    it("sets status to error when event.state is error", () => {
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "turn_start" },
+        { type: "task_start", taskId: "t1", description: "Searching" },
+        { type: "task_complete", taskId: "t1", output: "Failed", state: "error", errorMessage: "Something went wrong" },
+      ])
+      expect(state.activeTasks.get("t1")!.status).toBe("error")
+      expect(state.activeTasks.get("t1")!.errorMessage).toBe("Something went wrong")
+    })
+
+    it("sets endTime on completion", () => {
+      const before = Date.now()
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "turn_start" },
+        { type: "task_start", taskId: "t1", description: "Searching" },
+        { type: "task_complete", taskId: "t1", output: "Done" },
+      ])
+      const after = Date.now()
+      const endTime = state.activeTasks.get("t1")!.endTime
+      expect(endTime).toBeDefined()
+      expect(endTime).toBeGreaterThanOrEqual(before)
+      expect(endTime).toBeLessThanOrEqual(after)
+    })
   })
 
   // -----------------------------------------------------------------------

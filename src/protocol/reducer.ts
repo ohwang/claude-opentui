@@ -12,6 +12,7 @@ import type {
   AgentEvent,
   Block,
   ConversationState,
+  TaskInfo,
   ToolStatus,
   TurnFileChange,
 } from "./types"
@@ -568,7 +569,8 @@ export function reduce(
         activeTasks.set(event.taskId, {
           ...task,
           output: event.output,
-          status: "completed",
+          status: (event.state === "error" ? "error" : "completed") as TaskInfo["status"],
+          endTime: Date.now(),
           errorMessage: event.errorMessage,
         })
       }

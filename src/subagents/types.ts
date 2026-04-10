@@ -43,10 +43,6 @@ export interface SpawnOptions {
   backendOverride?: string
   modelOverride?: string
   cwd?: string
-  // Fork support: if true and the backend supports it (e.g., Claude's forkSession),
-  // the subagent forks the parent's session instead of starting fresh.
-  // This preserves conversation context — useful for "try two approaches" workflows.
-  forkParentSession?: boolean
 }
 
 // ---------------------------------------------------------------------------

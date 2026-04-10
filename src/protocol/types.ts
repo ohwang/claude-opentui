@@ -580,7 +580,7 @@ export interface TaskInfo {
   taskId: string
   description: string
   output: string
-  status: "running" | "completed"
+  status: "running" | "completed" | "error"
   startTime: number
   /** Correlates this task to the Agent ToolUseBlock that spawned it */
   toolUseId?: string
@@ -606,6 +606,8 @@ export interface TaskInfo {
   thinkingActive?: boolean
   /** Last N tool names used (rolling window) */
   recentTools?: string[]
+  /** Timestamp when the task completed or errored */
+  endTime?: number
   /** Error message if task ended with error */
   errorMessage?: string
 }

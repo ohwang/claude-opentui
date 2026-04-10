@@ -171,9 +171,10 @@ describe("Full pipeline: definition -> spawn -> events -> reducer state", () => 
 
     const task = state.activeTasks.get("subagent-1")
     expect(task).toBeDefined()
-    expect(task!.status).toBe("completed")
+    expect(task!.status).toBe("error")
     expect(task!.output).toBe("Failed output")
     expect(task!.errorMessage).toBe("Something went wrong")
+    expect(task!.endTime).toBeDefined()
   })
 
   test("turn_start prunes completed tasks from previous turn", () => {

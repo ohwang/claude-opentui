@@ -23,6 +23,7 @@ export class SubagentManager {
   private pushEvent: ((event: AgentEvent) => void) | null = null
   private nextId = 1
   private lastTextProgressTime = new Map<string, number>()
+  private waiters = new Map<string, Array<(status: SubagentStatus) => void>>()
 
   /** Wire up the event relay. Called by SyncProvider on mount. */
   setPushEvent(fn: (event: AgentEvent) => void): void {
@@ -142,7 +143,58 @@ export class SubagentManager {
       output: running.status.output,
       state: "completed",
     } as AgentEvent)
+    this.resolveWaiters(subagentId)
     log.info("Subagent stopped", { subagentId })
+  }
+
+  /**
+   * Wait for a subagent to complete. Blocks until the subagent finishes
+   * (completed or error) or the optional timeout elapses.
+   *
+   * Returns null if the subagent doesn't exist.
+   * Returns immediately if already completed/errored.
+   * If timeout elapses while still running, returns the current (running) status.
+   */
+  waitForCompletion(subagentId: string, timeoutMs?: number): Promise<SubagentStatus | null> {
+    const running = this.subagents.get(subagentId)
+    if (!running) return Promise.resolve(null)
+
+    // Already done — return immediately
+    if (running.status.state !== "running") {
+      return Promise.resolve(running.status)
+    }
+
+    // Still running — create a promise that resolves when the subagent completes
+    return new Promise<SubagentStatus>((resolve) => {
+      let timeoutId: ReturnType<typeof setTimeout> | undefined
+
+      const callback = (status: SubagentStatus) => {
+        if (timeoutId !== undefined) clearTimeout(timeoutId)
+        resolve(status)
+      }
+
+      // Register the waiter
+      const list = this.waiters.get(subagentId)
+      if (list) {
+        list.push(callback)
+      } else {
+        this.waiters.set(subagentId, [callback])
+      }
+
+      // Optional timeout — resolve with current status (still running)
+      if (timeoutMs !== undefined) {
+        timeoutId = setTimeout(() => {
+          // Remove this callback from the waiters list
+          const waiters = this.waiters.get(subagentId)
+          if (waiters) {
+            const idx = waiters.indexOf(callback)
+            if (idx !== -1) waiters.splice(idx, 1)
+            if (waiters.length === 0) this.waiters.delete(subagentId)
+          }
+          resolve(running.status)
+        }, timeoutMs)
+      }
+    })
   }
 
   /** Shut down all subagents. Called during app cleanup. */
@@ -160,6 +212,7 @@ export class SubagentManager {
           state: "error",
           errorMessage: "Session ended",
         } as AgentEvent)
+        this.resolveWaiters(id)
       }
     }
   }
@@ -275,12 +328,14 @@ export class SubagentManager {
               running.status.state = "completed"
               running.status.endTime = Date.now()
               running.backend.close()
+              this.lastTextProgressTime.delete(running.subagentId)
               this.emit({
                 type: "task_complete",
                 taskId: subagentId,
                 output: running.status.output,
                 state: "completed",
               } as AgentEvent)
+              this.resolveWaiters(subagentId)
             }
             this.emitProgress(running)
             break
@@ -342,6 +397,7 @@ export class SubagentManager {
         output: running.status.output,
         state: "completed",
       } as AgentEvent)
+      this.resolveWaiters(subagentId)
       log.info("Subagent completed", { subagentId })
     }
   }
@@ -359,6 +415,7 @@ export class SubagentManager {
       state: "error",
       errorMessage: message,
     } as AgentEvent)
+    this.resolveWaiters(running.subagentId)
     log.error("Subagent error", { subagentId: running.subagentId, error: message })
   }
 
@@ -375,6 +432,18 @@ export class SubagentManager {
       activeTurn: running.status.activeTurn,
       recentTools: running.status.recentTools,
     } as AgentEvent)
+  }
+
+  /** Resolve all promises waiting on a subagent's completion. */
+  private resolveWaiters(subagentId: string): void {
+    const waiters = this.waiters.get(subagentId)
+    if (!waiters || waiters.length === 0) return
+    const status = this.subagents.get(subagentId)?.status
+    if (!status) return
+    for (const cb of waiters) {
+      cb(status)
+    }
+    this.waiters.delete(subagentId)
   }
 
   private emit(event: AgentEvent): void {

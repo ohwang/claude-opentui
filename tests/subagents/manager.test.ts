@@ -434,6 +434,74 @@ describe("SubagentManager", () => {
     })
   })
 
+  describe("waitForCompletion()", () => {
+    test("returns null for non-existent subagent", async () => {
+      const result = await manager.waitForCompletion("subagent-999")
+      expect(result).toBeNull()
+    })
+
+    test("returns immediately for already-completed subagent", async () => {
+      const id = manager.spawn({
+        definition: mockDef,
+        prompt: "hello",
+        backendOverride: "mock",
+      })
+      manager.stop(id)
+      expect(manager.getStatus(id)!.state).toBe("completed")
+
+      const before = Date.now()
+      const result = await manager.waitForCompletion(id)
+      const elapsed = Date.now() - before
+
+      expect(result).toBeDefined()
+      expect(result!.state).toBe("completed")
+      // Should resolve nearly instantly (< 50ms)
+      expect(elapsed).toBeLessThan(50)
+    })
+
+    test("resolves when subagent completes", async () => {
+      const id = manager.spawn({
+        definition: mockDef,
+        prompt: "hello",
+        backendOverride: "mock",
+      })
+
+      // waitForCompletion blocks until the mock backend finishes its turn
+      // and the generator exhausts (mock processes one message then the loop
+      // continues waiting for more messages — we close to complete)
+      const resultPromise = manager.waitForCompletion(id)
+
+      // Wait for the mock to finish its turn, then stop to trigger completion
+      await wait(2500)
+      manager.stop(id)
+
+      const result = await resultPromise
+      expect(result).toBeDefined()
+      expect(result!.state).toBe("completed")
+      expect(result!.output.length).toBeGreaterThan(0)
+    })
+
+    test("resolves with timeout when subagent is still running", async () => {
+      const id = manager.spawn({
+        definition: mockDef,
+        prompt: "think about something complex that takes a very long time to process",
+        backendOverride: "mock",
+      })
+
+      const before = Date.now()
+      const result = await manager.waitForCompletion(id, 200)
+      const elapsed = Date.now() - before
+
+      expect(result).toBeDefined()
+      expect(result!.state).toBe("running")
+      // Should resolve after ~200ms timeout, not instantly and not after full completion
+      expect(elapsed).toBeGreaterThanOrEqual(180)
+      expect(elapsed).toBeLessThan(1000)
+
+      manager.closeAll()
+    })
+  })
+
   describe("startup timeout", () => {
     test("mock backend with short timeout does not timeout (session_init is fast)", async () => {
       const id = manager.spawn({
@@ -470,6 +538,7 @@ describe("SubagentManager", () => {
         turnCount: 0,
         toolUseCount: 0,
         thinkingActive: false,
+        activeTurn: false,
         recentTools: [],
       }
 

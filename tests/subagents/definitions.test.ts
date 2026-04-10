@@ -323,6 +323,49 @@ Prompt.
     }
   })
 
+  it("accepts valid backend values", () => {
+    const backends = ["claude", "codex", "gemini", "copilot", "acp", "mock"] as const
+    for (const backend of backends) {
+      const content = `---
+name: backend-${backend}
+backend: ${backend}
+---
+
+Prompt.
+`
+      const def = parseDefinition(content, `/agents/backend-${backend}.md`)
+      expect(def).not.toBeNull()
+      expect(def!.backend).toBe(backend)
+    }
+  })
+
+  it("rejects invalid backend values", () => {
+    const content = `---
+name: bad-backend
+backend: gpt5
+---
+
+Prompt.
+`
+
+    const def = parseDefinition(content, "/agents/bad-backend.md")
+    expect(def).not.toBeNull()
+    expect(def!.backend).toBeUndefined()
+  })
+
+  it("leaves backend undefined when not specified", () => {
+    const content = `---
+name: no-backend
+---
+
+Prompt.
+`
+
+    const def = parseDefinition(content, "/agents/no-backend.md")
+    expect(def).not.toBeNull()
+    expect(def!.backend).toBeUndefined()
+  })
+
   it("preserves multiline system prompt", () => {
     const content = `---
 name: multiline

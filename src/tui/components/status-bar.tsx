@@ -1,8 +1,13 @@
 /**
- * Status Bar — 2-line Claude Code-style status bar
+ * Status Bar — Claude Code-style status bar
  *
- * Line 1: project name | model | state | cost | git branch+status | tokens | tok/s
- * Line 2: permission mode indicator (pink, with cycle hint)
+ * When an external statusline command is configured:
+ *   Lines 1-N: command output (up to 4 lines, dynamic height)
+ *   Last line: permission mode indicator
+ *
+ * When no external command:
+ *   Line 1: project name | model | state | cost | git branch+status | tokens | tok/s
+ *   Line 2: permission mode indicator (pink, with cycle hint)
  *
  * During RUNNING state, shows live cost ticker and tokens-per-second throughput.
  */
@@ -164,6 +169,7 @@ export function StatusBar(props: { hint?: string | null }) {
   // -- External status line command --
   const statusLineConfig = getStatusLineConfig()
   const [statusLineText, setStatusLineText] = createSignal<StyledText | null>(null)
+  const [statusLineLines, setStatusLineLines] = createSignal(1)
   let statusLineRef: TextRenderable | undefined
 
   // -- Available permission modes (filtered against backend capabilities) --
@@ -217,6 +223,9 @@ export function StatusBar(props: { hint?: string | null }) {
         .then((text) => {
           if (text) {
             const styled = ansiToStyledText(text)
+            // Count output lines (capped at 4) for dynamic height
+            const lineCount = Math.min(4, Math.max(1, text.split("\n").length))
+            setStatusLineLines(lineCount)
             setStatusLineText(styled)
             // Imperatively update the TextRenderable content
             if (statusLineRef) {
@@ -532,18 +541,18 @@ export function StatusBar(props: { hint?: string | null }) {
   })
 
   // ---------------------------------------------------------------------------
-  // Render — 2-line status bar (matches Claude Code)
-  // Line 1: project, model, state, cost, git, ctx — right side: tok/s or hint
-  // Line 2: permission mode indicator + rate limits
+  // Render — dynamic-height status bar (matches Claude Code)
+  // With external statusline: N lines (1-4) of command output + perm mode
+  // Without: line 1 = project/model/state/cost/git/ctx, line 2 = perm mode
   // ---------------------------------------------------------------------------
 
   const statusLinePadding = statusLineConfig?.padding ?? 0
 
   return (
     <box flexDirection="column">
-      {/* Line 1: external command output OR native status bar */}
+      {/* Line 1+: external command output (up to 4 lines) OR native status bar */}
       {statusLineConfig && statusLineText() ? (
-        <box height={1} flexDirection="row" paddingLeft={2 + statusLinePadding} paddingRight={1 + statusLinePadding}>
+        <box height={statusLineLines()} flexDirection="row" paddingLeft={2 + statusLinePadding} paddingRight={1 + statusLinePadding}>
           <text ref={(el: TextRenderable) => {
             statusLineRef = el
             // Set initial styled content when ref mounts

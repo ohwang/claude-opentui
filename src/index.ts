@@ -18,6 +18,9 @@ import { log } from "./utils/logger"
 import { backendTrace } from "./utils/backend-trace"
 import type { AgentBackend } from "./protocol/types"
 import { stopMcpHttpServer } from "./mcp/server"
+import { SubagentManager } from "./subagents/manager"
+import { setSubagentManager } from "./subagents/mcp-tools"
+import { setCommandsManager } from "./subagents/commands"
 
 const VERSION = "0.0.1"
 
@@ -73,6 +76,11 @@ async function main() {
   log.info("Backend created", { backend: flags.backend })
   log.setBackendName(flags.backend)
 
+  // Create SubagentManager and wire module-level setters
+  const subagentManager = new SubagentManager()
+  setSubagentManager(subagentManager)
+  setCommandsManager(subagentManager)
+
   // Print session info on exit so users can correlate with log files.
   // Registered AFTER backend creation so early exits (unknown backend,
   // CLI parse errors) don't print session info for a session that never
@@ -92,6 +100,7 @@ async function main() {
   const cleanup = () => {
     log.info("Cleanup: closing backend")
     stopMcpHttpServer().catch(() => {})
+    subagentManager.closeAll()
     backend.close()
     backendTrace.close()
   }
@@ -187,6 +196,7 @@ async function main() {
     config: flags.config,
     onExit: cleanup,
     noDiagnosticsMcp: flags.noDiagnosticsMcp,
+    subagentManager,
   })
 }
 

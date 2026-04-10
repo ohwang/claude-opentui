@@ -22,7 +22,7 @@ import { SyncProvider, useSync } from "./context/sync"
 import { ToastProvider, toast } from "./context/toast"
 import { ModalProvider, useModal, registerModalRef, type ModalComponent } from "./context/modal"
 import { AnimationProvider } from "./context/animation"
-import { setBackend, setConfig, setRenderer } from "../mcp/state-bridge"
+import { setBackend, setConfig, setRenderer, setSubagentManagerBridge } from "../mcp/state-bridge"
 import { startMcpHttpServer, stopMcpHttpServer } from "../mcp/server"
 import { colors } from "./theme/tokens"
 import { ConversationView } from "./components/conversation"
@@ -579,11 +579,15 @@ export interface AppOptions {
   config: SessionConfig
   onExit?: () => void
   noDiagnosticsMcp?: boolean
+  subagentManager?: import("../subagents/manager").SubagentManager
 }
 
 export function startApp(options: AppOptions): void {
   setBackend(options.backend)
   setConfig(options.config)
+  if (options.subagentManager) {
+    setSubagentManagerBridge(options.subagentManager)
+  }
 
   const agentValue: AgentContextValue = {
     backend: options.backend,

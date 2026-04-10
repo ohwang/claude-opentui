@@ -31,7 +31,7 @@ import { useMessages } from "./messages"
 import { useSession } from "./session"
 import { usePermissions } from "./permissions"
 import { readSessionHistory, findMostRecentSession } from "../../backends/claude/session-reader"
-import { setConversationState } from "../../mcp/state-bridge"
+import { setConversationState, getSubagentManagerBridge } from "../../mcp/state-bridge"
 
 export interface SyncContextValue {
   /** Manually push an event (for slash commands, synthetic events, etc.) */
@@ -230,6 +230,12 @@ export function SyncProvider(props: ParentProps) {
   }
 
   onMount(() => {
+    // Wire SubagentManager's pushEvent so subagent events flow into the main stream
+    const mgr = getSubagentManagerBridge()
+    if (mgr) {
+      mgr.setPushEvent(pushEvent)
+    }
+
     // Pre-populate conversation history for resume/continue.
     // The SDK's query() API loads context internally but doesn't replay
     // historical messages, so we read the JSONL file directly.

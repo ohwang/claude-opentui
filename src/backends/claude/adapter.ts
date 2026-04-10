@@ -12,6 +12,7 @@
 
 import { query as sdkQuery, listSessions as sdkListSessions, type Options as SDKOptions, type SDKUserMessage as SDKUserMsg, type ModelInfo as SDKModelInfo } from "@anthropic-ai/claude-agent-sdk"
 import { getDiagnosticsSdkMcpConfig } from "../../mcp/server"
+import { getCrossagentSdkMcpConfig } from "../../subagents/mcp-tools"
 import { log } from "../../utils/logger"
 import type {
   AgentBackend,
@@ -460,6 +461,8 @@ export class ClaudeAdapter implements AgentBackend {
         const servers: Record<string, unknown> = { ...config.mcpServers }
         const diag = getDiagnosticsSdkMcpConfig()
         if (diag) servers["opentui-diagnostics"] = diag
+        const crossagent = getCrossagentSdkMcpConfig()
+        if (crossagent) servers["opentui-crossagent"] = crossagent
         // Cast: mcpServers values come from user config and our MCP server —
         // both conform to McpServerConfig at runtime but the spread loses type info
         return servers as SDKOptions["mcpServers"]

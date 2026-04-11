@@ -411,8 +411,12 @@ export class CodexAdapter extends BaseAdapter {
           this.modelName = result?.model ?? result?.modelProvider ?? null
           log.info("Resumed Codex thread for --continue", { threadId: this.threadId, model: this.modelName })
         } else {
-          // No threads found — fall through to starting a new thread
+          // No threads found — inform the user and start a new thread
           log.info("No existing Codex threads found for --continue, starting new thread")
+          this.eventChannel?.push({
+            type: "system_message",
+            text: "No previous Codex sessions found. Starting a new session.",
+          })
           const result = (await this.transport.request("thread/start", {})) as CodexThreadResponse
           this.threadId = result?.thread?.id ?? null
           this.modelName = result?.model ?? result?.modelProvider ?? null

@@ -731,18 +731,53 @@ export class AcpAdapter extends BaseAdapter {
       // 4. Create or load session
       const cwd = config.cwd ?? process.cwd()
       let sessionResult: AcpSessionNewResult
-      if (config.resume && this.agentCapabilities?.loadSession) {
-        try {
-          sessionResult = (await this.transport.request("session/load", {
-            sessionId: config.resume,
-          })) as AcpSessionNewResult
-          log.info("ACP session loaded", { sessionId: config.resume })
-        } catch (err) {
-          log.warn("session/load failed, creating new session", { error: String(err) })
+
+      if (config.resume) {
+        // --resume: load a specific session by ID
+        if (!this.agentCapabilities?.loadSession) {
+          this.eventChannel?.push({
+            type: "error",
+            code: "unsupported_resume",
+            message: `The ${this.agentName} agent does not support session resume. Start a new session instead.`,
+            severity: "fatal",
+          })
+          return
+        }
+        sessionResult = (await this.transport.request("session/load", {
+          sessionId: config.resume,
+        })) as AcpSessionNewResult
+        log.info("ACP session loaded", { sessionId: config.resume })
+      } else if (config.continue) {
+        // --continue: find and load the most recent session
+        if (!this.agentCapabilities?.loadSession) {
+          this.eventChannel?.push({
+            type: "error",
+            code: "unsupported_continue",
+            message: `The ${this.agentName} agent does not support session resume. Cannot use --continue.`,
+            severity: "fatal",
+          })
+          return
+        }
+        const sessions = await this.listSessions()
+        if (sessions.length === 0) {
+          log.info("No existing ACP sessions found for --continue, starting new session")
+          this.eventChannel?.push({
+            type: "system_message",
+            text: `No previous ${this.agentName} sessions found. Starting a new session.`,
+          })
           sessionResult = (await this.transport.request("session/new", {
             cwd,
             mcpServers: [],
           })) as AcpSessionNewResult
+        } else {
+          // Pick the most recent session by updatedAt
+          const sorted = [...sessions].sort((a, b) => b.updatedAt - a.updatedAt)
+          const mostRecent = sorted[0]!
+          log.info("Continuing most recent ACP session", { sessionId: mostRecent.id })
+          sessionResult = (await this.transport.request("session/load", {
+            sessionId: mostRecent.id,
+          })) as AcpSessionNewResult
+          log.info("ACP session loaded for --continue", { sessionId: mostRecent.id })
         }
       } else {
         sessionResult = (await this.transport.request("session/new", {

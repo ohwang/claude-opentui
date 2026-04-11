@@ -194,6 +194,29 @@ export function SyncProvider(props: ParentProps) {
     const mode = agent.config.resume ? "resume" : agent.config.continue ? "continue" : "start"
     log.info(`Event loop starting (${mode})`, agent.config.resume ? { sessionId: agent.config.resume } : undefined)
 
+    // Validate that the backend supports the requested mode
+    const caps = agent.backend.capabilities()
+    if (agent.config.resume && !caps.supportsResume) {
+      batcher.push({
+        type: "error",
+        code: "unsupported_resume",
+        message: `The ${caps.name} backend does not support --resume.`,
+        severity: "fatal",
+      })
+      batcher.flush()
+      return
+    }
+    if (agent.config.continue && !caps.supportsContinue) {
+      batcher.push({
+        type: "error",
+        code: "unsupported_continue",
+        message: `The ${caps.name} backend does not support --continue.`,
+        severity: "fatal",
+      })
+      batcher.flush()
+      return
+    }
+
     try {
       // Always use start() — it handles resume/continue via config.resume
       // and config.continue in buildOptions() and createMessageIterable().
@@ -237,11 +260,13 @@ export function SyncProvider(props: ParentProps) {
     }
 
     // Pre-populate conversation history for resume/continue.
-    // The SDK's query() API loads context internally but doesn't replay
-    // historical messages, so we read the JSONL file directly.
+    // Only for the Claude backend — its SDK query() API loads context internally
+    // but doesn't replay historical messages, so we read the JSONL file directly.
+    // Other backends (Codex, ACP) handle history replay server-side.
+    const backendName = agent.backend.capabilities().name
     const resumeId = agent.config.resume
     const continueMode = agent.config.continue
-    if ((resumeId || continueMode) && agent.config.cwd) {
+    if (backendName === "claude" && (resumeId || continueMode) && agent.config.cwd) {
       const sessionId = resumeId || findMostRecentSession(agent.config.cwd)
       if (sessionId) {
         const historyBlocks = readSessionHistory(sessionId, agent.config.cwd)

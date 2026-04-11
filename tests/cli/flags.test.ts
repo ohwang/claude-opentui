@@ -152,6 +152,16 @@ describe("parseFlags", () => {
       expect(result.config.permissionMode).toBe("bypassPermissions")
     })
 
+    it("--dangerously-bypass-approvals-and-sandbox sets bypassPermissions", () => {
+      const result = parseFlags(argv("--dangerously-bypass-approvals-and-sandbox"))
+      expect(result.config.permissionMode).toBe("bypassPermissions")
+    })
+
+    it("--yolo sets bypassPermissions", () => {
+      const result = parseFlags(argv("--yolo"))
+      expect(result.config.permissionMode).toBe("bypassPermissions")
+    })
+
     it("--permission-mode sets the given mode", () => {
       const result = parseFlags(argv("--permission-mode", "acceptEdits"))
       expect(result.config.permissionMode).toBe("acceptEdits")

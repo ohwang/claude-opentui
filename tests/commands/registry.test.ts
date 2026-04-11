@@ -332,19 +332,19 @@ describe("/hotkeys command", () => {
 })
 
 describe("/compact command", () => {
-  it("sends compact message to backend and shows feedback", async () => {
+  it("sends compact message to backend when supported", async () => {
     const registry = createCommandRegistry()
     let sentMessage: any = null
     const ctx = makeCtx({
       backend: {
         sendMessage: (msg: any) => { sentMessage = msg },
+        capabilities: () => ({ name: "claude", supportsCompact: true }),
       } as any,
     })
     const handled = await registry.tryExecute("/compact", ctx)
     expect(handled).toBe(true)
     expect(sentMessage).toBeTruthy()
     expect(sentMessage.text).toBe("/compact")
-    expect(ctx.events.some(e => e.text?.includes("Compacting"))).toBe(true)
   })
 
   it("passes custom instructions to backend", async () => {
@@ -353,10 +353,26 @@ describe("/compact command", () => {
     const ctx = makeCtx({
       backend: {
         sendMessage: (msg: any) => { sentMessage = msg },
+        capabilities: () => ({ name: "claude", supportsCompact: true }),
       } as any,
     })
     await registry.tryExecute("/compact focus on API changes", ctx)
     expect(sentMessage.text).toBe("/compact focus on API changes")
+  })
+
+  it("shows error when backend does not support compact", async () => {
+    const registry = createCommandRegistry()
+    let sentMessage: any = null
+    const ctx = makeCtx({
+      backend: {
+        sendMessage: (msg: any) => { sentMessage = msg },
+        capabilities: () => ({ name: "acp", supportsCompact: false }),
+      } as any,
+    })
+    const handled = await registry.tryExecute("/compact", ctx)
+    expect(handled).toBe(true)
+    expect(sentMessage).toBeNull()
+    expect(ctx.events.some(e => e.text?.includes("not supported"))).toBe(true)
   })
 })
 

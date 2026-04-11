@@ -171,12 +171,15 @@ describe("Claude Event Mapper — mapSDKMessage", () => {
   })
 
   describe("system status", () => {
-    it("ignores compacting status (no events emitted)", () => {
+    it("emits in-progress compact event on compacting status", () => {
       const events = mapSDKMessage(
         { type: "system", subtype: "status", status: "compacting" },
         freshState(),
       )
-      expect(events).toHaveLength(0)
+      expect(events).toHaveLength(1)
+      expect(events[0]!.type).toBe("compact")
+      expect((events[0] as any).inProgress).toBe(true)
+      expect((events[0] as any).trigger).toBe("user")
     })
 
     it("ignores other status events", () => {
@@ -201,8 +204,8 @@ describe("Claude Event Mapper — mapSDKMessage", () => {
 
       expect(events).toHaveLength(1)
       expect(events[0]!.type).toBe("compact")
-      expect((events[0] as any).summary).toContain("auto")
-      expect((events[0] as any).summary).toContain("50000")
+      expect((events[0] as any).trigger).toBe("auto")
+      expect((events[0] as any).preTokens).toBe(50000)
     })
 
     it("handles missing compact_metadata gracefully", () => {
@@ -213,7 +216,9 @@ describe("Claude Event Mapper — mapSDKMessage", () => {
 
       expect(events).toHaveLength(1)
       const compact = events[0] as any
-      expect(compact.summary).toContain("?")
+      expect(compact.type).toBe("compact")
+      expect(compact.summary).toBe("Conversation compacted.")
+      expect(compact.trigger).toBe("user")
     })
   })
 

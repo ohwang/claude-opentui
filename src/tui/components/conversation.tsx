@@ -18,8 +18,9 @@
 
 import type { JSX } from "solid-js"
 import { createSignal, createEffect, createMemo, onCleanup, Show, For, Index, batch } from "solid-js"
-import { type ScrollBoxRenderable, MacOSScrollAccel } from "@opentui/core"
+import { type ScrollBoxRenderable } from "@opentui/core"
 import { useKeyboard } from "@opentui/solid"
+import { ScrollView } from "./scroll-view"
 import { useMessages } from "../context/messages"
 import { useSession } from "../context/session"
 import { ThinkingBlock } from "./thinking-block"
@@ -273,7 +274,6 @@ export function ConversationView(props: { children?: JSX.Element; footerHint?: s
       event.preventDefault()
       scrollboxRef?.scrollBy(-3)
       setScrolledAway(true)
-      showScrollbarBriefly()
     }
     if (event.ctrl && event.name === "down") {
       event.preventDefault()
@@ -281,7 +281,6 @@ export function ConversationView(props: { children?: JSX.Element; footerHint?: s
       if (scrollboxRef && isNearBottom(scrollboxRef)) {
         setScrolledAway(false)
       }
-      showScrollbarBriefly()
     }
 
     // Auto-scroll to bottom and refocus on any printable input while scrolled away
@@ -292,51 +291,21 @@ export function ConversationView(props: { children?: JSX.Element; footerHint?: s
     }
   })
 
-  // Auto-hide scrollbar: show on any scroll (keyboard or mouse wheel), hide after 1s idle.
-  // The verticalScrollBar emits "change" on every scroll position update, including
-  // mouse wheel events handled natively by OpenTUI — so we listen there to catch all
-  // scroll sources, not just our keyboard handlers.
-  let scrollbarTimer: ReturnType<typeof setTimeout> | undefined
-  const showScrollbarBriefly = () => {
-    if (scrollboxRef) {
-      scrollboxRef.verticalScrollBar.visible = true
-      clearTimeout(scrollbarTimer)
-      scrollbarTimer = setTimeout(() => {
-        if (scrollboxRef) scrollboxRef.verticalScrollBar.visible = false
-      }, 1000)
+  // Scroll change handler — passed to ScrollView's onScroll callback.
+  // Tracks user scroll-away state for sticky scroll and cursor visibility.
+  const handleScroll = (el: ScrollBoxRenderable) => {
+    if (isNearBottom(el)) {
+      // At bottom: likely auto-scroll. If user was scrolled away, snap back.
+      if (userScrolledAway()) setScrolledAway(false)
+    } else if (!userScrolledAway()) {
+      // Scrolled away from bottom — user-initiated (mouse wheel)
+      setScrolledAway(true)
     }
   }
-  createEffect(() => {
-    if (scrollboxRef) {
-      scrollboxRef.verticalScrollBar.visible = false
-      // Style scrollbar: subtle thumb, no arrows, transparent track
-      scrollboxRef.verticalScrollBar.showArrows = false
-      scrollboxRef.verticalScrollBar.slider.foregroundColor = colors.text.muted
-      scrollboxRef.verticalScrollBar.slider.backgroundColor = "transparent"
-      // Listen for all scroll position changes (mouse wheel, programmatic, keyboard).
-      // Only show scrollbar when NOT at bottom — changes while at bottom are from
-      // sticky auto-scroll or programmatic scroll-to-bottom, not user scrolling.
-      scrollboxRef.verticalScrollBar.on("change", () => {
-        if (!scrollboxRef) return
-        if (isNearBottom(scrollboxRef)) {
-          // At bottom: likely auto-scroll. If user was scrolled away, snap back.
-          if (userScrolledAway()) setScrolledAway(false)
-          return
-        }
-        // Scrolled away from bottom — user-initiated (mouse wheel or keyboard)
-        showScrollbarBriefly()
-        if (!userScrolledAway()) setScrolledAway(true)
-      })
-    }
-  })
-  onCleanup(() => {
-    clearTimeout(scrollbarTimer)
-    scrollboxRef?.verticalScrollBar.removeAllListeners("change")
-  })
 
   return (
     <box flexDirection="column" flexGrow={1}>
-      <scrollbox ref={(el: ScrollBoxRenderable) => { scrollboxRef = el; registerScrollToBottom(() => { setScrolledAway(false); queueMicrotask(() => el.scrollBy(999999)) }) }} stickyScroll={!userScrolledAway()} stickyStart="bottom" scrollAcceleration={new MacOSScrollAccel()} flexGrow={1}>
+      <ScrollView ref={(el: ScrollBoxRenderable) => { scrollboxRef = el; registerScrollToBottom(() => { setScrolledAway(false); queueMicrotask(() => el.scrollBy(999999)) }) }} stickyScroll={!userScrolledAway()} stickyStart="bottom" onScroll={handleScroll} flexGrow={1}>
         <box flexDirection="column" paddingRight={1} minHeight="100%">
           {/* Header bar — scrolls with content */}
           <HeaderBar />
@@ -504,7 +473,7 @@ export function ConversationView(props: { children?: JSX.Element; footerHint?: s
             {props.children}
           </box>
         </box>
-      </scrollbox>
+      </ScrollView>
     </box>
   )
 }

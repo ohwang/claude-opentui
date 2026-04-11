@@ -24,6 +24,7 @@ import type {
   ForkOptions,
   ModelInfo,
   PermissionMode,
+  SandboxInfo,
   SessionConfig,
   SessionInfo,
   UserMessage,
@@ -49,8 +50,40 @@ import type {
 
 // ---------------------------------------------------------------------------
 // Permission mode → Codex approval policy mapping
+//
+// IMPORTANT: Codex separates approval policy from sandbox policy.
+// These are two independent controls sent per-turn via turn/start params.
+//
+// Approval policy controls WHETHER the user is prompted:
+//   - "on-request" → Codex asks for approval before shell commands & file changes
+//   - "never"      → Codex never asks (all actions auto-approved)
+//
+// Sandbox policy controls WHAT the process can actually do:
+//   - undefined (default) → workspace-write sandbox: repo is writable but
+//     .git directory is READ-ONLY. This means `git commit`, `git push`,
+//     `git checkout`, etc. will fail even if the user approves the command.
+//     This is the key semantic gap vs Claude, where approving a command
+//     grants full access to execute it.
+//   - { type: "dangerFullAccess" } → No sandbox restrictions at all.
+//
+// Semantic gaps vs Claude's unified model:
+//   1. "acceptEdits" in Claude auto-approves edits. In Codex, approval policy
+//      is "on-request" (still asks), but the SANDBOX allows edits. The user
+//      experience is different: Codex still prompts for file changes.
+//   2. "default" in Claude blocks commands without approval. In Codex,
+//      "default" uses workspace-write sandbox which blocks .git writes
+//      REGARDLESS of approval. A user who approves `git commit` in Codex
+//      will see it fail — unlike Claude where approval = execution.
+//   3. "plan" has no native Codex equivalent. We map it to "on-request"
+//      approval (closest approximation) but there's no read-only sandbox.
 // ---------------------------------------------------------------------------
 
+/**
+ * Map our PermissionMode to Codex's approval policy.
+ *
+ * Approval policy only controls prompting behavior, not filesystem access.
+ * See toCodexSandboxPolicy() for the filesystem enforcement side.
+ */
 export function toCodexApprovalPolicy(mode?: PermissionMode): string {
   switch (mode) {
     case "bypassPermissions":
@@ -64,6 +97,17 @@ export function toCodexApprovalPolicy(mode?: PermissionMode): string {
   }
 }
 
+/**
+ * Map our PermissionMode to Codex's sandbox policy.
+ *
+ * When undefined is returned, Codex uses its default "workspace-write" sandbox:
+ *   - Repo files are writable
+ *   - .git directory is READ-ONLY (git operations that write will fail)
+ *   - Network access may be restricted depending on Codex configuration
+ *
+ * Only bypassPermissions/dontAsk disables the sandbox entirely via
+ * "dangerFullAccess", which removes all filesystem restrictions.
+ */
 export function toCodexSandboxPolicy(
   mode?: PermissionMode,
 ): CodexSandboxPolicy | undefined {
@@ -114,7 +158,66 @@ export class CodexAdapter extends BaseAdapter {
   // Client-side max turns enforcement
   private turnCount = 0
 
+  /**
+   * Codex sandbox/approval model:
+   *
+   * Approvals and sandboxing are SEPARATE controls (unlike Claude).
+   * See toCodexApprovalPolicy() and toCodexSandboxPolicy() for mapping details.
+   *
+   * Default sandbox ("workspace-write"):
+   *   - Repo files: writable
+   *   - .git directory: READ-ONLY (git commit/push/checkout fail)
+   *   - Network: may be restricted by Codex config
+   *
+   * "dangerFullAccess" sandbox (bypassPermissions/dontAsk):
+   *   - Everything writable, no restrictions
+   *
+   * Key difference from Claude: approving a tool use does NOT override sandbox
+   * restrictions. If the sandbox blocks .git writes, approval is irrelevant.
+   */
   capabilities(): BackendCapabilities {
+    const sandboxInfo: SandboxInfo = {
+      statusHint: "sandbox: .git read-only",
+      modeDetails: {
+        default: {
+          writableScope: "repo working tree (excludes .git)",
+          protectedPaths: ".git (read-only in workspace-write sandbox)",
+          commandApproval: "always",
+          editApproval: "always",
+          networkAccess: "restricted",
+          separateSandbox: true,
+          caveats: "Approving a command does not override sandbox restrictions. git commit/push will fail.",
+        },
+        acceptEdits: {
+          writableScope: "repo working tree (excludes .git)",
+          protectedPaths: ".git (read-only in workspace-write sandbox)",
+          commandApproval: "always",
+          editApproval: "always",
+          networkAccess: "restricted",
+          separateSandbox: true,
+          caveats: "Codex still prompts for file changes (no native acceptEdits). Sandbox blocks .git writes.",
+        },
+        bypassPermissions: {
+          writableScope: "everything (dangerFullAccess)",
+          protectedPaths: "none",
+          commandApproval: "never",
+          editApproval: "never",
+          networkAccess: "unrestricted",
+          separateSandbox: false,
+          caveats: "Disables both approval prompts AND the sandbox entirely.",
+        },
+        dontAsk: {
+          writableScope: "everything (dangerFullAccess)",
+          protectedPaths: "none",
+          commandApproval: "never",
+          editApproval: "never",
+          networkAccess: "unrestricted",
+          separateSandbox: false,
+          caveats: "Disables both approval prompts AND the sandbox entirely.",
+        },
+      },
+    }
+
     return {
       name: "codex",
       supportsThinking: true,
@@ -131,6 +234,7 @@ export class CodexAdapter extends BaseAdapter {
         "bypassPermissions",
         "dontAsk",
       ],
+      sandboxInfo,
     }
   }
 

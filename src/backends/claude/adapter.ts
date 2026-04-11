@@ -22,6 +22,7 @@ import type {
   ForkOptions,
   ModelInfo,
   PermissionMode,
+  SandboxInfo,
   SessionConfig,
   SessionInfo,
   UserMessage,
@@ -81,7 +82,72 @@ export class ClaudeAdapter implements AgentBackend {
     }
   }
 
+  /**
+   * Claude SDK sandbox/approval model:
+   *
+   * Approvals and sandboxing are the SAME control — the SDK's permissionMode
+   * governs both what actions get prompted and what gets blocked. There is no
+   * separate sandbox process; the CLI itself enforces file/command restrictions.
+   *
+   * Mode mapping (passed directly to SDK):
+   *   - "default"           → Ask before file edits AND shell commands
+   *   - "acceptEdits"       → Auto-approve file edits, ask before shell commands
+   *   - "bypassPermissions" → Auto-approve everything (no prompts at all)
+   *   - "plan"              → Read-only: no edits, no commands allowed
+   *   - "dontAsk"           → Same as bypassPermissions (--dangerously-* flag)
+   *
+   * Filesystem scope: cwd + any --add-dir directories. Paths outside are blocked.
+   * Protected paths: None explicitly — all paths within scope are equally accessible.
+   * Network: Unrestricted (no network sandbox).
+   */
   capabilities(): BackendCapabilities {
+    const sandboxInfo: SandboxInfo = {
+      statusHint: "approvals only, no sandbox",
+      modeDetails: {
+        default: {
+          writableScope: "cwd + allowed directories",
+          protectedPaths: "none (all in-scope paths equal)",
+          commandApproval: "always",
+          editApproval: "always",
+          networkAccess: "unrestricted",
+          separateSandbox: false,
+        },
+        acceptEdits: {
+          writableScope: "cwd + allowed directories",
+          protectedPaths: "none (all in-scope paths equal)",
+          commandApproval: "always",
+          editApproval: "never",
+          networkAccess: "unrestricted",
+          separateSandbox: false,
+        },
+        bypassPermissions: {
+          writableScope: "cwd + allowed directories",
+          protectedPaths: "none (all in-scope paths equal)",
+          commandApproval: "never",
+          editApproval: "never",
+          networkAccess: "unrestricted",
+          separateSandbox: false,
+        },
+        plan: {
+          writableScope: "none (read-only)",
+          protectedPaths: "all (no writes allowed)",
+          commandApproval: "never",
+          editApproval: "never",
+          networkAccess: "unrestricted",
+          separateSandbox: false,
+          caveats: "Read-only mode: no file edits or shell commands",
+        },
+        dontAsk: {
+          writableScope: "cwd + allowed directories",
+          protectedPaths: "none (all in-scope paths equal)",
+          commandApproval: "never",
+          editApproval: "never",
+          networkAccess: "unrestricted",
+          separateSandbox: false,
+        },
+      },
+    }
+
     return {
       name: "claude",
       sdkVersion: ClaudeAdapter.sdkVersion,
@@ -100,6 +166,7 @@ export class ClaudeAdapter implements AgentBackend {
         "plan",
         "dontAsk",
       ],
+      sandboxInfo,
     }
   }
 

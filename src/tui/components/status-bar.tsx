@@ -23,7 +23,7 @@ import { useAgent } from "../context/agent"
 import { log } from "../../utils/logger"
 import { setTerminalProgress } from "../../utils/terminal-notify"
 import { colors } from "../theme/tokens"
-import type { PermissionMode } from "../../protocol/types"
+import type { PermissionMode, SandboxInfo } from "../../protocol/types"
 import { friendlyModelName, MODEL_CONTEXT_WINDOWS, DEFAULT_CONTEXT_WINDOW } from "../models"
 import { toast } from "../context/toast"
 import { getStatusLineConfig, buildStatusLineInput, executeStatusLineCommand } from "../../utils/statusline"
@@ -358,6 +358,23 @@ export function StatusBar(props: { hint?: string | null }) {
   const showGit = () => termWidth() >= 80
   const showCost = () => termWidth() >= 60
 
+  // -- Sandbox hint: short backend-specific note shown next to permission mode --
+  // Only shown when the backend has sandbox behavior that differs from what
+  // the permission mode label implies (e.g., Codex's .git read-only sandbox,
+  // ACP's agent-managed permissions). Claude's "approvals only, no sandbox"
+  // is suppressed because the permission mode label already conveys this.
+  const sandboxHint = createMemo((): string => {
+    const info: SandboxInfo | undefined = agent.backend.capabilities().sandboxInfo
+    if (!info) return ""
+    // Check if the current mode has a separate sandbox — that's the key
+    // semantic gap users need to know about
+    const modeDetail = info.modeDetails[permMode()]
+    if (modeDetail?.separateSandbox) return info.statusHint
+    // For non-Claude backends, show the hint to signal agent-managed behavior
+    if (agent.backend.capabilities().name !== "claude") return info.statusHint
+    return ""
+  })
+
   const permModeColor = () => {
     switch (permMode()) {
       case "default": return colors.state.idle
@@ -640,6 +657,9 @@ export function StatusBar(props: { hint?: string | null }) {
       <box height={1} flexDirection="row" paddingLeft={2} paddingRight={1}>
         <text fg={permModeColor()}>{"\u25CF "}</text>
         <text fg={colors.permission.modeLabel}>{permissionModeLabel(permMode())}</text>
+        {sandboxHint() && (
+          <text fg={colors.text.muted} attributes={TextAttributes.DIM}>{` (${sandboxHint()})`}</text>
+        )}
         <text fg={colors.text.muted}>{" (shift+tab to cycle)"}</text>
 
         <box flexGrow={1} />

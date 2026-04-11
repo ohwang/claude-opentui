@@ -29,6 +29,7 @@ import type {
   ForkOptions,
   ModelInfo,
   PermissionMode,
+  SandboxInfo,
   SessionConfig,
   SessionInfo,
   UserMessage,
@@ -204,11 +205,54 @@ export class AcpAdapter extends BaseAdapter {
     return ["default", "bypassPermissions"]
   }
 
+  /**
+   * ACP sandbox/approval model:
+   *
+   * The ACP protocol defines modes and permission_request callbacks, but
+   * sandbox enforcement is entirely agent-specific and not introspectable
+   * from the client side. Different ACP agents have different models:
+   *
+   * - Gemini CLI: Uses modes ("default", "autoEdit", "yolo") that map to
+   *   our permission modes. Sandbox behavior is agent-internal. The client
+   *   only sees permission_request callbacks when the agent decides to ask.
+   *
+   * - GitHub Copilot CLI: Uses URI-based modes (e.g., "#agent", "#plan",
+   *   "#autopilot"). Mode selection is done via config options. Sandbox
+   *   details are opaque to the client.
+   *
+   * Key limitation: We cannot determine from the ACP protocol alone what
+   * filesystem restrictions, network policies, or protected paths an agent
+   * enforces. The sandboxInfo we provide is necessarily approximate.
+   */
   capabilities(): BackendCapabilities {
     // Derive thinking support from discovered config options
     const hasThinkingOption = this.discoveredConfigOptions.some(
       o => o.category === "thought_level" || o.id === "thinking" || o.name.toLowerCase().includes("thinking") || o.name.toLowerCase().includes("effort"),
     )
+
+    const sandboxInfo: SandboxInfo = {
+      statusHint: "agent-managed permissions",
+      modeDetails: {
+        default: {
+          writableScope: "agent-determined",
+          protectedPaths: "agent-determined",
+          commandApproval: "always",
+          editApproval: "always",
+          networkAccess: "unknown",
+          separateSandbox: false,
+          caveats: "Sandbox enforcement is agent-specific and not visible to the client.",
+        },
+        bypassPermissions: {
+          writableScope: "agent-determined",
+          protectedPaths: "agent-determined",
+          commandApproval: "never",
+          editApproval: "never",
+          networkAccess: "unknown",
+          separateSandbox: false,
+          caveats: "Agent may still enforce its own restrictions regardless of mode.",
+        },
+      },
+    }
 
     return {
       name: this.presetName,
@@ -221,6 +265,7 @@ export class AcpAdapter extends BaseAdapter {
       supportsSubagents: false,
       supportsCompact: false,
       supportedPermissionModes: this.deriveSupportedPermissionModes(),
+      sandboxInfo,
     }
   }
 

@@ -554,8 +554,80 @@ export interface BackendCapabilities {
   supportsSubagents: boolean
   supportsCompact: boolean
   supportedPermissionModes: PermissionMode[]
+  /** Describes what the backend's sandbox and approval system actually enforces.
+   *  Used by the status bar to show honest, backend-specific caveats. */
+  sandboxInfo?: SandboxInfo
 }
 
+// ---------------------------------------------------------------------------
+// Sandbox & Approval Model — per-backend reality
+// ---------------------------------------------------------------------------
+
+/**
+ * Describes the actual sandbox and approval semantics for a backend in a
+ * given permission mode. Backends have fundamentally different security
+ * models — this type makes those differences visible to the UI layer.
+ *
+ * Semantic gaps between backends:
+ *
+ * - **Claude**: Approvals and sandboxing are the SAME control. The SDK's
+ *   permissionMode governs both what gets asked and what gets blocked.
+ *   There is no separate sandbox process — the CLI itself enforces
+ *   file/command restrictions.
+ *
+ * - **Codex**: Approvals and sandboxing are SEPARATE controls. The approval
+ *   policy ("on-request" / "never") decides whether the user is asked.
+ *   The sandbox policy (workspace-write / dangerFullAccess) runs in a
+ *   separate environment that restricts filesystem access regardless of
+ *   approval decisions. In workspace-write mode, .git is read-only even
+ *   if the user approves a write — the sandbox blocks it.
+ *
+ * - **ACP (Gemini/Copilot)**: Varies by agent implementation. The ACP
+ *   protocol defines modes and permission_request callbacks, but sandbox
+ *   enforcement is agent-specific and not introspectable from the client.
+ */
+export interface SandboxInfo {
+  /** Short summary shown as a subtitle in the status bar.
+   *  e.g., "sandbox: .git read-only" or "no sandbox" */
+  statusHint: string
+
+  /** Per-permission-mode descriptions of what the backend actually enforces */
+  modeDetails: Partial<Record<PermissionMode, PermissionModeDetail>>
+}
+
+/**
+ * Describes what a specific permission mode actually means for a given backend.
+ * Each field is a human-readable description, not a machine-enforceable policy.
+ */
+export interface PermissionModeDetail {
+  /** What filesystem paths are writable (e.g., "cwd + allowed dirs", "everything") */
+  writableScope: string
+  /** What paths are explicitly protected/read-only (e.g., ".git", "none") */
+  protectedPaths: string
+  /** Whether shell command execution requires approval */
+  commandApproval: "always" | "never" | "per-tool-rules"
+  /** Whether file edits require approval */
+  editApproval: "always" | "never" | "per-tool-rules"
+  /** Network access policy */
+  networkAccess: "unrestricted" | "restricted" | "blocked" | "unknown"
+  /** Whether approvals and sandboxing are separate controls */
+  separateSandbox: boolean
+  /** Any additional caveats specific to this mode+backend combination */
+  caveats?: string
+}
+
+/**
+ * Permission mode — shared vocabulary across backends.
+ *
+ * IMPORTANT: These names provide a common UI language, but the actual
+ * enforcement varies by backend. See SandboxInfo for per-backend details.
+ *
+ * - "default"           — Ask before destructive actions (edits, commands)
+ * - "acceptEdits"       — Auto-approve file edits, still ask for commands
+ * - "bypassPermissions" — Auto-approve everything (no prompts)
+ * - "plan"              — Read-only analysis, no edits or commands
+ * - "dontAsk"           — Like bypassPermissions but intended for --dangerously-* flag
+ */
 export type PermissionMode =
   | "default"
   | "acceptEdits"

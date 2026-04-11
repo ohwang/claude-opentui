@@ -601,11 +601,37 @@ export function reduce(
 
     // ----- Compact -----
 
-    case "compact":
+    case "compact": {
+      // If this is an "in progress" event, add a placeholder block that the
+      // completed event will replace. If it's a completion event, find the
+      // last in-progress compact block and replace it, or append a new one.
+      const cleanSummary = stripSDKXmlTags(event.summary)
+      const compactBlock: Block = {
+        type: "compact",
+        summary: cleanSummary,
+        trigger: event.trigger,
+        preTokens: event.preTokens,
+        postTokens: event.postTokens,
+        inProgress: event.inProgress,
+      }
+
+      if (!event.inProgress) {
+        // Completion: replace the last in-progress compact block if one exists
+        const lastInProgressIdx = state.blocks.findLastIndex(
+          b => b.type === "compact" && b.inProgress,
+        )
+        if (lastInProgressIdx >= 0) {
+          const blocks = [...state.blocks]
+          blocks[lastInProgressIdx] = compactBlock
+          return { ...next, blocks }
+        }
+      }
+
       return {
         ...next,
-        blocks: [...state.blocks, { type: "compact", summary: stripSDKXmlTags(event.summary) }],
+        blocks: [...state.blocks, compactBlock],
       }
+    }
 
     // ----- Model changed -----
 

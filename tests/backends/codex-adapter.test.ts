@@ -114,10 +114,12 @@ describe("CodexAdapter", () => {
   })
 
   describe("listSessions", () => {
-    it("returns empty when transport is not connected", async () => {
+    it("falls back to disk when transport is not connected", async () => {
       const adapter = new CodexAdapter()
       const sessions = await adapter.listSessions()
-      expect(sessions).toEqual([])
+      // When transport is not alive, Codex reads from ~/.codex/sessions/ on disk.
+      // The result is an array (empty if no local sessions exist).
+      expect(Array.isArray(sessions)).toBe(true)
       adapter.close()
     })
   })

@@ -403,7 +403,13 @@ export class CodexAdapter extends BaseAdapter {
   }
 
   async listSessions(): Promise<SessionInfo[]> {
-    if (!this.transport?.isAlive) return []
+    // When transport is not alive (before runSession), fall back to reading
+    // Codex session files directly from disk. This enables the session picker
+    // to show sessions even before the codex app-server subprocess is spawned.
+    if (!this.transport?.isAlive) {
+      const { listCodexSessionsFromDisk } = await import("../../session/cross-backend")
+      return listCodexSessionsFromDisk()
+    }
 
     try {
       const result = (await this.transport.request("thread/list")) as CodexThreadListResponse

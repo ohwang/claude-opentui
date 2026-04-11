@@ -620,6 +620,13 @@ export class AcpAdapter extends BaseAdapter {
     // Check if the agent supports session listing
     const sessionCaps = (this.agentCapabilities as any)?.sessionCapabilities
     if (!sessionCaps?.list || !this.transport?.isAlive) {
+      // Fall back to reading Gemini session files from disk when transport
+      // is not alive. This enables the session picker to show sessions
+      // before the ACP subprocess is spawned.
+      if (!this.transport?.isAlive && (this.presetName === "gemini" || this.presetName === "acp")) {
+        const { listGeminiSessionsFromDisk } = await import("../../session/cross-backend")
+        return listGeminiSessionsFromDisk()
+      }
       return []
     }
 

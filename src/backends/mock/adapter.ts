@@ -34,6 +34,7 @@ export class MockAdapter extends BaseAdapter {
       supportsFork: false,
       supportsStreaming: true,
       supportsSubagents: true,
+      supportsCompact: false,
       supportedPermissionModes: ["default"],
     }
   }

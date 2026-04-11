@@ -126,7 +126,18 @@ export type SessionStateEvent = {
   type: "session_state"
   state: "idle" | "running" | "requires_action"
 }
-export type CompactEvent = { type: "compact"; summary: string }
+export type CompactEvent = {
+  type: "compact"
+  summary: string
+  /** What triggered the compaction: "user" (/compact command) or "auto" (backend-initiated) */
+  trigger?: "user" | "auto"
+  /** Token count before compaction (when available from backend) */
+  preTokens?: number
+  /** Token count after compaction (when available from backend) */
+  postTokens?: number
+  /** Whether compaction is in progress (true) or completed (false/undefined) */
+  inProgress?: boolean
+}
 
 /** Tasks / subagents */
 export type TaskStartEvent = {
@@ -391,7 +402,7 @@ export type Block =
   | { type: "thinking"; text: string }
   | { type: "tool"; id: string; tool: string; input: unknown; status: ToolStatus; output?: string; error?: string; startTime: number; duration?: number }
   | { type: "system"; text: string; ephemeral?: boolean }
-  | { type: "compact"; summary: string }
+  | { type: "compact"; summary: string; trigger?: "user" | "auto"; preTokens?: number; postTokens?: number; inProgress?: boolean }
   | { type: "shell"; id: string; command: string; output: string; error?: string; exitCode?: number; status: "running" | "done" | "error"; startTime: number; duration?: number }
   | { type: "error"; code: string; message: string }
   | { type: "plan"; entries: PlanEntry[] }
@@ -540,6 +551,7 @@ export interface BackendCapabilities {
   supportsFork: boolean
   supportsStreaming: boolean
   supportsSubagents: boolean
+  supportsCompact: boolean
   supportedPermissionModes: PermissionMode[]
 }
 

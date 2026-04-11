@@ -55,6 +55,7 @@ function createHangingBackend(): { backend: AgentBackend; closeCalls: number[] }
         supportsFork: false,
         supportsStreaming: false,
         supportsSubagents: false,
+        supportsCompact: false,
         supportedPermissionModes: ["default" as const],
       }
     },

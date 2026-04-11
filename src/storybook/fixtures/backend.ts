@@ -51,6 +51,7 @@ export class NoopBackend implements AgentBackend {
       supportsFork: false,
       supportsStreaming: true,
       supportsSubagents: true,
+      supportsCompact: true,
       supportedPermissionModes: ["default"],
     }
   }

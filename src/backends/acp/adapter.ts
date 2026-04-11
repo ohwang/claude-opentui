@@ -218,6 +218,7 @@ export class AcpAdapter extends BaseAdapter {
       supportsFork: false,
       supportsStreaming: true,
       supportsSubagents: false,
+      supportsCompact: false,
       supportedPermissionModes: this.deriveSupportedPermissionModes(),
     }
   }

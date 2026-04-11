@@ -123,6 +123,7 @@ export class CodexAdapter extends BaseAdapter {
       supportsFork: true,
       supportsStreaming: true,
       supportsSubagents: false,
+      supportsCompact: true,
       supportedPermissionModes: [
         "default",
         "acceptEdits",

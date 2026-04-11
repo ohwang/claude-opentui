@@ -45,6 +45,7 @@ function createMockContext(options: {
         supportsFork: false,
         supportsStreaming: false,
         supportsSubagents: false,
+        supportsCompact: false,
         supportedPermissionModes: ["default"],
       }),
       availableModels: async () => [],

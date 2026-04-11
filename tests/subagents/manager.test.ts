@@ -52,6 +52,7 @@ function createHangingBackend(): { backend: AgentBackend; closeCalls: number[] }
         supportsThinking: false,
         supportsToolApproval: false,
         supportsResume: false,
+        supportsContinue: false,
         supportsFork: false,
         supportsStreaming: false,
         supportsSubagents: false,

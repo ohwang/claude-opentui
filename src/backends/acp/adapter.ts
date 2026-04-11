@@ -215,6 +215,7 @@ export class AcpAdapter extends BaseAdapter {
       supportsThinking: hasThinkingOption,
       supportsToolApproval: true,
       supportsResume: !!this.agentCapabilities?.loadSession,
+      supportsContinue: !!this.agentCapabilities?.loadSession,
       supportsFork: false,
       supportsStreaming: true,
       supportsSubagents: false,

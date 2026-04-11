@@ -88,6 +88,7 @@ export class ClaudeAdapter implements AgentBackend {
       supportsThinking: true,
       supportsToolApproval: true,
       supportsResume: true,
+      supportsContinue: true,
       supportsFork: true,
       supportsStreaming: true,
       supportsSubagents: true,

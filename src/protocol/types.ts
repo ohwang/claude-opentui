@@ -548,6 +548,7 @@ export interface BackendCapabilities {
   supportsThinking: boolean
   supportsToolApproval: boolean
   supportsResume: boolean
+  supportsContinue: boolean
   supportsFork: boolean
   supportsStreaming: boolean
   supportsSubagents: boolean

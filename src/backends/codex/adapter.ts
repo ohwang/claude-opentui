@@ -120,6 +120,7 @@ export class CodexAdapter extends BaseAdapter {
       supportsThinking: true,
       supportsToolApproval: true,
       supportsResume: true,
+      supportsContinue: true,
       supportsFork: true,
       supportsStreaming: true,
       supportsSubagents: false,

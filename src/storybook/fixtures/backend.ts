@@ -48,6 +48,7 @@ export class NoopBackend implements AgentBackend {
       supportsThinking: true,
       supportsToolApproval: true,
       supportsResume: false,
+      supportsContinue: false,
       supportsFork: false,
       supportsStreaming: true,
       supportsSubagents: true,

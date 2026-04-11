@@ -42,6 +42,7 @@ function createMockContext(options: {
         supportsThinking: false,
         supportsToolApproval: false,
         supportsResume: false,
+        supportsContinue: false,
         supportsFork: false,
         supportsStreaming: false,
         supportsSubagents: false,

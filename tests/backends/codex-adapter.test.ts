@@ -1,5 +1,9 @@
 import { describe, expect, it } from "bun:test"
-import { CodexAdapter } from "../../src/backends/codex/adapter"
+import {
+  CodexAdapter,
+  toCodexApprovalPolicy,
+  toCodexSandboxPolicy,
+} from "../../src/backends/codex/adapter"
 
 describe("CodexAdapter", () => {
   describe("capabilities", () => {
@@ -16,6 +20,20 @@ describe("CodexAdapter", () => {
       expect(caps.supportsSubagents).toBe(false)
       expect(caps.supportedPermissionModes).toContain("default")
       expect(caps.supportedPermissionModes).toContain("bypassPermissions")
+    })
+  })
+
+  describe("permission mode mapping", () => {
+    it("maps bypassPermissions to never approval + dangerFullAccess sandbox", () => {
+      expect(toCodexApprovalPolicy("bypassPermissions")).toBe("never")
+      expect(toCodexSandboxPolicy("bypassPermissions")).toEqual({
+        type: "dangerFullAccess",
+      })
+    })
+
+    it("maps default to on-request approval without sandbox override", () => {
+      expect(toCodexApprovalPolicy("default")).toBe("on-request")
+      expect(toCodexSandboxPolicy("default")).toBeUndefined()
     })
   })
 

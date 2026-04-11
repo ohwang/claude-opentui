@@ -36,6 +36,7 @@ const trace = backendTrace.scoped("codex")
 import { JsonRpcTransport } from "./jsonrpc-transport"
 import { mapCodexNotification } from "./event-mapper"
 import type {
+  CodexSandboxPolicy,
   CodexThreadResponse,
   CodexThreadListResponse,
   CodexThreadInfo,
@@ -50,7 +51,7 @@ import type {
 // Permission mode → Codex approval policy mapping
 // ---------------------------------------------------------------------------
 
-function toCodexApprovalPolicy(mode?: PermissionMode): string {
+export function toCodexApprovalPolicy(mode?: PermissionMode): string {
   switch (mode) {
     case "bypassPermissions":
     case "dontAsk":
@@ -60,6 +61,18 @@ function toCodexApprovalPolicy(mode?: PermissionMode): string {
     case "acceptEdits":
     default:
       return "on-request"
+  }
+}
+
+export function toCodexSandboxPolicy(
+  mode?: PermissionMode,
+): CodexSandboxPolicy | undefined {
+  switch (mode) {
+    case "bypassPermissions":
+    case "dontAsk":
+      return { type: "dangerFullAccess" }
+    default:
+      return undefined
   }
 }
 
@@ -480,10 +493,13 @@ export class CodexAdapter extends BaseAdapter {
       }
     }
 
+    const sandboxPolicy = toCodexSandboxPolicy(this.config?.permissionMode)
+
     const turnParams: CodexTurnStartParams = {
       threadId: this.threadId,
       input,
       approvalPolicy: toCodexApprovalPolicy(this.config?.permissionMode),
+      ...(sandboxPolicy ? { sandboxPolicy } : {}),
       ...(applySystemPrompt ? { instructions: this.config!.systemPrompt } : {}),
       ...(this.config?.model ? { model: this.config.model } : {}),
       ...(this.config?.cwd ? { cwd: this.config.cwd } : {}),

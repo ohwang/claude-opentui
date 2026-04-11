@@ -84,10 +84,29 @@ export interface CodexTurnStartParams {
   threadId: string
   input: CodexTurnInput[]
   approvalPolicy: string
+  sandboxPolicy?: CodexSandboxPolicy
   instructions?: string
   model?: string
   cwd?: string
 }
+
+export type CodexSandboxPolicy =
+  | { type: "dangerFullAccess" }
+  | {
+      type: "workspaceWrite"
+      writableRoots: string[]
+      networkAccess?: boolean
+    }
+  | {
+      type: "readOnly"
+      access?: {
+        type: "fullAccess"
+      }
+    }
+  | {
+      type: "externalSandbox"
+      networkAccess?: "restricted" | "enabled"
+    }
 
 export interface CodexTurnInput {
   type: "text" | "image"

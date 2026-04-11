@@ -190,6 +190,19 @@ async function main() {
     flags.config.initialPrompt = flags.prompt
   }
 
+  // If --resume was used without a session ID, eagerly fetch the session list
+  // so the TUI can render the picker immediately without an async loading state.
+  let preloadedSessions: import("./protocol/types").SessionInfo[] | undefined
+  if (flags.config.resumeInteractive) {
+    try {
+      preloadedSessions = await backend.listSessions()
+      log.info("Preloaded sessions for picker", { count: preloadedSessions.length })
+    } catch (err) {
+      log.warn("Failed to preload sessions", { error: String(err) })
+      preloadedSessions = []
+    }
+  }
+
   // Start the TUI — do not await; OpenTUI's native event loop keeps the process alive
   startApp({
     backend,
@@ -197,6 +210,7 @@ async function main() {
     onExit: cleanup,
     noDiagnosticsMcp: flags.noDiagnosticsMcp,
     subagentManager,
+    preloadedSessions,
   })
 }
 

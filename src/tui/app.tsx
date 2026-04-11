@@ -33,6 +33,7 @@ import { StatusBar } from "./components/status-bar"
 import { PermissionDialog } from "./components/permission-dialog"
 import { ElicitationDialog } from "./components/elicitation"
 import { DiagnosticsPanel, scrollDiagnostics, scrollDiagnosticsToTop, scrollDiagnosticsToBottom, switchDiagnosticsTab } from "./components/diagnostics"
+import { SessionPicker } from "./components/session-picker"
 import { MODEL_NAMES, friendlyModelName, friendlyBackendName } from "./models"
 
 // Module-level exit function so slash commands can trigger clean shutdown
@@ -580,6 +581,8 @@ export interface AppOptions {
   onExit?: () => void
   noDiagnosticsMcp?: boolean
   subagentManager?: import("../subagents/manager").SubagentManager
+  /** Pre-fetched session list for the interactive session picker (--resume without ID) */
+  preloadedSessions?: import("../protocol/types").SessionInfo[]
 }
 
 export function startApp(options: AppOptions): void {
@@ -587,6 +590,27 @@ export function startApp(options: AppOptions): void {
   setConfig(options.config)
   if (options.subagentManager) {
     setSubagentManagerBridge(options.subagentManager)
+  }
+
+  // When --resume was used without a session ID, show the interactive picker
+  // before mounting the main app. The picker is a lightweight component that
+  // runs inside the same render tree but without the full provider stack
+  // (no SyncProvider, no event loop). On selection, we unmount the picker
+  // and mount the real app by updating a signal.
+  const showPicker = options.config.resumeInteractive && options.preloadedSessions != null
+  const [pickerDone, setPickerDone] = createSignal(!showPicker)
+  // When the picker selects a session, update config and transition to the main app
+  const onPickerSelect = (sessionId: string) => {
+    log.info("Session picker: selected", { sessionId })
+    options.config.resume = sessionId
+    options.config.resumeInteractive = undefined
+    setPickerDone(true)
+  }
+
+  const onPickerCancel = () => {
+    log.info("Session picker: cancelled")
+    options.onExit?.()
+    process.exit(0)
   }
 
   const agentValue: AgentContextValue = {
@@ -600,23 +624,34 @@ export function startApp(options: AppOptions): void {
         <ErrorFallback error={error} reset={reset} />
       )}
     >
-      <AgentProvider value={agentValue}>
-        <SessionProvider>
-          <MessagesProvider>
-            <PermissionsProvider>
-              <SyncProvider>
-                <AnimationProvider>
-                  <ToastProvider>
-                    <ModalProvider>
-                      <Layout onExit={options.onExit} />
-                    </ModalProvider>
-                  </ToastProvider>
-                </AnimationProvider>
-              </SyncProvider>
-            </PermissionsProvider>
-          </MessagesProvider>
-        </SessionProvider>
-      </AgentProvider>
+      <Show
+        when={pickerDone()}
+        fallback={
+          <SessionPicker
+            sessions={options.preloadedSessions ?? []}
+            onSelect={onPickerSelect}
+            onCancel={onPickerCancel}
+          />
+        }
+      >
+        <AgentProvider value={agentValue}>
+          <SessionProvider>
+            <MessagesProvider>
+              <PermissionsProvider>
+                <SyncProvider>
+                  <AnimationProvider>
+                    <ToastProvider>
+                      <ModalProvider>
+                        <Layout onExit={options.onExit} />
+                      </ModalProvider>
+                    </ToastProvider>
+                  </AnimationProvider>
+                </SyncProvider>
+              </PermissionsProvider>
+            </MessagesProvider>
+          </SessionProvider>
+        </AgentProvider>
+      </Show>
     </ErrorBoundary>
   ), {
     targetFps: 60,

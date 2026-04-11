@@ -32,6 +32,11 @@ import { useSession } from "./session"
 import { usePermissions } from "./permissions"
 import { readSessionHistory, findMostRecentSession } from "../../backends/claude/session-reader"
 import { setConversationState, getSubagentManagerBridge } from "../../mcp/state-bridge"
+import {
+  detectSessionOrigin,
+  readForeignSession,
+  formatHistoryAsContext,
+} from "../../session/cross-backend"
 
 export interface SyncContextValue {
   /** Manually push an event (for slash commands, synthetic events, etc.) */
@@ -269,7 +274,68 @@ export function SyncProvider(props: ParentProps) {
     if (backendName === "claude" && (resumeId || continueMode) && agent.config.cwd) {
       const sessionId = resumeId || findMostRecentSession(agent.config.cwd)
       if (sessionId) {
-        const historyBlocks = readSessionHistory(sessionId, agent.config.cwd)
+        // Detect cross-backend resume: session origin differs from target backend
+        const origin = detectSessionOrigin(sessionId, agent.config.cwd)
+        const targetBackend = agent.config.sessionOrigin
+        const isCrossBackend = origin !== null && targetBackend !== undefined && origin !== targetBackend
+
+        let historyBlocks: import("../../protocol/types").Block[]
+        if (isCrossBackend && origin) {
+          // Cross-backend: read from the foreign backend's storage
+          historyBlocks = readForeignSession(sessionId, origin, agent.config.cwd)
+          log.info("Cross-backend resume detected", {
+            origin,
+            targetBackend: agent.config.sessionOrigin,
+            blocks: historyBlocks.length,
+          })
+
+          if (historyBlocks.length > 0) {
+            // Format history as context text for the target backend
+            const { contextText, toolCallCount, warningCount } = formatHistoryAsContext(historyBlocks)
+
+            // Inject a system message informing the user about the cross-backend transition
+            const infoBlock: import("../../protocol/types").Block = {
+              type: "system",
+              text: `Resuming ${origin} session in ${agent.config.sessionOrigin} backend`,
+            }
+            historyBlocks = [infoBlock, ...historyBlocks]
+
+            if (toolCallCount > 0) {
+              historyBlocks.push({
+                type: "system",
+                text: `${toolCallCount} tool call(s) from the original session are shown for context but may not be available in the target backend`,
+                ephemeral: true,
+              })
+            }
+            if (warningCount > 0) {
+              historyBlocks.push({
+                type: "system",
+                text: `${warningCount} block(s) could not be fully converted`,
+                ephemeral: true,
+              })
+            }
+
+            // Store the context text so the first user message can include it.
+            // We prepend it as the initial prompt so the new backend has full context.
+            if (!agent.config.initialPrompt) {
+              agent.config.initialPrompt =
+                "I'm continuing a previous conversation. Here's the context from our prior session:\n\n" +
+                contextText +
+                "\n\nPlease acknowledge that you have this context and are ready to continue."
+            } else {
+              // User provided their own initial prompt — prepend context
+              agent.config.initialPrompt =
+                "I'm continuing a previous conversation. Here's the context from our prior session:\n\n" +
+                contextText +
+                "\n\n---\n\n" +
+                agent.config.initialPrompt
+            }
+          }
+        } else {
+          // Same-backend resume: read Claude JSONL directly
+          historyBlocks = readSessionHistory(sessionId, agent.config.cwd)
+        }
+
         if (historyBlocks.length > 0) {
           conversationState = {
             ...conversationState,

@@ -190,6 +190,11 @@ async function main() {
     flags.config.initialPrompt = flags.prompt
   }
 
+  // Set sessionOrigin so cross-backend resume detection works in SyncProvider.
+  // The backend name tells the sync layer what the *target* backend is, so it
+  // can compare against the session's detected origin.
+  flags.config.sessionOrigin = flags.backend
+
   // If --resume was used without a session ID, eagerly fetch the session list
   // so the TUI can render the picker immediately without an async loading state.
   let preloadedSessions: import("./protocol/types").SessionInfo[] | undefined

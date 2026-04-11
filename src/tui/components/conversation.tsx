@@ -292,7 +292,10 @@ export function ConversationView(props: { children?: JSX.Element; footerHint?: s
     }
   })
 
-  // Auto-hide scrollbar: show on scroll, hide after 1s idle (matches Claude Code)
+  // Auto-hide scrollbar: show on any scroll (keyboard or mouse wheel), hide after 1s idle.
+  // The verticalScrollBar emits "change" on every scroll position update, including
+  // mouse wheel events handled natively by OpenTUI — so we listen there to catch all
+  // scroll sources, not just our keyboard handlers.
   let scrollbarTimer: ReturnType<typeof setTimeout> | undefined
   const showScrollbarBriefly = () => {
     if (scrollboxRef) {
@@ -306,9 +309,30 @@ export function ConversationView(props: { children?: JSX.Element; footerHint?: s
   createEffect(() => {
     if (scrollboxRef) {
       scrollboxRef.verticalScrollBar.visible = false
+      // Style scrollbar: subtle thumb, no arrows, transparent track
+      scrollboxRef.verticalScrollBar.showArrows = false
+      scrollboxRef.verticalScrollBar.slider.foregroundColor = colors.text.muted
+      scrollboxRef.verticalScrollBar.slider.backgroundColor = "transparent"
+      // Listen for all scroll position changes (mouse wheel, programmatic, keyboard).
+      // Only show scrollbar when NOT at bottom — changes while at bottom are from
+      // sticky auto-scroll or programmatic scroll-to-bottom, not user scrolling.
+      scrollboxRef.verticalScrollBar.on("change", () => {
+        if (!scrollboxRef) return
+        if (isNearBottom(scrollboxRef)) {
+          // At bottom: likely auto-scroll. If user was scrolled away, snap back.
+          if (userScrolledAway()) setScrolledAway(false)
+          return
+        }
+        // Scrolled away from bottom — user-initiated (mouse wheel or keyboard)
+        showScrollbarBriefly()
+        if (!userScrolledAway()) setScrolledAway(true)
+      })
     }
   })
-  onCleanup(() => clearTimeout(scrollbarTimer))
+  onCleanup(() => {
+    clearTimeout(scrollbarTimer)
+    scrollboxRef?.verticalScrollBar.removeAllListeners("change")
+  })
 
   return (
     <box flexDirection="column" flexGrow={1}>

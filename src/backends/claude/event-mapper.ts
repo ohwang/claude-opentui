@@ -125,10 +125,17 @@ export function mapSDKMessage(msg: any, streamState: ToolStreamState, options?: 
           postTokens,
         })
       } else if (msg.subtype === "local_command_output") {
-        events.push({
-          type: "system_message",
-          text: msg.content ?? "",
-        })
+        // Strip SDK XML tags (e.g., <local-command-stdout>Compacted </local-command-stdout>)
+        // and suppress empty/trivial output (compact already has its own UI block)
+        const cleaned = (msg.content ?? "").replace(/<\/?local-command-\w+>/g, "").trim()
+        if (cleaned && cleaned.toLowerCase() !== "compacted") {
+          events.push({
+            type: "system_message",
+            text: cleaned,
+          })
+        } else {
+          log.debug("Suppressed trivial local_command_output", { raw: msg.content })
+        }
       }
       break
 

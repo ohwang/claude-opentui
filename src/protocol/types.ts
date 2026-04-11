@@ -498,6 +498,8 @@ export interface SessionConfig {
   cwd?: string
   systemPrompt?: string
   resume?: string
+  /** When true, --resume was invoked without a session ID — show interactive picker */
+  resumeInteractive?: boolean
   continue?: boolean
   forkSession?: boolean
   mcpServers?: Record<string, unknown>

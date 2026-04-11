@@ -102,9 +102,19 @@ export function parseFlags(argv: string[]): CLIFlags {
         break
 
       case "--resume":
-      case "-r":
-        flags.config.resume = requireArg("--resume", args, ++i)
+      case "-r": {
+        // --resume optionally takes a session ID argument.
+        // If the next arg is missing or looks like another flag, enter
+        // interactive session picker mode instead of erroring.
+        const nextArg = args[i + 1]
+        if (nextArg === undefined || nextArg.startsWith("-")) {
+          flags.config.resumeInteractive = true
+        } else {
+          i++
+          flags.config.resume = nextArg
+        }
         break
+      }
 
       // Model & execution
       case "--model":
@@ -248,7 +258,7 @@ Options:
   -m, --model <model>     Set the model
   -p, --prompt <text>     Initial prompt
   -c, --continue          Continue most recent session
-  -r, --resume <id>       Resume a specific session
+  -r, --resume [id]       Resume a session (omit id for interactive picker)
   -b, --backend <name>    Backend (claude, codex, gemini, copilot, acp, mock)
   --permission-mode <m>   Permission mode (default, acceptEdits, bypassPermissions, plan, dontAsk)
   --dangerously-skip-permissions  Shorthand for full-access bypass mode

@@ -109,7 +109,10 @@ export function mapCodexNotification(
     case "thread/compacted":
       events.push({
         type: "compact",
-        summary: "Conversation compacted by Codex.",
+        summary: params?.summary ?? "Conversation compacted by Codex.",
+        trigger: "auto",
+        preTokens: typeof params?.preTokens === "number" ? params.preTokens : undefined,
+        postTokens: typeof params?.postTokens === "number" ? params.postTokens : undefined,
       })
       break
 
@@ -461,7 +464,8 @@ function mapItemStarted(item: CodexItem): AgentEvent[] {
     case "contextCompaction":
       events.push({
         type: "compact",
-        summary: "Codex compacted conversation context.",
+        summary: (item.summary as string) ?? "Codex compacted conversation context.",
+        trigger: "auto",
       })
       break
 

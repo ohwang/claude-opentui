@@ -90,19 +90,39 @@ export function mapSDKMessage(msg: any, streamState: ToolStreamState, options?: 
         }
         events.push(initEvent)
       } else if (msg.subtype === "status") {
-        // "compacting" status is transient — skip it to avoid duplicate
-        // compact separators. The definitive compact_boundary event below
-        // is the one that should produce the separator.
         if (msg.status === "compacting") {
-          log.debug("Ignoring transient compacting status event")
+          // Emit an in-progress compact event so the TUI can show a spinner.
+          // The definitive compact_boundary event below replaces this block
+          // with the final summary once compaction completes.
+          events.push({
+            type: "compact",
+            summary: "Compacting conversation...",
+            inProgress: true,
+            trigger: "user",
+          })
         } else {
           log.debug("Unhandled system status", { status: msg.status })
         }
       } else if (msg.subtype === "compact_boundary") {
         const meta = msg.compact_metadata ?? {}
+        const trigger = meta.trigger === "auto" ? "auto" as const : "user" as const
+        const preTokens = typeof meta.pre_tokens === "number" ? meta.pre_tokens : undefined
+        const postTokens = typeof meta.post_tokens === "number" ? meta.post_tokens : undefined
+
+        // Build summary from metadata
+        const parts: string[] = []
+        if (meta.summary) {
+          parts.push(String(meta.summary))
+        } else {
+          parts.push("Conversation compacted.")
+        }
+
         events.push({
           type: "compact",
-          summary: `Conversation compacted (${meta.trigger ?? "manual"}, ${meta.pre_tokens ?? "?"} tokens before).`,
+          summary: parts.join(" "),
+          trigger,
+          preTokens,
+          postTokens,
         })
       } else if (msg.subtype === "local_command_output") {
         events.push({

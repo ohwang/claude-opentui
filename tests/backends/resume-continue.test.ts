@@ -122,6 +122,7 @@ describe("BackendCapabilities interface", () => {
       supportsToolApproval: false,
       supportsResume: true,
       supportsContinue: false,
+      supportsCompact: false,
       supportsFork: false,
       supportsStreaming: false,
       supportsSubagents: false,

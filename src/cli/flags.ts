@@ -117,8 +117,6 @@ export function parseFlags(argv: string[]): CLIFlags {
         break
 
       case "--dangerously-skip-permissions":
-      case "--dangerously-bypass-approvals-and-sandbox":
-      case "--yolo":
         flags.config.permissionMode = "bypassPermissions"
         break
 
@@ -254,8 +252,6 @@ Options:
   -b, --backend <name>    Backend (claude, codex, gemini, copilot, acp, mock)
   --permission-mode <m>   Permission mode (default, acceptEdits, bypassPermissions, plan, dontAsk)
   --dangerously-skip-permissions  Shorthand for full-access bypass mode
-  --dangerously-bypass-approvals-and-sandbox, --yolo
-                           Codex-style alias for full-access bypass mode
   --max-turns <n>         Maximum turns
   --max-budget <usd>      Maximum budget in USD
   --no-session-persistence  Disable session persistence to disk

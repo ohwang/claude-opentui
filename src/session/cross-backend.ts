@@ -24,7 +24,7 @@ import {
 import type { Block, SessionInfo, ToolStatus } from "../protocol/types"
 
 /** Known backend names that can originate sessions */
-export type SessionOrigin = "claude" | "codex" | "acp" | null
+export type SessionOrigin = "claude" | "codex" | "gemini" | null
 
 // ---------------------------------------------------------------------------
 // Home directory helper
@@ -171,7 +171,7 @@ export function detectSessionOrigin(
 
   // Check if it's a Gemini/ACP session (session-*.json files under ~/.gemini/tmp/)
   if (findGeminiSessionFile(sessionId)) {
-    return "acp"
+    return "gemini"
   }
 
   return null
@@ -424,10 +424,10 @@ export function readForeignSession(
       return parseCodexSession(codexFile)
     }
 
-    case "acp": {
+    case "gemini": {
       const geminiFile = findGeminiSessionFile(sessionId)
       if (!geminiFile) {
-        log.warn("Gemini/ACP session file not found", { sessionId })
+        log.warn("Gemini session file not found", { sessionId })
         return []
       }
       return parseGeminiSession(geminiFile)

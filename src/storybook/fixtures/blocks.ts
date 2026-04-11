@@ -66,6 +66,16 @@ export function shellBlock(
   }
 }
 
-export function compactBlock(summary: string): Extract<Block, { type: "compact" }> {
-  return { type: "compact", summary }
+export function compactBlock(
+  summary: string,
+  opts?: { trigger?: "user" | "auto"; preTokens?: number; postTokens?: number; inProgress?: boolean },
+): Extract<Block, { type: "compact" }> {
+  return {
+    type: "compact",
+    summary,
+    trigger: opts?.trigger,
+    preTokens: opts?.preTokens,
+    postTokens: opts?.postTokens,
+    inProgress: opts?.inProgress,
+  }
 }

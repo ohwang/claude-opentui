@@ -273,9 +273,15 @@ export const conversationStories: Story[] = [
   {
     id: "compact-block",
     title: "CompactBlock",
-    description: "Compacted conversation summary",
+    description: "Compacted conversation summary with lifecycle states",
     category: "Conversation",
-    render: () => <CompactBlock block={compactBlock("Discussed authentication architecture. Decided on JWT with refresh tokens. Updated login.ts, middleware.ts, and session store.")} />,
+    render: () => <CompactBlock block={compactBlock("Discussed authentication architecture. Decided on JWT with refresh tokens. Updated login.ts, middleware.ts, and session store.", { trigger: "user", preTokens: 85000, postTokens: 12000 })} />,
+    variants: [
+      { label: "in-progress", render: () => <CompactBlock block={compactBlock("Compacting conversation...", { inProgress: true, trigger: "user" })} /> },
+      { label: "with-savings", render: () => <CompactBlock block={compactBlock("Reviewed code architecture, discussed testing strategy, and planned deployment pipeline.", { trigger: "user", preTokens: 120000, postTokens: 25000 })} /> },
+      { label: "auto-compact", render: () => <CompactBlock block={compactBlock("Conversation auto-compacted by backend.", { trigger: "auto", preTokens: 95000, postTokens: 18000 })} /> },
+      { label: "no-metadata", render: () => <CompactBlock block={compactBlock("Conversation compacted.")} /> },
+    ],
   },
 
   // ── Error block ──

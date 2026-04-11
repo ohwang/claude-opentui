@@ -12,6 +12,7 @@
 
 import { createSignal, createMemo, Show, For, Index, onCleanup } from "solid-js"
 import { TextAttributes, type ScrollBoxRenderable } from "@opentui/core"
+import { ScrollView } from "./scroll-view"
 import { useTerminalDimensions } from "@opentui/solid"
 import { useSession } from "../context/session"
 import { useAgent } from "../context/agent"
@@ -424,7 +425,7 @@ export function DiagnosticsPanel(props: { visible: boolean; onClose: () => void 
 
         {/* Tab: Info */}
         <Show when={activeTab() === 0}>
-          <scrollbox
+          <ScrollView
             ref={(el: ScrollBoxRenderable) => { infoScrollRef = el; updateScrollRef() }}
             flexGrow={1}
             stickyScroll={false}
@@ -450,12 +451,12 @@ export function DiagnosticsPanel(props: { visible: boolean; onClose: () => void 
                 </box>
               )}
             </For>
-          </scrollbox>
+          </ScrollView>
         </Show>
 
         {/* Tab: Logs */}
         <Show when={activeTab() === 1}>
-          <scrollbox
+          <ScrollView
             ref={(el: ScrollBoxRenderable) => { logsScrollRef = el; updateScrollRef() }}
             flexGrow={1}
             stickyScroll={true}
@@ -477,12 +478,12 @@ export function DiagnosticsPanel(props: { visible: boolean; onClose: () => void 
                 }}
               </Index>
             </Show>
-          </scrollbox>
+          </ScrollView>
         </Show>
 
         {/* Tab: Status Line */}
         <Show when={activeTab() === 2}>
-          <scrollbox
+          <ScrollView
             ref={(el: ScrollBoxRenderable) => { statusLineScrollRef = el; updateScrollRef() }}
             flexGrow={1}
             stickyScroll={false}
@@ -582,7 +583,7 @@ export function DiagnosticsPanel(props: { visible: boolean; onClose: () => void 
                 </box>
               )
             })()}
-          </scrollbox>
+          </ScrollView>
         </Show>
 
         {/* Footer — keyboard hints */}

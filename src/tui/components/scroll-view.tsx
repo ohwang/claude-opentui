@@ -32,6 +32,8 @@ export interface ScrollViewProps {
   stickyStart?: "bottom" | "top" | "left" | "right"
   /** Flex grow */
   flexGrow?: number
+  /** Background color for the scrollbox */
+  backgroundColor?: string
   /** Children */
   children?: JSX.Element
 }
@@ -82,6 +84,7 @@ export function ScrollView(props: ScrollViewProps) {
       stickyStart={props.stickyStart}
       scrollAcceleration={new MacOSScrollAccel()}
       flexGrow={props.flexGrow}
+      backgroundColor={props.backgroundColor}
     >
       {props.children}
     </scrollbox>

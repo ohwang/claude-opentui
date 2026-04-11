@@ -26,10 +26,6 @@ function isNearBottom(ref: ScrollBoxRenderable): boolean {
   return ref.scrollTop + viewportHeight >= ref.scrollHeight - NEAR_EDGE_THRESHOLD
 }
 
-/** Check whether a scrollbox is at or near the top */
-function isNearTop(ref: ScrollBoxRenderable): boolean {
-  return ref.scrollTop <= NEAR_EDGE_THRESHOLD
-}
 
 export interface ScrollViewProps {
   /** Ref callback — receives the underlying ScrollBoxRenderable */
@@ -79,10 +75,10 @@ export function ScrollView(props: ScrollViewProps) {
       // useful and showing it during sticky auto-scroll causes flashing.
       scrollboxRef.verticalScrollBar.on("change", () => {
         if (!scrollboxRef) return
-        if (isNearBottom(scrollboxRef) || isNearTop(scrollboxRef)) {
-          // At an edge — hide immediately and skip the show cycle.
+        if (isNearBottom(scrollboxRef)) {
+          // At bottom — hide immediately and skip the show cycle.
           // This prevents flashing during sticky auto-scroll (streaming content)
-          // and matches Claude Code's behavior of hiding at extremes.
+          // and matches Claude Code's behavior of hiding at the bottom viewport.
           scrollboxRef.verticalScrollBar.visible = false
           clearTimeout(scrollbarTimer)
         } else {

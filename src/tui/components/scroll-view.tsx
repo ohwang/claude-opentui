@@ -3,8 +3,9 @@
  *
  * Wraps OpenTUI's <scrollbox> with:
  * - Auto-hide scrollbar: hidden by default, shown on scroll, hidden after idle
+ * - Hidden at extremes: scrollbar stays hidden at top/bottom (matches Claude Code)
  * - macOS-style scroll acceleration
- * - Styled scrollbar: no arrows, subtle thumb, transparent track
+ * - Styled scrollbar: thin (1-char), no arrows, subtle thumb, transparent track
  * - Scroll change callback for parent components that need to track scroll state
  *
  * Use this instead of raw <scrollbox> anywhere you want a scrollbar that
@@ -17,6 +18,18 @@ import { type ScrollBoxRenderable, MacOSScrollAccel } from "@opentui/core"
 import { colors } from "../theme/tokens"
 
 const DEFAULT_HIDE_DELAY_MS = 1000
+const NEAR_EDGE_THRESHOLD = 3
+
+/** Check whether a scrollbox is at or near the bottom of its content */
+function isNearBottom(ref: ScrollBoxRenderable): boolean {
+  const viewportHeight = ref.viewport.height
+  return ref.scrollTop + viewportHeight >= ref.scrollHeight - NEAR_EDGE_THRESHOLD
+}
+
+/** Check whether a scrollbox is at or near the top */
+function isNearTop(ref: ScrollBoxRenderable): boolean {
+  return ref.scrollTop <= NEAR_EDGE_THRESHOLD
+}
 
 export interface ScrollViewProps {
   /** Ref callback — receives the underlying ScrollBoxRenderable */
@@ -56,14 +69,25 @@ export function ScrollView(props: ScrollViewProps) {
     if (scrollboxRef) {
       // Start hidden
       scrollboxRef.verticalScrollBar.visible = false
-      // Style: no arrows, subtle thumb, transparent track
+      // Style: thin (1-char wide), no arrows, subtle thumb, transparent track
       scrollboxRef.verticalScrollBar.showArrows = false
+      scrollboxRef.verticalScrollBar.width = 1
       scrollboxRef.verticalScrollBar.slider.foregroundColor = colors.text.muted
       scrollboxRef.verticalScrollBar.slider.backgroundColor = "transparent"
-      // Listen for all scroll position changes (mouse wheel, programmatic, keyboard)
+      // Listen for all scroll position changes (mouse wheel, programmatic, keyboard).
+      // Hide scrollbar at edges: when at the top or bottom, the scrollbar is not
+      // useful and showing it during sticky auto-scroll causes flashing.
       scrollboxRef.verticalScrollBar.on("change", () => {
         if (!scrollboxRef) return
-        showScrollbarBriefly()
+        if (isNearBottom(scrollboxRef) || isNearTop(scrollboxRef)) {
+          // At an edge — hide immediately and skip the show cycle.
+          // This prevents flashing during sticky auto-scroll (streaming content)
+          // and matches Claude Code's behavior of hiding at extremes.
+          scrollboxRef.verticalScrollBar.visible = false
+          clearTimeout(scrollbarTimer)
+        } else {
+          showScrollbarBriefly()
+        }
         props.onScroll?.(scrollboxRef)
       })
     }

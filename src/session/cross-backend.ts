@@ -109,15 +109,32 @@ function geminiChatDirs(): string[] {
 
 /**
  * Find a Gemini session file by session ID.
- * Gemini session filenames: session-TIMESTAMP-UUID.json
+ * Gemini session filenames use a truncated UUID prefix (first 8 chars):
+ *   session-2026-04-10T06-27-a84cb185.json
+ * But the full sessionId inside the JSON is:
+ *   a84cb185-f706-415d-b9d2-eada2ba5d0a6
+ *
+ * We match by checking if the filename contains the UUID prefix,
+ * then verify the full sessionId inside the JSON content.
  */
 function findGeminiSessionFile(sessionId: string): string | null {
+  const shortId = sessionId.split("-")[0] ?? sessionId // First 8 chars of UUID
   for (const chatDir of geminiChatDirs()) {
     try {
       const files = readdirSync(chatDir)
       for (const file of files) {
-        if (file.endsWith(".json") && file.includes(sessionId)) {
-          return join(chatDir, file)
+        if (!file.endsWith(".json")) continue
+        // Check if filename contains either the full ID or the short prefix
+        if (file.includes(sessionId) || file.includes(shortId)) {
+          // Verify by reading the JSON to confirm the full sessionId matches
+          try {
+            const content = JSON.parse(readFileSync(join(chatDir, file), "utf-8"))
+            if (content.sessionId === sessionId) {
+              return join(chatDir, file)
+            }
+          } catch {
+            // Parse error — skip this file
+          }
         }
       }
     } catch {

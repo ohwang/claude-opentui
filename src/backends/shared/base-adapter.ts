@@ -104,7 +104,7 @@ export abstract class BaseAdapter implements AgentBackend {
   async *start(config: SessionConfig): AsyncGenerator<AgentEvent> {
     this.eventChannel = new EventChannel<AgentEvent>()
 
-    this.runSessionAndClose(config)
+    this.runSessionAndClose(config, config.resume)
 
     yield* this.eventChannel[Symbol.asyncIterator]()
   }

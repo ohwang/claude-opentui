@@ -240,14 +240,26 @@ describe("Claude Event Mapper — mapSDKMessage", () => {
       })
     })
 
-    it("handles missing content", () => {
+    it("suppresses empty/missing content", () => {
       const events = mapSDKMessage(
         { type: "system", subtype: "local_command_output" },
         freshState(),
       )
 
-      expect(events).toHaveLength(1)
-      expect((events[0] as any).text).toBe("")
+      expect(events).toHaveLength(0)
+    })
+
+    it("suppresses trivial compact output with XML tags", () => {
+      const events = mapSDKMessage(
+        {
+          type: "system",
+          subtype: "local_command_output",
+          content: "<local-command-stdout>Compacted </local-command-stdout>",
+        },
+        freshState(),
+      )
+
+      expect(events).toHaveLength(0)
     })
   })
 

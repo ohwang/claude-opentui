@@ -18,7 +18,7 @@
 
 import type { JSX } from "solid-js"
 import { createSignal, createEffect, createMemo, onCleanup, Show, For, Index, batch } from "solid-js"
-import { type ScrollBoxRenderable } from "@opentui/core"
+import { type ScrollBoxRenderable, MacOSScrollAccel } from "@opentui/core"
 import { useKeyboard } from "@opentui/solid"
 import { useMessages } from "../context/messages"
 import { useSession } from "../context/session"
@@ -312,7 +312,7 @@ export function ConversationView(props: { children?: JSX.Element; footerHint?: s
 
   return (
     <box flexDirection="column" flexGrow={1}>
-      <scrollbox ref={(el: ScrollBoxRenderable) => { scrollboxRef = el; registerScrollToBottom(() => { setScrolledAway(false); queueMicrotask(() => el.scrollBy(999999)) }) }} stickyScroll={!userScrolledAway()} stickyStart="bottom" flexGrow={1}>
+      <scrollbox ref={(el: ScrollBoxRenderable) => { scrollboxRef = el; registerScrollToBottom(() => { setScrolledAway(false); queueMicrotask(() => el.scrollBy(999999)) }) }} stickyScroll={!userScrolledAway()} stickyStart="bottom" scrollAcceleration={new MacOSScrollAccel()} flexGrow={1}>
         <box flexDirection="column" paddingRight={1} minHeight="100%">
           {/* Header bar — scrolls with content */}
           <HeaderBar />

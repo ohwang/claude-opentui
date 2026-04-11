@@ -227,7 +227,7 @@ export class CodexAdapter extends BaseAdapter {
       supportsFork: true,
       supportsStreaming: true,
       supportsSubagents: false,
-      supportsCompact: true,
+      supportsCompact: false, // Codex auto-compacts but doesn't support user-initiated /compact
       supportedPermissionModes: [
         "default",
         "acceptEdits",

@@ -8,6 +8,12 @@
  * - Styled scrollbar: thin (1-char), no arrows, subtle thumb, transparent track
  * - Scroll change callback for parent components that need to track scroll state
  *
+ * Layout stability: The scrollbar is always present in layout (Display.Flex)
+ * to prevent content reflow. Visibility is controlled by toggling the slider's
+ * foreground color between transparent and visible, not by toggling the
+ * scrollbar's `visible` property (which uses Display.None and causes the
+ * content area width to change, reflowing text).
+ *
  * Note: Smooth sub-line scrolling requires upstream OpenTUI support for ANSI
  * scroll regions (DECSTBM). See team/docs/upstream/scrollbox-sub-line-scrolling.md
  * for the implementation plan. Application-layer workarounds don't work because
@@ -53,31 +59,42 @@ export function ScrollView(props: ScrollViewProps) {
   let scrollbarTimer: ReturnType<typeof setTimeout> | undefined
   const hideDelay = () => props.hideDelay ?? DEFAULT_HIDE_DELAY_MS
 
+  /** Make the scrollbar thumb visible (muted color) */
+  const showSlider = () => {
+    if (!scrollboxRef) return
+    scrollboxRef.verticalScrollBar.slider.foregroundColor = colors.text.muted
+  }
+
+  /** Make the scrollbar thumb invisible (transparent, but still in layout) */
+  const hideSlider = () => {
+    if (!scrollboxRef) return
+    scrollboxRef.verticalScrollBar.slider.foregroundColor = "transparent"
+  }
+
   const showScrollbarBriefly = () => {
     if (!scrollboxRef) return
-    scrollboxRef.verticalScrollBar.visible = true
+    showSlider()
     clearTimeout(scrollbarTimer)
-    scrollbarTimer = setTimeout(() => {
-      if (scrollboxRef) scrollboxRef.verticalScrollBar.visible = false
-    }, hideDelay())
+    scrollbarTimer = setTimeout(() => hideSlider(), hideDelay())
   }
 
   createEffect(() => {
     if (scrollboxRef) {
-      // Start hidden
-      scrollboxRef.verticalScrollBar.visible = false
-      // Style: thin (1-char wide), no arrows, subtle thumb, transparent track
+      // Style: thin (1-char wide), no arrows, transparent track.
+      // The scrollbar stays in layout (visible=true) at all times to prevent
+      // content width changes. We toggle the slider color for show/hide.
       scrollboxRef.verticalScrollBar.showArrows = false
       scrollboxRef.verticalScrollBar.width = 1
-      scrollboxRef.verticalScrollBar.slider.foregroundColor = colors.text.muted
       scrollboxRef.verticalScrollBar.slider.backgroundColor = "transparent"
+      // Start with invisible thumb
+      hideSlider()
       // Listen for all scroll position changes (mouse wheel, programmatic, keyboard).
       // Hide scrollbar at bottom: changes at the bottom are from sticky auto-scroll,
       // not user interaction, and flashing the scrollbar is distracting.
       scrollboxRef.verticalScrollBar.on("change", () => {
         if (!scrollboxRef) return
         if (isNearBottom(scrollboxRef)) {
-          scrollboxRef.verticalScrollBar.visible = false
+          hideSlider()
           clearTimeout(scrollbarTimer)
         } else {
           showScrollbarBriefly()

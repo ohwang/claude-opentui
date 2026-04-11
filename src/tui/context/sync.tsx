@@ -199,9 +199,11 @@ export function SyncProvider(props: ParentProps) {
     const mode = agent.config.resume ? "resume" : agent.config.continue ? "continue" : "start"
     log.info(`Event loop starting (${mode})`, agent.config.resume ? { sessionId: agent.config.resume } : undefined)
 
-    // Validate that the backend supports the requested mode
+    // Validate that the backend supports the requested mode.
+    // Skip for cross-backend resume — it uses start() with context injection, not native resume.
     const caps = agent.backend.capabilities()
-    if (agent.config.resume && !caps.supportsResume) {
+    const isCrossBackendResume = agent.config.resume && agent.config._crossBackendActive
+    if (agent.config.resume && !caps.supportsResume && !isCrossBackendResume) {
       batcher.push({
         type: "error",
         code: "unsupported_resume",
@@ -265,13 +267,13 @@ export function SyncProvider(props: ParentProps) {
     }
 
     // Pre-populate conversation history for resume/continue.
-    // Only for the Claude backend — its SDK query() API loads context internally
-    // but doesn't replay historical messages, so we read the JSONL file directly.
-    // Other backends (Codex, ACP) handle history replay server-side.
+    // For same-backend Claude resume: read JSONL history directly (SDK loads context
+    // but doesn't replay messages). For cross-backend resume (any target): detect
+    // session origin, read foreign history, and inject as context into the target backend.
     const backendName = agent.backend.capabilities().name
     const resumeId = agent.config.resume
     const continueMode = agent.config.continue
-    if (backendName === "claude" && (resumeId || continueMode) && agent.config.cwd) {
+    if ((resumeId || continueMode) && agent.config.cwd) {
       const sessionId = resumeId || findMostRecentSession(agent.config.cwd)
       if (sessionId) {
         // Detect cross-backend resume: session origin differs from target backend
@@ -330,10 +332,19 @@ export function SyncProvider(props: ParentProps) {
                 "\n\n---\n\n" +
                 agent.config.initialPrompt
             }
+
+            // Clear config.resume so the target backend uses start() instead of
+            // native resume(). Set _crossBackendActive so the supportsResume
+            // check in startEventLoop is skipped.
+            agent.config._crossBackendActive = true
+            agent.config.resume = undefined
           }
-        } else {
-          // Same-backend resume: read Claude JSONL directly
+        } else if (backendName === "claude") {
+          // Same-backend Claude resume: read JSONL directly (SDK loads context
+          // but doesn't replay messages). Other backends handle replay server-side.
           historyBlocks = readSessionHistory(sessionId, agent.config.cwd)
+        } else {
+          historyBlocks = []
         }
 
         if (historyBlocks.length > 0) {

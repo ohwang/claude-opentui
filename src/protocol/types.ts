@@ -512,6 +512,8 @@ export interface SessionConfig {
   /** When true, --resume was invoked without a session ID — show interactive picker */
   resumeInteractive?: boolean
   continue?: boolean
+  /** Set by cross-backend resume logic to signal that native resume support check should be skipped */
+  _crossBackendActive?: boolean
   forkSession?: boolean
   mcpServers?: Record<string, unknown>
   allowedTools?: string[]

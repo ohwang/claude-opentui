@@ -35,7 +35,7 @@ import { setConversationState, getSubagentManagerBridge } from "../../mcp/state-
 import {
   detectSessionOrigin,
   readForeignSession,
-  formatHistoryAsContext,
+  formatFullHistory,
 } from "../../session/cross-backend"
 
 export interface SyncContextValue {
@@ -292,8 +292,8 @@ export function SyncProvider(props: ParentProps) {
           })
 
           if (historyBlocks.length > 0) {
-            // Format history as context text for the target backend
-            const { contextText, toolCallCount, warningCount } = formatHistoryAsContext(historyBlocks)
+            // Format full history (no truncation) as context for the target backend
+            const { contextText, toolCallCount } = formatFullHistory(historyBlocks, origin)
 
             // Inject a system message informing the user about the cross-backend transition
             const infoBlock: import("../../protocol/types").Block = {
@@ -309,25 +309,15 @@ export function SyncProvider(props: ParentProps) {
                 ephemeral: true,
               })
             }
-            if (warningCount > 0) {
-              historyBlocks.push({
-                type: "system",
-                text: `${warningCount} block(s) could not be fully converted`,
-                ephemeral: true,
-              })
-            }
 
-            // Store the context text so the first user message can include it.
-            // We prepend it as the initial prompt so the new backend has full context.
+            // Inject the full conversation history as the initial prompt so
+            // the new backend has complete context. No truncation — the full
+            // text of every message, tool call, and thinking block is preserved.
             if (!agent.config.initialPrompt) {
-              agent.config.initialPrompt =
-                "I'm continuing a previous conversation. Here's the context from our prior session:\n\n" +
-                contextText +
-                "\n\nPlease acknowledge that you have this context and are ready to continue."
+              agent.config.initialPrompt = contextText
             } else {
-              // User provided their own initial prompt — prepend context
+              // User provided their own initial prompt — prepend full history
               agent.config.initialPrompt =
-                "I'm continuing a previous conversation. Here's the context from our prior session:\n\n" +
                 contextText +
                 "\n\n---\n\n" +
                 agent.config.initialPrompt

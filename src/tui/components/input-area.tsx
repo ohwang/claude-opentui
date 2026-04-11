@@ -427,6 +427,7 @@ export function InputArea() {
       pushEvent: sync.pushEvent,
       searchCommands: (query: string) => commandRegistry.search(query),
       getCwd: () => agent.config.cwd ?? process.cwd(),
+      getBlocks: () => messagesState.blocks,
     },
     renderer,
   )

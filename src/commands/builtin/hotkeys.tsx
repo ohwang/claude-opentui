@@ -74,6 +74,7 @@ const groups: ShortcutGroup[] = [
     title: "Other Editing",
     entries: [
       { key: "Ctrl+G",         desc: "Open external editor ($EDITOR)" },
+      { key: "Ctrl+Shift+G",   desc: "Edit last assistant response in $EDITOR" },
       { key: "Ctrl+V",         desc: "Paste from system clipboard" },
       { key: "Ctrl+Shift+X",   desc: "Clear image attachments" },
     ],

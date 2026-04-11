@@ -7,7 +7,7 @@
  */
 
 import type { KeyEvent, TextareaRenderable, CliRenderer } from "@opentui/core"
-import type { AgentEvent } from "../../protocol/types"
+import type { AgentEvent, Block } from "../../protocol/types"
 import { findLongestCommonPrefix, parsePathPrefix } from "./file-autocomplete"
 
 /** Discriminated union for autocomplete modes */
@@ -36,6 +36,7 @@ import {
   isSubmitKey,
   truncatePastedText,
   openExternalEditor,
+  getLastAssistantText,
   attachImage,
 } from "./input-utils"
 
@@ -80,6 +81,7 @@ export interface KeyHandlerCallbacks {
   pushEvent: (event: AgentEvent) => void
   searchCommands: (query: string) => { name: string }[]
   getCwd: () => string
+  getBlocks: () => Block[]
 }
 
 /**
@@ -119,6 +121,7 @@ export function createKeyHandler(
     pushEvent,
     searchCommands,
     getCwd,
+    getBlocks,
   } = callbacks
 
   /** Schedule autocomplete + line count update after a key is processed */
@@ -376,6 +379,27 @@ export function createKeyHandler(
       e.preventDefault()
       getTextareaRef()?.deleteWordForward()
       scheduleDeleteUpdate()
+      return
+    }
+
+    // Ctrl+Shift+G = open external editor pre-filled with last assistant response
+    if (e.ctrl && e.shift && e.name === "g") {
+      e.preventDefault()
+      const lastText = getLastAssistantText(getBlocks())
+      if (!lastText) {
+        pushEvent({ type: "system_message", text: "No assistant response to edit", ephemeral: true })
+        return
+      }
+      openExternalEditor(getTextareaRef(), renderer, lastText)
+        .then(() => {
+          updateLineCount()
+        })
+        .catch((err) => {
+          log.warn("openExternalEditor (edit response) promise rejected", {
+            error: String(err),
+          })
+          pushEvent({ type: "system_message", text: `External editor failed: ${err instanceof Error ? err.message : String(err)}`, ephemeral: true })
+        })
       return
     }
 

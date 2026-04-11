@@ -6,7 +6,7 @@
  */
 
 import type { TextareaRenderable, CliRenderer } from "@opentui/core"
-import type { ImageContent } from "../../protocol/types"
+import type { Block, ImageContent } from "../../protocol/types"
 import { tmpdir } from "os"
 import { join } from "path"
 import { writeFileSync, readFileSync, unlinkSync } from "fs"
@@ -318,21 +318,40 @@ export function setInputText(text: string): void {
 // ---------------------------------------------------------------------------
 
 /**
+ * Extract the full text of the most recent assistant message from the block list.
+ * Iterates in reverse to find the last block with `type === "assistant"`.
+ * Returns undefined if no assistant block exists.
+ */
+export function getLastAssistantText(blocks: Block[]): string | undefined {
+  for (let i = blocks.length - 1; i >= 0; i--) {
+    const block = blocks[i]!
+    if (block.type === "assistant") {
+      return block.text
+    }
+  }
+  return undefined
+}
+
+/**
  * Open the user's preferred editor ($VISUAL or $EDITOR, falling back to vi)
- * with the current input text. On save+quit, the edited content replaces
- * the textarea input. The TUI renderer is suspended while the editor runs.
+ * with initial content. On save+quit, the edited content replaces the
+ * textarea input. The TUI renderer is suspended while the editor runs.
  *
- * Ctrl+G keybinding — matches Claude Code behavior.
+ * When `initialContent` is provided, the editor starts with that text
+ * (used by Ctrl+Shift+G to pre-fill with the last assistant response).
+ * Otherwise, the editor starts with the current textarea contents
+ * (used by Ctrl+G).
  */
 export async function openExternalEditor(
   textareaRef: TextareaRenderable | undefined,
   renderer: CliRenderer,
+  initialContent?: string,
 ): Promise<void> {
   const editor = process.env["VISUAL"] || process.env["EDITOR"] || "vi"
   const tmpFile = join(tmpdir(), `claude-opentui-${Date.now()}.md`)
 
   try {
-    const currentText = textareaRef?.plainText ?? ""
+    const currentText = initialContent ?? textareaRef?.plainText ?? ""
     writeFileSync(tmpFile, currentText)
     renderer.suspend()
 

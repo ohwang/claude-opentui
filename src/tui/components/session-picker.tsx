@@ -12,9 +12,10 @@
 
 import { createSignal, createMemo, Show, Index } from "solid-js"
 import { TextAttributes } from "@opentui/core"
-import { useKeyboard, useTerminalDimensions } from "@opentui/solid"
+import { useKeyboard, useTerminalDimensions, useRenderer } from "@opentui/solid"
 import type { SessionInfo } from "../../protocol/types"
 import { colors } from "../theme/tokens"
+import { log } from "../../utils/logger"
 
 /** Maximum number of sessions visible without scrolling */
 const MAX_VISIBLE = 16
@@ -55,9 +56,20 @@ function truncateTitle(title: string, maxWidth: number): string {
 export function SessionPicker(props: SessionPickerProps) {
   const [selectedIndex, setSelectedIndex] = createSignal(0)
   const dims = useTerminalDimensions()
+  const renderer = useRenderer()
 
   // Sessions are already sorted by most recent first from the backend
   const sessions = createMemo(() => props.sessions)
+
+  /** Destroy the renderer to restore the terminal, then call the cancel callback */
+  const cancelWithCleanup = () => {
+    try {
+      renderer.destroy()
+    } catch (e) {
+      log.error("renderer.destroy() failed during picker cancel", { error: String(e) })
+    }
+    props.onCancel()
+  }
 
   // Compute the visible window offset for scrolling
   const visibleCount = () => Math.min(MAX_VISIBLE, sessions().length)
@@ -82,7 +94,7 @@ export function SessionPicker(props: SessionPickerProps) {
   useKeyboard((event) => {
     if (event.name === "escape" || (event.ctrl && event.name === "c")) {
       event.preventDefault()
-      props.onCancel()
+      cancelWithCleanup()
       return
     }
 

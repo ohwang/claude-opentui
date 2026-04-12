@@ -2,12 +2,12 @@
  * Thinking Block — Collapsible thinking content with blockquote style
  *
  * Shows Claude's reasoning process in a markdown-blockquote visual:
- * a left border bar (│) with content indented beside it.
+ * a left border bar (▎) with content indented beside it.
  *
  * Collapsed: "💡 Thinking (ctrl+o to expand)"
  * Expanded:
- *   │ 💡 Thinking…
- *   │ <markdown content>
+ *   ▎ 💡 Thinking…
+ *   ▎ <markdown content>
  */
 
 import { Show } from "solid-js"
@@ -36,8 +36,7 @@ export function ThinkingBlock(props: { text: string; collapsed?: boolean }) {
         }
       >
         <box flexDirection="row">
-          <box width={1} flexShrink={0} backgroundColor={colors.border.default} />
-          <box width={1} flexShrink={0} />
+          <text fg={colors.border.default} flexShrink={0}>{"▎ "}</text>
           <box flexDirection="column" flexGrow={1}>
             <text fg={colors.text.thinking} attributes={TextAttributes.DIM | TextAttributes.ITALIC}>
               {"\ud83d\udca1 Thinking\u2026"}

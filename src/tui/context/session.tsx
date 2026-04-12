@@ -32,6 +32,10 @@ export interface SessionContextState {
   rateLimits: RateLimits | null
   agentCommands: AgentSlashCommand[]
   configOptions: ConfigOption[]
+  /** True while session history is being parsed (or the Gemini replay window
+   *  is draining). Populated from ConversationState.resuming. Consumed by the
+   *  input area to render a spinner and block typing. */
+  resuming: boolean
 }
 
 export interface SessionContextValue {
@@ -60,6 +64,7 @@ export function SessionProvider(props: ParentProps) {
     rateLimits: null,
     agentCommands: [],
     configOptions: [],
+    resuming: false,
   })
 
   return (

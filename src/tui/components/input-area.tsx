@@ -215,6 +215,7 @@ export function InputArea() {
   const MAX_HINT_SHOWS = 5
 
   const placeholder = () => {
+    if (session.resuming) return "Loading session history…"
     if (session.sessionState === "INITIALIZING") return "Type a message to start..."
     if (session.sessionState === "RUNNING") return "Type to queue a message..."
     if (session.sessionState === "WAITING_FOR_PERM") return ""
@@ -231,6 +232,7 @@ export function InputArea() {
   }
 
   const isDisabled = () =>
+    session.resuming ||
     session.sessionState === "WAITING_FOR_PERM" ||
     session.sessionState === "WAITING_FOR_ELIC" ||
     session.sessionState === "SHUTTING_DOWN"

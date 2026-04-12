@@ -21,6 +21,7 @@ function baseSessionState(): SessionContextState {
     rateLimits: null,
     agentCommands: [],
     configOptions: [],
+    resuming: false,
   }
 }
 

@@ -50,6 +50,7 @@ const DEFAULT_SESSION: SessionContextState = {
   rateLimits: null,
   agentCommands: [],
   configOptions: [],
+  resuming: false,
 }
 
 const DEFAULT_MESSAGES: MessagesState = {

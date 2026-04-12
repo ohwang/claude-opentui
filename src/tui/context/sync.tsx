@@ -69,6 +69,7 @@ export function SyncProvider(props: ParentProps) {
 
   // Apply a batch of events through the reducer, then update all stores
   const applyEvents = (events: ConversationEvent[]) => {
+    let historyLoadedInBatch = false
     for (const event of events) {
       // Log lifecycle events at info, streaming deltas at debug
       if (event.type === "text_delta" || event.type === "thinking_delta" || event.type === "tool_use_progress") {
@@ -76,6 +77,7 @@ export function SyncProvider(props: ParentProps) {
       } else {
         log.info(`Event: ${event.type}`, event.type === "error" ? { code: event.code, message: event.message } : undefined)
       }
+      if (event.type === "history_loaded") historyLoadedInBatch = true
       conversationState = reduce(conversationState, event)
     }
     setConversationState(conversationState)
@@ -104,10 +106,18 @@ export function SyncProvider(props: ParentProps) {
       session.setState("rateLimits", reconcile(conversationState.rateLimits))
       session.setState("agentCommands", reconcile(conversationState.agentCommands))
       session.setState("configOptions", reconcile(conversationState.configOptions))
+      session.setState("resuming", conversationState.resuming)
 
       permissions.setState("pendingPermission", reconcile(conversationState.pendingPermission))
       permissions.setState("pendingElicitation", reconcile(conversationState.pendingElicitation))
     })
+
+    // When a resume just completed, nudge the scrollbox to the bottom so the
+    // user lands on the SessionResumeSummary marker (and the most recent turn
+    // is visible) instead of the top of the seeded history.
+    if (historyLoadedInBatch) {
+      import("../components/input-utils").then(m => m._scrollToBottom?.())
+    }
   }
 
   // Create the batcher with applyEvents as the flush handler

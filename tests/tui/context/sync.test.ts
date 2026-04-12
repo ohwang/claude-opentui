@@ -62,6 +62,7 @@ function createSessionStore() {
     rateLimits: null,
     agentCommands: [],
     configOptions: [],
+    resuming: false,
   })
 }
 

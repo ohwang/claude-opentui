@@ -40,7 +40,26 @@ export class MockAdapter extends BaseAdapter {
     }
   }
 
-  protected async runSession(_config: SessionConfig): Promise<void> {
+  protected async runSession(config: SessionConfig): Promise<void> {
+    if (config.resume) {
+      this.eventChannel?.push({
+        type: "error",
+        code: "unsupported_resume",
+        message: "The mock backend does not support --resume.",
+        severity: "fatal",
+      })
+      return
+    }
+    if (config.continue) {
+      this.eventChannel?.push({
+        type: "error",
+        code: "unsupported_continue",
+        message: "The mock backend does not support --continue.",
+        severity: "fatal",
+      })
+      return
+    }
+
     // Emit session_init immediately
     this.eventChannel?.push({
       type: "session_init",

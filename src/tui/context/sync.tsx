@@ -199,30 +199,12 @@ export function SyncProvider(props: ParentProps) {
     const mode = agent.config.resume ? "resume" : agent.config.continue ? "continue" : "start"
     log.info(`Event loop starting (${mode})`, agent.config.resume ? { sessionId: agent.config.resume } : undefined)
 
-    // Validate that the backend supports the requested mode.
-    // Skip for cross-backend resume — it uses start() with context injection, not native resume.
-    const caps = agent.backend.capabilities()
-    const isCrossBackendResume = agent.config.resume && agent.config._crossBackendActive
-    if (agent.config.resume && !caps.supportsResume && !isCrossBackendResume) {
-      batcher.push({
-        type: "error",
-        code: "unsupported_resume",
-        message: `The ${caps.name} backend does not support --resume.`,
-        severity: "fatal",
-      })
-      batcher.flush()
-      return
-    }
-    if (agent.config.continue && !caps.supportsContinue) {
-      batcher.push({
-        type: "error",
-        code: "unsupported_continue",
-        message: `The ${caps.name} backend does not support --continue.`,
-        severity: "fatal",
-      })
-      batcher.flush()
-      return
-    }
+    // Resume/continue support is validated by each adapter inside runSession().
+    // We don't pre-flight via capabilities() here because ACP-based backends only
+    // learn their agent capabilities after the initialize handshake — a pre-flight
+    // check would falsely block same-backend resume for gemini/copilot/acp.
+    // Adapters emit a fatal `unsupported_resume`/`unsupported_continue` error if
+    // the requested mode isn't supported once the handshake completes.
 
     try {
       // Always use start() — it handles resume/continue via config.resume
@@ -323,10 +305,9 @@ export function SyncProvider(props: ParentProps) {
                 agent.config.initialPrompt
             }
 
-            // Clear config.resume so the target backend uses start() instead of
-            // native resume(). Set _crossBackendActive so the supportsResume
-            // check in startEventLoop is skipped.
-            agent.config._crossBackendActive = true
+            // Clear config.resume so the target backend uses start() with the
+            // injected context rather than attempting a native resume of an
+            // ID it doesn't own.
             agent.config.resume = undefined
           }
         } else if (backendName === "claude") {

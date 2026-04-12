@@ -36,7 +36,10 @@ export function ThinkingBlock(props: { text: string; collapsed?: boolean }) {
         }
       >
         <box flexDirection="row">
-          <text fg={colors.border.default} flexShrink={0}>{"▎ "}</text>
+          <box width={1} flexShrink={0}>
+            <text fg={colors.border.default}>{"▎"}</text>
+          </box>
+          <box width={1} flexShrink={0} />
           <box flexDirection="column" flexGrow={1}>
             <text fg={colors.text.thinking} attributes={TextAttributes.DIM | TextAttributes.ITALIC}>
               {"\ud83d\udca1 Thinking\u2026"}

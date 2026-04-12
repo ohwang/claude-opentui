@@ -85,9 +85,43 @@ function findCodexSessionFile(sessionId: string): string | null {
 
 // ---------------------------------------------------------------------------
 // Gemini session file paths: ~/.gemini/tmp/<project>/chats/session-*.json
+//
+// Gemini CLI maps each project root to a short identifier via
+// ~/.gemini/projects.json (e.g. /Users/x/dev/repo -> "repo"). Sessions are
+// stored under ~/.gemini/tmp/<identifier>/chats/. `session/load` will ONLY
+// find sessions under the identifier matching the current cwd — showing
+// sessions from other projects in the picker leads to JSON-RPC -32603
+// "Invalid session identifier" because Gemini searches the wrong dir.
 // ---------------------------------------------------------------------------
 
-/** Get all Gemini chat directories */
+/**
+ * Look up the Gemini project identifier for a given cwd by reading
+ * ~/.gemini/projects.json. Returns null if the cwd isn't registered.
+ */
+function geminiProjectIdentifier(cwd: string): string | null {
+  const registryPath = join(homeDir(), ".gemini", "projects.json")
+  if (!existsSync(registryPath)) return null
+  try {
+    const raw = readFileSync(registryPath, "utf-8")
+    const registry = JSON.parse(raw) as { projects?: Record<string, string> }
+    return registry.projects?.[cwd] ?? null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Get the Gemini chats directory for a specific cwd.
+ * Returns null when the cwd isn't registered or the chats dir doesn't exist.
+ */
+function geminiChatDirForCwd(cwd: string): string | null {
+  const identifier = geminiProjectIdentifier(cwd)
+  if (!identifier) return null
+  const chatDir = join(homeDir(), ".gemini", "tmp", identifier, "chats")
+  return existsSync(chatDir) ? chatDir : null
+}
+
+/** Get all Gemini chat directories (across all projects). */
 function geminiChatDirs(): string[] {
   const dirs: string[] = []
   const tmpDir = join(homeDir(), ".gemini", "tmp")
@@ -511,13 +545,24 @@ export function listCodexSessionsFromDisk(): SessionInfo[] {
 }
 
 /**
- * List Gemini sessions from disk (~/.gemini/tmp/<project>/chats/).
- * Used as a fallback when the ACP transport is not alive.
+ * List Gemini sessions from disk.
+ *
+ * When a cwd is provided, sessions are scoped to that project's chats dir
+ * (~/.gemini/tmp/<identifier>/chats/) so every listed session can actually
+ * be resumed via `session/load`. Without a cwd, falls back to scanning all
+ * project dirs — only useful for cross-backend detection, not resume.
  */
-export function listGeminiSessionsFromDisk(): SessionInfo[] {
+export function listGeminiSessionsFromDisk(cwd?: string): SessionInfo[] {
   const sessions: SessionInfo[] = []
 
-  for (const chatDir of geminiChatDirs()) {
+  const dirs = cwd
+    ? (() => {
+        const scoped = geminiChatDirForCwd(cwd)
+        return scoped ? [scoped] : []
+      })()
+    : geminiChatDirs()
+
+  for (const chatDir of dirs) {
     try {
       const files = readdirSync(chatDir).filter(f => f.startsWith("session-") && f.endsWith(".json"))
       for (const file of files) {

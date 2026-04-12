@@ -623,9 +623,13 @@ export class AcpAdapter extends BaseAdapter {
       // Fall back to reading Gemini session files from disk when transport
       // is not alive. This enables the session picker to show sessions
       // before the ACP subprocess is spawned.
+      // Scope to the current cwd's project dir so every listed session can
+      // actually be loaded — Gemini's session/load only searches the project
+      // dir for the active cwd and rejects sessions from other projects
+      // with JSON-RPC -32603 "Invalid session identifier".
       if (!this.transport?.isAlive && (this.presetName === "gemini" || this.presetName === "acp")) {
         const { listGeminiSessionsFromDisk } = await import("../../session/cross-backend")
-        return listGeminiSessionsFromDisk()
+        return listGeminiSessionsFromDisk(this.config?.cwd ?? process.cwd())
       }
       return []
     }

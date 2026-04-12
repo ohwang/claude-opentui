@@ -662,6 +662,16 @@ export interface SessionConfig {
   effort?: EffortLevel
 }
 
+/** Backend that owns a session */
+export type SessionOrigin = "claude" | "codex" | "gemini"
+
+/** Sessions grouped by backend for the multi-backend session picker */
+export interface MultiBackendSessions {
+  claude: SessionInfo[]
+  codex: SessionInfo[]
+  gemini: SessionInfo[]
+}
+
 export interface SessionInfo {
   id: string
   title: string
@@ -671,6 +681,27 @@ export interface SessionInfo {
   gitBranch?: string
   cwd?: string
   fileSize?: number
+  // --- V2 picker fields ---
+  /** Which backend owns this session */
+  origin?: SessionOrigin
+  /** Number of user turns */
+  turnCount?: number
+  /** Total tool invocations */
+  toolCallCount?: number
+  /** Rough total tokens (input + output + cache) */
+  totalTokens?: number
+  /** Cumulative cost in USD (Claude only for now) */
+  totalCostUsd?: number
+  /** Context window usage percentage (0-100) */
+  contextPercent?: number
+  /** Model name if detectable */
+  model?: string
+  /** True if session cwd matches current cwd */
+  isCurrentProject?: boolean
+  /** fuzzysort match positions (transient, set by search pipeline) */
+  _matchIndexes?: number[]
+  /** fuzzysort score (transient, set by search pipeline) */
+  _score?: number
 }
 
 export interface ForkOptions {

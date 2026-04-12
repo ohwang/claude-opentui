@@ -20,6 +20,7 @@ import { reduce } from "../../../src/protocol/reducer"
 import {
   createInitialState,
   type AgentEvent,
+  type ConversationEvent,
   type CostTotals,
 } from "../../../src/protocol/types"
 import { EventBatcher } from "../../../src/utils/event-batcher"
@@ -177,7 +178,7 @@ function createApplyEventsHarness() {
 
 describe("EventBatcher", () => {
   test("flushes immediately when interval has elapsed", () => {
-    const received: AgentEvent[][] = []
+    const received: ConversationEvent[][] = []
     const batcher = new EventBatcher((events) => received.push([...events]), 16)
 
     batcher.push({ type: "text_delta", text: "hello" })
@@ -189,7 +190,7 @@ describe("EventBatcher", () => {
   })
 
   test("batches events within the interval window", async () => {
-    const received: AgentEvent[][] = []
+    const received: ConversationEvent[][] = []
     // Use a longer interval so we can push multiple events before flush
     const batcher = new EventBatcher((events) => received.push([...events]), 100)
 
@@ -211,7 +212,7 @@ describe("EventBatcher", () => {
   })
 
   test("manual flush() drains the queue", () => {
-    const received: AgentEvent[][] = []
+    const received: ConversationEvent[][] = []
     const batcher = new EventBatcher((events) => received.push([...events]), 100)
 
     // First push flushes immediately
@@ -231,7 +232,7 @@ describe("EventBatcher", () => {
   })
 
   test("flush() is a no-op on empty queue", () => {
-    const received: AgentEvent[][] = []
+    const received: ConversationEvent[][] = []
     const batcher = new EventBatcher((events) => received.push([...events]), 16)
 
     batcher.flush()
@@ -241,7 +242,7 @@ describe("EventBatcher", () => {
   })
 
   test("destroy() flushes remaining events and prevents further pushes", () => {
-    const received: AgentEvent[][] = []
+    const received: ConversationEvent[][] = []
     const batcher = new EventBatcher((events) => received.push([...events]), 100)
 
     // First push flushes
@@ -810,7 +811,7 @@ describe("resetCost", () => {
 describe("pushEvent patterns", () => {
   test("user_message event is forwarded through batcher to handler", () => {
     createRoot(dispose => {
-      const received: AgentEvent[][] = []
+      const received: ConversationEvent[][] = []
       const batcher = new EventBatcher((events) => received.push([...events]), 16)
 
       batcher.push({ type: "user_message", text: "Hello" })
@@ -825,7 +826,7 @@ describe("pushEvent patterns", () => {
 
   test("synthetic events (interrupt, shutdown) pass through batcher", () => {
     createRoot(dispose => {
-      const received: AgentEvent[] = []
+      const received: ConversationEvent[] = []
       const batcher = new EventBatcher((events) => received.push(...events), 16)
 
       batcher.push({ type: "interrupt" })

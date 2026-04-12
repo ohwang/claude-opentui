@@ -1,10 +1,10 @@
 import { describe, expect, it, mock } from "bun:test"
 import { EventBatcher } from "../../src/utils/event-batcher"
-import type { AgentEvent } from "../../src/protocol/types"
+import type { ConversationEvent } from "../../src/protocol/types"
 
 describe("EventBatcher", () => {
   it("flushes immediately on first event (no prior flush)", () => {
-    const handler = mock<(events: AgentEvent[]) => void>(() => {})
+    const handler = mock<(events: ConversationEvent[]) => void>(() => {})
     const batcher = new EventBatcher(handler)
 
     batcher.push({ type: "text_delta", text: "hello" })
@@ -19,7 +19,7 @@ describe("EventBatcher", () => {
   })
 
   it("batches events within 16ms window", async () => {
-    const handler = mock<(events: AgentEvent[]) => void>(() => {})
+    const handler = mock<(events: ConversationEvent[]) => void>(() => {})
     const batcher = new EventBatcher(handler)
 
     // First event flushes immediately
@@ -47,7 +47,7 @@ describe("EventBatcher", () => {
   })
 
   it("manual flush drains the queue", () => {
-    const handler = mock<(events: AgentEvent[]) => void>(() => {})
+    const handler = mock<(events: ConversationEvent[]) => void>(() => {})
     const batcher = new EventBatcher(handler)
 
     // First event auto-flushes
@@ -67,7 +67,7 @@ describe("EventBatcher", () => {
   })
 
   it("flush with empty queue is a no-op", () => {
-    const handler = mock<(events: AgentEvent[]) => void>(() => {})
+    const handler = mock<(events: ConversationEvent[]) => void>(() => {})
     const batcher = new EventBatcher(handler)
 
     batcher.flush()
@@ -78,7 +78,7 @@ describe("EventBatcher", () => {
   })
 
   it("destroy flushes queued events before teardown", async () => {
-    const handler = mock<(events: AgentEvent[]) => void>(() => {})
+    const handler = mock<(events: ConversationEvent[]) => void>(() => {})
     const batcher = new EventBatcher(handler)
 
     // First event flushes immediately
@@ -97,7 +97,7 @@ describe("EventBatcher", () => {
   })
 
   it("push after destroy is silently ignored", () => {
-    const handler = mock<(events: AgentEvent[]) => void>(() => {})
+    const handler = mock<(events: ConversationEvent[]) => void>(() => {})
     const batcher = new EventBatcher(handler)
 
     batcher.destroy()
@@ -109,7 +109,7 @@ describe("EventBatcher", () => {
   })
 
   it("handles multiple flush cycles", async () => {
-    const handler = mock<(events: AgentEvent[]) => void>(() => {})
+    const handler = mock<(events: ConversationEvent[]) => void>(() => {})
     const batcher = new EventBatcher(handler)
 
     // Cycle 1

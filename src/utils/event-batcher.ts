@@ -10,13 +10,13 @@
  * Wraps all signal updates in Solid's batch().
  */
 
-import type { AgentEvent } from "../protocol/types"
+import type { ConversationEvent } from "../protocol/types"
 import { log } from "./logger"
 
-export type EventHandler = (events: AgentEvent[]) => void
+export type EventHandler = (events: ConversationEvent[]) => void
 
 export class EventBatcher {
-  private queue: AgentEvent[] = []
+  private queue: ConversationEvent[] = []
   private timer: Timer | undefined
   private lastFlush = 0
   private handler: EventHandler
@@ -32,7 +32,7 @@ export class EventBatcher {
     this.onError = onError
   }
 
-  push(event: AgentEvent): void {
+  push(event: ConversationEvent): void {
     if (this.destroyed) return
 
     this.queue.push(event)

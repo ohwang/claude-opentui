@@ -23,6 +23,7 @@ import { reduce } from "../../protocol/reducer"
 import {
   createInitialState,
   type AgentEvent,
+  type ConversationEvent,
 } from "../../protocol/types"
 import { EventBatcher } from "../../utils/event-batcher"
 import { log } from "../../utils/logger"
@@ -64,7 +65,7 @@ export function SyncProvider(props: ParentProps) {
   let firstMessageSent = false
 
   // Apply a batch of events through the reducer, then update all stores
-  const applyEvents = (events: AgentEvent[]) => {
+  const applyEvents = (events: ConversationEvent[]) => {
     for (const event of events) {
       // Log lifecycle events at info, streaming deltas at debug
       if (event.type === "text_delta" || event.type === "thinking_delta" || event.type === "tool_use_progress") {

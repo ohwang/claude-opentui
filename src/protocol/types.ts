@@ -275,6 +275,45 @@ export type BackendSpecificEvent = {
   data: unknown
 }
 
+// ---------------------------------------------------------------------------
+// Session resume summary — aggregate metadata derived from a parsed session
+// file. Used by the resume banner (SessionResumeSummaryView) and by
+// cross-backend resume to communicate what's being loaded.
+// ---------------------------------------------------------------------------
+
+export interface SessionResumeUsage {
+  inputTokens: number
+  outputTokens: number
+  cacheReadTokens: number
+  cacheCreationTokens: number
+  totalCostUsd: number
+  /** Effective context window occupied by the conversation (input + cache-reads).
+   *  Used to compute a "% of context used" indicator. */
+  contextTokens: number
+}
+
+export interface SessionResumeSummary {
+  sessionId: string
+  /** Backend that originally created the session (claude | codex | gemini | ...) */
+  origin: string
+  /** Current backend rendering the resume. When origin !== target, it's cross-backend. */
+  target: string
+  messageCount: number
+  toolCallCount: number
+  turnCount: number
+  /** Epoch ms of the most recent message in the session, if known */
+  lastActiveAt?: number
+  usage?: SessionResumeUsage
+  /** Context-window size of the model associated with the session, if known */
+  contextWindowTokens?: number
+  /** Absolute path of the source file (for debugging / error messages) */
+  filePath?: string
+  /** Cross-backend caveat to display inside the summary (e.g. "Tools from the
+   *  original session may not be available here"). Set by sync layer when origin
+   *  differs from target. */
+  crossBackendCaveat?: string
+}
+
 /** Union of all agent events */
 export type AgentEvent =
   | TextDeltaEvent
@@ -310,6 +349,68 @@ export type AgentEvent =
   | ShellEndEvent
   | PlanUpdateEvent
   | ConfigOptionsEvent
+
+// ---------------------------------------------------------------------------
+// System Events — TUI lifecycle, not from any agent backend
+//
+// These are emitted by the TUI (sync layer) or by adapters for *local*
+// lifecycle concerns that have no equivalent in any backend protocol.
+// Kept in a separate union from AgentEvent so the type system makes it
+// obvious whether an event originated from a remote agent or from
+// claude-opentui itself.
+// ---------------------------------------------------------------------------
+
+/** Resume: parsing has started. UI should show a loading spinner and block input. */
+export type HistoryLoadStartedEvent = {
+  type: "history_load_started"
+  sessionId: string
+  /** Absolute path of the session file being parsed (for debug/error surfacing) */
+  filePath: string
+  /** Backend that originally created the session (may differ from current target) */
+  origin: string
+}
+
+/** Resume: history was successfully parsed and seeded. UI should stop the spinner,
+ *  append a SessionResumeSummaryView block, and scroll the conversation to the bottom.
+ *  For native-replay backends (Gemini/ACP) this fires when the adapter is about to
+ *  send the first real user prompt — signaling that the initial replay window has
+ *  fully drained. */
+export type HistoryLoadedEvent = {
+  type: "history_loaded"
+  sessionId: string
+  /** Backend that originally created the session */
+  origin: string
+  /** Current (target) backend rendering the resume */
+  target: string
+  /** Aggregate metadata used by the resume summary component */
+  summary: SessionResumeSummary
+}
+
+/** Resume: parsing failed (missing file, malformed JSON, etc). UI should clear
+ *  the spinner, show a detailed error block, and fall back to a fresh session. */
+export type HistoryLoadFailedEvent = {
+  type: "history_load_failed"
+  sessionId: string
+  /** File path we attempted to read, if known */
+  filePath?: string
+  /** Origin backend, if we got far enough to detect it */
+  origin?: string
+  /** User-facing error summary */
+  error: string
+  /** Full details (stack, inner message) for debug output */
+  details?: string
+}
+
+/** Union of system/lifecycle events — emitted locally, never by an agent. */
+export type SystemEvent =
+  | HistoryLoadStartedEvent
+  | HistoryLoadedEvent
+  | HistoryLoadFailedEvent
+
+/** Everything the reducer / event channel / event batcher actually handles.
+ *  Adapters produce AgentEvent. The TUI sync layer (and AcpAdapter, for its
+ *  replay-done signal) can also emit SystemEvent. */
+export type ConversationEvent = AgentEvent | SystemEvent
 
 // ---------------------------------------------------------------------------
 // Agent Backend — the unified adapter interface
@@ -406,6 +507,15 @@ export type Block =
   | { type: "shell"; id: string; command: string; output: string; error?: string; exitCode?: number; status: "running" | "done" | "error"; startTime: number; duration?: number }
   | { type: "error"; code: string; message: string }
   | { type: "plan"; entries: PlanEntry[] }
+  | SessionResumeSummaryBlock
+
+/** Marker block inserted at the boundary between loaded-from-disk history and
+ *  new turns produced in this session. Rendered by SessionResumeSummaryView —
+ *  gives the user token usage, context %, cost, last-active time, and any
+ *  cross-backend caveats, so they can judge whether resuming is worthwhile. */
+export interface SessionResumeSummaryBlock extends SessionResumeSummary {
+  type: "session_resume_summary"
+}
 
 // ---------------------------------------------------------------------------
 // Conversation State — event-sourced, derived via reducer
@@ -485,6 +595,12 @@ export interface ConversationState {
 
   /** Config options exposed by the backend agent */
   configOptions: ConfigOption[]
+
+  /** True while a resume is in progress: session file is being parsed, or
+   *  (for Gemini) the initial replay stream is being drained. The TUI uses
+   *  this to show a loading spinner and disable message input.
+   *  Set by `history_load_started`, cleared by `history_loaded` / `history_load_failed`. */
+  resuming: boolean
 }
 
 // ---------------------------------------------------------------------------
@@ -858,5 +974,6 @@ export function createInitialState(): ConversationState {
     rateLimits: null,
     agentCommands: [],
     configOptions: [],
+    resuming: false,
   }
 }

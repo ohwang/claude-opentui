@@ -9,8 +9,8 @@
  */
 
 import type {
-  AgentEvent,
   Block,
+  ConversationEvent,
   ConversationState,
   TaskInfo,
   ToolStatus,
@@ -93,7 +93,7 @@ function flushBuffers(state: ConversationState): ConversationState {
 
 export function reduce(
   state: ConversationState,
-  event: AgentEvent,
+  event: ConversationEvent,
 ): ConversationState {
   // eventLog maintained by caller if needed; not copied per-event to avoid
   // O(n²) allocation during streaming (eventLog was never consumed by TUI).

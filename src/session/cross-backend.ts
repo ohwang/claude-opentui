@@ -76,7 +76,7 @@ function findJsonlFiles(dir: string): string[] {
  * Find a Codex session file by session ID.
  * Codex session filenames contain the UUID: rollout-TIMESTAMP-UUID.jsonl
  */
-function findCodexSessionFile(sessionId: string): string | null {
+export function findCodexSessionFile(sessionId: string): string | null {
   const root = codexSessionsDir()
   if (!existsSync(root)) return null
 
@@ -158,7 +158,7 @@ function geminiChatDirs(): string[] {
  * We match by checking if the filename contains the UUID prefix,
  * then verify the full sessionId inside the JSON content.
  */
-function findGeminiSessionFile(sessionId: string): string | null {
+export function findGeminiSessionFile(sessionId: string): string | null {
   const shortId = sessionId.split("-")[0] ?? sessionId // First 8 chars of UUID
   for (const chatDir of geminiChatDirs()) {
     try {

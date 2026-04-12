@@ -22,7 +22,6 @@ import { reconcile } from "solid-js/store"
 import { reduce } from "../../protocol/reducer"
 import {
   createInitialState,
-  type AgentEvent,
   type ConversationEvent,
 } from "../../protocol/types"
 import { EventBatcher } from "../../utils/event-batcher"
@@ -31,17 +30,21 @@ import { useAgent } from "./agent"
 import { useMessages } from "./messages"
 import { useSession } from "./session"
 import { usePermissions } from "./permissions"
-import { readSessionHistory, findMostRecentSession } from "../../backends/claude/session-reader"
+import { readSessionHistory, findMostRecentSession, getSessionFilePath } from "../../backends/claude/session-reader"
 import { setConversationState, getSubagentManagerBridge } from "../../mcp/state-bridge"
 import {
   detectSessionOrigin,
-  readForeignSession,
+  findCodexSessionFile,
+  findGeminiSessionFile,
   formatFullHistory,
+  parseCodexSessionWithSummary,
+  parseGeminiSessionWithSummary,
 } from "../../session/cross-backend"
+import type { ParsedSession } from "../../protocol/types"
 
 export interface SyncContextValue {
   /** Manually push an event (for slash commands, synthetic events, etc.) */
-  pushEvent: (event: AgentEvent) => void
+  pushEvent: (event: ConversationEvent) => void
   /** Start consuming the backend event stream */
   startEventLoop: () => void
   /** Reset conversation state (messages, streaming, tools) while preserving session/cost */
@@ -116,7 +119,7 @@ export function SyncProvider(props: ParentProps) {
     },
   )
 
-  const pushEvent = (event: AgentEvent) => {
+  const pushEvent = (event: ConversationEvent) => {
     // Start init timeout on first user message, not on mount.
     // With the query() API, session_init doesn't arrive until the first message is sent,
     // so starting the timeout earlier would cause false positives.
@@ -250,83 +253,142 @@ export function SyncProvider(props: ParentProps) {
     }
 
     // Pre-populate conversation history for resume/continue.
-    // For same-backend Claude resume: read JSONL history directly (SDK loads context
-    // but doesn't replay messages). For cross-backend resume (any target): detect
-    // session origin, read foreign history, and inject as context into the target backend.
+    //
+    // Unified flow across all backends (Claude / Codex / Gemini):
+    //   1. Detect the session's origin backend from its on-disk location.
+    //   2. Parse the native session file into { blocks, summary }.
+    //   3. Seed conversationState.blocks *before* starting the event loop.
+    //   4. Emit history_load_started → history_loaded (or history_load_failed)
+    //      so the UI shows a spinner, then appends a resume summary and
+    //      scrolls to the bottom.
+    //
+    // For cross-backend resume (origin !== target), the parsed blocks are
+    // rendered as-is AND a formatted-text version is injected as the initial
+    // prompt so the target backend actually has the history in-context.
+    //
+    // Special case: for native-replay backends (Gemini) the history_loaded
+    // event is emitted by the adapter after it finishes draining the
+    // backend's replay stream — not here.
     const backendName = agent.backend.capabilities().name
     const resumeId = agent.config.resume
     const continueMode = agent.config.continue
     if ((resumeId || continueMode) && agent.config.cwd) {
-      const sessionId = resumeId || findMostRecentSession(agent.config.cwd)
+      const cwd = agent.config.cwd
+      const sessionId = resumeId || findMostRecentSession(cwd)
       if (sessionId) {
-        // Detect cross-backend resume: session origin differs from target backend
-        const origin = detectSessionOrigin(sessionId, agent.config.cwd)
-        const targetBackend = agent.config.sessionOrigin
-        const isCrossBackend = origin !== null && targetBackend !== undefined && origin !== targetBackend
+        const origin = detectSessionOrigin(sessionId, cwd)
+        const target = agent.config.sessionOrigin ?? backendName
+        const isCrossBackend = origin !== null && origin !== target
 
-        let historyBlocks: import("../../protocol/types").Block[]
-        if (isCrossBackend && origin) {
-          // Cross-backend: read from the foreign backend's storage
-          historyBlocks = readForeignSession(sessionId, origin, agent.config.cwd)
-          log.info("Cross-backend resume detected", {
-            origin,
-            targetBackend: agent.config.sessionOrigin,
-            blocks: historyBlocks.length,
-          })
-
-          if (historyBlocks.length > 0) {
-            // Format full history (no truncation) as context for the target backend
-            const { contextText, toolCallCount } = formatFullHistory(historyBlocks, origin)
-
-            // Inject a system message informing the user about the cross-backend transition
-            const infoBlock: import("../../protocol/types").Block = {
-              type: "system",
-              text: `Resuming ${origin} session in ${agent.config.sessionOrigin} backend`,
-            }
-            historyBlocks = [infoBlock, ...historyBlocks]
-
-            if (toolCallCount > 0) {
-              historyBlocks.push({
-                type: "system",
-                text: `${toolCallCount} tool call(s) from the original session are shown for context but may not be available in the target backend`,
-                ephemeral: true,
-              })
-            }
-
-            // Inject the full conversation history as the initial prompt so
-            // the new backend has complete context. No truncation — the full
-            // text of every message, tool call, and thinking block is preserved.
-            if (!agent.config.initialPrompt) {
-              agent.config.initialPrompt = contextText
-            } else {
-              // User provided their own initial prompt — prepend full history
-              agent.config.initialPrompt =
-                contextText +
-                "\n\n---\n\n" +
-                agent.config.initialPrompt
-            }
-
-            // Clear config.resume so the target backend uses start() with the
-            // injected context rather than attempting a native resume of an
-            // ID it doesn't own.
-            agent.config.resume = undefined
-          }
-        } else if (backendName === "claude") {
-          // Same-backend Claude resume: read JSONL directly (SDK loads context
-          // but doesn't replay messages). Other backends handle replay server-side.
-          // (Same-backend Codex and Gemini are wired in the sync.tsx rewrite.)
-          historyBlocks = readSessionHistory(sessionId, agent.config.cwd).blocks
-        } else {
-          historyBlocks = []
+        // Resolve the file path we'll be reading, purely for telemetry and
+        // error surfacing. Null means the origin couldn't be detected.
+        let filePath: string | null = null
+        if (origin === "claude") {
+          filePath = getSessionFilePath(sessionId, cwd)
+        } else if (origin === "codex") {
+          filePath = findCodexSessionFile(sessionId)
+        } else if (origin === "gemini") {
+          filePath = findGeminiSessionFile(sessionId)
         }
 
-        if (historyBlocks.length > 0) {
-          conversationState = {
-            ...conversationState,
-            blocks: historyBlocks,
+        // Signal resume-in-progress so the UI can show a spinner and block input.
+        pushEvent({
+          type: "history_load_started",
+          sessionId,
+          filePath: filePath ?? "(unknown)",
+          origin: origin ?? "unknown",
+        })
+
+        try {
+          let parsed: ParsedSession
+          if (origin === "claude") {
+            parsed = readSessionHistory(sessionId, cwd)
+          } else if (origin === "codex" && filePath) {
+            parsed = parseCodexSessionWithSummary(filePath)
+          } else if (origin === "gemini" && filePath) {
+            parsed = parseGeminiSessionWithSummary(filePath)
+          } else {
+            throw new Error(
+              origin === null
+                ? `Session "${sessionId}" could not be located in any known backend's storage.`
+                : `Session file for origin "${origin}" was not found.`,
+            )
           }
-          batch(() => {
-            messages.setState("blocks", reconcile(historyBlocks))
+
+          const { blocks, summary } = parsed
+          // Parser always stamps target=origin; the sync layer overrides it
+          // to reflect which backend is actually rendering the resume.
+          summary.target = target
+
+          if (isCrossBackend && origin) {
+            // Cross-backend: also format the history as an injected prompt so
+            // the target backend has the full conversation in its context
+            // window. The rendered blocks above are the user-visible copy;
+            // the prompt is the model-visible copy.
+            const { contextText, toolCallCount } = formatFullHistory(blocks, origin)
+            if (toolCallCount > 0) {
+              summary.crossBackendCaveat = `${toolCallCount} tool call(s) from the original session are shown for context but may not be available in ${target}`
+            }
+
+            agent.config.initialPrompt = agent.config.initialPrompt
+              ? contextText + "\n\n---\n\n" + agent.config.initialPrompt
+              : contextText
+
+            // Clear config.resume so the target backend uses start() with
+            // the injected context instead of a native resume of a session
+            // ID that doesn't belong to its storage.
+            agent.config.resume = undefined
+          }
+
+          // Seed blocks synchronously so they're visible before the backend
+          // session spins up. Matches the pre-existing Claude-resume fast path.
+          if (blocks.length > 0) {
+            conversationState = { ...conversationState, blocks: [...blocks] }
+            batch(() => {
+              messages.setState("blocks", reconcile([...blocks]))
+            })
+          }
+
+          // Emit history_loaded now for backends that don't stream a replay
+          // stream of their own (Claude and Codex both silently load context).
+          // For Gemini same-backend, AcpAdapter emits history_loaded itself
+          // after it finishes draining the backend's replay window — see
+          // src/backends/acp/adapter.ts.
+          const emitNow = isCrossBackend || target !== "gemini"
+          if (emitNow) {
+            pushEvent({
+              type: "history_loaded",
+              sessionId: summary.sessionId,
+              origin: summary.origin,
+              target: summary.target,
+              summary,
+            })
+          }
+
+          log.info("Resume history loaded", {
+            sessionId,
+            origin,
+            target,
+            blocks: blocks.length,
+            crossBackend: isCrossBackend,
+            emittedNow: emitNow,
+          })
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err)
+          const stack = err instanceof Error ? err.stack : undefined
+          log.error("Failed to load session history", {
+            sessionId,
+            filePath,
+            origin,
+            error: message,
+          })
+          pushEvent({
+            type: "history_load_failed",
+            sessionId,
+            filePath: filePath ?? undefined,
+            origin: origin ?? undefined,
+            error: message,
+            details: stack,
           })
         }
       }

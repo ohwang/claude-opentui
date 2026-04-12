@@ -127,6 +127,15 @@ export class AcpAdapter extends BaseAdapter {
   private config: SessionConfig | null = null
   private systemPromptApplied = false
 
+  /** True between session/load returning and the first real user prompt going
+   *  out. While set, session/update notifications that replay historical
+   *  conversational content are dropped — we already have the full history
+   *  on disk (seeded by the TUI sync layer from the session JSON file) and
+   *  don't need the backend to stream it back. Cleared in sendPrompt right
+   *  before the first real session/prompt is sent, at which point the adapter
+   *  emits a `history_loaded` SystemEvent with the summary stashed in config. */
+  private replayMode = false
+
   // Pending permission requests (server-initiated JSON-RPC requests awaiting our response)
   private pendingApprovals = new Map<
     string,
@@ -861,6 +870,17 @@ export class AcpAdapter extends BaseAdapter {
       // bails out because its sessionId guard fails and the user's message stays
       // queued forever.
       this.sessionId = sessionResult.sessionId ?? loadedSessionId
+
+      // If we just loaded an existing session, the backend is about to stream
+      // historical turns back as session/update notifications (Gemini does
+      // this via streamHistory). The TUI sync layer has already seeded the
+      // conversation from the on-disk session file, so we don't want those
+      // replay events to be mapped and pushed into the reducer — they'd
+      // render as if the agent were producing them live. Drop them until
+      // sendPrompt flips this back off right before the first real user turn.
+      if (loadedSessionId) {
+        this.replayMode = true
+      }
       if (sessionResult.models) {
         this.discoveredModels = sessionResult.models.availableModels
         this.currentModel = sessionResult.models.currentModelId ??
@@ -982,6 +1002,25 @@ export class AcpAdapter extends BaseAdapter {
       }
     }
 
+    // First real user turn after a resume: close the replay suppression
+    // window and emit history_loaded so the TUI can append the resume
+    // summary block and scroll to bottom. Done right before session/prompt
+    // goes out so any late replay-stream notifications sent in the gap
+    // between session/load and here are still suppressed.
+    if (this.replayMode) {
+      this.replayMode = false
+      const pending = this.config?._pendingResumeSummary
+      if (pending) {
+        this.eventChannel?.push({
+          type: "history_loaded",
+          sessionId: pending.sessionId,
+          origin: pending.origin,
+          target: pending.target,
+          summary: pending,
+        })
+      }
+    }
+
     // Emit turn_start
     this.eventChannel?.push({ type: "turn_start" })
 
@@ -1047,6 +1086,33 @@ export class AcpAdapter extends BaseAdapter {
     log.debug("ACP notification", { method })
 
     if (method === "session/update") {
+      // Replay suppression: during the window between session/load returning
+      // and the first real sendPrompt, Gemini emits every historical turn
+      // back as session/update notifications. We already seeded the full
+      // conversation from the on-disk session file, so these replayed events
+      // are duplicates that would render as if the agent were typing live.
+      // Drop only the subtypes that carry conversational payload — keep
+      // stateful ones (available_commands_update, current_mode_update,
+      // session_info_update) because they describe current agent state
+      // and shouldn't be lost just because we happened to resume.
+      if (this.replayMode) {
+        const update = (params as AcpSessionUpdateParams | undefined)?.update as
+          | { sessionUpdate?: string }
+          | undefined
+        const kind = update?.sessionUpdate
+        const isConversational =
+          kind === "agent_message_chunk" ||
+          kind === "agent_thought_chunk" ||
+          kind === "tool_call" ||
+          kind === "tool_call_update" ||
+          kind === "plan" ||
+          kind === "user_message_chunk"
+        if (isConversational) {
+          log.debug("ACP session/update suppressed during replay", { kind })
+          return
+        }
+      }
+
       const events = mapAcpUpdate(params as AcpSessionUpdateParams)
       for (const event of events) {
         trace.write({

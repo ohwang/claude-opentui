@@ -350,10 +350,12 @@ export function SyncProvider(props: ParentProps) {
           }
 
           // Emit history_loaded now for backends that don't stream a replay
-          // stream of their own (Claude and Codex both silently load context).
+          // stream of their own (Claude and Codex both silently load context
+          // inside the backend — we already have the full history on disk).
+          //
           // For Gemini same-backend, AcpAdapter emits history_loaded itself
-          // after it finishes draining the backend's replay window — see
-          // src/backends/acp/adapter.ts.
+          // after it finishes draining the backend's replay window. Stash
+          // the parsed summary on config so the adapter knows what to emit.
           const emitNow = isCrossBackend || target !== "gemini"
           if (emitNow) {
             pushEvent({
@@ -363,6 +365,8 @@ export function SyncProvider(props: ParentProps) {
               target: summary.target,
               summary,
             })
+          } else {
+            agent.config._pendingResumeSummary = summary
           }
 
           log.info("Resume history loaded", {

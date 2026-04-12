@@ -24,8 +24,8 @@
 
 import type {
   AgentBackend,
-  AgentEvent,
   BackendCapabilities,
+  ConversationEvent,
   EffortLevel,
   ForkOptions,
   ModelInfo,
@@ -39,7 +39,7 @@ import { AsyncQueue } from "../../utils/async-queue"
 
 export abstract class BaseAdapter implements AgentBackend {
   protected messageQueue = new AsyncQueue<UserMessage>()
-  protected eventChannel: EventChannel<AgentEvent> | null = null
+  protected eventChannel: EventChannel<ConversationEvent> | null = null
   protected closed = false
 
   // ---------------------------------------------------------------------------
@@ -101,16 +101,16 @@ export abstract class BaseAdapter implements AgentBackend {
   // Shared lifecycle: start / resume / sendMessage / close
   // ---------------------------------------------------------------------------
 
-  async *start(config: SessionConfig): AsyncGenerator<AgentEvent> {
-    this.eventChannel = new EventChannel<AgentEvent>()
+  async *start(config: SessionConfig): AsyncGenerator<ConversationEvent> {
+    this.eventChannel = new EventChannel<ConversationEvent>()
 
     this.runSessionAndClose(config, config.resume)
 
     yield* this.eventChannel[Symbol.asyncIterator]()
   }
 
-  async *resume(sessionId: string): AsyncGenerator<AgentEvent> {
-    this.eventChannel = new EventChannel<AgentEvent>()
+  async *resume(sessionId: string): AsyncGenerator<ConversationEvent> {
+    this.eventChannel = new EventChannel<ConversationEvent>()
 
     this.runSessionAndClose({ resume: sessionId }, sessionId)
 

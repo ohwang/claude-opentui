@@ -425,8 +425,11 @@ export type ConversationEvent = AgentEvent | SystemEvent
 // ---------------------------------------------------------------------------
 
 export interface AgentBackend {
-  /** Start a new session. Returns the event stream for the entire session. */
-  start(config: SessionConfig): AsyncGenerator<AgentEvent>
+  /** Start a new session. Returns the event stream for the entire session.
+   *  Adapters produce AgentEvent, but may also emit local lifecycle
+   *  SystemEvents (e.g. history_loaded for native-replay backends) — so
+   *  the stream is typed as ConversationEvent. */
+  start(config: SessionConfig): AsyncGenerator<ConversationEvent>
 
   /** Send a message. Queued if a turn is already running. */
   sendMessage(message: UserMessage): void
@@ -435,7 +438,7 @@ export interface AgentBackend {
   interrupt(): void
 
   /** Resume a previous session. */
-  resume(sessionId: string): AsyncGenerator<AgentEvent>
+  resume(sessionId: string): AsyncGenerator<ConversationEvent>
 
   /** List available sessions. */
   listSessions(): Promise<SessionInfo[]>
@@ -645,6 +648,12 @@ export interface SessionConfig {
   initialPrompt?: string
   /** Original backend that created the session being resumed (cross-backend resume) */
   sessionOrigin?: string
+  /** Internal: when set, the adapter is expected to emit a `history_loaded`
+   *  SystemEvent with this summary once the backend's initial replay stream
+   *  has been drained. Populated by the TUI sync layer for native-replay
+   *  backends (Gemini/ACP). Ignored by silent-load backends (Claude/Codex),
+   *  which emit `history_loaded` directly from sync.tsx. */
+  _pendingResumeSummary?: SessionResumeSummary
   /** Persist session to disk so it can be resumed later (default: true) */
   persistSession?: boolean
   /** Thinking/reasoning configuration */

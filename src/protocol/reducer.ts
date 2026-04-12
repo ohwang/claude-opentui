@@ -718,6 +718,58 @@ export function reduce(
     case "session_state":
       return next
 
+    // ----- Session resume lifecycle (SystemEvent) -----
+    //
+    // These events are emitted by the TUI sync layer (or, for native-replay
+    // backends like Gemini, by the adapter itself). They have no equivalent
+    // in any backend's protocol — they exist to coordinate the resume UX.
+
+    case "history_load_started":
+      return { ...next, resuming: true }
+
+    case "history_loaded": {
+      // Append the resume summary as the boundary marker between loaded-from-
+      // disk history and whatever the user does next. The component rendering
+      // this block shows tokens, context %, cost, last-active — the signal
+      // the user needs to decide whether continuing is worthwhile.
+      const block: Block = {
+        type: "session_resume_summary",
+        ...event.summary,
+        // `summary` on the wire repeats sessionId/origin/target; make sure
+        // the event-level values win so a mismatch (e.g. target inferred
+        // late) doesn't leak stale data.
+        sessionId: event.sessionId,
+        origin: event.origin,
+        target: event.target,
+      }
+      return {
+        ...next,
+        resuming: false,
+        blocks: [...next.blocks, block],
+      }
+    }
+
+    case "history_load_failed": {
+      const detailLine = event.details ? `\n     Details: ${event.details}` : ""
+      const pathLine = event.filePath ? `\n     File:     ${event.filePath}` : ""
+      const errorBlock: Block = {
+        type: "error",
+        code: "history_load_failed",
+        message:
+          `Failed to resume session` +
+          `\n     Session:  ${event.sessionId}` +
+          pathLine +
+          `\n     Error:    ${event.error}` +
+          detailLine +
+          `\n\n     Starting a fresh session instead.`,
+      }
+      return {
+        ...next,
+        resuming: false,
+        blocks: [...next.blocks, errorBlock],
+      }
+    }
+
     case "backend_specific": {
       const data = event.data as Record<string, unknown> | null
 

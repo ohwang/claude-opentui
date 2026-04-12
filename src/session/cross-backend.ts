@@ -760,35 +760,36 @@ export function listCodexSessionsFromDisk(): SessionInfo[] {
         ? new Date(payload.timestamp).getTime()
         : statSync(file).mtimeMs
 
-      // Read the second line for a preview (first user message)
+      // Scan up to 200 lines for the first real user message.
+      // Codex injects 4-6 lines of system context (permissions, environment,
+      // [System Prompt]) before the actual user message, so reading just line 2
+      // almost always fails — producing UUID-only titles.
       let title = id.slice(0, 12)
-      const secondLine = raw.split("\n")[1]?.trim()
-      if (secondLine) {
-        try {
-          const entry = JSON.parse(secondLine)
-          if (entry.type === "event_msg" && entry.payload?.message) {
-            title = entry.payload.message.slice(0, 80)
-          } else if (entry.type === "response_item" && entry.payload?.role === "user") {
-            const content = entry.payload.content
-            if (Array.isArray(content)) {
-              for (const block of content) {
-                if (block.type === "input_text" && block.text) {
-                  title = block.text.slice(0, 80)
-                  break
-                }
-              }
-            }
+      const allLines = raw.split("\n")
+      const scanLimit = Math.min(allLines.length, 200)
+      for (let i = 1; i < scanLimit; i++) {
+        const scanLine = allLines[i]?.trim()
+        if (!scanLine) continue
+        let entry: any
+        try { entry = JSON.parse(scanLine) } catch { continue }
+        if (entry.type === "event_msg" && entry.payload?.type === "user_message") {
+          const msg = entry.payload.message
+          if (typeof msg === "string" && msg.length > 0
+              && !msg.startsWith("[System Prompt]")
+              && !msg.startsWith("<")) {
+            title = msg.slice(0, 80)
+            break
           }
-        } catch {
-          // Can't parse second line — use ID as title
         }
       }
 
       sessions.push({
         id,
         title,
+        origin: "codex",
         createdAt: timestamp,
         updatedAt: statSync(file).mtimeMs,
+        fileSize: statSync(file).size,
         cwd: payload.cwd,
       })
     } catch {
@@ -851,8 +852,10 @@ export function listGeminiSessionsFromDisk(cwd?: string): SessionInfo[] {
           sessions.push({
             id,
             title,
+            origin: "gemini",
             createdAt: startTime,
             updatedAt: lastUpdated,
+            fileSize: statSync(filePath).size,
           })
         } catch {
           // Skip unreadable files
@@ -865,6 +868,137 @@ export function listGeminiSessionsFromDisk(cwd?: string): SessionInfo[] {
 
   sessions.sort((a, b) => b.updatedAt - a.updatedAt)
   return sessions
+}
+
+// ---------------------------------------------------------------------------
+// Claude session listing — disk-based, parallel to Codex/Gemini
+// ---------------------------------------------------------------------------
+
+/**
+ * List Claude sessions from disk (~/.claude/projects/<encoded-cwd>/).
+ *
+ * Scans the project directory for .jsonl session files, extracts the title
+ * from the first user message, and returns SessionInfo[] sorted by most
+ * recent first. Used for multi-backend preloading before transport starts.
+ */
+export function listClaudeSessionsFromDisk(cwd: string): SessionInfo[] {
+  const projectKey = cwd.replace(/\//g, "-")
+  const home = homeDir()
+  const projectDir = join(home, ".claude", "projects", projectKey)
+
+  if (!existsSync(projectDir)) return []
+
+  const sessions: SessionInfo[] = []
+  try {
+    const files = readdirSync(projectDir).filter(f => f.endsWith(".jsonl"))
+    for (const file of files) {
+      const filePath = join(projectDir, file)
+      try {
+        const stat = statSync(filePath)
+        const id = file.replace(".jsonl", "")
+
+        // Read just enough to get the first user message for a title
+        const raw = readFileSync(filePath, "utf-8")
+        let title = id.slice(0, 12)
+        const lines = raw.split("\n")
+        for (let i = 0; i < Math.min(lines.length, 30); i++) {
+          const line = lines[i]?.trim()
+          if (!line) continue
+          let entry: any
+          try { entry = JSON.parse(line) } catch { continue }
+          if (entry.type === "user") {
+            const content = entry.message?.content
+            if (Array.isArray(content)) {
+              for (const block of content) {
+                if (block.type === "text" && block.text) {
+                  title = block.text.slice(0, 80)
+                  break
+                }
+              }
+            }
+            if (title !== id.slice(0, 12)) break
+          }
+        }
+
+        sessions.push({
+          id,
+          title,
+          origin: "claude",
+          createdAt: stat.birthtimeMs || stat.mtimeMs,
+          updatedAt: stat.mtimeMs,
+          fileSize: stat.size,
+          cwd,
+        })
+      } catch {
+        // Skip unreadable files
+      }
+    }
+  } catch {
+    // Dir not readable
+  }
+
+  sessions.sort((a, b) => b.updatedAt - a.updatedAt)
+  return sessions
+}
+
+// ---------------------------------------------------------------------------
+// Session enrichment — deep-parse top-N for metadata
+// ---------------------------------------------------------------------------
+
+/**
+ * Enrich sessions with deep-parsed metadata (turnCount, toolCallCount,
+ * totalTokens, totalCostUsd). Only parses the first `limit` sessions to
+ * bound startup latency. Remaining sessions keep their basic metadata.
+ */
+export function enrichSessions(
+  sessions: SessionInfo[],
+  cwd: string,
+  limit: number = 20,
+): SessionInfo[] {
+  return sessions.map((session, i) => {
+    if (i >= limit) return session
+
+    try {
+      let summary: SessionResumeSummary | undefined
+
+      if (session.origin === "claude") {
+        const parsed = readSessionHistory(session.id, cwd)
+        summary = parsed.summary
+      } else if (session.origin === "codex") {
+        const file = findCodexSessionFile(session.id)
+        if (file) summary = parseCodexSessionWithSummary(file).summary
+      } else if (session.origin === "gemini") {
+        const file = findGeminiSessionFile(session.id)
+        if (file) summary = parseGeminiSessionWithSummary(file).summary
+      }
+
+      if (!summary) return session
+
+      const usage = summary.usage
+      const totalTokens = usage
+        ? usage.inputTokens + usage.outputTokens + usage.cacheReadTokens
+        : undefined
+      const contextPercent = usage && summary.contextWindowTokens
+        ? Math.round((usage.contextTokens / summary.contextWindowTokens) * 100)
+        : undefined
+
+      return {
+        ...session,
+        turnCount: summary.turnCount,
+        toolCallCount: summary.toolCallCount,
+        totalTokens,
+        totalCostUsd: usage?.totalCostUsd || undefined,
+        contextPercent,
+      }
+    } catch (err) {
+      log.debug("Session enrichment failed", {
+        id: session.id,
+        origin: session.origin,
+        error: err instanceof Error ? err.message : String(err),
+      })
+      return session // graceful degradation
+    }
+  })
 }
 
 // ---------------------------------------------------------------------------

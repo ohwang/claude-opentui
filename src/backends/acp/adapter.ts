@@ -784,8 +784,16 @@ export class AcpAdapter extends BaseAdapter {
       const cwd = config.cwd ?? process.cwd()
       let sessionResult: AcpSessionNewResult
 
+      // Track the session ID we used when loading an existing session.
+      // session/load's response omits `sessionId` (only session/new returns it),
+      // so we need to remember the ID we asked to resume.
+      let loadedSessionId: string | null = null
+
       if (config.resume) {
-        // --resume: load a specific session by ID
+        // --resume: load a specific session by ID.
+        // Per ACP spec, session/load requires { sessionId, cwd, mcpServers } —
+        // Gemini rejects the request with JSON-RPC -32603 if cwd/mcpServers
+        // are missing.
         if (!this.agentCapabilities?.loadSession) {
           this.eventChannel?.push({
             type: "error",
@@ -797,7 +805,10 @@ export class AcpAdapter extends BaseAdapter {
         }
         sessionResult = (await this.transport.request("session/load", {
           sessionId: config.resume,
+          cwd,
+          mcpServers: [],
         })) as AcpSessionNewResult
+        loadedSessionId = config.resume
         log.info("ACP session loaded", { sessionId: config.resume })
       } else if (config.continue) {
         // --continue: find and load the most recent session
@@ -828,7 +839,10 @@ export class AcpAdapter extends BaseAdapter {
           log.info("Continuing most recent ACP session", { sessionId: mostRecent.id })
           sessionResult = (await this.transport.request("session/load", {
             sessionId: mostRecent.id,
+            cwd,
+            mcpServers: [],
           })) as AcpSessionNewResult
+          loadedSessionId = mostRecent.id
           log.info("ACP session loaded for --continue", { sessionId: mostRecent.id })
         }
       } else {
@@ -838,7 +852,11 @@ export class AcpAdapter extends BaseAdapter {
         })) as AcpSessionNewResult
       }
 
-      this.sessionId = sessionResult.sessionId
+      // session/load's response omits `sessionId` (only session/new returns it),
+      // so fall back to the ID we passed in. Without this, sendPrompt() silently
+      // bails out because its sessionId guard fails and the user's message stays
+      // queued forever.
+      this.sessionId = sessionResult.sessionId ?? loadedSessionId
       if (sessionResult.models) {
         this.discoveredModels = sessionResult.models.availableModels
         this.currentModel = sessionResult.models.currentModelId ??

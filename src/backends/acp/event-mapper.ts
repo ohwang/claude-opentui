@@ -266,12 +266,30 @@ function mapToolCall(update: AcpToolCall): AgentEvent[] {
     if (loc?.path) input.file_path = loc.path
   }
 
-  return [{
+  const events: AgentEvent[] = [{
     type: "tool_use_start",
     id: update.toolCallId,
     tool: toolName,
     input,
   }]
+
+  // Gemini replays historical tool calls during session/load with a
+  // terminal status (`completed` or `failed`) inside the initial tool_call
+  // notification — no follow-up tool_call_update ever arrives. Without this
+  // branch, the tool stays stuck as "running" in the reducer forever.
+  if (update.status === "completed" || update.status === "failed") {
+    const textOutput = extractToolContentText(update.content)
+    const diffOutput = extractDiffContent(update.content)
+    const combinedOutput = [textOutput, diffOutput].filter(Boolean).join("\n")
+    events.push({
+      type: "tool_use_end",
+      id: update.toolCallId,
+      output: combinedOutput || `Tool ${update.status}`,
+      error: update.status === "failed" ? (combinedOutput || "Tool call failed") : undefined,
+    })
+  }
+
+  return events
 }
 
 // ---------------------------------------------------------------------------

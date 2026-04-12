@@ -23,6 +23,7 @@ import { SystemBlock, type SystemCategory, categorizeSystemMessage } from "./blo
 import { ErrorBlock } from "./blocks/error-block"
 import { CompactBlock } from "./blocks/compact-block"
 import { ShellBlock } from "./blocks/shell-block"
+import { SessionResumeSummaryView } from "./blocks/session-resume-summary-view"
 
 // Re-export for consumers that import from block-view
 export type { SystemCategory }
@@ -41,6 +42,7 @@ export function BlockView(props: { block: Block; viewLevel: ViewLevel; prevType?
   const shellBlock = () => b().type === "shell" ? b() as Extract<Block, { type: "shell" }> : null
   const errorBlock = () => b().type === "error" ? b() as Extract<Block, { type: "error" }> : null
   const planBlock = () => b().type === "plan" ? b() as Extract<Block, { type: "plan" }> : null
+  const resumeSummaryBlock = () => b().type === "session_resume_summary" ? b() as Extract<Block, { type: "session_resume_summary" }> : null
 
   return (
     <box flexDirection="column">
@@ -117,6 +119,9 @@ export function BlockView(props: { block: Block; viewLevel: ViewLevel; prevType?
         <box marginTop={1}>
           <PlanBlock entries={pb().entries} />
         </box>
+      }</Show>
+      <Show when={resumeSummaryBlock()}>{(rb: Accessor<Extract<Block, { type: "session_resume_summary" }>>) =>
+        <SessionResumeSummaryView block={rb()} />
       }</Show>
     </box>
   )

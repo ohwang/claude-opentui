@@ -314,7 +314,8 @@ export function SyncProvider(props: ParentProps) {
         } else if (backendName === "claude") {
           // Same-backend Claude resume: read JSONL directly (SDK loads context
           // but doesn't replay messages). Other backends handle replay server-side.
-          historyBlocks = readSessionHistory(sessionId, agent.config.cwd)
+          // (Same-backend Codex and Gemini are wired in the sync.tsx rewrite.)
+          historyBlocks = readSessionHistory(sessionId, agent.config.cwd).blocks
         } else {
           historyBlocks = []
         }

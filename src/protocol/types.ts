@@ -314,6 +314,14 @@ export interface SessionResumeSummary {
   crossBackendCaveat?: string
 }
 
+/** Result returned by session file parsers. The `target` inside `summary`
+ *  defaults to `origin`; the TUI sync layer overrides it when resuming
+ *  cross-backend. */
+export interface ParsedSession {
+  blocks: Block[]
+  summary: SessionResumeSummary
+}
+
 /** Union of all agent events */
 export type AgentEvent =
   | TextDeltaEvent

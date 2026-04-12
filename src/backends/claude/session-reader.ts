@@ -20,7 +20,13 @@
 import { readFileSync } from "fs"
 import { join } from "path"
 import { log } from "../../utils/logger"
-import type { Block, ToolStatus } from "../../protocol/types"
+import type {
+  Block,
+  ParsedSession,
+  SessionResumeSummary,
+  SessionResumeUsage,
+  ToolStatus,
+} from "../../protocol/types"
 
 /** Encode a cwd path to the Claude project directory key format */
 function encodeProjectKey(cwd: string): string {
@@ -42,13 +48,34 @@ function stripImagePlaceholders(text: string): string {
     .trim()
 }
 
-/** Read a session JSONL file and convert to blocks for conversation display */
+/** Read a session JSONL file and convert to blocks + summary for conversation display.
+ *
+ *  Note on images: Claude JSONL stores pasted screenshots as base64-encoded
+ *  `image` content blocks. We intentionally do NOT replay those back to the
+ *  conversation history on resume — base64 payloads are often megabytes per
+ *  image, OpenTUI doesn't yet expose a terminal image primitive, and
+ *  rendering them would slow down every scroll/repaint. Image blocks are
+ *  dropped here and, where the SDK left a `[Image]` placeholder inside a
+ *  text block, `stripImagePlaceholders` removes that too so the user sees a
+ *  clean text-only transcript. See the "Image round-tripping" follow-up in
+ *  plans/quirky-dreaming-book.md for the tracked reasoning.
+ */
 export function readSessionHistory(
   sessionId: string,
   cwd: string,
-): Block[] {
+): ParsedSession {
   const filePath = getSessionFilePath(sessionId, cwd)
   log.info("Reading session history", { sessionId, filePath })
+
+  const emptySummary: SessionResumeSummary = {
+    sessionId,
+    origin: "claude",
+    target: "claude",
+    messageCount: 0,
+    toolCallCount: 0,
+    turnCount: 0,
+    filePath,
+  }
 
   let raw: string
   try {
@@ -59,11 +86,26 @@ export function readSessionHistory(
       filePath,
       error: err instanceof Error ? err.message : String(err),
     })
-    return []
+    return { blocks: [], summary: emptySummary }
   }
 
   const blocks: Block[] = []
   const lines = raw.split("\n")
+
+  // Usage aggregation. Claude's per-message `usage` contains fields that are
+  // DISJOINT (input + cache_read + cache_creation = total prompt tokens for
+  // that API call), so we sum across messages for cumulative totals and use
+  // the last assistant turn's values for "effective context currently in play".
+  let inputTokens = 0
+  let outputTokens = 0
+  let cacheReadTokens = 0
+  let cacheCreationTokens = 0
+  let totalCostUsd = 0
+  let lastContextTokens: number | undefined
+  let lastActiveAt: number | undefined
+  let messageCount = 0
+  let toolCallCount = 0
+  let turnCount = 0
 
   for (const line of lines) {
     const trimmed = line.trim()
@@ -76,6 +118,11 @@ export function readSessionHistory(
       continue
     }
 
+    const entryTs = entry.timestamp ? new Date(entry.timestamp).getTime() : undefined
+    if (entryTs !== undefined) {
+      lastActiveAt = lastActiveAt === undefined ? entryTs : Math.max(lastActiveAt, entryTs)
+    }
+
     switch (entry.type) {
       case "user": {
         const content = entry.message?.content
@@ -86,8 +133,8 @@ export function readSessionHistory(
           if (block.type === "text") {
             text += (text ? "\n" : "") + block.text
           }
-          // Skip tool_result blocks — they're internal to the agent loop
-          // Skip image blocks for now
+          // Skip tool_result blocks — internal to the agent loop.
+          // Skip image blocks — see "Note on images" above.
         }
 
         // Skip tool_result user messages (no text content, only tool results)
@@ -100,13 +147,34 @@ export function readSessionHistory(
         if (hasOnlyToolResults) break
 
         blocks.push({ type: "user", text })
+        messageCount++
+        turnCount++
         break
       }
 
       case "assistant": {
         const content = entry.message?.content
         if (!Array.isArray(content)) break
+        const usage = entry.message?.usage
+        if (usage && typeof usage === "object") {
+          const input = Number(usage.input_tokens ?? 0)
+          const output = Number(usage.output_tokens ?? 0)
+          const cacheRead = Number(usage.cache_read_input_tokens ?? 0)
+          const cacheCreate = Number(usage.cache_creation_input_tokens ?? 0)
+          inputTokens += input
+          outputTokens += output
+          cacheReadTokens += cacheRead
+          cacheCreationTokens += cacheCreate
+          // Per-turn context = full prompt tokens for this API call.
+          // Use the LAST assistant turn's value so the summary reflects
+          // "how much context the next turn will carry".
+          lastContextTokens = input + cacheRead + cacheCreate
+        }
+        if (typeof entry.costUSD === "number") {
+          totalCostUsd += entry.costUSD
+        }
 
+        let hasAssistantBlock = false
         for (const block of content) {
           switch (block.type) {
             case "thinking":
@@ -117,6 +185,7 @@ export function readSessionHistory(
 
             case "text":
               if (block.text) {
+                hasAssistantBlock = true
                 blocks.push({
                   type: "assistant",
                   text: stripImagePlaceholders(block.text),
@@ -128,6 +197,7 @@ export function readSessionHistory(
               break
 
             case "tool_use":
+              toolCallCount++
               blocks.push({
                 type: "tool",
                 id: block.id,
@@ -142,11 +212,36 @@ export function readSessionHistory(
               break
           }
         }
+        if (hasAssistantBlock) messageCount++
         break
       }
 
       // Skip all other entry types (queue-operation, last-prompt, etc.)
     }
+  }
+
+  const usage: SessionResumeUsage | undefined =
+    inputTokens || outputTokens || cacheReadTokens || cacheCreationTokens || totalCostUsd
+      ? {
+          inputTokens,
+          outputTokens,
+          cacheReadTokens,
+          cacheCreationTokens,
+          totalCostUsd,
+          contextTokens: lastContextTokens ?? (inputTokens + cacheReadTokens + cacheCreationTokens),
+        }
+      : undefined
+
+  const summary: SessionResumeSummary = {
+    sessionId,
+    origin: "claude",
+    target: "claude",
+    messageCount,
+    toolCallCount,
+    turnCount,
+    lastActiveAt,
+    usage,
+    filePath,
   }
 
   log.info("Session history loaded", {
@@ -155,9 +250,10 @@ export function readSessionHistory(
     users: blocks.filter((b) => b.type === "user").length,
     assistants: blocks.filter((b) => b.type === "assistant").length,
     tools: blocks.filter((b) => b.type === "tool").length,
+    usage,
   })
 
-  return blocks
+  return { blocks, summary }
 }
 
 /** Find the most recently modified session in a project directory */

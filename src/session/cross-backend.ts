@@ -21,7 +21,14 @@ import {
   getSessionFilePath,
   readSessionHistory,
 } from "../backends/claude/session-reader"
-import type { Block, SessionInfo, ToolStatus } from "../protocol/types"
+import type {
+  Block,
+  ParsedSession,
+  SessionInfo,
+  SessionResumeSummary,
+  SessionResumeUsage,
+  ToolStatus,
+} from "../protocol/types"
 
 /** Known backend names that can originate sessions */
 export type SessionOrigin = "claude" | "codex" | "gemini" | null
@@ -216,17 +223,46 @@ export function detectSessionOrigin(
 // ---------------------------------------------------------------------------
 
 /**
- * Parse a Codex JSONL session file into Block[].
+ * Parse a Codex JSONL session file.
  *
  * Codex JSONL format (each line is a JSON object):
  * - {type: "session_meta", payload: {id, timestamp, cwd}} — metadata
  * - {type: "response_item", payload: {role: "user", content: [{type: "input_text", text}]}}
  * - {type: "response_item", payload: {role: "assistant", content: [{type: "output_text", text}]}}
+ * - {type: "response_item", payload: {type: "reasoning", summary: [...], content: null, encrypted_content: "..."}}
  * - {type: "event_msg", payload: {type: "user_message", message: "..."}} — user prompts
+ * - {type: "event_msg", payload: {type: "token_count", info: {total_token_usage, last_token_usage, model_context_window}}}
  * - {type: "response_item", payload: {type: "function_call", name, arguments}}
  * - {type: "response_item", payload: {type: "function_call_output", output}}
+ *
+ * Images: Codex can include image inputs in response_item content, but we
+ * intentionally skip them when replaying history — see the corresponding
+ * comment in src/backends/claude/session-reader.ts and the follow-up
+ * "Image round-tripping" item in plans/quirky-dreaming-book.md.
  */
 export function parseCodexSession(filePath: string): Block[] {
+  return parseCodexSessionWithSummary(filePath).blocks
+}
+
+/** Codex parser that also returns aggregate session metadata for the
+ *  resume summary. Used by same-backend Codex resume in the TUI sync layer. */
+export function parseCodexSessionWithSummary(filePath: string): ParsedSession {
+  const sessionIdFromName = (() => {
+    // rollout-TIMESTAMP-UUID.jsonl — strip prefix + .jsonl to recover UUID
+    const match = basename(filePath, ".jsonl").match(/rollout-[^-]+-[^-]+-[^-]+-[^-]+-(.+)$/)
+    return match ? match[1] : basename(filePath, ".jsonl")
+  })()
+
+  const emptySummary: SessionResumeSummary = {
+    sessionId: sessionIdFromName ?? basename(filePath, ".jsonl"),
+    origin: "codex",
+    target: "codex",
+    messageCount: 0,
+    toolCallCount: 0,
+    turnCount: 0,
+    filePath,
+  }
+
   let raw: string
   try {
     raw = readFileSync(filePath, "utf-8")
@@ -235,11 +271,22 @@ export function parseCodexSession(filePath: string): Block[] {
       filePath,
       error: err instanceof Error ? err.message : String(err),
     })
-    return []
+    return { blocks: [], summary: emptySummary }
   }
 
   const blocks: Block[] = []
   const lines = raw.split("\n")
+
+  let sessionId: string | undefined
+  let contextWindowTokens: number | undefined
+  let totalInputTokens = 0
+  let totalOutputTokens = 0
+  let totalCachedInputTokens = 0
+  let lastContextTokens: number | undefined
+  let lastActiveAt: number | undefined
+  let messageCount = 0
+  let toolCallCount = 0
+  let turnCount = 0
 
   for (const line of lines) {
     const trimmed = line.trim()
@@ -252,8 +299,13 @@ export function parseCodexSession(filePath: string): Block[] {
       continue
     }
 
+    const entryTs = entry.timestamp ? new Date(entry.timestamp).getTime() : undefined
+    if (entryTs !== undefined) {
+      lastActiveAt = lastActiveAt === undefined ? entryTs : Math.max(lastActiveAt, entryTs)
+    }
+
     if (entry.type === "session_meta") {
-      // Metadata line — skip
+      sessionId = entry.payload?.id ?? sessionId
       continue
     }
 
@@ -261,9 +313,33 @@ export function parseCodexSession(filePath: string): Block[] {
       const payload = entry.payload
       if (payload?.type === "user_message" && payload.message) {
         blocks.push({ type: "user", text: payload.message })
-      } else {
-        log.debug("Skipped Codex event_msg", { payloadType: payload?.type })
+        messageCount++
+        turnCount++
+        continue
       }
+
+      if (payload?.type === "token_count" && payload.info) {
+        const info = payload.info as Record<string, any>
+        if (typeof info.model_context_window === "number") {
+          contextWindowTokens = info.model_context_window
+        }
+        const total = info.total_token_usage
+        if (total && typeof total === "object") {
+          if (typeof total.input_tokens === "number") totalInputTokens = total.input_tokens
+          if (typeof total.output_tokens === "number") totalOutputTokens = total.output_tokens
+          if (typeof total.cached_input_tokens === "number") totalCachedInputTokens = total.cached_input_tokens
+        }
+        const last = info.last_token_usage
+        if (last && typeof last === "object" && typeof last.input_tokens === "number") {
+          // Codex's last_token_usage.input_tokens already INCLUDES cached_input_tokens,
+          // so this is the total prompt size for the most recent turn — perfect for
+          // "effective context occupied".
+          lastContextTokens = last.input_tokens
+        }
+        continue
+      }
+
+      log.debug("Skipped Codex event_msg", { payloadType: payload?.type })
       continue
     }
 
@@ -278,25 +354,57 @@ export function parseCodexSession(filePath: string): Block[] {
           if (block.type === "input_text" && block.text) {
             text += (text ? "\n" : "") + block.text
           }
+          // Skip input_image / other non-text content — see image comment above.
         }
         if (text) {
           blocks.push({ type: "user", text })
+          messageCount++
+          turnCount++
         }
         continue
       }
 
       // Assistant message with content array
       if (payload.role === "assistant" && Array.isArray(payload.content)) {
+        let hasText = false
         for (const block of payload.content) {
           if (block.type === "output_text" && block.text) {
             blocks.push({ type: "assistant", text: block.text })
+            hasText = true
           }
+        }
+        if (hasText) messageCount++
+        continue
+      }
+
+      // Reasoning (thinking) block. `summary` is an array of free-text
+      // summaries when unencrypted; `content` holds the raw CoT when the
+      // model returns one. `encrypted_content` is opaque to the client and
+      // intentionally dropped.
+      if (payload.type === "reasoning") {
+        const summaryArr = Array.isArray(payload.summary) ? payload.summary : []
+        const parts: string[] = []
+        for (const s of summaryArr) {
+          if (typeof s === "string") parts.push(s)
+          else if (s && typeof s === "object" && typeof s.text === "string") parts.push(s.text)
+        }
+        if (typeof payload.content === "string" && payload.content) {
+          parts.push(payload.content)
+        } else if (Array.isArray(payload.content)) {
+          for (const c of payload.content) {
+            if (c && typeof c === "object" && typeof c.text === "string") parts.push(c.text)
+          }
+        }
+        const reasoningText = parts.join("\n\n").trim()
+        if (reasoningText) {
+          blocks.push({ type: "thinking", text: reasoningText })
         }
         continue
       }
 
       // Function call (tool use)
       if (payload.type === "function_call" && payload.name) {
+        toolCallCount++
         blocks.push({
           type: "tool",
           id: payload.id ?? payload.call_id ?? `codex-${Date.now()}`,
@@ -304,14 +412,13 @@ export function parseCodexSession(filePath: string): Block[] {
           input: payload.arguments ?? "",
           status: "done" as ToolStatus,
           output: "",
-          startTime: Date.now(),
+          startTime: entryTs ?? Date.now(),
         })
         continue
       }
 
       // Function call output — attach to the preceding tool block
       if (payload.type === "function_call_output" && payload.output != null) {
-        // Find the last tool block and update its output
         for (let i = blocks.length - 1; i >= 0; i--) {
           const b = blocks[i]!
           if (b.type === "tool" && !b.output) {
@@ -326,15 +433,47 @@ export function parseCodexSession(filePath: string): Block[] {
     }
   }
 
+  // Codex's token fields use a different accounting model from Claude:
+  //   - `input_tokens` already INCLUDES `cached_input_tokens` (subset).
+  // Normalize by subtracting so the aggregate fields are disjoint (matches
+  // the SessionResumeUsage shape used across backends).
+  const nonCachedInput = Math.max(0, totalInputTokens - totalCachedInputTokens)
+  const usage: SessionResumeUsage | undefined =
+    totalInputTokens || totalOutputTokens || totalCachedInputTokens
+      ? {
+          inputTokens: nonCachedInput,
+          outputTokens: totalOutputTokens,
+          cacheReadTokens: totalCachedInputTokens,
+          cacheCreationTokens: 0, // Codex's API surface doesn't distinguish cache creation
+          totalCostUsd: 0,         // Not recorded in the JSONL; computed elsewhere if needed
+          contextTokens: lastContextTokens ?? totalInputTokens,
+        }
+      : undefined
+
+  const summary: SessionResumeSummary = {
+    sessionId: sessionId ?? emptySummary.sessionId,
+    origin: "codex",
+    target: "codex",
+    messageCount,
+    toolCallCount,
+    turnCount,
+    lastActiveAt,
+    usage,
+    contextWindowTokens,
+    filePath,
+  }
+
   log.info("Codex session parsed", {
     filePath,
     blocks: blocks.length,
     users: blocks.filter(b => b.type === "user").length,
     assistants: blocks.filter(b => b.type === "assistant").length,
     tools: blocks.filter(b => b.type === "tool").length,
+    thinking: blocks.filter(b => b.type === "thinking").length,
+    usage,
   })
 
-  return blocks
+  return { blocks, summary }
 }
 
 // ---------------------------------------------------------------------------
@@ -354,6 +493,30 @@ export function parseCodexSession(filePath: string): Block[] {
  * }
  */
 export function parseGeminiSession(filePath: string): Block[] {
+  return parseGeminiSessionWithSummary(filePath).blocks
+}
+
+/** Gemini parser that also returns aggregate session metadata for the
+ *  resume summary. Used by same-backend Gemini resume in the TUI sync layer.
+ *
+ *  Note on images: Gemini's session JSON may include image parts inside
+ *  `content` arrays. They're intentionally not replayed into the conversation
+ *  history (same rationale as Claude/Codex — see the comment in
+ *  src/backends/claude/session-reader.ts and the "Image round-tripping"
+ *  follow-up in plans/quirky-dreaming-book.md).
+ */
+export function parseGeminiSessionWithSummary(filePath: string): ParsedSession {
+  const fallbackId = basename(filePath, ".json")
+  const emptySummary: SessionResumeSummary = {
+    sessionId: fallbackId,
+    origin: "gemini",
+    target: "gemini",
+    messageCount: 0,
+    toolCallCount: 0,
+    turnCount: 0,
+    filePath,
+  }
+
   let raw: string
   try {
     raw = readFileSync(filePath, "utf-8")
@@ -362,7 +525,7 @@ export function parseGeminiSession(filePath: string): Block[] {
       filePath,
       error: err instanceof Error ? err.message : String(err),
     })
-    return []
+    return { blocks: [], summary: emptySummary }
   }
 
   let session: any
@@ -373,26 +536,44 @@ export function parseGeminiSession(filePath: string): Block[] {
       filePath,
       error: err instanceof Error ? err.message : String(err),
     })
-    return []
+    return { blocks: [], summary: emptySummary }
   }
 
   const blocks: Block[] = []
   const messages = session.messages ?? []
 
+  let messageCount = 0
+  let toolCallCount = 0
+  let turnCount = 0
+  let totalInputNonCached = 0
+  let totalOutput = 0
+  let totalCached = 0
+  let totalThoughtTokens = 0
+  let lastContextTokens: number | undefined
+  let lastActiveAt: number | undefined
+
   for (const msg of messages) {
+    const msgTs = msg.timestamp ? new Date(msg.timestamp).getTime() : undefined
+    if (msgTs !== undefined) {
+      lastActiveAt = lastActiveAt === undefined ? msgTs : Math.max(lastActiveAt, msgTs)
+    }
+
     if (msg.type === "user") {
       let text = ""
       if (typeof msg.content === "string") {
         text = msg.content
       } else if (Array.isArray(msg.content)) {
         for (const part of msg.content) {
-          if (part.text) {
+          if (part?.text) {
             text += (text ? "\n" : "") + part.text
           }
+          // Skip image parts — see image note above.
         }
       }
       if (text) {
         blocks.push({ type: "user", text })
+        messageCount++
+        turnCount++
       }
     } else if (msg.type === "gemini") {
       // Extract thinking/thoughts first
@@ -409,14 +590,88 @@ export function parseGeminiSession(filePath: string): Block[] {
       const content = typeof msg.content === "string"
         ? msg.content
         : Array.isArray(msg.content)
-          ? msg.content.map((p: any) => p.text ?? "").filter(Boolean).join("\n")
+          ? msg.content.map((p: any) => p?.text ?? "").filter(Boolean).join("\n")
           : ""
       if (content) {
         blocks.push({ type: "assistant", text: content })
+        messageCount++
+      }
+
+      // Tool calls attached to this assistant turn
+      if (Array.isArray(msg.toolCalls)) {
+        for (const call of msg.toolCalls) {
+          toolCallCount++
+          // Flatten the "result" array into a text output. Gemini wraps
+          // results in functionResponse.response.output — grab the output
+          // string when present, otherwise stringify the whole thing.
+          let outputText = ""
+          if (Array.isArray(call?.result)) {
+            const parts: string[] = []
+            for (const r of call.result) {
+              const response = r?.functionResponse?.response
+              if (response && typeof response.output === "string") {
+                parts.push(response.output)
+              } else if (response) {
+                try { parts.push(JSON.stringify(response)) } catch { /* ignore */ }
+              }
+            }
+            outputText = parts.join("\n")
+          }
+          const startTime = msgTs ?? Date.now()
+          blocks.push({
+            type: "tool",
+            id: String(call?.id ?? `gemini-${toolCallCount}`),
+            tool: String(call?.name ?? "tool"),
+            input: call?.args ?? {},
+            status: (call?.status === "success" ? "done" : call?.status === "error" ? "error" : "done") as ToolStatus,
+            output: outputText,
+            startTime,
+          })
+        }
+      }
+
+      // Token usage for this turn
+      const tokens = msg.tokens
+      if (tokens && typeof tokens === "object") {
+        const input = Number(tokens.input ?? 0)
+        const cached = Number(tokens.cached ?? 0)
+        const output = Number(tokens.output ?? 0)
+        const thoughtTokens = Number(tokens.thoughts ?? 0)
+        // Gemini's `input` field includes cached tokens; keep the fields
+        // disjoint to match the Claude/Codex accounting in SessionResumeUsage.
+        totalInputNonCached += Math.max(0, input - cached)
+        totalCached += cached
+        totalOutput += output
+        totalThoughtTokens += thoughtTokens
+        lastContextTokens = input // already total prompt for the turn
       }
     } else {
       log.debug("Skipped Gemini message type", { type: msg.type })
     }
+  }
+
+  const usage: SessionResumeUsage | undefined =
+    totalInputNonCached || totalOutput || totalCached || totalThoughtTokens
+      ? {
+          inputTokens: totalInputNonCached,
+          outputTokens: totalOutput + totalThoughtTokens, // thinking tokens billed as output in Gemini
+          cacheReadTokens: totalCached,
+          cacheCreationTokens: 0,
+          totalCostUsd: 0,
+          contextTokens: lastContextTokens ?? (totalInputNonCached + totalCached),
+        }
+      : undefined
+
+  const summary: SessionResumeSummary = {
+    sessionId: typeof session.sessionId === "string" ? session.sessionId : fallbackId,
+    origin: "gemini",
+    target: "gemini",
+    messageCount,
+    toolCallCount,
+    turnCount,
+    lastActiveAt: lastActiveAt ?? (session.lastUpdated ? new Date(session.lastUpdated).getTime() : undefined),
+    usage,
+    filePath,
   }
 
   log.info("Gemini session parsed", {
@@ -425,9 +680,11 @@ export function parseGeminiSession(filePath: string): Block[] {
     users: blocks.filter(b => b.type === "user").length,
     assistants: blocks.filter(b => b.type === "assistant").length,
     thinking: blocks.filter(b => b.type === "thinking").length,
+    tools: blocks.filter(b => b.type === "tool").length,
+    usage,
   })
 
-  return blocks
+  return { blocks, summary }
 }
 
 // ---------------------------------------------------------------------------
@@ -447,7 +704,7 @@ export function readForeignSession(
 ): Block[] {
   switch (origin) {
     case "claude":
-      return readSessionHistory(sessionId, cwd)
+      return readSessionHistory(sessionId, cwd).blocks
 
     case "codex": {
       const codexFile = findCodexSessionFile(sessionId)

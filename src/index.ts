@@ -195,16 +195,69 @@ async function main() {
   // can compare against the session's detected origin.
   flags.config.sessionOrigin = flags.backend
 
-  // If --resume was used without a session ID, eagerly fetch the session list
-  // so the TUI can render the picker immediately without an async loading state.
-  let preloadedSessions: import("./protocol/types").SessionInfo[] | undefined
+  // If --resume was used without a session ID, eagerly fetch sessions from
+  // ALL backends so the multi-backend picker can render immediately.
+  let preloadedSessions: import("./protocol/types").MultiBackendSessions | undefined
   if (flags.config.resumeInteractive) {
     try {
-      preloadedSessions = await backend.listSessions()
-      log.info("Preloaded sessions for picker", { count: preloadedSessions.length })
+      const {
+        listClaudeSessionsFromDisk,
+        listCodexSessionsFromDisk,
+        listGeminiSessionsFromDisk,
+        enrichSessions,
+      } = await import("./session/cross-backend")
+      const cwd = flags.config.cwd ?? process.cwd()
+      const backendKey = flags.backend as import("./protocol/types").SessionOrigin
+
+      // Parallel disk scan for all backends
+      const [claudeDisk, codexDisk, geminiDisk] = await Promise.all([
+        Promise.resolve(listClaudeSessionsFromDisk(cwd)),
+        Promise.resolve(listCodexSessionsFromDisk()),
+        Promise.resolve(listGeminiSessionsFromDisk(cwd)),
+      ])
+
+      // For the active backend, also try the SDK's listSessions() for richer
+      // metadata (custom titles, message counts) and merge with disk results
+      let sdkSessions: import("./protocol/types").SessionInfo[] = []
+      try {
+        sdkSessions = await backend.listSessions()
+        for (const s of sdkSessions) {
+          ;(s as any).origin = backendKey
+        }
+      } catch {
+        // SDK not ready — disk results are fine
+      }
+
+      // Merge: prefer SDK sessions (richer metadata), fall back to disk
+      const merge = (
+        sdk: import("./protocol/types").SessionInfo[],
+        disk: import("./protocol/types").SessionInfo[],
+      ) => {
+        const sdkIds = new Set(sdk.map(s => s.id))
+        return [...sdk, ...disk.filter(s => !sdkIds.has(s.id))]
+      }
+
+      const raw: import("./protocol/types").MultiBackendSessions = {
+        claude: backendKey === "claude" ? merge(sdkSessions, claudeDisk) : claudeDisk,
+        codex: backendKey === "codex" ? merge(sdkSessions, codexDisk) : codexDisk,
+        gemini: backendKey === "gemini" ? merge(sdkSessions, geminiDisk) : geminiDisk,
+      }
+
+      // Enrich top-20 per backend with deep-parsed metadata
+      preloadedSessions = {
+        claude: enrichSessions(raw.claude, cwd, 20),
+        codex: enrichSessions(raw.codex, cwd, 20),
+        gemini: enrichSessions(raw.gemini, cwd, 20),
+      }
+
+      log.info("Preloaded multi-backend sessions", {
+        claude: preloadedSessions.claude.length,
+        codex: preloadedSessions.codex.length,
+        gemini: preloadedSessions.gemini.length,
+      })
     } catch (err) {
       log.warn("Failed to preload sessions", { error: String(err) })
-      preloadedSessions = []
+      preloadedSessions = { claude: [], codex: [], gemini: [] }
     }
   }
 
@@ -216,6 +269,7 @@ async function main() {
     noDiagnosticsMcp: flags.noDiagnosticsMcp,
     subagentManager,
     preloadedSessions,
+    currentBackend: flags.backend as import("./protocol/types").SessionOrigin,
   })
 }
 

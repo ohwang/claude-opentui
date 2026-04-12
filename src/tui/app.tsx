@@ -581,8 +581,10 @@ export interface AppOptions {
   onExit?: () => void
   noDiagnosticsMcp?: boolean
   subagentManager?: import("../subagents/manager").SubagentManager
-  /** Pre-fetched session list for the interactive session picker (--resume without ID) */
-  preloadedSessions?: import("../protocol/types").SessionInfo[]
+  /** Pre-fetched sessions grouped by backend for the multi-backend picker */
+  preloadedSessions?: import("../protocol/types").MultiBackendSessions
+  /** Which backend is currently active (for tab ordering in the picker) */
+  currentBackend?: import("../protocol/types").SessionOrigin
 }
 
 export function startApp(options: AppOptions): void {
@@ -600,8 +602,8 @@ export function startApp(options: AppOptions): void {
   const showPicker = options.config.resumeInteractive && options.preloadedSessions != null
   const [pickerDone, setPickerDone] = createSignal(!showPicker)
   // When the picker selects a session, update config and transition to the main app
-  const onPickerSelect = (sessionId: string) => {
-    log.info("Session picker: selected", { sessionId })
+  const onPickerSelect = (sessionId: string, origin?: import("../protocol/types").SessionOrigin) => {
+    log.info("Session picker: selected", { sessionId, origin })
     options.config.resume = sessionId
     options.config.resumeInteractive = undefined
     setPickerDone(true)
@@ -628,7 +630,9 @@ export function startApp(options: AppOptions): void {
         when={pickerDone()}
         fallback={
           <SessionPicker
-            sessions={options.preloadedSessions ?? []}
+            sessions={options.preloadedSessions ?? { claude: [], codex: [], gemini: [] }}
+            currentBackend={options.currentBackend ?? "claude"}
+            currentCwd={options.config.cwd ?? process.cwd()}
             onSelect={onPickerSelect}
             onCancel={onPickerCancel}
           />

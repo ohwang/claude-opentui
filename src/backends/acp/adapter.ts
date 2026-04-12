@@ -127,14 +127,23 @@ export class AcpAdapter extends BaseAdapter {
   private config: SessionConfig | null = null
   private systemPromptApplied = false
 
-  /** True between session/load returning and the first real user prompt going
-   *  out. While set, session/update notifications that replay historical
+  /** True between session/load returning and the "replay drained" signal.
+   *  While set, session/update notifications that replay historical
    *  conversational content are dropped — we already have the full history
    *  on disk (seeded by the TUI sync layer from the session JSON file) and
-   *  don't need the backend to stream it back. Cleared in sendPrompt right
-   *  before the first real session/prompt is sent, at which point the adapter
-   *  emits a `history_loaded` SystemEvent with the summary stashed in config. */
+   *  don't need the backend to stream it back.
+   *
+   *  Cleared by finalizeReplay(), which runs as soon as ANY of:
+   *    (a) `available_commands_update` fires — Gemini emits this immediately
+   *        after `streamHistory`, so it's a reliable end-of-replay signal
+   *    (b) a safety-net timer elapses (~1.5s after session/load) in case a
+   *        future ACP agent doesn't emit (a)
+   *    (c) sendPrompt runs — guaranteed fallback; replay can't still be in
+   *        flight if the user is sending a new message
+   *  Whichever fires first also emits the `history_loaded` SystemEvent with
+   *  the summary stashed in config._pendingResumeSummary. */
   private replayMode = false
+  private replayDrainTimer: ReturnType<typeof setTimeout> | null = null
 
   // Pending permission requests (server-initiated JSON-RPC requests awaiting our response)
   private pendingApprovals = new Map<
@@ -802,12 +811,22 @@ export class AcpAdapter extends BaseAdapter {
       // so we need to remember the ID we asked to resume.
       let loadedSessionId: string | null = null
 
+      // Enter replay suppression BEFORE session/load is awaited. Gemini may
+      // start streaming historical turns back as session/update notifications
+      // concurrently with the load response — if we flipped replayMode after
+      // the await, those early notifications would slip through and render
+      // as duplicates above the resume marker.
+      if (config.resume || config.continue) {
+        this.replayMode = true
+      }
+
       if (config.resume) {
         // --resume: load a specific session by ID.
         // Per ACP spec, session/load requires { sessionId, cwd, mcpServers } —
         // Gemini rejects the request with JSON-RPC -32603 if cwd/mcpServers
         // are missing.
         if (!this.agentCapabilities?.loadSession) {
+          this.replayMode = false
           this.eventChannel?.push({
             type: "error",
             code: "unsupported_resume",
@@ -826,6 +845,7 @@ export class AcpAdapter extends BaseAdapter {
       } else if (config.continue) {
         // --continue: find and load the most recent session
         if (!this.agentCapabilities?.loadSession) {
+          this.replayMode = false
           this.eventChannel?.push({
             type: "error",
             code: "unsupported_continue",
@@ -836,6 +856,8 @@ export class AcpAdapter extends BaseAdapter {
         }
         const sessions = await this.listSessions()
         if (sessions.length === 0) {
+          // No session to load → no replay to suppress.
+          this.replayMode = false
           log.info("No existing ACP sessions found for --continue, starting new session")
           this.eventChannel?.push({
             type: "system_message",
@@ -871,15 +893,21 @@ export class AcpAdapter extends BaseAdapter {
       // queued forever.
       this.sessionId = sessionResult.sessionId ?? loadedSessionId
 
-      // If we just loaded an existing session, the backend is about to stream
-      // historical turns back as session/update notifications (Gemini does
-      // this via streamHistory). The TUI sync layer has already seeded the
-      // conversation from the on-disk session file, so we don't want those
-      // replay events to be mapped and pushed into the reducer — they'd
-      // render as if the agent were producing them live. Drop them until
-      // sendPrompt flips this back off right before the first real user turn.
+      // If we loaded an existing session, the backend is streaming historical
+      // turns back as session/update notifications (Gemini does this via
+      // streamHistory). replayMode was set earlier — right before the await
+      // on session/load — to catch notifications that arrive concurrently
+      // with the load response. Now arm the safety-net drain timer in case
+      // `available_commands_update` (the preferred end-of-replay signal)
+      // never arrives for a particular agent.
       if (loadedSessionId) {
-        this.replayMode = true
+        this.replayDrainTimer = setTimeout(() => {
+          this.replayDrainTimer = null
+          this.finalizeReplay("timer")
+        }, 1500)
+      } else {
+        // Fresh session/new path: nothing to suppress.
+        this.replayMode = false
       }
       if (sessionResult.models) {
         this.discoveredModels = sessionResult.models.availableModels
@@ -973,6 +1001,42 @@ export class AcpAdapter extends BaseAdapter {
   }
 
   // -----------------------------------------------------------------------
+  // Private: Finalize the replay-suppression window
+  // -----------------------------------------------------------------------
+
+  /**
+   * Close the replay-suppression window and emit history_loaded. Idempotent
+   * and safe to call from multiple signal sites (available_commands_update,
+   * the safety timer, and sendPrompt). First caller wins; subsequent callers
+   * are no-ops.
+   */
+  private finalizeReplay(source: "available_commands_update" | "timer" | "send_prompt"): void {
+    if (!this.replayMode) return
+    this.replayMode = false
+    if (this.replayDrainTimer) {
+      clearTimeout(this.replayDrainTimer)
+      this.replayDrainTimer = null
+    }
+
+    const pending = this.config?._pendingResumeSummary
+    log.info("ACP replay mode closed", { source, hasSummary: !!pending })
+
+    if (pending) {
+      this.eventChannel?.push({
+        type: "history_loaded",
+        sessionId: pending.sessionId,
+        origin: pending.origin,
+        target: pending.target,
+        summary: pending,
+      })
+      // Consume so subsequent sessions (e.g. after /new) don't re-emit it.
+      if (this.config) {
+        this.config._pendingResumeSummary = undefined
+      }
+    }
+  }
+
+  // -----------------------------------------------------------------------
   // Private: Prompt turn
   // -----------------------------------------------------------------------
 
@@ -1002,24 +1066,9 @@ export class AcpAdapter extends BaseAdapter {
       }
     }
 
-    // First real user turn after a resume: close the replay suppression
-    // window and emit history_loaded so the TUI can append the resume
-    // summary block and scroll to bottom. Done right before session/prompt
-    // goes out so any late replay-stream notifications sent in the gap
-    // between session/load and here are still suppressed.
-    if (this.replayMode) {
-      this.replayMode = false
-      const pending = this.config?._pendingResumeSummary
-      if (pending) {
-        this.eventChannel?.push({
-          type: "history_loaded",
-          sessionId: pending.sessionId,
-          origin: pending.origin,
-          target: pending.target,
-          summary: pending,
-        })
-      }
-    }
+    // Guarantee replay mode is closed before the first real turn goes out,
+    // even if neither available_commands_update nor the safety timer fired.
+    this.finalizeReplay("send_prompt")
 
     // Emit turn_start
     this.eventChannel?.push({ type: "turn_start" })
@@ -1123,6 +1172,19 @@ export class AcpAdapter extends BaseAdapter {
           meta: { sourceType: method },
         })
         this.eventChannel?.push(event)
+      }
+
+      // Gemini reliably emits `available_commands_update` right after
+      // `streamHistory` finishes (see the Gemini CLI loadSession handler).
+      // Use it as the end-of-replay signal instead of waiting for the
+      // safety-net timer.
+      if (this.replayMode) {
+        const update = (params as AcpSessionUpdateParams | undefined)?.update as
+          | { sessionUpdate?: string }
+          | undefined
+        if (update?.sessionUpdate === "available_commands_update") {
+          this.finalizeReplay("available_commands_update")
+        }
       }
       return
     }

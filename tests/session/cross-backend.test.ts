@@ -3,7 +3,9 @@ import {
   formatHistoryAsContext,
   formatFullHistory,
   parseCodexSession,
+  parseCodexSessionWithSummary,
   parseGeminiSession,
+  parseGeminiSessionWithSummary,
 } from "../../src/session/cross-backend"
 import type { Block } from "../../src/protocol/types"
 import { writeFileSync, mkdtempSync, rmSync } from "fs"
@@ -528,6 +530,120 @@ describe("cross-backend session resume", () => {
 
       const blocks = parseGeminiSession(file)
       expect(blocks).toEqual([])
+
+      rmSync(dir, { recursive: true })
+    })
+  })
+
+  // -------------------------------------------------------------------------
+  // parseCodexSessionWithSummary — aggregate metadata for resume banner
+  // -------------------------------------------------------------------------
+
+  describe("parseCodexSessionWithSummary", () => {
+    it("extracts reasoning blocks and aggregates token usage", () => {
+      const dir = mkdtempSync(join(tmpdir(), "codex-summary-"))
+      const file = join(dir, "rollout-2026-04-12T12-00-abc-def-7372-98b3-84da7ad9dcb8.jsonl")
+      const lines = [
+        JSON.stringify({ timestamp: "2026-04-12T12:00:00Z", type: "session_meta", payload: { id: "019d809d-01b5-7372-98b3-84da7ad9dcb8", cwd: "/tmp" } }),
+        JSON.stringify({ timestamp: "2026-04-12T12:00:01Z", type: "event_msg", payload: { type: "user_message", message: "Hello" } }),
+        JSON.stringify({ timestamp: "2026-04-12T12:00:02Z", type: "response_item", payload: { type: "reasoning", summary: [{ text: "Analyzing the greeting" }], content: null } }),
+        JSON.stringify({ timestamp: "2026-04-12T12:00:03Z", type: "response_item", payload: { role: "assistant", content: [{ type: "output_text", text: "Hi there" }] } }),
+        JSON.stringify({ timestamp: "2026-04-12T12:00:04Z", type: "response_item", payload: { type: "function_call", name: "Read", arguments: "{\"path\":\"/etc/hosts\"}", id: "call-1" } }),
+        JSON.stringify({ timestamp: "2026-04-12T12:00:05Z", type: "response_item", payload: { type: "function_call_output", output: "127.0.0.1 localhost" } }),
+        JSON.stringify({ timestamp: "2026-04-12T12:00:06Z", type: "event_msg", payload: { type: "token_count", info: { total_token_usage: { input_tokens: 5000, cached_input_tokens: 1000, output_tokens: 200, total_tokens: 5200 }, last_token_usage: { input_tokens: 5000 }, model_context_window: 200_000 } } }),
+      ]
+      writeFileSync(file, lines.join("\n"))
+
+      const { blocks, summary } = parseCodexSessionWithSummary(file)
+
+      // Reasoning is now extracted as a thinking block.
+      const thinking = blocks.filter(b => b.type === "thinking")
+      expect(thinking).toHaveLength(1)
+      expect((thinking[0] as any).text).toContain("Analyzing the greeting")
+
+      // Tool call output is attached.
+      const tools = blocks.filter(b => b.type === "tool")
+      expect(tools).toHaveLength(1)
+      expect((tools[0] as any).output).toBe("127.0.0.1 localhost")
+
+      expect(summary.origin).toBe("codex")
+      expect(summary.target).toBe("codex")
+      expect(summary.sessionId).toBe("019d809d-01b5-7372-98b3-84da7ad9dcb8")
+      expect(summary.messageCount).toBeGreaterThanOrEqual(2)
+      expect(summary.toolCallCount).toBe(1)
+      expect(summary.contextWindowTokens).toBe(200_000)
+      expect(summary.usage).toBeDefined()
+      // input_tokens INCLUDES cached; summary should expose them as disjoint.
+      expect(summary.usage!.inputTokens).toBe(4000)
+      expect(summary.usage!.cacheReadTokens).toBe(1000)
+      expect(summary.usage!.outputTokens).toBe(200)
+      expect(summary.usage!.contextTokens).toBe(5000)
+      expect(summary.filePath).toBe(file)
+
+      rmSync(dir, { recursive: true })
+    })
+
+    it("returns an empty summary when the file can't be read", () => {
+      const { blocks, summary } = parseCodexSessionWithSummary("/nonexistent/session.jsonl")
+      expect(blocks).toEqual([])
+      expect(summary.origin).toBe("codex")
+      expect(summary.messageCount).toBe(0)
+      expect(summary.usage).toBeUndefined()
+    })
+  })
+
+  // -------------------------------------------------------------------------
+  // parseGeminiSessionWithSummary — aggregate metadata for resume banner
+  // -------------------------------------------------------------------------
+
+  describe("parseGeminiSessionWithSummary", () => {
+    it("extracts tool calls and aggregates per-turn token usage", () => {
+      const dir = mkdtempSync(join(tmpdir(), "gemini-summary-"))
+      const file = join(dir, "session.json")
+      const session = {
+        sessionId: "2cf9d7e7-6f02-401e-b1f5-62533a7c5730",
+        startTime: "2026-04-12T12:00:00Z",
+        lastUpdated: "2026-04-12T12:05:00Z",
+        messages: [
+          { type: "user", timestamp: "2026-04-12T12:00:00Z", content: [{ text: "Show me package.json" }] },
+          {
+            type: "gemini",
+            timestamp: "2026-04-12T12:00:05Z",
+            content: "Reading it now",
+            toolCalls: [
+              {
+                id: "read_file-1",
+                name: "read_file",
+                args: { file_path: "package.json" },
+                result: [{ functionResponse: { id: "read_file-1", name: "read_file", response: { output: "{\"name\":\"demo\"}" } } }],
+                status: "success",
+              },
+            ],
+            tokens: { input: 12_000, output: 50, cached: 8_000, thoughts: 30, tool: 0, total: 12_080 },
+            model: "gemini-3-flash-preview",
+          },
+        ],
+      }
+      writeFileSync(file, JSON.stringify(session))
+
+      const { blocks, summary } = parseGeminiSessionWithSummary(file)
+
+      // Tool call is now extracted as a tool block with output.
+      const tools = blocks.filter(b => b.type === "tool")
+      expect(tools).toHaveLength(1)
+      expect((tools[0] as any).tool).toBe("read_file")
+      expect((tools[0] as any).output).toContain("demo")
+
+      expect(summary.sessionId).toBe("2cf9d7e7-6f02-401e-b1f5-62533a7c5730")
+      expect(summary.origin).toBe("gemini")
+      expect(summary.toolCallCount).toBe(1)
+      expect(summary.usage).toBeDefined()
+      // Gemini's `input` includes `cached`; should be normalized to disjoint.
+      expect(summary.usage!.inputTokens).toBe(4000)
+      expect(summary.usage!.cacheReadTokens).toBe(8000)
+      // `thoughts` tokens roll into outputTokens.
+      expect(summary.usage!.outputTokens).toBe(80)
+      expect(summary.usage!.contextTokens).toBe(12_000)
 
       rmSync(dir, { recursive: true })
     })

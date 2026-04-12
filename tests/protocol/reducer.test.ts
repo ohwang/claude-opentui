@@ -4,8 +4,10 @@ import {
   createInitialState,
   type AgentEvent,
   type Block,
+  type ConversationEvent,
   type ConversationState,
   type ImageContent,
+  type SessionResumeSummary,
 } from "../../src/protocol/types"
 
 // Helper: apply a sequence of events to initial state
@@ -2035,6 +2037,131 @@ describe("ConversationState reducer", () => {
       expect(assistantBlocks).toHaveLength(1)
       expect(assistantBlocks[0]!).toMatchObject({ text: "Hello world" })
       expect(state.blocks).toHaveLength(2)
+    })
+  })
+
+  // -----------------------------------------------------------------------
+  // Resume lifecycle (SystemEvents)
+  // -----------------------------------------------------------------------
+
+  describe("history_load_started / history_loaded / history_load_failed", () => {
+    const sampleSummary: SessionResumeSummary = {
+      sessionId: "abc-123",
+      origin: "gemini",
+      target: "gemini",
+      messageCount: 12,
+      toolCallCount: 3,
+      turnCount: 6,
+      lastActiveAt: Date.now() - 3_600_000,
+      usage: {
+        inputTokens: 10_000,
+        outputTokens: 500,
+        cacheReadTokens: 0,
+        cacheCreationTokens: 0,
+        totalCostUsd: 0,
+        contextTokens: 10_000,
+      },
+      contextWindowTokens: 200_000,
+      filePath: "/tmp/session.json",
+    }
+
+    function reduceSeq(events: ConversationEvent[]): ConversationState {
+      return events.reduce((s, e) => reduce(s, e), createInitialState())
+    }
+
+    it("history_load_started sets state.resuming = true", () => {
+      const state = reduceSeq([
+        {
+          type: "history_load_started",
+          sessionId: "abc-123",
+          filePath: "/tmp/session.json",
+          origin: "gemini",
+        },
+      ])
+      expect(state.resuming).toBe(true)
+      expect(state.blocks).toHaveLength(0)
+    })
+
+    it("history_loaded appends a session_resume_summary block and clears resuming", () => {
+      const state = reduceSeq([
+        {
+          type: "history_load_started",
+          sessionId: "abc-123",
+          filePath: "/tmp/session.json",
+          origin: "gemini",
+        },
+        {
+          type: "history_loaded",
+          sessionId: "abc-123",
+          origin: "gemini",
+          target: "gemini",
+          summary: sampleSummary,
+        },
+      ])
+      expect(state.resuming).toBe(false)
+      expect(state.blocks).toHaveLength(1)
+      const block = state.blocks[0]!
+      expect(block.type).toBe("session_resume_summary")
+      expect((block as any).sessionId).toBe("abc-123")
+      expect((block as any).messageCount).toBe(12)
+      expect((block as any).usage.contextTokens).toBe(10_000)
+    })
+
+    it("history_loaded event fields override fields inside summary", () => {
+      const state = reduceSeq([
+        {
+          type: "history_loaded",
+          sessionId: "from-event",
+          origin: "codex",
+          target: "claude",
+          summary: { ...sampleSummary, sessionId: "stale", origin: "gemini", target: "gemini" },
+        },
+      ])
+      const block = state.blocks[0]! as any
+      expect(block.sessionId).toBe("from-event")
+      expect(block.origin).toBe("codex")
+      expect(block.target).toBe("claude")
+    })
+
+    it("history_load_failed appends an error block with sessionId, filePath, and error details", () => {
+      const state = reduceSeq([
+        {
+          type: "history_load_started",
+          sessionId: "bad-id",
+          filePath: "/tmp/missing.json",
+          origin: "gemini",
+        },
+        {
+          type: "history_load_failed",
+          sessionId: "bad-id",
+          filePath: "/tmp/missing.json",
+          origin: "gemini",
+          error: "Unexpected end of JSON input",
+          details: "SyntaxError: Unexpected end of JSON input\n    at parse (<anonymous>)",
+        },
+      ])
+      expect(state.resuming).toBe(false)
+      expect(state.blocks).toHaveLength(1)
+      const block = state.blocks[0]!
+      expect(block.type).toBe("error")
+      const errorBlock = block as Extract<Block, { type: "error" }>
+      expect(errorBlock.code).toBe("history_load_failed")
+      expect(errorBlock.message).toContain("bad-id")
+      expect(errorBlock.message).toContain("/tmp/missing.json")
+      expect(errorBlock.message).toContain("Unexpected end of JSON input")
+      expect(errorBlock.message).toContain("Starting a fresh session")
+    })
+
+    it("history_load_failed clears resuming even if started never fired", () => {
+      const state = reduceSeq([
+        {
+          type: "history_load_failed",
+          sessionId: "orphan",
+          error: "file not found",
+        },
+      ])
+      expect(state.resuming).toBe(false)
+      expect(state.blocks).toHaveLength(1)
     })
   })
 })

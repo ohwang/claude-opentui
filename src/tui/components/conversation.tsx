@@ -322,7 +322,7 @@ export function ConversationView(props: { children?: JSX.Element; footerHint?: s
           {/* Quick-start tips — shown when conversation is empty */}
           <box flexDirection="column">
             <Show when={committed().length === 0 && !state.streamingText}>
-              <box flexDirection="column" paddingLeft={2}>
+              <box flexDirection="column" paddingLeft={2} marginTop={1}>
                 <text fg={colors.text.muted}>
                   {"Tips to get started:"}
                 </text>

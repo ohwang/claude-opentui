@@ -78,7 +78,7 @@ export function HeaderBar() {
 
   // Text info lines aligned to logo rows (3 rows)
   return (
-    <box flexDirection="column" flexShrink={0} paddingBottom={1}>
+    <box flexDirection="column" flexShrink={0}>
       {/* Row 0: head + tail + app name + version */}
       <box flexDirection="row">
         <text fg={colors.accent.logo}>{LOGO_LINES[0]}</text>

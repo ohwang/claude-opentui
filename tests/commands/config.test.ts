@@ -284,7 +284,9 @@ describe("/config command", () => {
 
   it("has correct metadata", () => {
     expect(configCommand.name).toBe("config")
-    expect(configCommand.aliases).toContain("settings")
+    // `settings` is owned by the bantai `/settings` command now; `/config`
+    // must no longer claim it as an alias.
+    expect(configCommand.aliases ?? []).not.toContain("settings")
     expect(configCommand.argumentHint).toBe("[set <id> <value>]")
   })
 })

@@ -13,7 +13,6 @@ import type { ConfigOption } from "../../protocol/types"
 export const configCommand: SlashCommand = {
   name: "config",
   description: "View or change agent config options",
-  aliases: ["settings"],
   argumentHint: "[set <id> <value>]",
   execute: async (args, ctx) => {
     const state = ctx.getSessionState?.()

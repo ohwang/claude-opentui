@@ -143,6 +143,7 @@ import { screenshotCommand } from "./builtin/screenshot"
 import { thinkingCommand } from "./builtin/thinking"
 import { themeCommand } from "./builtin/theme"
 import { configCommand } from "./builtin/config"
+import { settingsCommand } from "./builtin/settings"
 import { crossagentCommand } from "../subagents/commands"
 
 /** Create a registry with all built-in commands */
@@ -171,6 +172,7 @@ export function createCommandRegistry(): CommandRegistry {
   registry.register(thinkingCommand)
   registry.register(themeCommand)
   registry.register(configCommand)
+  registry.register(settingsCommand)
   registry.register(crossagentCommand)
 
   return registry

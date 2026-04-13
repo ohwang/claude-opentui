@@ -318,23 +318,22 @@ describe("E2E: Subagent System", () => {
           backendOverride: "mock",
         })
 
-        // Wait for first turn to complete — mock "hello" response is ~33 words
-        // at 30-70ms each = ~1.6-2.3s, plus session_init overhead
-        await wait(4000)
-
-        const statusBefore = manager.getStatus(id)!
-        const turnsBefore = statusBefore.turnCount
-        expect(turnsBefore).toBeGreaterThanOrEqual(1)
-
-        // Send a follow-up (avoid special trigger words)
+        // Queue the follow-up MID-TURN so the manager stores it in
+        // messageQueue (midTurn=true). On turn_complete, the queued
+        // message is dequeued and delivered, triggering a second turn.
+        // If we waited until after turn_complete, the subagent would
+        // auto-terminate (see SubagentManager.handleTurnComplete) and
+        // sendMessage would be a no-op.
+        await wait(300)
         manager.sendMessage(id, "hi again")
 
-        // Wait for second turn to process
-        await wait(4000)
+        // Wait for both turns to complete. Mock responses are ~33 words
+        // at 30-70ms each = ~1.6-2.3s per turn; two turns plus overhead
+        // comfortably fit in 6s.
+        await wait(6000)
 
         const statusAfter = manager.getStatus(id)
-        // Turn count should have increased (the follow-up triggers a new turn)
-        expect(statusAfter!.turnCount).toBeGreaterThan(turnsBefore)
+        expect(statusAfter!.turnCount).toBeGreaterThanOrEqual(2)
       },
       { timeout: 15000 },
     )

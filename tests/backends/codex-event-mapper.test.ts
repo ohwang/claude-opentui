@@ -55,6 +55,56 @@ describe("Codex Event Mapper", () => {
       expect(events).toHaveLength(1)
       expect(events[0]!.type).toBe("compact")
     })
+
+    it("maps thread/compacted with summary and token metadata", () => {
+      const events = mapCodexNotification("thread/compacted", {
+        summary: "Discussed TypeScript refactor.",
+        preTokens: 90000,
+        postTokens: 22000,
+      })
+      expect(events).toHaveLength(1)
+      const ev = events[0]! as any
+      expect(ev.type).toBe("compact")
+      expect(ev.summary).toBe("Discussed TypeScript refactor.")
+      expect(ev.trigger).toBe("auto")
+      expect(ev.preTokens).toBe(90000)
+      expect(ev.postTokens).toBe(22000)
+    })
+
+    it("Codex dual compact events end up as a single block in reducer state", async () => {
+      // This guards against Codex emitting both `thread/compacted` (thread-level)
+      // and `item/started:contextCompaction` (item-level) for the same
+      // auto-compaction. The reducer must coalesce them.
+      const { reduce } = await import("../../src/protocol/reducer")
+      const { createInitialState } = await import("../../src/protocol/types")
+
+      const threadCompacted = mapCodexNotification("thread/compacted", {
+        summary: "Auto-compacted.",
+        preTokens: 80000,
+        postTokens: 12000,
+      })
+      const itemCompaction = mapCodexNotification("item/started", {
+        item: { type: "contextCompaction", id: "cc-1", summary: "Context compaction." },
+      })
+
+      expect(threadCompacted).toHaveLength(1)
+      expect(itemCompaction).toHaveLength(1)
+
+      let state = createInitialState()
+      state = reduce(state, { type: "session_init", tools: [], models: [] })
+      for (const ev of [...threadCompacted, ...itemCompaction]) {
+        state = reduce(state, ev)
+      }
+
+      const compactBlocks = state.blocks.filter(b => b.type === "compact")
+      expect(compactBlocks).toHaveLength(1)
+      // Dedup preserves token metadata from whichever event supplied it
+      const block = compactBlocks[0]!
+      if (block.type === "compact") {
+        expect(block.preTokens).toBe(80000)
+        expect(block.postTokens).toBe(12000)
+      }
+    })
   })
 
   describe("turn lifecycle", () => {

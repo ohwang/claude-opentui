@@ -70,10 +70,29 @@ export class JsonRpcTransport {
 
   /**
    * Spawn `codex app-server` and wire up stdio.
-   * Resolves once the process is running and ready for messages.
+   *
+   * Resolves once the subprocess has emitted the "spawn" event and stdin is
+   * writable — i.e. the kernel has given us a live process we can actually
+   * send bytes to. Without this gate, a subsequent `request("initialize")`
+   * can race an ENOENT from spawn() or a subprocess that crashed on startup
+   * before the first line of stdio was wired up.
+   *
+   * Rejects (instead of silently succeeding) when:
+   *   - spawn() emits an "error" event before "spawn" (ENOENT, EPERM, etc.)
+   *   - the subprocess exits before spawning is acknowledged
+   *   - readiness does not arrive within `readyTimeoutMs` (default 5s)
+   *
+   * When it rejects, the error message includes any captured stderr so the
+   * user sees the actual failure reason (e.g. "unknown subcommand 'app-server'")
+   * instead of a generic "Transport is closed".
    */
-  async start(command: string, args: string[]): Promise<void> {
-    log.info("Spawning Codex app-server", { command, args })
+  async start(
+    command: string,
+    args: string[],
+    opts?: { readyTimeoutMs?: number },
+  ): Promise<void> {
+    const readyTimeoutMs = opts?.readyTimeoutMs ?? 5_000
+    log.info("Spawning Codex app-server", { command, args, readyTimeoutMs })
 
     this.process = spawn(command, args, {
       stdio: ["pipe", "pipe", "pipe"],
@@ -111,9 +130,12 @@ export class JsonRpcTransport {
       log.info("Codex app-server exited", { code, signal })
       if (!this.closed) {
         this.closed = true
-        // Reject all pending requests
+        // Reject all pending requests with the captured stderr so users see
+        // the actual crash reason instead of a generic "Transport closed".
+        const stderrTail = this.getStderrTail()
+        const baseMsg = `Codex app-server exited (code=${code}, signal=${signal})`
         const err = new Error(
-          `Codex app-server exited (code=${code}, signal=${signal})`,
+          stderrTail ? `${baseMsg}\n\nstderr:\n${stderrTail}` : baseMsg,
         )
         for (const [, pending] of this.pendingRequests) {
           pending.reject(err)
@@ -132,6 +154,81 @@ export class JsonRpcTransport {
         this.pendingRequests.clear()
       }
     })
+
+    // Wait for the subprocess to actually spawn (or fail loudly) before
+    // returning. We race three signals:
+    //   - "spawn": kernel gave us a pid and stdin is writable
+    //   - "error": spawn itself failed (ENOENT, EPERM)
+    //   - "exit" before "spawn": the subprocess died immediately on startup
+    //   - timeout: the subprocess is hanging during startup (stuck on TTY probe, etc.)
+    //
+    // On any failure path we surface captured stderr so the caller gets a
+    // concrete reason rather than "Transport is closed".
+    await new Promise<void>((resolve, reject) => {
+      let settled = false
+      const done = (err?: Error) => {
+        if (settled) return
+        settled = true
+        clearTimeout(timer)
+        this.process?.off("spawn", onSpawn)
+        this.process?.off("error", onError)
+        this.process?.off("exit", onExit)
+        if (err) reject(err)
+        else resolve()
+      }
+
+      const onSpawn = () => {
+        // `spawn` fires once the kernel reports the child is live. stdin.writable
+        // is expected to be true at this point; guard against edge cases where
+        // the stream was destroyed synchronously.
+        if (!this.process?.stdin?.writable) {
+          const tail = this.getStderrTail()
+          done(
+            new Error(
+              tail
+                ? `Codex app-server stdin not writable after spawn\n\nstderr:\n${tail}`
+                : "Codex app-server stdin not writable after spawn",
+            ),
+          )
+          return
+        }
+        done()
+      }
+      const onError = (err: Error) => {
+        const tail = this.getStderrTail()
+        done(
+          new Error(
+            tail
+              ? `Failed to spawn '${command}': ${err.message}\n\nstderr:\n${tail}`
+              : `Failed to spawn '${command}': ${err.message}`,
+          ),
+        )
+      }
+      const onExit = (code: number | null, signal: NodeJS.Signals | null) => {
+        const tail = this.getStderrTail()
+        const base = `Codex app-server exited before ready (code=${code}, signal=${signal})`
+        done(new Error(tail ? `${base}\n\nstderr:\n${tail}` : base))
+      }
+
+      this.process!.once("spawn", onSpawn)
+      this.process!.once("error", onError)
+      this.process!.once("exit", onExit)
+
+      const timer = setTimeout(() => {
+        const tail = this.getStderrTail()
+        const base = `Codex app-server did not become ready within ${readyTimeoutMs}ms`
+        done(new Error(tail ? `${base}\n\nstderr:\n${tail}` : base))
+      }, readyTimeoutMs)
+    })
+  }
+
+  /** Return the last ~4KB of captured stderr for error messages. */
+  private getStderrTail(maxBytes = 4096): string {
+    if (this.stderrChunks.length === 0) return ""
+    const joined = this.stderrChunks.join("\n")
+    return joined.length > maxBytes
+      ? "…(truncated)…\n" + joined.slice(-maxBytes)
+      : joined
   }
 
   /**

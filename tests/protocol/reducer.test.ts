@@ -1626,6 +1626,136 @@ describe("ConversationState reducer", () => {
   })
 
   // -----------------------------------------------------------------------
+  // Compact lifecycle / edge cases (audit: compaction-audit-and-bugbash)
+  // -----------------------------------------------------------------------
+
+  describe("compact (lifecycle edge cases)", () => {
+    it("in-progress event creates a placeholder block with inProgress=true", () => {
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "compact", summary: "Compacting...", inProgress: true, trigger: "user" },
+      ])
+      expect(state.blocks).toHaveLength(1)
+      const block = state.blocks[0]!
+      expect(block.type).toBe("compact")
+      if (block.type === "compact") {
+        expect(block.inProgress).toBe(true)
+        expect(block.trigger).toBe("user")
+      }
+    })
+
+    it("completion event replaces the in-progress placeholder (single block, not two)", () => {
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "compact", summary: "Compacting...", inProgress: true, trigger: "user" },
+        {
+          type: "compact",
+          summary: "Summary of conversation.",
+          trigger: "user",
+          preTokens: 50000,
+          postTokens: 12000,
+        },
+      ])
+      const compactBlocks = state.blocks.filter(b => b.type === "compact")
+      expect(compactBlocks).toHaveLength(1)
+      const block = compactBlocks[0]!
+      if (block.type === "compact") {
+        expect(block.inProgress).toBeFalsy()
+        expect(block.summary).toBe("Summary of conversation.")
+        expect(block.preTokens).toBe(50000)
+        expect(block.postTokens).toBe(12000)
+      }
+    })
+
+    it("orphaned in-progress (never completed) remains visible with inProgress=true", () => {
+      // Simulates a crashed/interrupted backend: compacting spinner starts,
+      // compact_boundary never arrives. The TUI should still render the spinner
+      // block; it's up to higher-level flows (interrupt, turn_complete) to
+      // resolve the spinner state.
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "compact", summary: "Compacting...", inProgress: true, trigger: "user" },
+        { type: "user_message", text: "next turn" },
+      ])
+      const compactBlocks = state.blocks.filter(b => b.type === "compact")
+      expect(compactBlocks).toHaveLength(1)
+      const block = compactBlocks[0]!
+      if (block.type === "compact") {
+        expect(block.inProgress).toBe(true)
+      }
+    })
+
+    it("completion without prior in-progress appends a fresh block", () => {
+      // Codex auto-compaction path: only a single completion event arrives.
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "user_message", text: "hello" },
+        { type: "turn_start" },
+        { type: "text_complete", text: "hi" },
+        { type: "turn_complete" },
+        { type: "compact", summary: "Auto-compacted by Codex.", trigger: "auto" },
+      ])
+      const compactBlocks = state.blocks.filter(b => b.type === "compact")
+      expect(compactBlocks).toHaveLength(1)
+      const block = compactBlocks[0]!
+      if (block.type === "compact") {
+        expect(block.trigger).toBe("auto")
+        expect(block.inProgress).toBeFalsy()
+      }
+    })
+
+    it("compact event arriving mid-turn does not tear down the turn", () => {
+      // A compact event should not reset sessionState; turn lifecycle is
+      // governed by turn_start/turn_complete, not compact.
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "user_message", text: "work" },
+        { type: "turn_start" },
+        { type: "text_delta", text: "thinking..." },
+        { type: "compact", summary: "Compacting mid-turn.", trigger: "auto" },
+      ])
+      expect(state.sessionState).toBe("RUNNING")
+      const compactBlocks = state.blocks.filter(b => b.type === "compact")
+      expect(compactBlocks).toHaveLength(1)
+      // Streaming text buffer should not be corrupted by the compact event
+      expect(state.streamingText).toBe("thinking...")
+    })
+
+    it("a compact block separated by other blocks is not coalesced with a later one", () => {
+      // Two genuinely distinct compactions (separated by user/assistant
+      // activity) should still produce two compact blocks.
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "compact", summary: "First compaction.", trigger: "auto" },
+        { type: "user_message", text: "continue" },
+        { type: "turn_start" },
+        { type: "text_complete", text: "ok" },
+        { type: "turn_complete" },
+        { type: "compact", summary: "Second compaction.", trigger: "auto" },
+      ])
+      const compactBlocks = state.blocks.filter(b => b.type === "compact")
+      expect(compactBlocks).toHaveLength(2)
+    })
+
+    it("strips SDK local-command XML wrappers from summary", () => {
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        {
+          type: "compact",
+          summary: "<local-command-stdout>Compacted.</local-command-stdout>",
+          trigger: "user",
+        },
+      ])
+      const block = state.blocks[0]!
+      if (block.type === "compact") {
+        expect(block.summary).not.toContain("local-command-stdout")
+        expect(block.summary).toContain("Compacted.")
+      }
+    })
+
+  })
+
+  // -----------------------------------------------------------------------
   // Edge cases
   // -----------------------------------------------------------------------
 

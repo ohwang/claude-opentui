@@ -294,11 +294,8 @@ export function createKeyHandler(
       return
     }
 
-    if (e.ctrl && !e.shift && e.name === "p") {
-      e.preventDefault()
-      getTextareaRef()?.moveCursorUp()
-      return
-    }
+    // NOTE: Ctrl+P is reserved for the global command palette (VSCode style).
+    // Emacs-style previous-line in the textarea is accessible via the Up arrow.
 
     if (e.ctrl && !e.shift && e.name === "d") {
       e.preventDefault()

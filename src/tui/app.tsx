@@ -27,8 +27,10 @@ import { startMcpHttpServer, stopMcpHttpServer } from "../mcp/server"
 import { colors } from "./theme/tokens"
 import { ConversationView } from "./components/conversation"
 import { Divider } from "./components/primitives"
-import { InputArea, clearInput, hasInputText, refocusInput, hideCursor, showCursor, isCursorHidden, getInputHistory, setInputText } from "./components/input-area"
+import { InputArea, clearInput, hasInputText, refocusInput, hideCursor, showCursor, isCursorHidden, getInputHistory, setInputText, commandRegistry } from "./components/input-area"
 import { HistorySearchModal } from "./components/history-search"
+import { CommandPalette } from "./components/command-palette"
+import type { SlashCommand } from "../commands/registry"
 import { StatusBar } from "./components/status-bar"
 import { PermissionDialog } from "./components/permission-dialog"
 import { ElicitationDialog } from "./components/elicitation"
@@ -347,7 +349,7 @@ function Layout(props: { onExit?: () => void }) {
       return
     }
 
-    // Ctrl+Shift+P: cycle models (Ctrl+P freed for Emacs previous-line)
+    // Ctrl+Shift+P: cycle models (Ctrl+P opens the command palette)
     if (event.ctrl && event.shift && event.name === "p") {
       event.preventDefault()
       cycleModel(1)
@@ -364,6 +366,61 @@ function Layout(props: { onExit?: () => void }) {
           onSelect={(text) => {
             modal.dismiss()
             setInputText(text)
+            refocusInput()
+          }}
+          onCancel={() => {
+            modal.dismiss()
+            refocusInput()
+          }}
+        />
+      ))
+      return
+    }
+
+    // Ctrl+P: open command palette (fuzzy search over slash commands).
+    // Guarded with !modal.isActive() to prevent double-open. Ctrl+Shift+P
+    // is reserved for model cycling (above); unshifted Ctrl+P is free.
+    if (event.ctrl && !event.shift && event.name === "p") {
+      if (modal.isActive()) return
+      event.preventDefault()
+      modal.show(() => (
+        <CommandPalette
+          registry={commandRegistry}
+          onInvokeCommand={(cmd: SlashCommand) => {
+            modal.dismiss()
+            // Route through the same CommandContext the textarea submit
+            // path uses so side effects (events pushed, backend calls,
+            // history, etc.) are identical. The palette never passes args;
+            // commands that need args should surface their own UI.
+            commandRegistry
+              .tryExecute(`/${cmd.name}`, {
+                backend: agent.backend,
+                pushEvent: sync.pushEvent,
+                clearConversation: sync.clearConversation,
+                resetCost: sync.resetCost,
+                resetSession: async () => { await agent.backend.resetSession?.() },
+                setModel: (model: string) => agent.backend.setModel(model),
+                switchBackend: (opts) => sync.switchBackend(opts),
+                exit: triggerCleanExit,
+                toggleDiagnostics,
+                getSessionState: () => ({
+                  cost: session.cost,
+                  turnNumber: session.turnNumber,
+                  currentModel: session.currentModel,
+                  currentEffort: session.currentEffort,
+                  session: session.session,
+                  configOptions: session.configOptions,
+                  sessionState: session.sessionState,
+                }),
+                getBlocks: () => messagesState.blocks,
+                renderer,
+              })
+              .catch((err: unknown) => {
+                log.error("Command palette invocation failed", {
+                  command: cmd.name,
+                  error: err instanceof Error ? err.message : String(err),
+                })
+              })
             refocusInput()
           }}
           onCancel={() => {

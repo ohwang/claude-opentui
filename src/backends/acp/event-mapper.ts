@@ -26,6 +26,7 @@
  */
 
 import { log } from "../../utils/logger"
+import { buildUnifiedDiff } from "../../utils/format-diff"
 import type { AgentEvent, PlanEntry } from "../../protocol/types"
 import type {
   AcpSessionUpdateParams,
@@ -423,26 +424,12 @@ function extractDiffContent(content?: AcpToolContent[]): string {
 
 /**
  * Convert an ACP diff content block to unified diff text format.
- * Produces `--- a/path` + `+++ b/path` + `@@ ` hunk headers that
- * tool-view.tsx detects for rendering with the `<diff>` component.
+ *
+ * Thin wrapper over {@link buildUnifiedDiff} — the shared helper in
+ * `src/utils/format-diff.ts` handles edge cases (empty oldText / newText)
+ * and produces the `--- a/path` + `+++ b/path` + `@@ ` hunk headers that
+ * `isDiffOutput()` detects and `<diff>` renders.
  */
 function formatDiffContent(diff: { path: string; oldText: string; newText: string }): string {
-  const oldLines = diff.oldText.split("\n")
-  const newLines = diff.newText.split("\n")
-
-  const lines: string[] = []
-  lines.push(`--- a/${diff.path}`)
-  lines.push(`+++ b/${diff.path}`)
-
-  // Simple unified diff: show full file as one hunk
-  lines.push(`@@ -1,${oldLines.length} +1,${newLines.length} @@`)
-
-  for (const line of oldLines) {
-    lines.push(`-${line}`)
-  }
-  for (const line of newLines) {
-    lines.push(`+${line}`)
-  }
-
-  return lines.join("\n")
+  return buildUnifiedDiff(diff)
 }

@@ -90,9 +90,18 @@ export function InputArea() {
   let fileSearchTimer: ReturnType<typeof setTimeout> | undefined
   onCleanup(() => clearTimeout(fileSearchTimer))
 
-  // Dynamic textarea height: grows with content lines (min 1, max 6)
+  // Dynamic textarea height: grows with content lines (min 1, max 20)
+  const MAX_TEXTAREA_LINES = 20
   const [lineCount, setLineCount] = createSignal(1)
-  const textareaHeight = () => Math.min(Math.max(lineCount(), 1), 6)
+  const textareaHeight = () => Math.min(Math.max(lineCount(), 1), MAX_TEXTAREA_LINES)
+
+  // Tracks textarea scroll offset so we can show a "hidden above" indicator
+  // when content exceeds the visible cap and the viewport has scrolled down.
+  const [scrollOffset, setScrollOffset] = createSignal(0)
+  const refreshScrollOffset = () => {
+    const y = textareaRef?.scrollY ?? 0
+    setScrollOffset(y > 0 ? y : 0)
+  }
 
   // Reactive image attachment count for UI indicator
   const [attachedImageCount, setAttachedImageCount] = createSignal(0)
@@ -113,13 +122,17 @@ export function InputArea() {
   }
 
   // Register module-level callbacks so exported functions can update height
-  setResetLineCount(() => setLineCount(1))
+  setResetLineCount(() => {
+    setLineCount(1)
+    setScrollOffset(0)
+  })
 
   /** Count visual lines (accounting for word wrap) and update the signal */
   const updateLineCount = () => {
     const text = textareaRef?.plainText ?? ""
     const width = (dims()?.width ?? 120) - 3
     setLineCount(computeVisualLineCount(text, width))
+    refreshScrollOffset()
   }
 
   setUpdateLineCount(updateLineCount)
@@ -448,6 +461,15 @@ export function InputArea() {
         </box>
       </Show>
 
+      {/* Overflow indicator: earlier lines are hidden above the viewport */}
+      <Show when={scrollOffset() > 0}>
+        <box flexDirection="row" paddingLeft={2}>
+          <text fg={colors.text.muted} attributes={TextAttributes.DIM}>
+            {`\u25B2 ${scrollOffset()} line${scrollOffset() === 1 ? "" : "s"} hidden above`}
+          </text>
+        </box>
+      </Show>
+
       {/* Input row with > prompt prefix */}
       <box flexDirection="row">
         <box width={2} flexShrink={0}>
@@ -465,6 +487,8 @@ export function InputArea() {
             { name: "return", meta: true, action: "newline" },
           ]}
           onKeyDown={handleKeyDown}
+          onCursorChange={refreshScrollOffset}
+          onContentChange={refreshScrollOffset}
           onSubmit={submit}
           flexGrow={1}
         />

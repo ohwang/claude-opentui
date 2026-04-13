@@ -11,7 +11,6 @@ import { tmpdir } from "os"
 import { join } from "path"
 import { writeFileSync, readFileSync, unlinkSync } from "fs"
 import { log } from "../../utils/logger"
-import { toast } from "../context/toast"
 import { parseCommandString } from "./command-parser"
 
 // ---------------------------------------------------------------------------
@@ -163,7 +162,6 @@ export function truncatePastedText(text: string): string {
   const marker = `\n[...Pasted text #${refNum}: +${truncatedLines} more lines, ${text.length.toLocaleString()} chars total...]`
 
   log.info("Large paste truncated", { refNum, chars: text.length, lines: lineCount })
-  toast.info(`Large paste stored as ref #${refNum} (${text.length.toLocaleString()} chars)`, 4000)
 
   return preview + marker
 }

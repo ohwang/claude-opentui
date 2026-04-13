@@ -368,6 +368,71 @@ describe("cross-backend session resume", () => {
       expect(contextText).toContain("On branch main\nnothing to commit")
       expect(toolCallCount).toBe(1)
     })
+
+    it("preserves compact blocks when resuming across backends", () => {
+      // Session has a compact boundary in the middle — resuming on a different
+      // backend must inject the [Compacted context: ...] marker at the correct
+      // position so the new backend knows the earlier turns were summarized.
+      const blocks: Block[] = [
+        { type: "user", text: "Talk about typescript" },
+        { type: "assistant", text: "TypeScript is a superset of JavaScript." },
+        {
+          type: "compact",
+          summary: "Discussed TypeScript features and compiler options.",
+          trigger: "auto",
+          preTokens: 80000,
+          postTokens: 20000,
+        },
+        { type: "user", text: "Now talk about Zig" },
+        { type: "assistant", text: "Zig is a low-level systems language." },
+      ]
+
+      const { contextText, turnCount } = formatFullHistory(blocks, "codex")
+
+      expect(contextText).toContain("[Compacted context: Discussed TypeScript features and compiler options.]")
+      // The compact marker must appear BEFORE the second user turn in the output
+      const compactIdx = contextText.indexOf("[Compacted context:")
+      const secondUserIdx = contextText.indexOf("Now talk about Zig")
+      const firstUserIdx = contextText.indexOf("Talk about typescript")
+      expect(firstUserIdx).toBeLessThan(compactIdx)
+      expect(compactIdx).toBeLessThan(secondUserIdx)
+      // Two user turns = two numbered turns
+      expect(turnCount).toBe(2)
+    })
+
+    it("preserves multiple back-to-back compact blocks when resuming", () => {
+      // Defensive: even if two compact blocks slip through (historical sessions
+      // saved before dedup landed), history formatting must not drop either.
+      const blocks: Block[] = [
+        { type: "user", text: "hello" },
+        { type: "assistant", text: "hi" },
+        { type: "compact", summary: "First summary." },
+        { type: "compact", summary: "Second summary." },
+        { type: "user", text: "next" },
+      ]
+
+      const { contextText } = formatFullHistory(blocks, "claude")
+
+      expect(contextText).toContain("[Compacted context: First summary.]")
+      expect(contextText).toContain("[Compacted context: Second summary.]")
+    })
+
+    it("context-text formatter (ephemeral injection) also preserves compact boundaries", () => {
+      const blocks: Block[] = [
+        { type: "user", text: "Q1" },
+        { type: "assistant", text: "A1" },
+        { type: "compact", summary: "Earlier conversation summarized." },
+        { type: "user", text: "Q2" },
+        { type: "assistant", text: "A2" },
+      ]
+
+      const { contextText } = formatHistoryAsContext(blocks)
+      expect(contextText).toContain("[Compacted context: Earlier conversation summarized.]")
+      // Order check
+      const markerIdx = contextText.indexOf("[Compacted context:")
+      const q2Idx = contextText.indexOf("Q2")
+      expect(markerIdx).toBeLessThan(q2Idx)
+    })
   })
 
   // ---------------------------------------------------------------------------

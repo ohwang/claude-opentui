@@ -23,6 +23,7 @@ import { useKeyboard } from "@opentui/solid"
 import { ScrollView } from "./scroll-view"
 import { useMessages } from "../context/messages"
 import { useSession } from "../context/session"
+import { useSync } from "../context/sync"
 import { ThinkingBlock } from "./thinking-block"
 import { TaskView } from "./task-view"
 import { NativeSubagentView } from "./native-subagent-view"
@@ -62,6 +63,7 @@ function isNearBottom(ref: ScrollBoxRenderable, threshold = 3): boolean {
 export function ConversationView(props: { children?: JSX.Element; footerHint?: string | null }) {
   const { state } = useMessages()
   const { state: session } = useSession()
+  const { switchProgress } = useSync()
   const [viewLevel, setViewLevel] = createSignal<ViewLevel>("collapsed")
   const [showThinking, setShowThinking] = createSignal(true)
   const [viewLevelHint, setViewLevelHint] = createSignal<string | null>(null)
@@ -445,6 +447,20 @@ export function ConversationView(props: { children?: JSX.Element; footerHint?: s
             }>
               <box marginTop={1} paddingLeft={2}>
                 <StreamingSpinner label={spinnerLabel()} elapsedSeconds={turnElapsed()} outputTokens={state.streamingOutputTokens || session.cost.outputTokens} />
+              </box>
+            </Show>
+          </box>
+
+          {/* Switch-in-progress spinner — shown while /switch is mid-swap.
+              Reuses StreamingSpinner for visual consistency; its label
+              updates from sync.tsx as phases transition ("Starting Codex...",
+              "Staged conversation history...", etc.). Clears the instant
+              switchBackend() resolves. Fixes bug #5 — no user-visible
+              progress during post-switch init. */}
+          <box flexDirection="column">
+            <Show when={switchProgress()}>
+              <box marginTop={1} paddingLeft={2}>
+                <StreamingSpinner label={switchProgress()?.phase ?? ""} />
               </box>
             </Show>
           </box>

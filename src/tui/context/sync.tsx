@@ -15,7 +15,9 @@ import {
   onMount,
   onCleanup,
   createEffect,
+  createSignal,
   batch,
+  type Accessor,
   type ParentProps,
 } from "solid-js"
 import { reconcile } from "solid-js/store"
@@ -26,6 +28,7 @@ import {
 } from "../../protocol/types"
 import { EventBatcher } from "../../utils/event-batcher"
 import { log } from "../../utils/logger"
+import { friendlyBackendName } from "../models"
 import { useAgent } from "./agent"
 import { useMessages } from "./messages"
 import { useSession } from "./session"
@@ -52,6 +55,19 @@ export interface SwitchBackendOptions {
   adapter: import("../../protocol/types").AgentBackend
 }
 
+/** User-visible progress while a /switch is in flight. Consumed by the
+ *  conversation view to render an inline spinner with phase labels so the
+ *  user knows work is still happening between "Switched to X" and "ready
+ *  to type". null once the switch completes (success or failure). */
+export interface SwitchProgress {
+  /** Registry id of the target backend ("codex", "claude", ...) */
+  backendId: string
+  /** Human-readable backend name shown alongside the phase (e.g. "Codex") */
+  backendName: string
+  /** Current phase label: "Starting X...", "Replaying history...", etc. */
+  phase: string
+}
+
 export interface SyncContextValue {
   /** Manually push an event (for slash commands, synthetic events, etc.) */
   pushEvent: (event: ConversationEvent) => void
@@ -63,15 +79,22 @@ export interface SyncContextValue {
   resetCost: () => void
   /**
    * Swap the active backend in place. Only valid when the session is IDLE —
-   * callers must enforce that gate. Closes the previous adapter, replays the
-   * full block history into the new adapter's initialPrompt, restarts the
-   * event loop, and emits a system message announcing the switch.
+   * callers must enforce that gate. Closes the previous adapter, stashes the
+   * full block history onto the new adapter's replayContext (to ride along
+   * with the next real user message), restarts the event loop, and resolves
+   * only once the new adapter reports ready (subprocess alive, handshake
+   * complete, replay stashed, message loop listening).
    *
-   * Returns a promise that resolves once the new backend has emitted its
-   * first `session_init`; rejects on timeout (10s) or adapter construction
-   * failure. The caller can use this to sequence a "Switched to X" message.
+   * Rejects on adapter startup failure (with the underlying error, including
+   * subprocess stderr from the Codex transport) or a 15s timeout. The caller
+   * can use this to sequence a "Switched to X" message safely: when the
+   * promise resolves, user typing is guaranteed to reach a ready backend.
    */
   switchBackend: (opts: SwitchBackendOptions) => Promise<void>
+  /** Live progress signal for an in-flight /switch — null when no switch is
+   *  running. Consumed by the conversation view to render an inline spinner
+   *  with phase labels. */
+  switchProgress: Accessor<SwitchProgress | null>
 }
 
 export const SyncContext = createContext<SyncContextValue>()
@@ -97,6 +120,12 @@ export function SyncProvider(props: ParentProps) {
   // Resolves once the next session_init lands. switchBackend() awaits this
   // so callers can sequence "Switched to X" only after the new backend is up.
   let pendingInitResolvers: Array<() => void> = []
+
+  // Reactive progress signal for an in-flight /switch. Written inside
+  // switchBackend() at each phase boundary; read by the conversation view
+  // to render an inline spinner with phase labels (bug #5 — no user-visible
+  // progress during post-switch init).
+  const [switchProgress, setSwitchProgress] = createSignal<SwitchProgress | null>(null)
 
   // Apply a batch of events through the reducer, then update all stores
   const applyEvents = (events: ConversationEvent[]) => {
@@ -309,110 +338,158 @@ export function SyncProvider(props: ParentProps) {
    * Hot-swap the active backend. The caller is responsible for gating on IDLE
    * — we don't re-check here because the command layer needs to format the
    * rejection message anyway.
+   *
+   * Readiness contract: this resolves only after the new adapter reports
+   * ready via whenReady() — subprocess alive, handshake done, replayContext
+   * stashed, message loop listening. Before that point, any user typing
+   * would race the replay-prepend path. See bug #4 in
+   * team/backlog/done/switch-backend-broken-first-message.md.
+   *
+   * Progress: `switchProgress` is set at each phase transition so the UI
+   * can render "Starting Codex...", etc. Always cleared on return (success
+   * or failure) via the finally block.
    */
   const switchBackend = async (opts: SwitchBackendOptions): Promise<void> => {
     const oldBackend = agent.backendAccessor()
     const oldName = oldBackend.capabilities().name
     const newName = opts.adapter.capabilities().name
+    const friendlyNewName = friendlyBackendName(newName)
     log.info("Switching backend", { from: oldName, to: newName, model: opts.model })
 
-    // Step 1: bump the generation so the running for-await loop stops
-    // forwarding events as soon as it next yields.
-    loopGeneration++
+    // Phase: closing previous
+    setSwitchProgress({
+      backendId: opts.backendId,
+      backendName: friendlyNewName,
+      phase: `Closing ${friendlyBackendName(oldName)}...`,
+    })
 
-    // Step 2: close the old backend. This drains its EventChannel and breaks
-    // the for-await loop. Done before swapping the signal so any in-flight
-    // events from the dying adapter still see the old reference if anything
-    // reads it during teardown.
     try {
-      oldBackend.close()
-    } catch (e) {
-      log.warn("Old backend close threw during switch", { error: String(e) })
-    }
+      // Step 1: bump the generation so the running for-await loop stops
+      // forwarding events as soon as it next yields.
+      loopGeneration++
 
-    // Step 3: build a full-history replay so the new adapter has the
-    // conversation in its model context. We deliberately use formatFullHistory
-    // (the same primitive used for cross-backend resume) instead of a one-line
-    // summary — a previous attempt at a single-prompt summarization lost
-    // tool-call fidelity. See team/backlog/done/cross-backend-session-resume.md.
-    const blocks = conversationState.blocks
-    let replayText: string | undefined
-    if (blocks.length > 0) {
-      const { contextText } = formatFullHistory(blocks, oldName)
-      replayText = contextText
-    }
+      // Step 2: close the old backend. This drains its EventChannel and breaks
+      // the for-await loop. Done before swapping the signal so any in-flight
+      // events from the dying adapter still see the old reference if anything
+      // reads it during teardown.
+      try {
+        oldBackend.close()
+      } catch (e) {
+        log.warn("Old backend close threw during switch", { error: String(e) })
+      }
 
-    // Step 4: stash the replay text on config.replayContext. The contract
-    // there (see SessionConfig.replayContext) is that adapters MUST NOT
-    // send it as a user turn — they stash it and prepend it, marked as
-    // historical, to the next real user message. Previously we set
-    // config.initialPrompt, which Codex forwarded to startTurn(), producing
-    // a phantom response turn that queued the user's first real message
-    // behind a replay response. Clear resume/continue: this is a fresh
-    // session on the target backend; we never resume into a session id
-    // that doesn't belong to it. Also clear initialPrompt to avoid leaking
-    // a prior CLI prompt into the switched session.
-    agent.config.replayContext = replayText
-    agent.config.initialPrompt = undefined
-    agent.config.resume = undefined
-    agent.config.continue = undefined
-    agent.config.sessionOrigin = newName as any
+      // Step 3: build a full-history replay so the new adapter has the
+      // conversation in its model context. We deliberately use formatFullHistory
+      // (the same primitive used for cross-backend resume) instead of a one-line
+      // summary — a previous attempt at a single-prompt summarization lost
+      // tool-call fidelity. See team/backlog/done/cross-backend-session-resume.md.
+      const blocks = conversationState.blocks
+      let replayText: string | undefined
+      if (blocks.length > 0) {
+        const { contextText } = formatFullHistory(blocks, oldName)
+        replayText = contextText
+      }
 
-    // Step 5: swap the backend signal so every reactive reader (status bar,
-    // header, diagnostics) re-renders with the new backend's name.
-    agent.setBackend(opts.adapter)
+      // Step 4: stash the replay text on config.replayContext. The contract
+      // there (see SessionConfig.replayContext) is that adapters MUST NOT
+      // send it as a user turn — they stash it and prepend it, marked as
+      // historical, to the next real user message. Clear resume/continue
+      // and initialPrompt to avoid leaking prior CLI-session state.
+      agent.config.replayContext = replayText
+      agent.config.initialPrompt = undefined
+      agent.config.resume = undefined
+      agent.config.continue = undefined
+      agent.config.sessionOrigin = newName as any
 
-    // Step 6: arrange to be notified once the new backend emits session_init.
-    const ready = new Promise<void>((resolve) => {
-      pendingInitResolvers.push(resolve)
-    })
+      // Step 5: swap the backend signal so every reactive reader (status bar,
+      // header, diagnostics) re-renders with the new backend's name.
+      agent.setBackend(opts.adapter)
 
-    // Step 7: reset session-level reducer state so the status bar doesn't
-    // show stale model / cost from the old backend during the gap. The block
-    // history is preserved deliberately — the user wants to see prior turns.
-    conversationState = {
-      ...conversationState,
-      sessionState: "INITIALIZING",
-      session: null,
-      currentModel: opts.model ?? null,
-      currentEffort: null,
-      configOptions: [],
-      agentCommands: [],
-    }
-    batch(() => {
-      session.setState("sessionState", "INITIALIZING")
-      session.setState("session", reconcile(null))
-      session.setState("currentModel", opts.model ?? "")
-      session.setState("currentEffort", "")
-      session.setState("configOptions", reconcile([]))
-      session.setState("agentCommands", reconcile([]))
-    })
+      // Step 6: reset session-level reducer state so the status bar doesn't
+      // show stale model / cost from the old backend during the gap. The block
+      // history is preserved deliberately — the user wants to see prior turns.
+      conversationState = {
+        ...conversationState,
+        sessionState: "INITIALIZING",
+        session: null,
+        currentModel: opts.model ?? null,
+        currentEffort: null,
+        configOptions: [],
+        agentCommands: [],
+      }
+      batch(() => {
+        session.setState("sessionState", "INITIALIZING")
+        session.setState("session", reconcile(null))
+        session.setState("currentModel", opts.model ?? "")
+        session.setState("currentEffort", "")
+        session.setState("configOptions", reconcile([]))
+        session.setState("agentCommands", reconcile([]))
+      })
 
-    // Step 8: kick off the new event loop. Don't await — startEventLoop runs
-    // for the lifetime of the session.
-    startEventLoop()
+      // Phase: starting subprocess + handshake
+      setSwitchProgress({
+        backendId: opts.backendId,
+        backendName: friendlyNewName,
+        phase: `Starting ${friendlyNewName}...`,
+      })
 
-    // Step 9: apply the model override after the backend reports ready, so
-    // setModel doesn't race the SDK's own startup sequence.
-    if (opts.model) {
-      ready.then(() => {
-        opts.adapter.setModel(opts.model!).catch((err: unknown) => {
+      // Step 7: kick off the new event loop. Don't await — startEventLoop runs
+      // for the lifetime of the session.
+      startEventLoop()
+
+      // Step 8: wait for the new backend to be TRULY ready to accept messages.
+      //
+      // We prefer whenReady() (the explicit gate adapters signal after
+      // stashing replayContext + entering runMessageLoop). If an adapter
+      // doesn't expose it — shouldn't happen for our three current ones, but
+      // the interface marks it optional — we fall back to awaiting
+      // session_init, matching the pre-fix behavior.
+      //
+      // The 15s timeout is deliberately generous: Codex app-server spawn
+      // alone can take ~2-3s on cold start, the handshake another ~1s,
+      // leaving comfortable headroom. Errors during startup surface via
+      // whenReady() rejection (carrying subprocess stderr from ae7c53b's
+      // fix) rather than as a hollow timeout.
+      const ready: Promise<void> = opts.adapter.whenReady
+        ? opts.adapter.whenReady()
+        : new Promise<void>((resolve) => { pendingInitResolvers.push(resolve) })
+
+      const timeout = new Promise<void>((_, reject) => {
+        setTimeout(
+          () => reject(new Error(`${friendlyNewName} did not become ready within 15s`)),
+          15_000,
+        )
+      })
+
+      await Promise.race([ready, timeout])
+
+      // Phase: replay staged (brief — model override is the last gate)
+      if (replayText) {
+        setSwitchProgress({
+          backendId: opts.backendId,
+          backendName: friendlyNewName,
+          phase: `Staged conversation history for ${friendlyNewName}...`,
+        })
+      }
+
+      // Step 9: apply the model override now that the backend is ready.
+      //   setModel doesn't race the SDK's startup sequence, but we keep it
+      //   inside the progress window so any UI dropdown/status flicker is
+      //   covered by the spinner.
+      if (opts.model) {
+        try {
+          await opts.adapter.setModel(opts.model)
+        } catch (err) {
           log.warn("setModel after switch failed", {
             backend: newName,
             model: opts.model,
             error: String(err),
           })
-        })
-      })
+        }
+      }
+    } finally {
+      setSwitchProgress(null)
     }
-
-    // Bound the wait — if session_init never lands the caller still gets
-    // control back so they can surface a timeout message.
-    const timeout = new Promise<void>((_, reject) => {
-      setTimeout(() => reject(new Error("backend session_init timeout (10s)")), 10_000)
-    })
-
-    await Promise.race([ready, timeout])
   }
 
   onMount(() => {
@@ -609,7 +686,7 @@ export function SyncProvider(props: ParentProps) {
   })
 
   return (
-    <SyncContext.Provider value={{ pushEvent, startEventLoop, clearConversation, resetCost, switchBackend }}>
+    <SyncContext.Provider value={{ pushEvent, startEventLoop, clearConversation, resetCost, switchBackend, switchProgress }}>
       {props.children}
     </SyncContext.Provider>
   )

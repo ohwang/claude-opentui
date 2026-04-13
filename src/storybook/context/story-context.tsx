@@ -73,6 +73,7 @@ const NOOP_SYNC: SyncContextValue = {
   clearConversation: () => {},
   resetCost: () => {},
   switchBackend: async () => {},
+  switchProgress: () => null,
 }
 
 export function StoryContextProvider(props: ParentProps<{ context?: StoryContext }>) {

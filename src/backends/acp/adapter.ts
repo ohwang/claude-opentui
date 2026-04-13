@@ -961,6 +961,10 @@ export class AcpAdapter extends BaseAdapter {
         await this.sendPrompt(config.initialPrompt)
       }
 
+      // 6c. Signal readiness — subprocess alive, ACP session created,
+      //     capabilities discovered, replay stashed. /switch awaits this.
+      this.markReady()
+
       // 7. Main message loop
       await this.runMessageLoop(async (message) => {
         await this.sendPrompt(message.text, message.images)

@@ -63,6 +63,42 @@ export class ClaudeAdapter implements AgentBackend {
   // as a marked historical section so the model treats it as background
   // rather than a turn to respond to. See SessionConfig.replayContext.
   private pendingReplayContext: string | null = null
+
+  // Readiness gate — resolves when start() has finished all synchronous setup
+  // (replayContext stashed, SDK query kicked off, message iterable listening).
+  // See AgentBackend.whenReady() and base-adapter.ts for the contract.
+  private readyResolve: (() => void) | null = null
+  private readyReject: ((err: unknown) => void) | null = null
+  private readyPromise: Promise<void> = (() => {
+    const p = new Promise<void>((resolve, reject) => {
+      this.readyResolve = resolve
+      this.readyReject = reject
+    })
+    // No-op handler so close()-triggered rejection doesn't bubble as
+    // unhandled when callers never awaited whenReady().
+    p.catch(() => {})
+    return p
+  })()
+
+  whenReady(): Promise<void> {
+    return this.readyPromise
+  }
+
+  private markReady(): void {
+    if (this.readyResolve) {
+      this.readyResolve()
+      this.readyResolve = null
+      this.readyReject = null
+    }
+  }
+
+  private rejectReady(err: unknown): void {
+    if (this.readyReject) {
+      this.readyReject(err)
+      this.readyResolve = null
+      this.readyReject = null
+    }
+  }
   private pendingPermissions = new Map<string, PendingPermission>()
   private pendingElicitations = new Map<string, PendingElicitation>()
   private pendingElicitationInputs = new Map<string, Record<string, unknown>>()
@@ -175,34 +211,43 @@ export class ClaudeAdapter implements AgentBackend {
   }
 
   async *start(config: SessionConfig): AsyncGenerator<AgentEvent> {
-    // Stash replay context from /switch so the next real user message picks
-    // it up as prepended history. Must NOT be sent as its own turn.
-    if (config.replayContext) {
-      this.pendingReplayContext = config.replayContext
-      log.info("Claude: replay context staged for next user turn", {
-        chars: config.replayContext.length,
+    try {
+      // Stash replay context from /switch so the next real user message picks
+      // it up as prepended history. Must NOT be sent as its own turn.
+      if (config.replayContext) {
+        this.pendingReplayContext = config.replayContext
+        log.info("Claude: replay context staged for next user turn", {
+          chars: config.replayContext.length,
+        })
+      }
+
+      // Build SDK options
+      const options = this.buildOptions(config)
+
+      // Create the message iterable for multi-turn
+      const messageIterable = this.createMessageIterable(config)
+
+      // Start the query
+      log.info("ClaudeAdapter: creating SDK query", { model: options.model, permissionMode: options.permissionMode, hasMcpServers: !!(options.mcpServers && Object.keys(options.mcpServers).length) })
+      trace.write({
+        dir: "out",
+        stage: "sdk_call",
+        type: "query",
+        payload: { options },
       })
+      this.activeQuery = sdkQuery({
+        prompt: messageIterable,
+        options,
+      })
+      log.info("ClaudeAdapter: SDK query created", { hasQuery: !!this.activeQuery })
+
+      // Signal readiness — replay stashed, SDK query kicked off, message
+      // iterable listening. /switch awaits this before returning.
+      this.markReady()
+    } catch (err) {
+      this.rejectReady(err)
+      throw err
     }
-
-    // Build SDK options
-    const options = this.buildOptions(config)
-
-    // Create the message iterable for multi-turn
-    const messageIterable = this.createMessageIterable(config)
-
-    // Start the query
-    log.info("ClaudeAdapter: creating SDK query", { model: options.model, permissionMode: options.permissionMode, hasMcpServers: !!(options.mcpServers && Object.keys(options.mcpServers).length) })
-    trace.write({
-      dir: "out",
-      stage: "sdk_call",
-      type: "query",
-      payload: { options },
-    })
-    this.activeQuery = sdkQuery({
-      prompt: messageIterable,
-      options,
-    })
-    log.info("ClaudeAdapter: SDK query created", { hasQuery: !!this.activeQuery })
 
     // Iterate SDK messages — let the underlying claude binary handle auth/errors
     yield* this.iterateQuery()
@@ -419,6 +464,9 @@ export class ClaudeAdapter implements AgentBackend {
     })
 
     this.closed = true
+    // Reject any pending whenReady() waiters so /switch can't hang on a
+    // backend closed before it ever became ready.
+    this.rejectReady(new Error("claude closed before ready"))
     this.messageQueue.close()
 
     // Close the event channel (unblocks iterateQuery consumer)

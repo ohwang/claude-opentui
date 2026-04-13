@@ -566,7 +566,12 @@ export class CodexAdapter extends BaseAdapter {
         await this.startTurn(config.initialPrompt)
       }
 
-      // 7. Main message loop
+      // 7. Signal readiness — subprocess alive, handshake complete, thread
+      //    started, replay stashed. /switch awaits this before returning so
+      //    the user cannot type into a backend that's still spinning up.
+      this.markReady()
+
+      // 8. Main message loop
       await this.runMessageLoop(async (message) => {
         await this.startTurn(message.text, message.images)
       })

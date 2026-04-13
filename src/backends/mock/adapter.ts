@@ -78,6 +78,10 @@ export class MockAdapter extends BaseAdapter {
       ],
     })
 
+    // Signal readiness — mock has no async setup, ready immediately after
+    // the synthetic session_init. /switch awaits this before returning.
+    this.markReady()
+
     // Process messages via the base adapter's message loop
     await this.runMessageLoop(async (message) => {
       await this.generateResponse(message)

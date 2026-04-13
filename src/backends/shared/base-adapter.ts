@@ -43,6 +43,59 @@ export abstract class BaseAdapter implements AgentBackend {
   protected closed = false
 
   // ---------------------------------------------------------------------------
+  // Readiness gate
+  //
+  // A promise that resolves the instant the adapter is truly ready to accept
+  // user messages: subprocess alive, any handshake/init RPCs complete, any
+  // replayContext (from /switch) stashed, and the message loop listening.
+  //
+  // Consumers (notably /switch in sync.tsx) await this as the definitive
+  // "backend is ready" gate, replacing the looser `session_init` edge — which
+  // can be emitted from a notification path that races ahead of the adapter's
+  // own request/response stash sequence. See bug #4 in
+  // team/backlog/done/switch-backend-broken-first-message.md.
+  //
+  // Subclasses MUST call this.markReady() exactly once, immediately before
+  // entering runMessageLoop(). If runSession() throws before that point, the
+  // promise rejects with that error so callers surface a real failure.
+  // ---------------------------------------------------------------------------
+
+  private readyResolve: (() => void) | null = null
+  private readyReject: ((err: unknown) => void) | null = null
+  private readyPromise: Promise<void> = (() => {
+    const p = new Promise<void>((resolve, reject) => {
+      this.readyResolve = resolve
+      this.readyReject = reject
+    })
+    // Attach a no-op handler so tests and callers who never await whenReady()
+    // don't trip Bun's unhandled-rejection guard when close() rejects a
+    // pending ready promise. The real consumer (/switch in sync.tsx) awaits
+    // the returned promise via whenReady() and handles rejection explicitly.
+    p.catch(() => {})
+    return p
+  })()
+
+  whenReady(): Promise<void> {
+    return this.readyPromise
+  }
+
+  protected markReady(): void {
+    if (this.readyResolve) {
+      this.readyResolve()
+      this.readyResolve = null
+      this.readyReject = null
+    }
+  }
+
+  private rejectReady(err: unknown): void {
+    if (this.readyReject) {
+      this.readyReject(err)
+      this.readyResolve = null
+      this.readyReject = null
+    }
+  }
+
+  // ---------------------------------------------------------------------------
   // Abstract — subclasses MUST implement
   // ---------------------------------------------------------------------------
 
@@ -125,6 +178,10 @@ export abstract class BaseAdapter implements AgentBackend {
     if (this.closed) return
     this.closed = true
 
+    // Reject any still-pending whenReady() waiters so callers can't hang on a
+    // backend that was closed before it ever became ready.
+    this.rejectReady(new Error(`${this.capabilities().name} closed before ready`))
+
     this.messageQueue.close()
 
     if (this.eventChannel) {
@@ -150,6 +207,9 @@ export abstract class BaseAdapter implements AgentBackend {
   ): void {
     this.runSession(config, resumeSessionId)
       .catch((err) => {
+        // Reject readiness with the real error so /switch surfaces the actual
+        // cause (including subprocess stderr) instead of a generic timeout.
+        this.rejectReady(err)
         if (!this.isSwallowedError(err)) {
           // Push error but don't close yet — the finally block will close
           if (!this.closed && this.eventChannel) {

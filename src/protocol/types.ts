@@ -484,6 +484,23 @@ export interface AgentBackend {
    *  Backends that don't support this can leave it unimplemented. */
   resetSession?(): Promise<void>
 
+  /** Resolves once the backend is truly ready to accept user messages:
+   *  subprocess alive, handshake complete, any replayContext stashed, and
+   *  the message loop listening. Used by /switch as the definitive readiness
+   *  gate, replacing the looser `session_init` edge — which can race ahead of
+   *  the adapter's own stash sequence on backends that emit session_init from
+   *  a notification path (Codex).
+   *
+   *  Rejects with the underlying error if the adapter fails during startup
+   *  (e.g. subprocess crash, handshake error). The rejection reason should
+   *  carry enough context for the user to act on (see Codex transport's
+   *  stderr-capturing error path, shipped in commit ae7c53b).
+   *
+   *  Optional for backward compatibility. Callers that require it (switch)
+   *  should fall back to awaiting session_init when this is undefined.
+   */
+  whenReady?(): Promise<void>
+
   /** Gracefully close the backend and clean up child processes. */
   close(): void
 }

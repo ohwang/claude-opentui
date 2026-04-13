@@ -42,6 +42,16 @@ import {
 } from "../../session/cross-backend"
 import type { ParsedSession } from "../../protocol/types"
 
+export interface SwitchBackendOptions {
+  /** Registry id of the backend to switch to. */
+  backendId: string
+  /** Optional model to apply immediately after the swap. */
+  model?: string
+  /** Pre-built adapter — when provided, callers have already instantiated
+   *  the new backend and just need sync.tsx to swap it in. */
+  adapter: import("../../protocol/types").AgentBackend
+}
+
 export interface SyncContextValue {
   /** Manually push an event (for slash commands, synthetic events, etc.) */
   pushEvent: (event: ConversationEvent) => void
@@ -51,6 +61,17 @@ export interface SyncContextValue {
   clearConversation: () => void
   /** Reset session cost counters to zero */
   resetCost: () => void
+  /**
+   * Swap the active backend in place. Only valid when the session is IDLE —
+   * callers must enforce that gate. Closes the previous adapter, replays the
+   * full block history into the new adapter's initialPrompt, restarts the
+   * event loop, and emits a system message announcing the switch.
+   *
+   * Returns a promise that resolves once the new backend has emitted its
+   * first `session_init`; rejects on timeout (10s) or adapter construction
+   * failure. The caller can use this to sequence a "Switched to X" message.
+   */
+  switchBackend: (opts: SwitchBackendOptions) => Promise<void>
 }
 
 export const SyncContext = createContext<SyncContextValue>()
@@ -67,6 +88,16 @@ export function SyncProvider(props: ParentProps) {
   let initTimeoutId: ReturnType<typeof setTimeout> | null = null
   let firstMessageSent = false
 
+  // Each call to startEventLoop() bumps this generation. When `/switch` swaps
+  // the backend, the in-flight loop sees its generation no longer matches and
+  // exits cleanly without surfacing an error event. Without this counter,
+  // closing the old adapter from inside switchBackend() would race with the
+  // for-await loop and could push a `stream_error` for the supersedence.
+  let loopGeneration = 0
+  // Resolves once the next session_init lands. switchBackend() awaits this
+  // so callers can sequence "Switched to X" only after the new backend is up.
+  let pendingInitResolvers: Array<() => void> = []
+
   // Apply a batch of events through the reducer, then update all stores
   const applyEvents = (events: ConversationEvent[]) => {
     let historyLoadedInBatch = false
@@ -78,6 +109,11 @@ export function SyncProvider(props: ParentProps) {
         log.info(`Event: ${event.type}`, event.type === "error" ? { code: event.code, message: event.message } : undefined)
       }
       if (event.type === "history_loaded") historyLoadedInBatch = true
+      if (event.type === "session_init" && pendingInitResolvers.length > 0) {
+        const resolvers = pendingInitResolvers
+        pendingInitResolvers = []
+        for (const r of resolvers) r()
+      }
       conversationState = reduce(conversationState, event)
     }
     setConversationState(conversationState)
@@ -210,8 +246,14 @@ export function SyncProvider(props: ParentProps) {
   const startEventLoop = async () => {
     if (aborted) return
 
+    const generation = ++loopGeneration
+    const backendForLoop = agent.backendAccessor()
     const mode = agent.config.resume ? "resume" : agent.config.continue ? "continue" : "start"
-    log.info(`Event loop starting (${mode})`, agent.config.resume ? { sessionId: agent.config.resume } : undefined)
+    log.info(`Event loop starting (${mode})`, {
+      generation,
+      backend: backendForLoop.capabilities().name,
+      sessionId: agent.config.resume,
+    })
 
     // Resume/continue support is validated by each adapter inside runSession().
     // We don't pre-flight via capabilities() here because ACP-based backends only
@@ -225,10 +267,14 @@ export function SyncProvider(props: ParentProps) {
       // and config.continue in buildOptions() and createMessageIterable().
       // The separate resume() method creates a bare config missing cwd,
       // permissionMode, etc., which causes the SDK subprocess to fail.
-      const generator = agent.backend.start(agent.config)
+      const generator = backendForLoop.start(agent.config)
 
       for await (const event of generator) {
         if (aborted) break
+        // Stop forwarding events from a superseded loop. switchBackend()
+        // bumps the generation before closing the old adapter, so any
+        // straggler events here are obsolete by the time we see them.
+        if (generation !== loopGeneration) break
         try {
           batcher.push(event)
         } catch (e) {
@@ -237,11 +283,15 @@ export function SyncProvider(props: ParentProps) {
         }
       }
 
-      log.info("Event loop ended (generator exhausted)")
+      log.info("Event loop ended", { generation, superseded: generation !== loopGeneration })
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
-      log.error("Event loop error", { error: message })
-      if (!aborted) {
+      const superseded = generation !== loopGeneration
+      log.error("Event loop error", { error: message, generation, superseded })
+      // Don't surface stream_error from a backend we just swapped away from —
+      // the close() call inside switchBackend() can race the for-await loop
+      // and produce a benign rejection. Only fresh-loop errors are user-facing.
+      if (!aborted && !superseded) {
         batcher.push({
           type: "error",
           code: "stream_error",
@@ -253,6 +303,110 @@ export function SyncProvider(props: ParentProps) {
 
     // Flush any remaining events
     batcher.flush()
+  }
+
+  /**
+   * Hot-swap the active backend. The caller is responsible for gating on IDLE
+   * — we don't re-check here because the command layer needs to format the
+   * rejection message anyway.
+   */
+  const switchBackend = async (opts: SwitchBackendOptions): Promise<void> => {
+    const oldBackend = agent.backendAccessor()
+    const oldName = oldBackend.capabilities().name
+    const newName = opts.adapter.capabilities().name
+    log.info("Switching backend", { from: oldName, to: newName, model: opts.model })
+
+    // Step 1: bump the generation so the running for-await loop stops
+    // forwarding events as soon as it next yields.
+    loopGeneration++
+
+    // Step 2: close the old backend. This drains its EventChannel and breaks
+    // the for-await loop. Done before swapping the signal so any in-flight
+    // events from the dying adapter still see the old reference if anything
+    // reads it during teardown.
+    try {
+      oldBackend.close()
+    } catch (e) {
+      log.warn("Old backend close threw during switch", { error: String(e) })
+    }
+
+    // Step 3: build a full-history replay so the new adapter has the
+    // conversation in its model context. We deliberately use formatFullHistory
+    // (the same primitive used for cross-backend resume) instead of a one-line
+    // summary — a previous attempt at a single-prompt summarization lost
+    // tool-call fidelity. See team/backlog/done/cross-backend-session-resume.md.
+    const blocks = conversationState.blocks
+    let replayPrompt: string | undefined
+    if (blocks.length > 0) {
+      const { contextText } = formatFullHistory(blocks, oldName)
+      replayPrompt = contextText
+    }
+
+    // Step 4: stash the replay text on config.initialPrompt so SyncProvider's
+    // existing initialPrompt handling (the createEffect inside onMount) sends
+    // it once the new backend reaches IDLE. Clear resume/continue: this is a
+    // fresh session on the target backend; we never want to resume into a
+    // session id that doesn't belong to it.
+    agent.config.initialPrompt = replayPrompt
+    agent.config.resume = undefined
+    agent.config.continue = undefined
+    agent.config.sessionOrigin = newName as any
+
+    // Step 5: swap the backend signal so every reactive reader (status bar,
+    // header, diagnostics) re-renders with the new backend's name.
+    agent.setBackend(opts.adapter)
+
+    // Step 6: arrange to be notified once the new backend emits session_init.
+    const ready = new Promise<void>((resolve) => {
+      pendingInitResolvers.push(resolve)
+    })
+
+    // Step 7: reset session-level reducer state so the status bar doesn't
+    // show stale model / cost from the old backend during the gap. The block
+    // history is preserved deliberately — the user wants to see prior turns.
+    conversationState = {
+      ...conversationState,
+      sessionState: "INITIALIZING",
+      session: null,
+      currentModel: opts.model ?? null,
+      currentEffort: null,
+      configOptions: [],
+      agentCommands: [],
+    }
+    batch(() => {
+      session.setState("sessionState", "INITIALIZING")
+      session.setState("session", reconcile(null))
+      session.setState("currentModel", opts.model ?? "")
+      session.setState("currentEffort", "")
+      session.setState("configOptions", reconcile([]))
+      session.setState("agentCommands", reconcile([]))
+    })
+
+    // Step 8: kick off the new event loop. Don't await — startEventLoop runs
+    // for the lifetime of the session.
+    startEventLoop()
+
+    // Step 9: apply the model override after the backend reports ready, so
+    // setModel doesn't race the SDK's own startup sequence.
+    if (opts.model) {
+      ready.then(() => {
+        opts.adapter.setModel(opts.model!).catch((err: unknown) => {
+          log.warn("setModel after switch failed", {
+            backend: newName,
+            model: opts.model,
+            error: String(err),
+          })
+        })
+      })
+    }
+
+    // Bound the wait — if session_init never lands the caller still gets
+    // control back so they can surface a timeout message.
+    const timeout = new Promise<void>((_, reject) => {
+      setTimeout(() => reject(new Error("backend session_init timeout (10s)")), 10_000)
+    })
+
+    await Promise.race([ready, timeout])
   }
 
   onMount(() => {
@@ -449,7 +603,7 @@ export function SyncProvider(props: ParentProps) {
   })
 
   return (
-    <SyncContext.Provider value={{ pushEvent, startEventLoop, clearConversation, resetCost }}>
+    <SyncContext.Provider value={{ pushEvent, startEventLoop, clearConversation, resetCost, switchBackend }}>
       {props.children}
     </SyncContext.Provider>
   )

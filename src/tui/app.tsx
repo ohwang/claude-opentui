@@ -14,7 +14,7 @@ import { copyToClipboard } from "../utils/clipboard"
 import { sendTerminalNotification, setTerminalProgress } from "../utils/terminal-notify"
 import { disableFocusReporting } from "../utils/terminal-focus"
 import { useAwaySummary } from "./hooks/useAwaySummary"
-import { AgentProvider, useAgent, type AgentContextValue } from "./context/agent"
+import { AgentProvider, createAgentContextValue, useAgent } from "./context/agent"
 import { MessagesProvider, useMessages } from "./context/messages"
 import { SessionProvider, useSession } from "./context/session"
 import { PermissionsProvider } from "./context/permissions"
@@ -615,10 +615,7 @@ export function startApp(options: AppOptions): void {
     process.exit(0)
   }
 
-  const agentValue: AgentContextValue = {
-    backend: options.backend,
-    config: options.config,
-  }
+  const agentValue = createAgentContextValue(options.backend, options.config)
 
   render(() => (
     <ErrorBoundary

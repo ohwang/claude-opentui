@@ -11,7 +11,7 @@ import { type ParentProps } from "solid-js"
 import { createStore } from "solid-js/store"
 import type { StoryContext } from "../types"
 import { NoopBackend } from "../fixtures/backend"
-import { AgentProvider, type AgentContextValue } from "../../tui/context/agent"
+import { AgentProvider, createAgentContextValue } from "../../tui/context/agent"
 import {
   SessionContext,
   type SessionContextState,
@@ -72,16 +72,17 @@ const NOOP_SYNC: SyncContextValue = {
   startEventLoop: () => {},
   clearConversation: () => {},
   resetCost: () => {},
+  switchBackend: async () => {},
 }
 
 export function StoryContextProvider(props: ParentProps<{ context?: StoryContext }>) {
   // Capture context eagerly — SolidJS props are reactive getters
   const ctx = props.context
 
-  const agentValue: AgentContextValue = {
-    backend: ctx?.agent?.backend ?? new NoopBackend(),
-    config: { cwd: process.cwd(), ...ctx?.agent?.config },
-  }
+  const agentValue = createAgentContextValue(
+    (ctx?.agent?.backend ?? new NoopBackend()) as any,
+    { cwd: process.cwd(), ...ctx?.agent?.config } as any,
+  )
 
   // Pre-seed stores with story values merged over defaults
   const sessionInit = { ...DEFAULT_SESSION, ...ctx?.session } as SessionContextState

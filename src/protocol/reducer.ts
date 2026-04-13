@@ -290,12 +290,22 @@ export function reduce(
         state.sessionState === "WAITING_FOR_ELIC"
       ) {
         const flushed = flushBuffers({ ...next })
-        // Transition running tools to "canceled" on interrupt
-        const blocks = flushed.blocks.map(b =>
-          b.type === "tool" && b.status === "running"
-            ? { ...b, status: "canceled" as ToolStatus, duration: Date.now() - b.startTime }
-            : b
-        )
+        // Transition running tools to "canceled" on interrupt, and resolve any
+        // in-progress compact spinner (no stuck boundary if user Ctrl+C's
+        // during /compact).
+        const blocks = flushed.blocks.map(b => {
+          if (b.type === "tool" && b.status === "running") {
+            return { ...b, status: "canceled" as ToolStatus, duration: Date.now() - b.startTime }
+          }
+          if (b.type === "compact" && b.inProgress) {
+            return {
+              ...b,
+              inProgress: false,
+              summary: b.summary === "Compacting conversation..." ? "Compaction interrupted." : b.summary,
+            }
+          }
+          return b
+        })
         return {
           ...flushed,
           blocks,

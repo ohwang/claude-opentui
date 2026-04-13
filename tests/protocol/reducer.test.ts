@@ -1788,6 +1788,24 @@ describe("ConversationState reducer", () => {
       }
     })
 
+    it("interrupt resolves an in-progress compact spinner (no stuck state)", () => {
+      // Ctrl+C while `/compact` is mid-run must not leave a forever-spinning
+      // compact boundary. The interrupt transition should mark any in-progress
+      // compact block as no longer in progress.
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "turn_start" },
+        { type: "compact", summary: "Compacting...", inProgress: true, trigger: "user" },
+        { type: "interrupt" },
+      ])
+      const compactBlocks = state.blocks.filter(b => b.type === "compact")
+      expect(compactBlocks).toHaveLength(1)
+      const block = compactBlocks[0]!
+      if (block.type === "compact") {
+        expect(block.inProgress).toBeFalsy()
+      }
+      expect(state.sessionState).toBe("INTERRUPTING")
+    })
   })
 
   // -----------------------------------------------------------------------

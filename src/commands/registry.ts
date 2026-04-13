@@ -99,21 +99,42 @@ export class CommandRegistry {
     return result
   }
 
-  /** Match command names (and aliases) against a query using prefix/substring matching */
+  /**
+   * Match commands against a query across name, aliases, and description.
+   *
+   * Ranking (best match first):
+   *   0. name prefix match        — `/mod` → `model`
+   *   1. alias prefix match       — `/q`   → `exit` (alias "q")
+   *   2. name substring match     — `del` → `model` (contains "del")
+   *   3. alias substring match
+   *   4. description match only   — `switch` → `/model` (description "Switch model")
+   *
+   * Within each rank, results are sorted alphabetically by name for
+   * stability. Empty query returns all commands in alphabetical order.
+   */
   search(query: string): SlashCommand[] {
     const q = query.toLowerCase()
-    return this.all()
-      .filter(
-        (cmd) =>
-          cmd.name.toLowerCase().includes(q) ||
-          (cmd.aliases?.some((alias) => alias.toLowerCase().includes(q)) ?? false),
-      )
-      .sort((a, b) => {
-        // Exact prefix match on name first, then alias prefix, then substring
-        const aPrefix = a.name.toLowerCase().startsWith(q) ? 0 : 1
-        const bPrefix = b.name.toLowerCase().startsWith(q) ? 0 : 1
-        return aPrefix - bPrefix || a.name.localeCompare(b.name)
-      })
+    if (!q) {
+      return this.all().sort((a, b) => a.name.localeCompare(b.name))
+    }
+    const scored: { cmd: SlashCommand; rank: number }[] = []
+    for (const cmd of this.all()) {
+      const name = cmd.name.toLowerCase()
+      const aliases = cmd.aliases?.map((a) => a.toLowerCase()) ?? []
+      const description = cmd.description.toLowerCase()
+
+      let rank = -1
+      if (name.startsWith(q)) rank = 0
+      else if (aliases.some((a) => a.startsWith(q))) rank = 1
+      else if (name.includes(q)) rank = 2
+      else if (aliases.some((a) => a.includes(q))) rank = 3
+      else if (description.includes(q)) rank = 4
+
+      if (rank >= 0) scored.push({ cmd, rank })
+    }
+    return scored
+      .sort((a, b) => a.rank - b.rank || a.cmd.name.localeCompare(b.cmd.name))
+      .map((s) => s.cmd)
   }
 
   /** Parse input and execute if it starts with '/' */

@@ -106,6 +106,73 @@ describe("CommandRegistry", () => {
     expect(results[0]!.name).toBe("model")
   })
 
+  it("search matches on description when name/alias don't match", () => {
+    const registry = new CommandRegistry()
+    registry.register({
+      name: "model",
+      description: "Switch AI model",
+      execute: () => {},
+    })
+    registry.register({
+      name: "help",
+      description: "Show help",
+      execute: () => {},
+    })
+
+    // 'switch' is nowhere in names or aliases but appears in /model's description
+    const results = registry.search("switch")
+    expect(results).toHaveLength(1)
+    expect(results[0]!.name).toBe("model")
+  })
+
+  it("search ranks name prefix above alias prefix above description match", () => {
+    const registry = new CommandRegistry()
+    registry.register({
+      name: "model",
+      description: "Swap out the LLM", // no "model" in description
+      execute: () => {},
+    })
+    registry.register({
+      name: "quit",
+      description: "Leave the app",
+      aliases: ["modem-quit"], // alias prefix-matches "mode"
+      execute: () => {},
+    })
+    registry.register({
+      name: "about",
+      description: "Tells you about the model in use", // description contains "model"
+      execute: () => {},
+    })
+
+    const results = registry.search("mode")
+    // model (name prefix) > modem-quit alias (alias prefix) > about (desc match only)
+    expect(results.map((c) => c.name)).toEqual(["model", "quit", "about"])
+  })
+
+  it("search with empty query returns all commands alphabetically", () => {
+    const registry = new CommandRegistry()
+    registry.register({ name: "zebra", description: "z", execute: () => {} })
+    registry.register({ name: "alpha", description: "a", execute: () => {} })
+    registry.register({ name: "middle", description: "m", execute: () => {} })
+
+    const names = registry.search("").map((c) => c.name)
+    expect(names).toEqual(["alpha", "middle", "zebra"])
+  })
+
+  it("search is case-insensitive across name, alias, and description", () => {
+    const registry = new CommandRegistry()
+    registry.register({
+      name: "Screenshot",
+      description: "Capture the TERMINAL",
+      aliases: ["SNAP"],
+      execute: () => {},
+    })
+
+    expect(registry.search("screen")).toHaveLength(1)
+    expect(registry.search("snap")).toHaveLength(1)
+    expect(registry.search("terminal")).toHaveLength(1)
+  })
+
   it("tryExecute dispatches slash commands", async () => {
     const handler = mock(() => {})
     const registry = new CommandRegistry()
@@ -213,15 +280,17 @@ describe("search features", () => {
     expect(results.some((r) => r.name === "exit")).toBe(true)
   })
 
-  it("does not match commands whose description (but not name) contains the query", () => {
+  it("ranks name/alias matches above description-only matches", () => {
     const registry = createCommandRegistry()
-    // /he should only match /help, not /diagnostics ("Toggle the diagnostics panel")
-    // or /exit ("Exit the application") whose descriptions contain "he" via "the"
+    // /help is a name match; /diagnostics and /exit are description-only
+    // matches (via "the" in their descriptions). Name matches must come first.
     const results = registry.search("he")
     const names = results.map((r) => r.name)
-    expect(names).toContain("help")
-    expect(names).not.toContain("diagnostics")
-    expect(names).not.toContain("exit")
+    expect(names[0]).toBe("help")
+    // Description-only matches may still appear, but ranked after name matches.
+    const helpIdx = names.indexOf("help")
+    const diagIdx = names.indexOf("diagnostics")
+    if (diagIdx >= 0) expect(helpIdx).toBeLessThan(diagIdx)
   })
 
   it("returns empty for no matches", () => {
@@ -238,11 +307,12 @@ describe("search features", () => {
     expect(lower.some((r) => r.name === "help")).toBe(true)
   })
 
-  it("does not match on description text (only names and aliases)", () => {
+  it("matches on description text when name/alias don't match", () => {
     const registry = createCommandRegistry()
-    // "keyboard" appears in the hotkeys description but not in its name or aliases
+    // "keyboard" appears in the hotkeys description but not in its name or aliases.
+    // The Ctrl+P command palette relies on description matching for discoverability.
     const results = registry.search("keyboard")
-    expect(results.some((r) => r.name === "hotkeys")).toBe(false)
+    expect(results.some((r) => r.name === "hotkeys")).toBe(true)
   })
 
   it("matches on alias names", () => {

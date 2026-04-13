@@ -12,6 +12,7 @@
 
 import type { SlashCommand } from "../commands/registry"
 import type { SubagentManager } from "./manager"
+import type { AgentDefinition } from "./types"
 import { loadAllDefinitions } from "./definitions"
 
 // Module-level reference — set during bootstrap wiring
@@ -19,6 +20,20 @@ let _manager: SubagentManager | null = null
 
 export function setCommandsManager(mgr: SubagentManager): void {
   _manager = mgr
+}
+
+// Test-only: override the definitions loader. Pass null to restore default.
+let _testDefinitionsLoader: (() => AgentDefinition[]) | null = null
+
+/** Test-only: override the definitions loader. Pass null to restore. */
+export function _setDefinitionsLoaderForTesting(
+  loader: (() => AgentDefinition[]) | null,
+): void {
+  _testDefinitionsLoader = loader
+}
+
+function getDefinitions(): AgentDefinition[] {
+  return _testDefinitionsLoader ? _testDefinitionsLoader() : loadAllDefinitions()
 }
 
 function formatElapsed(ms: number): string {
@@ -48,7 +63,7 @@ export const crossagentCommand: SlashCommand = {
           ctx.pushEvent({ type: "system_message", text: "Usage: /crossagent spawn <definition-name> [prompt]" })
           return
         }
-        const definitions = loadAllDefinitions()
+        const definitions = getDefinitions()
         const def = definitions.find(d => d.name === defName)
         if (!def) {
           const available = definitions.map(d => d.name).join(", ")
@@ -156,7 +171,7 @@ export const crossagentCommand: SlashCommand = {
       }
 
       case "definitions": {
-        const definitions = loadAllDefinitions()
+        const definitions = getDefinitions()
         if (definitions.length === 0) {
           ctx.pushEvent({ type: "system_message", text: "No agent definitions found.\nCreate .md files in ~/.claude/agents/ or .claude/agents/" })
           return

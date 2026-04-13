@@ -22,7 +22,7 @@ function wait(ms: number): Promise<void> {
 }
 
 const PROJECT_ROOT = join(import.meta.dir, "../..")
-const AGENTS_DIR = join(PROJECT_ROOT, ".claude/agents")
+const AGENTS_DIR = join(PROJECT_ROOT, "tests/fixtures/agents")
 
 // ---------------------------------------------------------------------------
 // 1. Full pipeline: definition -> spawn -> events -> reducer state
@@ -513,13 +513,24 @@ describe("Diagnostics output includes subagent data", () => {
 describe("Slash command execution", () => {
   let manager: SubagentManager
 
-  beforeEach(() => {
+  beforeEach(async () => {
     manager = new SubagentManager()
     manager.setPushEvent(() => {})
+    // Point the commands module at our test fixtures rather than the user's
+    // real ~/.claude/agents/ + project .claude/agents/ (which no longer
+    // contains researcher/mock-test/etc).
+    const { _setDefinitionsLoaderForTesting } = await import(
+      "../../src/subagents/commands"
+    )
+    _setDefinitionsLoaderForTesting(() => loadDefinitionsFromDir(AGENTS_DIR))
   })
 
-  afterEach(() => {
+  afterEach(async () => {
     manager.closeAll()
+    const { _setDefinitionsLoaderForTesting } = await import(
+      "../../src/subagents/commands"
+    )
+    _setDefinitionsLoaderForTesting(null)
   })
 
   test("'definitions' subcommand emits system_message with available definitions", async () => {

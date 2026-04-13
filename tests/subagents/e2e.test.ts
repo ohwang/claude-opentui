@@ -20,7 +20,7 @@ function wait(ms: number): Promise<void> {
 
 /** Resolve project root — the tests run from the repo root via `bun test` */
 const PROJECT_ROOT = join(import.meta.dir, "../..")
-const AGENTS_DIR = join(PROJECT_ROOT, ".claude/agents")
+const AGENTS_DIR = join(PROJECT_ROOT, "tests/fixtures/agents")
 
 describe("E2E: Subagent System", () => {
   // -------------------------------------------------------------------------

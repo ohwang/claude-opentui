@@ -59,6 +59,10 @@ export class ClaudeAdapter implements AgentBackend {
 
   private activeQuery: SDKQuery | null = null
   private messageQueue = new AsyncQueue<UserMessage>()
+  // Pending replay context from /switch — prepended to the next user message
+  // as a marked historical section so the model treats it as background
+  // rather than a turn to respond to. See SessionConfig.replayContext.
+  private pendingReplayContext: string | null = null
   private pendingPermissions = new Map<string, PendingPermission>()
   private pendingElicitations = new Map<string, PendingElicitation>()
   private pendingElicitationInputs = new Map<string, Record<string, unknown>>()
@@ -171,6 +175,15 @@ export class ClaudeAdapter implements AgentBackend {
   }
 
   async *start(config: SessionConfig): AsyncGenerator<AgentEvent> {
+    // Stash replay context from /switch so the next real user message picks
+    // it up as prepended history. Must NOT be sent as its own turn.
+    if (config.replayContext) {
+      this.pendingReplayContext = config.replayContext
+      log.info("Claude: replay context staged for next user turn", {
+        chars: config.replayContext.length,
+      })
+    }
+
     // Build SDK options
     const options = this.buildOptions(config)
 
@@ -589,6 +602,14 @@ export class ClaudeAdapter implements AgentBackend {
     while (!this.closed) {
       try {
         const message = await this.messageQueue.pull()
+        // Prepend any pending /switch replay context as marked historical
+        // context so the model responds to the new user message while having
+        // the prior conversation available.
+        if (this.pendingReplayContext) {
+          const replay = this.pendingReplayContext
+          this.pendingReplayContext = null
+          message.text = `[Historical context — do not respond to this section; it is a replay of the prior conversation for your reference]\n${replay}\n[End of historical context]\n\n[User Message]\n${message.text}`
+        }
         const sdkMessage = this.toSDKUserMessage(message)
         trace.write({
           dir: "out",

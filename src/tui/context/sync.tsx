@@ -336,18 +336,24 @@ export function SyncProvider(props: ParentProps) {
     // summary — a previous attempt at a single-prompt summarization lost
     // tool-call fidelity. See team/backlog/done/cross-backend-session-resume.md.
     const blocks = conversationState.blocks
-    let replayPrompt: string | undefined
+    let replayText: string | undefined
     if (blocks.length > 0) {
       const { contextText } = formatFullHistory(blocks, oldName)
-      replayPrompt = contextText
+      replayText = contextText
     }
 
-    // Step 4: stash the replay text on config.initialPrompt so SyncProvider's
-    // existing initialPrompt handling (the createEffect inside onMount) sends
-    // it once the new backend reaches IDLE. Clear resume/continue: this is a
-    // fresh session on the target backend; we never want to resume into a
-    // session id that doesn't belong to it.
-    agent.config.initialPrompt = replayPrompt
+    // Step 4: stash the replay text on config.replayContext. The contract
+    // there (see SessionConfig.replayContext) is that adapters MUST NOT
+    // send it as a user turn — they stash it and prepend it, marked as
+    // historical, to the next real user message. Previously we set
+    // config.initialPrompt, which Codex forwarded to startTurn(), producing
+    // a phantom response turn that queued the user's first real message
+    // behind a replay response. Clear resume/continue: this is a fresh
+    // session on the target backend; we never resume into a session id
+    // that doesn't belong to it. Also clear initialPrompt to avoid leaking
+    // a prior CLI prompt into the switched session.
+    agent.config.replayContext = replayText
+    agent.config.initialPrompt = undefined
     agent.config.resume = undefined
     agent.config.continue = undefined
     agent.config.sessionOrigin = newName as any

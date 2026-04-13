@@ -155,6 +155,12 @@ export class CodexAdapter extends BaseAdapter {
   // Session config for reference
   private config: SessionConfig | null = null
 
+  // Pending replay context: formatted conversation history from a previous
+  // backend (populated via /switch). When set, it is prepended as a marked
+  // historical section to the NEXT real user message — it must NOT be sent
+  // as its own turn. Cleared once consumed.
+  private pendingReplayContext: string | null = null
+
   // Client-side max turns enforcement
   private turnCount = 0
 
@@ -543,12 +549,24 @@ export class CodexAdapter extends BaseAdapter {
         throw new Error("Failed to obtain thread ID from Codex")
       }
 
-      // 5. If there's an initial prompt, send the first turn
+      // 5. If there's replay context from a prior backend, stash it so the
+      //    next real user message can carry it as prepended historical
+      //    context rather than generating a phantom response turn.
+      if (config.replayContext) {
+        this.pendingReplayContext = config.replayContext
+        log.info("Codex: replay context staged for next user turn", {
+          chars: config.replayContext.length,
+        })
+      }
+
+      // 6. If there's an initial prompt (CLI --prompt), send the first turn.
+      //    replayContext is NOT delivered here — it rides along with the next
+      //    real user message so the model only produces one response.
       if (config.initialPrompt) {
         await this.startTurn(config.initialPrompt)
       }
 
-      // 6. Main message loop
+      // 7. Main message loop
       await this.runMessageLoop(async (message) => {
         await this.startTurn(message.text, message.images)
       })
@@ -591,15 +609,26 @@ export class CodexAdapter extends BaseAdapter {
       return
     }
 
-    // Build user input, prepending system prompt on the first turn if provided
+    // Build user input, prepending (a) system prompt on the first turn, and
+    // (b) any pending replay context from a /switch. Replay context is marked
+    // as historical so the model treats it as context — not a new user turn
+    // — and only responds to the actual user text that follows.
     const applySystemPrompt = !this.systemPromptApplied && !!this.config?.systemPrompt
-    const input: CodexTurnInput[] = []
+    const replayPrefix = this.pendingReplayContext
+    this.pendingReplayContext = null
+    const sections: string[] = []
     if (applySystemPrompt) {
-      input.push({ type: "text", text: `[System Prompt]\n${this.config!.systemPrompt}\n\n[User Message]\n${text}` })
+      sections.push(`[System Prompt]\n${this.config!.systemPrompt}`)
       this.systemPromptApplied = true
-    } else {
-      input.push({ type: "text", text })
     }
+    if (replayPrefix) {
+      sections.push(
+        `[Historical context — do not respond to this section; it is a replay of the prior conversation for your reference]\n${replayPrefix}\n[End of historical context]`,
+      )
+    }
+    sections.push(applySystemPrompt || replayPrefix ? `[User Message]\n${text}` : text)
+    const input: CodexTurnInput[] = []
+    input.push({ type: "text", text: sections.join("\n\n") })
     if (images) {
       for (const img of images) {
         input.push({

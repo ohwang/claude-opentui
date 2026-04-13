@@ -646,6 +646,22 @@ export interface SessionConfig {
   additionalDirectories?: string[]
   /** Initial prompt from CLI (--prompt or positional arg) */
   initialPrompt?: string
+  /**
+   * Prior-session context to inject into the NEXT real user turn without
+   * creating a phantom turn of its own. Populated by `/switch` when swapping
+   * backends mid-session — the formatted conversation history goes here so
+   * the model has prior turns in its context window, but does NOT get a
+   * "new user message" that it then has to respond to.
+   *
+   * Adapter contract: on startup, if `replayContext` is set, the adapter
+   * MUST NOT start a turn with it. Instead it stashes the context and
+   * prepends it (clearly marked as historical) to the first user message
+   * that arrives via the message queue. Adapters that cannot support
+   * deferred context injection may fall back to a clear UX ("starts
+   * fresh — prior conversation not replayed") — but must never send it
+   * as a user turn.
+   */
+  replayContext?: string
   /** Original backend that created the session being resumed (cross-backend resume) */
   sessionOrigin?: string
   /** Internal: when set, the adapter is expected to emit a `history_loaded`

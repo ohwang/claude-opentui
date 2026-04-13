@@ -127,6 +127,11 @@ export class AcpAdapter extends BaseAdapter {
   private config: SessionConfig | null = null
   private systemPromptApplied = false
 
+  // Pending replay context from /switch — prepended to the next real user
+  // message as a marked historical section, never sent as its own turn.
+  // See SessionConfig.replayContext for the contract.
+  private pendingReplayContext: string | null = null
+
   /** True between session/load returning and the "replay drained" signal.
    *  While set, session/update notifications that replay historical
    *  conversational content are dropped — we already have the full history
@@ -942,7 +947,16 @@ export class AcpAdapter extends BaseAdapter {
       // 5c. Apply system prompt via config option if the agent exposes one
       await this.applySystemPromptViaConfigOption()
 
-      // 6. If there's an initial prompt, send the first turn
+      // 6a. Replay context from /switch is stashed, not sent as a turn —
+      //     it'll prepend to the next real user message inside sendPrompt().
+      if (config.replayContext) {
+        this.pendingReplayContext = config.replayContext
+        log.info("ACP: replay context staged for next user turn", {
+          chars: config.replayContext.length,
+        })
+      }
+
+      // 6b. If there's a CLI initial prompt, send the first turn normally.
       if (config.initialPrompt) {
         await this.sendPrompt(config.initialPrompt)
       }
@@ -1046,15 +1060,25 @@ export class AcpAdapter extends BaseAdapter {
   ): Promise<void> {
     if (!this.transport?.isAlive || !this.sessionId) return
 
-    // Build prompt content blocks, prepending system prompt on first turn if needed
+    // Build prompt content blocks, prepending (a) system prompt on first turn,
+    // and (b) any pending replay context from a /switch. The replay context
+    // is clearly marked as historical so the model treats it as background
+    // rather than a turn to respond to.
     const applySystemPrompt = !this.systemPromptApplied && !!this.config?.systemPrompt
-    let promptText: string
+    const replayPrefix = this.pendingReplayContext
+    this.pendingReplayContext = null
+    const sections: string[] = []
     if (applySystemPrompt) {
-      promptText = `[System Prompt]\n${this.config!.systemPrompt}\n\n[User Message]\n${text}`
+      sections.push(`[System Prompt]\n${this.config!.systemPrompt}`)
       this.systemPromptApplied = true
-    } else {
-      promptText = text
     }
+    if (replayPrefix) {
+      sections.push(
+        `[Historical context — do not respond to this section; it is a replay of the prior conversation for your reference]\n${replayPrefix}\n[End of historical context]`,
+      )
+    }
+    sections.push(applySystemPrompt || replayPrefix ? `[User Message]\n${text}` : text)
+    const promptText = sections.join("\n\n")
     const prompt: AcpContentBlock[] = [{ type: "text", text: promptText }]
     if (images) {
       for (const img of images) {

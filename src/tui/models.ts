@@ -67,5 +67,7 @@ export function friendlyBackendName(backendName: string): string {
   if (backendName === "gemini") return "Gemini"
   if (backendName === "copilot") return "GitHub Copilot"
   if (backendName === "codex") return "Codex"
+  if (backendName === "mock") return "Mock"
+  if (backendName === "acp") return "ACP agent"
   return "the assistant"
 }

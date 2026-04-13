@@ -365,6 +365,7 @@ export function InputArea() {
       resetCost: sync.resetCost,
       resetSession: async () => { await agent.backend.resetSession?.() },
       setModel: (model: string) => agent.backend.setModel(model),
+      switchBackend: (opts) => sync.switchBackend(opts),
       exit: triggerCleanExit,
       toggleDiagnostics,
       getSessionState: () => ({
@@ -374,6 +375,7 @@ export function InputArea() {
         currentEffort: session.currentEffort,
         session: session.session,
         configOptions: session.configOptions,
+        sessionState: session.sessionState,
       }),
       getBlocks: () => messagesState.blocks,
       renderer,

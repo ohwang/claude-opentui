@@ -8,7 +8,7 @@
  */
 
 import type { CliRenderer } from "@opentui/core"
-import type { AgentBackend, Block, ConfigOption, CostTotals, SessionMetadata } from "../protocol/types"
+import type { AgentBackend, Block, ConfigOption, CostTotals, SessionMetadata, SessionState } from "../protocol/types"
 
 export interface CommandContext {
   backend: AgentBackend
@@ -20,10 +20,21 @@ export interface CommandContext {
   setModel: (model: string) => Promise<void>
   exit?: () => void
   toggleDiagnostics?: () => void
-  getSessionState?: () => { cost: CostTotals; turnNumber: number; currentModel: string; currentEffort: string; session: SessionMetadata | null; configOptions?: ConfigOption[] }
+  getSessionState?: () => { cost: CostTotals; turnNumber: number; currentModel: string; currentEffort: string; session: SessionMetadata | null; configOptions?: ConfigOption[]; sessionState?: SessionState }
   getBlocks?: () => Block[]
   registry?: CommandRegistry
   renderer?: CliRenderer
+  /**
+   * Hot-swap the active backend mid-conversation. Resolves once the new
+   * backend reports ready (session_init received). Only expected to be
+   * present when invoked from the TUI — CLI-only tests may leave it
+   * undefined, in which case /switch surfaces a user-friendly error.
+   */
+  switchBackend?: (opts: {
+    backendId: string
+    model?: string
+    adapter: AgentBackend
+  }) => Promise<void>
 }
 
 export interface SlashCommand {
@@ -145,6 +156,7 @@ import { themeCommand } from "./builtin/theme"
 import { configCommand } from "./builtin/config"
 import { settingsCommand } from "./builtin/settings"
 import { backendCommand } from "./builtin/backend"
+import { switchCommand } from "./builtin/switch"
 import { crossagentCommand } from "../subagents/commands"
 
 /** Create a registry with all built-in commands */
@@ -175,6 +187,7 @@ export function createCommandRegistry(): CommandRegistry {
   registry.register(configCommand)
   registry.register(settingsCommand)
   registry.register(backendCommand)
+  registry.register(switchCommand)
   registry.register(crossagentCommand)
 
   return registry

@@ -1,43 +1,46 @@
 /**
  * Status Line Command — External command-controlled status bar
  *
- * Reads the statusLine config from ~/.claude/settings.json,
- * builds the JSON payload matching Claude Code's schema,
- * and executes the configured shell command with JSON on stdin.
+ * Reads the statusLine config from the bantai settings loader (which
+ * consults `~/.bantai/settings.json` first and falls back to
+ * `~/.claude/settings.json` only when bantai hasn't set one), builds the
+ * JSON payload matching Claude Code's schema, and executes the configured
+ * shell command with JSON on stdin.
+ *
+ * This file must not read `~/.claude/` directly — all Claude Code fallback
+ * reads go through `src/config/settings.ts`.
  */
 
 import path from "node:path"
 import os from "node:os"
-import fs from "node:fs"
 import { log } from "./logger"
 import { friendlyModelName, MODEL_CONTEXT_WINDOWS, DEFAULT_CONTEXT_WINDOW } from "../tui/models"
 import type { SessionContextState } from "../tui/context/session"
 import type { PermissionMode, RateLimitEntry } from "../protocol/types"
+import { loadConfigSync, type StatusLineSetting } from "../config/settings"
 
 // ---------------------------------------------------------------------------
 // Settings
 // ---------------------------------------------------------------------------
 
-export interface StatusLineConfig {
-  type: "command"
-  command: string
-  padding?: number
-}
+/** Re-exported so existing callers don't need to learn a new type name. */
+export type StatusLineConfig = StatusLineSetting
 
 let cachedConfig: StatusLineConfig | null | undefined
 
 /**
- * Read the statusLine config from ~/.claude/settings.json.
+ * Read the statusLine config via the bantai settings loader.
  * Caches after first read (the file rarely changes mid-session).
+ *
+ * Synchronous so it can be called during component setup without forcing
+ * callers into an async boundary.
  */
 export function getStatusLineConfig(): StatusLineConfig | null {
   if (cachedConfig !== undefined) return cachedConfig
 
   try {
-    const settingsPath = path.join(os.homedir(), ".claude", "settings.json")
-    const raw = fs.readFileSync(settingsPath, "utf-8")
-    const settings = JSON.parse(raw)
-    const sl = settings?.statusLine
+    const resolved = loadConfigSync()
+    const sl = resolved.values.statusLine
     if (sl && sl.type === "command" && typeof sl.command === "string") {
       cachedConfig = {
         type: "command",
@@ -47,14 +50,15 @@ export function getStatusLineConfig(): StatusLineConfig | null {
     } else {
       cachedConfig = null
     }
-  } catch {
+  } catch (err) {
+    log.warn("Failed to load statusLine config", { error: String(err) })
     cachedConfig = null
   }
 
   return cachedConfig
 }
 
-/** Force re-read of settings on next call (for hot-reload). */
+/** Force re-read of settings on next call (for hot-reload or test isolation). */
 export function invalidateStatusLineConfig(): void {
   cachedConfig = undefined
 }

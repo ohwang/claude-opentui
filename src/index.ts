@@ -50,6 +50,25 @@ async function main() {
     flags.config.cwd = launchCwd
   }
 
+  // Fill in persisted defaults from the bantai settings loader. CLI flags
+  // always win — we only touch values the user didn't provide on the
+  // command line. Reads `.bantai/settings.json`, `~/.bantai/settings.json`,
+  // and falls back to `~/.claude/settings.json` for statusLine compatibility.
+  const { loadConfig } = await import("./config/settings")
+  const resolved = await loadConfig({ cwd: flags.config.cwd })
+  if (!flags.theme && resolved.sources.theme && resolved.sources.theme !== "default") {
+    flags.theme = resolved.values.theme
+  }
+  if (flags.config.model === undefined && resolved.values.model) {
+    flags.config.model = resolved.values.model
+  }
+  if (flags.config.permissionMode === undefined && resolved.values.permissionMode) {
+    flags.config.permissionMode = resolved.values.permissionMode
+  }
+  if (!flags.debug && resolved.values.debug) {
+    flags.debug = true
+  }
+
   // Configure logging
   if (flags.debug) {
     log.setLevel("debug")

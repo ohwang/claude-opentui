@@ -283,8 +283,19 @@ export function ConversationView(props: { children?: JSX.Element; footerHint?: s
       }
     }
 
-    // Auto-scroll to bottom and refocus on any printable input while scrolled away
-    if (userScrolledAway() && !event.ctrl && !event.option && !event.meta && event.name.length === 1) {
+    // Auto-scroll to bottom and refocus on any printable input while scrolled away.
+    // Modifier-key combos (Ctrl/Alt/Cmd+<key>) are NOT typed input — they're
+    // shortcuts (e.g. Cmd+C to copy a selection) and must not re-engage sticky
+    // scroll. In the Kitty keyboard protocol, macOS Cmd maps to `super`, so we
+    // must exclude both `meta` and `super` to keep copy from jumping the view.
+    if (
+      userScrolledAway() &&
+      !event.ctrl &&
+      !event.option &&
+      !event.meta &&
+      !event.super &&
+      event.name.length === 1
+    ) {
       scrollboxRef?.scrollBy(999999)
       setScrolledAway(false)
       // Don't preventDefault — let the keystroke reach the textarea

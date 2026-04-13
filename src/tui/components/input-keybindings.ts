@@ -144,7 +144,22 @@ export function createKeyHandler(
   return (e: KeyEvent) => {
     if (isDisabled()) return
 
-    _scrollToBottom?.()
+    // Snap back to bottom when the user actually types into the input — but
+    // NOT for modifier shortcuts like Cmd+C (copy selection), Ctrl+A, etc.
+    // Those are commands, not typed input. Snapping the viewport on Cmd+C
+    // would wipe the user's scrolled-up reading position when they just
+    // wanted to copy text. Kitty's keyboard protocol forwards Cmd as
+    // `super`, so exclude both `meta` and `super`.
+    const isTypedInput =
+      !e.ctrl && !e.meta && !e.super && !e.option && e.name.length === 1
+    const isEditingKey =
+      e.name === "return" ||
+      e.name === "backspace" ||
+      e.name === "delete" ||
+      e.name === "tab"
+    if (isTypedInput || isEditingKey) {
+      _scrollToBottom?.()
+    }
 
     if (state.isPasting && e.name === "return") {
       e.preventDefault()

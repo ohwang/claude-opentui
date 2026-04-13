@@ -126,9 +126,14 @@ const SCALAR_KEYS = [
 // Public API
 // ---------------------------------------------------------------------------
 
+/** Resolve the home directory, preferring $HOME so tests can override. */
+function resolveHome(): string {
+  return process.env.HOME || os.homedir()
+}
+
 /** Canonical paths used by the loader. Exposed for tests / the /settings UI. */
 export function getConfigPaths(opts?: { cwd?: string; home?: string }) {
-  const home = opts?.home ?? os.homedir()
+  const home = opts?.home ?? resolveHome()
   const cwd = opts?.cwd ?? process.cwd()
   return {
     project: path.join(cwd, ".bantai", "settings.json"),
@@ -275,7 +280,7 @@ export async function writeGlobalSetting(
   value: unknown,
   opts?: { home?: string },
 ): Promise<string> {
-  const home = opts?.home ?? os.homedir()
+  const home = opts?.home ?? resolveHome()
   const dir = path.join(home, ".bantai")
   const file = path.join(dir, "settings.json")
 

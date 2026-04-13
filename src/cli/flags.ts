@@ -248,9 +248,9 @@ export function parseFlags(argv: string[]): CLIFlags {
 
 export function printHelp(): void {
   console.log(`
-claude-opentui — Open-source Claude Code TUI
+bantai — Open-source Claude Code TUI
 
-Usage: claude-opentui [options] [prompt]
+Usage: bantai [options] [prompt]
 
 Options:
   -h, --help              Show this help

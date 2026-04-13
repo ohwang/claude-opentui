@@ -365,7 +365,7 @@ export type AgentEvent =
 // lifecycle concerns that have no equivalent in any backend protocol.
 // Kept in a separate union from AgentEvent so the type system makes it
 // obvious whether an event originated from a remote agent or from
-// claude-opentui itself.
+// bantai itself.
 // ---------------------------------------------------------------------------
 
 /** Resume: parsing has started. UI should show a loading spinner and block input. */

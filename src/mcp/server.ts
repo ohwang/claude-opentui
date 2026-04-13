@@ -5,7 +5,7 @@
  *   1. HTTP via Bun.serve() — for external clients (curl, MCP Inspector)
  *   2. In-process SDK transport — for the Claude adapter (Phase 2)
  *
- * Port is written to ~/.claude-opentui/mcp-servers.json for discoverability.
+ * Port is written to ~/.bantai/mcp-servers.json for discoverability.
  */
 
 import { join, dirname } from "path"
@@ -18,7 +18,7 @@ import { createSdkMcpServer, tool } from "@anthropic-ai/claude-agent-sdk"
 import type { McpSdkServerConfigWithInstance } from "@anthropic-ai/claude-agent-sdk"
 import { getState, getConversation, getLogs, getScreenshot, getDiagnostics } from "./tools"
 
-const SERVERS_FILE = join(homedir(), ".claude-opentui", "mcp-servers.json")
+const SERVERS_FILE = join(homedir(), ".bantai", "mcp-servers.json")
 
 // ---------------------------------------------------------------------------
 // HTTP server state
@@ -149,7 +149,7 @@ export async function stopMcpHttpServer(): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// Port file management (~/.claude-opentui/mcp-servers.json)
+// Port file management (~/.bantai/mcp-servers.json)
 // ---------------------------------------------------------------------------
 
 function readPortFile(): Record<string, unknown> {

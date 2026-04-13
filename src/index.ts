@@ -39,7 +39,7 @@ async function main() {
   }
 
   if (flags.version) {
-    console.log(`claude-opentui v${VERSION}`)
+    console.log(`bantai v${VERSION}`)
     process.exit(0)
   }
 
@@ -55,7 +55,7 @@ async function main() {
     log.setLevel("debug")
   }
   backendTrace.setEnabled(flags.debugBackend)
-  log.info("Starting claude-opentui", { version: VERSION, backend: flags.backend, debug: flags.debug, cwd: flags.config.cwd })
+  log.info("Starting bantai", { version: VERSION, backend: flags.backend, debug: flags.debug, cwd: flags.config.cwd })
   log.debug("Session config", flags.config)
 
   // Create backend

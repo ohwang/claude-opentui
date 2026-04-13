@@ -348,7 +348,7 @@ export async function openExternalEditor(
   initialContent?: string,
 ): Promise<void> {
   const editor = process.env["VISUAL"] || process.env["EDITOR"] || "vi"
-  const tmpFile = join(tmpdir(), `claude-opentui-${Date.now()}.md`)
+  const tmpFile = join(tmpdir(), `bantai-${Date.now()}.md`)
 
   try {
     const currentText = initialContent ?? textareaRef?.plainText ?? ""

@@ -1,7 +1,7 @@
 /**
  * Logger — File-based session logging
  *
- * Writes structured log lines to ~/.claude-opentui/logs/<session-id>.log.
+ * Writes structured log lines to ~/.bantai/logs/<session-id>.log.
  * Each app invocation gets a unique session ID. The --debug flag controls
  * file output level, but all levels (including debug) are always buffered
  * in memory so the diagnostics panel can display them.
@@ -20,7 +20,7 @@ const LEVEL_RANK: Record<LogLevel, number> = {
   error: 3,
 }
 
-const LOG_DIR = join(homedir(), ".claude-opentui", "logs")
+const LOG_DIR = join(homedir(), ".bantai", "logs")
 
 function generateSessionId(): string {
   const now = new Date()

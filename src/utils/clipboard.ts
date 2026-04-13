@@ -431,7 +431,7 @@ export async function readClipboardImage(): Promise<ClipboardImageResult> {
 
 function makeDarwinClipboardTempPath(): string {
   const unique = `${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
-  return `/tmp/claude-opentui-clip-${unique}.png`
+  return `/tmp/bantai-clip-${unique}.png`
 }
 
 async function readClipboardImageDarwin(): Promise<ClipboardImageResult> {

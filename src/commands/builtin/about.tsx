@@ -16,10 +16,10 @@ function AboutModal() {
     <box flexDirection="column" padding={2}>
       <box borderStyle="single" borderColor={colors.border.default} flexDirection="column" padding={2}>
         <text fg={colors.accent.primary} attributes={TextAttributes.BOLD}>
-          {"claude-opentui"}
+          {"bantai"}
         </text>
         <text fg={colors.text.secondary}>
-          {"Open-source, drop-in replacement for Claude Code's terminal UI"}
+          {"Open-source terminal UI for agentic coding backends"}
         </text>
 
         <box marginTop={1} flexDirection="column">

@@ -215,7 +215,7 @@ export function buildStatusLineInput(
       current_dir: cwd,
       project_dir: cwd,
     },
-    version: "claude-opentui 0.0.1",
+    version: "bantai 0.0.1",
     output_style: { name: "default" },
     cost: {
       total_cost_usd: sessionState.cost.totalCostUsd,

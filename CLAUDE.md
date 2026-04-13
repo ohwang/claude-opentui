@@ -1,6 +1,6 @@
-# claude-opentui
+# bantai
 
-Open-source, drop-in replacement for Claude Code's terminal UI. Decouples the TUI from any single AI backend.
+Open-source terminal UI for agentic coding backends. Decoupled from any single AI provider — works with Claude Code, Codex, ACP, and more.
 
 ## Quick Start
 
@@ -142,7 +142,7 @@ Contract tests validate:
 
 ## Logging
 
-Session logs live at `~/.claude-opentui/logs/<session-id>.log`. Each app run gets a unique log file. The session ID and log path are printed to stdout on exit. Use `--debug` for verbose (event-level) logging; default level is `info`. Import the singleton via `import { log } from "./utils/logger"`.
+Session logs live at `~/.bantai/logs/<session-id>.log`. Each app run gets a unique log file. The session ID and log path are printed to stdout on exit. Use `--debug` for verbose (event-level) logging; default level is `info`. Import the singleton via `import { log } from "./utils/logger"`.
 
 ## Key Reference Files
 

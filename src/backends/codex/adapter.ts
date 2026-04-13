@@ -491,7 +491,7 @@ export class CodexAdapter extends BaseAdapter {
       log.info("Sending initialize request")
       await this.transport.request("initialize", {
         clientInfo: {
-          name: "claude-opentui",
+          name: "bantai",
           title: "Claude OpenTUI",
           version: "0.0.1",
         },

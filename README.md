@@ -1,19 +1,19 @@
-# claude-opentui
+# bantai
 
-Open-source, drop-in replacement for Claude Code's terminal UI. Decouples the TUI from any single AI backend.
+Open-source terminal UI for agentic coding backends. Decoupled from any single AI provider — works with Claude Code, Codex, ACP, and more.
 
 ## Install
 
 ```bash
 bun install
-bun link        # symlinks claude-opentui into ~/.bun/bin (changes here are reflected immediately)
+bun link        # symlinks bantai into ~/.bun/bin (changes here are reflected immediately)
 ```
 
 ## Usage
 
 ```bash
-claude-opentui              # start the TUI
-claude-opentui --backend mock   # start with mock backend
+bantai              # start the TUI
+bantai --backend mock   # start with mock backend
 ```
 
 ## Development

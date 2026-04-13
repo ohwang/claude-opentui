@@ -2,7 +2,7 @@
  * Default Dark Theme
  *
  * The built-in dark theme derived from Claude Code's default palette.
- * This is the baseline visual identity for claude-opentui.
+ * This is the baseline visual identity for bantai.
  */
 
 import type { ThemeDefinition } from "../types"

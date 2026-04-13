@@ -82,7 +82,7 @@ export function HeaderBar() {
       {/* Row 0: head + tail + app name + version */}
       <box flexDirection="row">
         <text fg={colors.accent.logo}>{LOGO_LINES[0]}</text>
-        <text fg={colors.accent.logo} attributes={TextAttributes.BOLD}>{"claude-opentui"}</text>
+        <text fg={colors.accent.logo} attributes={TextAttributes.BOLD}>{"bantai"}</text>
         <text fg={colors.text.secondary}>{`  v0.0.1 (${backendLabel()})`}</text>
       </box>
       {/* Row 1: body + model info */}

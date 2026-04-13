@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "claude-opentui",
+      "name": "bantai",
       "dependencies": {
         "@anthropic-ai/claude-agent-sdk": "^0.2.97",
         "@google/gemini-cli-sdk": "../gemini-cli/packages/sdk",

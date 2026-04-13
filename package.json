@@ -1,12 +1,12 @@
 {
-  "name": "claude-opentui",
+  "name": "bantai",
   "version": "0.0.1",
   "type": "module",
   "license": "MIT",
-  "description": "Open-source, drop-in replacement for Claude Code's terminal UI",
+  "description": "Open-source terminal UI for agentic coding backends (Claude Code, Codex, ACP, and more)",
   "bin": {
-    "claude-opentui": "./bin/claude-opentui",
-    "claude-opentui-storybook": "./bin/claude-opentui-storybook"
+    "bantai": "./bin/bantai",
+    "bantai-storybook": "./bin/bantai-storybook"
   },
   "scripts": {
     "dev": "bun run --conditions=browser ./src/index.ts",

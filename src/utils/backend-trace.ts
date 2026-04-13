@@ -3,7 +3,7 @@
  *
  * Opt-in append-only trace intended for adapter/backend debugging.
  * Writes one JSON object per line to:
- *   ~/.claude-opentui/logs/<session-id>.backend.jsonl
+ *   ~/.bantai/logs/<session-id>.backend.jsonl
  *
  * This trace is intentionally verbose and may contain sensitive data.
  */

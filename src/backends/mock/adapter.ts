@@ -316,7 +316,7 @@ export class MockAdapter extends BaseAdapter {
 
   private getResponse(input: string): string {
     if (input.includes("hello") || input.includes("hi")) {
-      return "Hello! I'm the mock backend for claude-opentui. I simulate Claude's responses for TUI development. Try asking me to read a file or run a bash command to see tool use and permission flows."
+      return "Hello! I'm the mock backend for bantai. I simulate Claude's responses for TUI development. Try asking me to read a file or run a bash command to see tool use and permission flows."
     }
     if (input.includes("help")) {
       return "I can simulate:\n- **Streaming text** (every message)\n- **Thinking blocks** (include 'think' in your message)\n- **Tool use** (include 'read' or 'file')\n- **Permission prompts** (include 'permission' or 'bash')\n- **Elicitations** (include 'ask' or 'question')\n- **Subagents** (include 'agent' or 'task')\n- **Interrupts** (press Ctrl+C while I'm streaming)"

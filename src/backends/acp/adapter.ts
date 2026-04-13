@@ -778,7 +778,7 @@ export class AcpAdapter extends BaseAdapter {
       const initResult = (await this.transport.request("initialize", {
         protocolVersion: 1,
         clientInfo: {
-          name: "claude-opentui",
+          name: "bantai",
           version: "0.0.1",
         },
         clientCapabilities: {

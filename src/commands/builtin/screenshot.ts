@@ -13,7 +13,7 @@ import { TextAttributes } from "@opentui/core"
 import type { CapturedLine } from "@opentui/core"
 import type { SlashCommand, CommandContext } from "../registry"
 
-const SCREENSHOT_DIR = join(homedir(), ".claude-opentui", "screenshots")
+const SCREENSHOT_DIR = join(homedir(), ".bantai", "screenshots")
 
 function rgbaToAnsi(r: number, g: number, b: number): string {
   return `\x1b[38;2;${r};${g};${b}m`

@@ -204,7 +204,7 @@ async function probe1_initialize(): Promise<any> {
   const { id, msg } = makeRequest("initialize", {
     protocolVersion: 1,
     clientInfo: {
-      name: "claude-opentui-probe",
+      name: "bantai-probe",
       version: "0.0.1",
     },
     // Deliberately empty — test what happens without fs/terminal caps

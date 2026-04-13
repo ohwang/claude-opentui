@@ -39,7 +39,7 @@ export function getDiagnosticsSdkMcpConfig(): McpSdkServerConfigWithInstance | n
   if (_sdkConfig) return _sdkConfig
 
   _sdkConfig = createSdkMcpServer({
-    name: "opentui-diagnostics",
+    name: "bantai-diagnostics",
     version: "0.0.1",
     tools: [
       tool("get_state", "Read your own session state — lifecycle stage, model, token/cost usage, rate limits, and errors. Use this to understand where you are in a conversation.", {}, async () => getState(), { annotations: READONLY_ANNOTATIONS }),
@@ -100,7 +100,7 @@ function registerHttpTools(server: McpServer): void {
 
 export async function startMcpHttpServer(): Promise<{ port: number; url: string }> {
   const mcpServer = new McpServer(
-    { name: "opentui-diagnostics", version: "0.0.1" },
+    { name: "bantai-diagnostics", version: "0.0.1" },
     { capabilities: { tools: {} } },
   )
   registerHttpTools(mcpServer)

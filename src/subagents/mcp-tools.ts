@@ -50,7 +50,7 @@ export function getCrossagentSdkMcpConfig(): McpSdkServerConfigWithInstance | nu
   if (_sdkConfig) return _sdkConfig
 
   _sdkConfig = createSdkMcpServer({
-    name: "opentui-crossagent",
+    name: "bantai-crossagent",
     version: "0.0.1",
     tools: [
       tool(

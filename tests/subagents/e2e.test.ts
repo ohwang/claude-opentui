@@ -408,7 +408,7 @@ describe("E2E: Subagent System", () => {
       )
       const config = getCrossagentSdkMcpConfig()
       expect(config).toBeDefined()
-      expect(config!.name).toBe("opentui-crossagent")
+      expect(config!.name).toBe("bantai-crossagent")
     })
   })
 

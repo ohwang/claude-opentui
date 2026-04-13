@@ -540,9 +540,9 @@ export class ClaudeAdapter implements AgentBackend {
       mcpServers: (() => {
         const servers: Record<string, unknown> = { ...config.mcpServers }
         const diag = getDiagnosticsSdkMcpConfig()
-        if (diag) servers["opentui-diagnostics"] = diag
+        if (diag) servers["bantai-diagnostics"] = diag
         const crossagent = getCrossagentSdkMcpConfig()
-        if (crossagent) servers["opentui-crossagent"] = crossagent
+        if (crossagent) servers["bantai-crossagent"] = crossagent
         // Cast: mcpServers values come from user config and our MCP server —
         // both conform to McpServerConfig at runtime but the spread loses type info
         return servers as SDKOptions["mcpServers"]

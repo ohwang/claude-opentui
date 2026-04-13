@@ -941,7 +941,7 @@ describe("MCP tool execution", () => {
 
     const config = getCrossagentSdkMcpConfig()
     expect(config).toBeDefined()
-    expect(config!.name).toBe("opentui-crossagent")
+    expect(config!.name).toBe("bantai-crossagent")
   })
 
   test("getSubagentManager returns null when not set", async () => {

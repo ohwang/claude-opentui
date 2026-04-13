@@ -378,6 +378,7 @@ export function InputArea() {
         sessionState: session.sessionState,
       }),
       getBlocks: () => messagesState.blocks,
+      getCwd: () => agent.config.cwd ?? process.cwd(),
       renderer,
     })
 

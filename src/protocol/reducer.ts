@@ -605,6 +605,13 @@ export function reduce(
       // If this is an "in progress" event, add a placeholder block that the
       // completed event will replace. If it's a completion event, find the
       // last in-progress compact block and replace it, or append a new one.
+      //
+      // Dedup (Codex): `thread/compacted` and `item/started:contextCompaction`
+      // fire for the same auto-compaction. When two completion compact events
+      // arrive back-to-back (adjacent in the block list), coalesce into one
+      // block — preferring token metadata and richer summaries from whichever
+      // event supplies them. Compact blocks separated by other activity
+      // (user/assistant/tool) are treated as distinct compactions.
       const cleanSummary = stripSDKXmlTags(event.summary)
       const compactBlock: Block = {
         type: "compact",
@@ -623,6 +630,26 @@ export function reduce(
         if (lastInProgressIdx >= 0) {
           const blocks = [...state.blocks]
           blocks[lastInProgressIdx] = compactBlock
+          return { ...next, blocks }
+        }
+
+        // Dedup adjacent back-to-back completion compacts (Codex dual-event).
+        const lastBlock = state.blocks[state.blocks.length - 1]
+        if (
+          lastBlock &&
+          lastBlock.type === "compact" &&
+          !lastBlock.inProgress &&
+          lastBlock.trigger === event.trigger
+        ) {
+          const merged: Block = {
+            type: "compact",
+            summary: cleanSummary || lastBlock.summary,
+            trigger: event.trigger ?? lastBlock.trigger,
+            preTokens: event.preTokens ?? lastBlock.preTokens,
+            postTokens: event.postTokens ?? lastBlock.postTokens,
+          }
+          const blocks = [...state.blocks]
+          blocks[blocks.length - 1] = merged
           return { ...next, blocks }
         }
       }

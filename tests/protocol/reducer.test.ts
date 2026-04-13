@@ -1721,6 +1721,41 @@ describe("ConversationState reducer", () => {
       expect(state.streamingText).toBe("thinking...")
     })
 
+    it("back-to-back completion compact events coalesce into one block (Codex dual-event dedup)", () => {
+      // Codex emits `thread/compacted` (thread-level) and `item/started` with
+      // `contextCompaction` (item-level) for the same auto-compaction. Two
+      // distinct compact events should not produce two stacked boundary
+      // markers in the UI — coalesce into a single block.
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "compact", summary: "Conversation compacted by Codex.", trigger: "auto" },
+        { type: "compact", summary: "Codex compacted conversation context.", trigger: "auto" },
+      ])
+      const compactBlocks = state.blocks.filter(b => b.type === "compact")
+      expect(compactBlocks).toHaveLength(1)
+    })
+
+    it("back-to-back coalesce prefers token metadata from whichever event supplies it", () => {
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "compact", summary: "First event.", trigger: "auto" },
+        {
+          type: "compact",
+          summary: "Second event with tokens.",
+          trigger: "auto",
+          preTokens: 90000,
+          postTokens: 20000,
+        },
+      ])
+      const compactBlocks = state.blocks.filter(b => b.type === "compact")
+      expect(compactBlocks).toHaveLength(1)
+      const block = compactBlocks[0]!
+      if (block.type === "compact") {
+        expect(block.preTokens).toBe(90000)
+        expect(block.postTokens).toBe(20000)
+      }
+    })
+
     it("a compact block separated by other blocks is not coalesced with a later one", () => {
       // Two genuinely distinct compactions (separated by user/assistant
       // activity) should still produce two compact blocks.

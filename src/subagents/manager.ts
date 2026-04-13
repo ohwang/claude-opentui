@@ -184,6 +184,19 @@ export class SubagentManager {
   ): void {
     if (running.status.state !== "running") return
 
+    // Surface silent message loss: if the local follow-up queue still has
+    // items when the subagent terminates, those messages will never be
+    // delivered. Warn loudly so it's visible in session logs instead of
+    // silently dropped (per project's "never silently drop" convention).
+    if (running.messageQueue.length > 0) {
+      log.warn("Subagent terminated with queued messages dropped", {
+        subagentId: running.subagentId,
+        state,
+        droppedCount: running.messageQueue.length,
+        droppedPreview: running.messageQueue.map((m) => m.slice(0, 80)),
+      })
+    }
+
     running.status.state = state
     running.status.endTime = Date.now()
     if (errorMessage) running.status.errorMessage = errorMessage

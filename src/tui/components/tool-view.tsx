@@ -15,6 +15,7 @@ import { getStatusConfig } from "./primitives"
 import { truncatePathMiddle, truncateToWidth } from "../../utils/truncate"
 import { createThrottledValue } from "../../utils/throttled-value"
 import { isMcpTool, parseMcpToolName } from "./mcp-tool-view"
+import { buildUnifiedDiff, looksLikeUnifiedDiff } from "../../utils/format-diff"
 
 export type ViewLevel = "collapsed" | "expanded" | "show_all"
 
@@ -32,12 +33,73 @@ function isCodeOutput(tool: string): boolean {
   return tool === "Read" || tool === "Grep"
 }
 
-/** Detect whether tool output contains a unified diff */
-function isDiffOutput(tool: string, output: string): boolean {
-  if (tool === "Edit" || tool === "Write") {
-    return output.includes("--- ") && output.includes("+++ ") && output.includes("@@")
+/**
+ * Decide what diff text (if any) to render for a tool block.
+ *
+ * Priority:
+ * 1. If the `output` string already contains unified-diff markers, use it
+ *    as-is. ACP backends embed a unified diff inside the tool_use_end
+ *    output via `formatDiffContent()`, and some tools (like MultiEdit
+ *    aggregators or custom MCP tools) may also emit pre-formatted diffs.
+ * 2. Otherwise, for Edit / Write / MultiEdit / NotebookEdit on a known
+ *    `file_path`, synthesize a unified diff from the tool *input*. This
+ *    covers Claude's SDK — which returns a prose success message for
+ *    these tools, not a diff — and any future backend that plumbs
+ *    `old_string`/`new_string`/`content` through as input.
+ * 3. Returns `undefined` when no diff can be constructed. Callers should
+ *    fall back to code / plain rendering.
+ */
+export function resolveDiffText(
+  tool: string,
+  input: unknown,
+  output: string | undefined,
+): string | undefined {
+  if (output && looksLikeUnifiedDiff(output)) {
+    return output
   }
-  return false
+
+  if (tool !== "Edit" && tool !== "Write" && tool !== "MultiEdit" && tool !== "NotebookEdit") {
+    return undefined
+  }
+
+  const inp = input as Record<string, unknown> | null
+  if (!inp) return undefined
+  const path = typeof inp.file_path === "string" ? inp.file_path : undefined
+  if (!path) return undefined
+
+  // Write: full-file replacement. No prior content known.
+  if (tool === "Write" && typeof inp.content === "string") {
+    return buildUnifiedDiff({ path, oldText: "", newText: inp.content })
+  }
+
+  // Edit: single replacement.
+  if (tool === "Edit" && typeof inp.old_string === "string" && typeof inp.new_string === "string") {
+    return buildUnifiedDiff({ path, oldText: inp.old_string, newText: inp.new_string })
+  }
+
+  // MultiEdit: array of { old_string, new_string }. Concatenate hunks into one diff.
+  if (tool === "MultiEdit" && Array.isArray(inp.edits)) {
+    const parts: string[] = []
+    for (const edit of inp.edits as unknown[]) {
+      const e = edit as Record<string, unknown> | null
+      if (!e) continue
+      if (typeof e.old_string === "string" && typeof e.new_string === "string") {
+        parts.push(buildUnifiedDiff({ path, oldText: e.old_string, newText: e.new_string }))
+      }
+    }
+    return parts.length > 0 ? parts.join("\n\n") : undefined
+  }
+
+  // NotebookEdit: new_source replaces old_source for a single cell.
+  if (
+    tool === "NotebookEdit"
+    && typeof inp.new_source === "string"
+  ) {
+    const oldSource = typeof inp.old_source === "string" ? inp.old_source : ""
+    return buildUnifiedDiff({ path, oldText: oldSource, newText: inp.new_source })
+  }
+
+  return undefined
 }
 
 /** Extract a filetype hint from a file path for syntax highlighting */
@@ -219,10 +281,10 @@ export function ToolBlockView(props: { block: Extract<Block, { type: "tool" }>; 
         </box>
       </Show>
       {/* Full output (show_all mode) — syntax highlighted for code-producing tools */}
-      <Show when={props.viewLevel === "show_all" && b().output}>
+      <Show when={props.viewLevel === "show_all" && (b().output || resolveDiffText(b().tool, b().input, b().output))}>
         <box paddingLeft={4}>
           <Show
-            when={isDiffOutput(b().tool, b().output ?? "")}
+            when={resolveDiffText(b().tool, b().input, b().output)}
             fallback={
               <Show
                 when={isCodeOutput(b().tool)}
@@ -241,17 +303,19 @@ export function ToolBlockView(props: { block: Extract<Block, { type: "tool" }>; 
               </Show>
             }
           >
-            <diff
-              diff={b().output ?? ""}
-              view="unified"
-              syntaxStyle={syntaxStyle}
-              filetype={filetypeFromPath((b().input as Record<string, unknown> | null)?.file_path as string | undefined)}
-              addedSignColor={colors.diff.added}
-              removedSignColor={colors.diff.removed}
-              addedBg={colors.diff.addedBg}
-              removedBg={colors.diff.removedBg}
-              fg={colors.text.primary}
-            />
+            {(diffText: () => string) => (
+              <diff
+                diff={diffText()}
+                view="unified"
+                syntaxStyle={syntaxStyle}
+                filetype={filetypeFromPath((b().input as Record<string, unknown> | null)?.file_path as string | undefined)}
+                addedSignColor={colors.diff.added}
+                removedSignColor={colors.diff.removed}
+                addedBg={colors.diff.addedBg}
+                removedBg={colors.diff.removedBg}
+                fg={colors.text.primary}
+              />
+            )}
           </Show>
         </box>
       </Show>

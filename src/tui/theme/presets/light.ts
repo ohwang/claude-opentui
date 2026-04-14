@@ -43,7 +43,7 @@ export const light: ThemeDefinition = {
       surface: "#eeeef0",     // Visible lift from white — user message bubbles, elevated surfaces
       surfaceHover: "#e0e0e4", // Hover state — clearly distinct from surface
       overlay: "#e6e8f0",     // Cool-shifted light gray — modals, diagnostics panels
-      selection: "#bfdbfe",   // Blue-200 — text selection highlight (VS Code-like)
+      selection: "#93c5fd",   // Blue-300 — text selection highlight, strong enough to read against
       bash: "#faf5ff",        // Violet-50 — subtle violet tint for bash context
       memory: "#eff6ff",      // Blue-50 — subtle blue tint for memory context
     },

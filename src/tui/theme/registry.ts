@@ -12,6 +12,7 @@ import { catppuccinMocha } from "./presets/catppuccin-mocha"
 import { dracula } from "./presets/dracula"
 import { snazzy } from "./presets/snazzy"
 import { solarizedDark } from "./presets/solarized-dark"
+import { light } from "./presets/light"
 
 const themes = new Map<string, ThemeDefinition>()
 
@@ -22,6 +23,7 @@ themes.set(catppuccinMocha.id, catppuccinMocha)
 themes.set(dracula.id, dracula)
 themes.set(snazzy.id, snazzy)
 themes.set(solarizedDark.id, solarizedDark)
+themes.set(light.id, light)
 
 /** Register a theme preset. Overwrites if the ID already exists. */
 export function registerTheme(theme: ThemeDefinition): void {

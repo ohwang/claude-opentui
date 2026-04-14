@@ -57,7 +57,7 @@ export function AssistantBlock(props: { block: AssistantBlockType }) {
           <text fg={iconColor()}>{"\u23FA"}</text>
         </box>
         <box flexGrow={1}>
-          <markdown content={b().text} syntaxStyle={getSyntaxStyle()} fg={textColor()} />
+          <markdown content={b().text} syntaxStyle={getSyntaxStyle()} fg={textColor()} bg={colors.bg.primary} />
         </box>
       </box>
     </box>

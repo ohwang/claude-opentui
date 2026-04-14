@@ -57,6 +57,7 @@ export function ThinkingBlock(props: { text: string; collapsed?: boolean }) {
             content={truncatedText()}
             syntaxStyle={getSyntaxStyle()}
             fg={colors.text.thinking}
+            bg={colors.bg.primary}
           />
         </box>
       </Show>

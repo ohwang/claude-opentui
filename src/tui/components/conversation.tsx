@@ -409,7 +409,7 @@ export function ConversationView(props: { children?: JSX.Element; footerHint?: s
                 <text fg={colors.text.primary}>{"\u23FA"}</text>
               </box>
               <box flexGrow={1}>
-                <markdown content={visibleStreamingText() ?? undefined} syntaxStyle={getSyntaxStyle()} streaming={true} fg={colors.text.primary} />
+                <markdown content={visibleStreamingText() ?? undefined} syntaxStyle={getSyntaxStyle()} streaming={true} fg={colors.text.primary} bg={colors.bg.primary} />
               </box>
             </box>
           </box>

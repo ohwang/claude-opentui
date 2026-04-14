@@ -47,16 +47,18 @@ export function HeaderBar() {
   }
 
   const modelInfo = () => {
-    // Prefer currentModel (set by Ctrl+P model cycling), then session metadata,
-    // then configured model. session_init only arrives after the first user
-    // message (SDK starts lazily), so use agent.config.model as the initial
-    // display to avoid showing "Connecting..." when a model is already configured.
+    // Prefer currentModel (set by Ctrl+P model cycling), then session metadata.
+    // We intentionally do NOT fall back to `agent.config.model`: it can be
+    // populated from settings (e.g. `~/.claude/settings.json`) regardless of
+    // the active backend, which would display a Claude model name for Codex
+    // sessions before session_init arrives. Better to admit we don't know
+    // yet than to pretend.
     const model = state.session?.models?.[0]
-    const raw = state.currentModel || (model?.name ?? agent.config.model ?? "")
+    const raw = state.currentModel || model?.name || ""
 
-    // No model from session or config yet — show backend name so the user
-    // knows which backend is active while waiting for session_init.
-    if (!raw) return `Auto (${agent.backend.capabilities().name})`
+    // No model reported by the backend yet — show the backend name alongside
+    // an honest "unknown model" label while we wait for session_init.
+    if (!raw) return `unknown model (${agent.backend.capabilities().name})`
 
     const friendly = friendlyModelName(raw)
 

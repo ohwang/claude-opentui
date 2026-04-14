@@ -335,7 +335,7 @@ export function StatusBar(props: { hint?: string | null }) {
       const fill = state.lastTurnInputTokens
       if (fill > 0) {
         const model = state.session?.models?.[0]
-        const raw = state.currentModel || (model?.name ?? agent.config.model ?? "")
+        const raw = state.currentModel || model?.name || ""
         const ctxWindow = model?.contextWindow ?? MODEL_CONTEXT_WINDOWS[raw] ?? DEFAULT_CONTEXT_WINDOW
         const pct = Math.min(100, Math.round((fill / ctxWindow) * 100))
         setTerminalProgress("running", pct)
@@ -433,8 +433,13 @@ export function StatusBar(props: { hint?: string | null }) {
 
   const modelName = () => {
     const model = state.session?.models?.[0]
-    const raw = state.currentModel || (model?.name ?? agent.config.model ?? "")
-    if (!raw) return `Auto (${agent.backend.capabilities().name})`
+    // Only trust values reported by the backend. `agent.config.model` is
+    // deliberately NOT consulted here: it can be populated from settings
+    // (e.g. `~/.claude/settings.json`) regardless of the active backend,
+    // which made Codex sessions display the Claude config value before
+    // session_init arrived.
+    const raw = state.currentModel || model?.name || ""
+    if (!raw) return `unknown model (${agent.backend.capabilities().name})`
     const friendly = friendlyModelName(raw)
     // Prefer dynamic context window from SDK, fall back to hardcoded
     const ctxWindow = model?.contextWindow ?? MODEL_CONTEXT_WINDOWS[raw] ?? DEFAULT_CONTEXT_WINDOW
@@ -465,7 +470,7 @@ export function StatusBar(props: { hint?: string | null }) {
     const fill = state.lastTurnInputTokens
     if (fill === 0) return 0
     const model = state.session?.models?.[0]
-    const raw = state.currentModel || (model?.name ?? agent.config.model ?? "")
+    const raw = state.currentModel || model?.name || ""
     const ctxWindow = model?.contextWindow ?? MODEL_CONTEXT_WINDOWS[raw] ?? DEFAULT_CONTEXT_WINDOW
     return Math.round((fill / ctxWindow) * 100)
   })

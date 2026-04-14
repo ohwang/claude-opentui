@@ -507,6 +507,32 @@ export function reduce(
       }
 
       if (severity === "fatal") {
+        // Prefer attaching the error to the user message that triggered the
+        // current turn — matches Claude Code's UX of showing "this user
+        // message failed to be processed" rather than a detached error block.
+        // Fall back to a standalone error block when there is no user block
+        // in the current turn (e.g. history_load_failed, startup errors).
+        let attachedIdx = -1
+        for (let i = state.blocks.length - 1; i >= 0; i--) {
+          const b = state.blocks[i]!
+          if (b.type === "user" && !b.queued) {
+            attachedIdx = i
+            break
+          }
+        }
+
+        if (attachedIdx >= 0) {
+          const target = state.blocks[attachedIdx] as Extract<Block, { type: "user" }>
+          const blocks = [...state.blocks]
+          blocks[attachedIdx] = { ...target, error: { code: event.code, message: event.message } }
+          return {
+            ...next,
+            sessionState: "ERROR",
+            lastError: event,
+            blocks,
+          }
+        }
+
         return {
           ...next,
           sessionState: "ERROR",

@@ -27,7 +27,7 @@ export const defaultDark: ThemeDefinition = {
     },
 
     bg: {
-      primary: "#000000",
+      // primary omitted — inherit the terminal's own background color
       surface: "#373737",
       surfaceHover: "#464646",
       overlay: "#2c323e",

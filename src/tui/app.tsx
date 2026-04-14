@@ -28,6 +28,7 @@ import { colors } from "./theme/tokens"
 import { ConversationView } from "./components/conversation"
 import { Divider } from "./components/primitives"
 import { InputArea, clearInput, hasInputText, refocusInput, hideCursor, showCursor, isCursorHidden, getInputHistory, setInputText, commandRegistry } from "./components/input-area"
+import { _scrollToBottom } from "./components/input-utils"
 import { HistorySearchModal } from "./components/history-search"
 import { CommandPalette } from "./components/command-palette"
 import type { SlashCommand } from "../commands/registry"
@@ -458,9 +459,9 @@ function Layout(props: { onExit?: () => void }) {
       return
     }
 
-    // Ctrl+L to clear the conversation display
+    // Ctrl+L to scroll to bottom (like Emacs recenter — snap back to latest output)
     if (event.ctrl && event.name === "l") {
-      sync.clearConversation()
+      _scrollToBottom?.()
       return
     }
 

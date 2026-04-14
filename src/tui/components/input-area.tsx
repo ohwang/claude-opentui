@@ -14,7 +14,7 @@
 
 import { createSignal, createEffect, Show, Index, onCleanup } from "solid-js"
 import { TextAttributes, type TextareaRenderable } from "@opentui/core"
-import { useRenderer, usePaste, useTerminalDimensions } from "@opentui/solid"
+import { useRenderer, usePaste } from "@opentui/solid"
 import { decodePasteBytes } from "@opentui/core"
 import { useAgent } from "../context/agent"
 import { useSession } from "../context/session"
@@ -42,7 +42,6 @@ import {
   inputHistory,
   setHistoryIndex,
   setSavedInput,
-  computeVisualLineCount,
   truncatePath,
   truncatePastedText,
   expandPasteRefs,
@@ -83,17 +82,33 @@ export function InputArea() {
   const sync = useSync()
   const { state: messagesState } = useMessages()
   const renderer = useRenderer()
-  const dims = useTerminalDimensions()
   let textareaRef: TextareaRenderable | undefined
 
   // Debounce timer for expensive file autocomplete searches
   let fileSearchTimer: ReturnType<typeof setTimeout> | undefined
   onCleanup(() => clearTimeout(fileSearchTimer))
 
-  // Dynamic textarea height: grows with content lines (min 1, max 20)
+  // Dynamic textarea height: grows with content lines (min 1, max 20).
+  // The line count comes from the editor's own measureForDimensions(), which
+  // is authoritative. We apply the height imperatively (see createEffect below)
+  // because Solid's setProperty pathway wasn't propagating height updates to
+  // the yoga layout reliably under rapid input bursts.
   const MAX_TEXTAREA_LINES = 20
   const [lineCount, setLineCount] = createSignal(1)
-  const textareaHeight = () => Math.min(Math.max(lineCount(), 1), MAX_TEXTAREA_LINES)
+  createEffect(() => {
+    const h = Math.min(Math.max(lineCount(), 1), MAX_TEXTAREA_LINES)
+    if (!textareaRef) return
+    textareaRef.height = h
+    // When the textarea grows, the editor may still hold an old scroll offset
+    // from when content didn't fit. Reset it once content fits again.
+    const totalLines = textareaRef.editorView.getTotalVirtualLineCount()
+    if (totalLines <= h) {
+      const vp = textareaRef.editorView.getViewport()
+      if (vp.offsetY !== 0) {
+        textareaRef.editorView.setViewport(vp.offsetX, 0, vp.width, vp.height, false)
+      }
+    }
+  })
 
   // Tracks textarea scroll offset so we can show a "hidden above" indicator
   // when content exceeds the visible cap and the viewport has scrolled down.
@@ -127,11 +142,13 @@ export function InputArea() {
     setScrollOffset(0)
   })
 
-  /** Count visual lines (accounting for word wrap) and update the signal */
+  /** Recompute textarea height from the editor's authoritative wrap measurement. */
   const updateLineCount = () => {
-    const text = textareaRef?.plainText ?? ""
-    const width = (dims()?.width ?? 120) - 3
-    setLineCount(computeVisualLineCount(text, width))
+    if (!textareaRef) return
+    const width = Math.max(1, textareaRef.width ?? 1)
+    const measured = textareaRef.editorView.measureForDimensions(width, 9999)
+    const total = measured?.lineCount ?? 1
+    setLineCount(Math.max(total, 1))
     refreshScrollOffset()
   }
 
@@ -481,7 +498,6 @@ export function InputArea() {
         <textarea
           ref={(el: TextareaRenderable) => { textareaRef = el; setSharedTextareaRef(el) }}
           focused={!isDisabled() && !_cursorHidden}
-          height={textareaHeight()}
           placeholder={placeholder()}
           textColor={colors.text.primary}
           focusedTextColor={colors.text.primary}

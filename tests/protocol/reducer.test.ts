@@ -941,6 +941,123 @@ describe("ConversationState reducer", () => {
   })
 
   // -----------------------------------------------------------------------
+  // task_updated (SDK 0.2.107+)
+  // -----------------------------------------------------------------------
+
+  describe("task_updated", () => {
+    it("merges patch into existing task", () => {
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "turn_start" },
+        { type: "task_start", taskId: "t1", description: "Searching" },
+        { type: "task_updated", taskId: "t1", patch: { description: "Updated desc", isBackgrounded: true } },
+      ])
+      const task = state.activeTasks.get("t1")!
+      expect(task.description).toBe("Updated desc")
+      expect(task.isBackgrounded).toBe(true)
+      expect(task.status).toBe("running") // unchanged
+    })
+
+    it("maps 'killed' status to 'error'", () => {
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "turn_start" },
+        { type: "task_start", taskId: "t1", description: "Searching" },
+        { type: "task_updated", taskId: "t1", patch: { status: "killed" } },
+      ])
+      expect(state.activeTasks.get("t1")!.status).toBe("error")
+    })
+
+    it("maps 'failed' status to 'error'", () => {
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "turn_start" },
+        { type: "task_start", taskId: "t1", description: "Searching" },
+        { type: "task_updated", taskId: "t1", patch: { status: "failed", error: "Out of memory" } },
+      ])
+      const task = state.activeTasks.get("t1")!
+      expect(task.status).toBe("error")
+      expect(task.errorMessage).toBe("Out of memory")
+    })
+
+    it("maps 'completed' status", () => {
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "turn_start" },
+        { type: "task_start", taskId: "t1", description: "Searching" },
+        { type: "task_updated", taskId: "t1", patch: { status: "completed", endTime: 1700000000 } },
+      ])
+      const task = state.activeTasks.get("t1")!
+      expect(task.status).toBe("completed")
+      expect(task.endTime).toBe(1700000000)
+    })
+
+    it("maps 'pending' status to 'running'", () => {
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "turn_start" },
+        { type: "task_start", taskId: "t1", description: "Searching" },
+        { type: "task_updated", taskId: "t1", patch: { status: "pending" } },
+      ])
+      expect(state.activeTasks.get("t1")!.status).toBe("running")
+    })
+
+    it("sets totalPausedMs", () => {
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "turn_start" },
+        { type: "task_start", taskId: "t1", description: "Searching" },
+        { type: "task_updated", taskId: "t1", patch: { totalPausedMs: 500 } },
+      ])
+      expect(state.activeTasks.get("t1")!.totalPausedMs).toBe(500)
+    })
+
+    it("is a no-op for unknown task IDs", () => {
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "turn_start" },
+        { type: "task_updated", taskId: "nonexistent", patch: { status: "completed" } },
+      ])
+      expect(state.activeTasks.has("nonexistent")).toBe(false)
+    })
+  })
+
+  // -----------------------------------------------------------------------
+  // skipTranscript on task events (SDK 0.2.107+)
+  // -----------------------------------------------------------------------
+
+  describe("skipTranscript on task events", () => {
+    it("stores skipTranscript from task_start", () => {
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "turn_start" },
+        { type: "task_start", taskId: "t1", description: "Ambient", skipTranscript: true },
+      ])
+      expect(state.activeTasks.get("t1")!.skipTranscript).toBe(true)
+    })
+
+    it("preserves skipTranscript from task_start through task_complete", () => {
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "turn_start" },
+        { type: "task_start", taskId: "t1", description: "Ambient", skipTranscript: true },
+        { type: "task_complete", taskId: "t1", output: "Done" },
+      ])
+      expect(state.activeTasks.get("t1")!.skipTranscript).toBe(true)
+    })
+
+    it("task_complete can override skipTranscript", () => {
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "turn_start" },
+        { type: "task_start", taskId: "t1", description: "Ambient", skipTranscript: true },
+        { type: "task_complete", taskId: "t1", output: "Done", skipTranscript: false },
+      ])
+      expect(state.activeTasks.get("t1")!.skipTranscript).toBe(false)
+    })
+  })
+
+  // -----------------------------------------------------------------------
   // Compact
   // -----------------------------------------------------------------------
 
@@ -956,6 +1073,28 @@ describe("ConversationState reducer", () => {
       if (compactBlock && compactBlock.type === "compact") {
         expect(compactBlock.summary).toBe("Conversation was compacted")
       }
+    })
+
+    it("stores durationMs in compact block", () => {
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "turn_start" },
+        { type: "compact", summary: "Compacted", durationMs: 1500 },
+      ])
+      const compactBlock = state.blocks.find(b => b.type === "compact") as any
+      expect(compactBlock.durationMs).toBe(1500)
+    })
+
+    it("merges durationMs in dedup adjacent compact blocks", () => {
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "turn_start" },
+        { type: "compact", summary: "First", trigger: "auto" },
+        { type: "compact", summary: "Second", trigger: "auto", durationMs: 2000 },
+      ])
+      const compactBlocks = state.blocks.filter(b => b.type === "compact")
+      expect(compactBlocks).toHaveLength(1)
+      expect((compactBlocks[0] as any).durationMs).toBe(2000)
     })
   })
 

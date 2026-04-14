@@ -554,6 +554,7 @@ describe("Claude Event Mapper — mapSDKMessage", () => {
         description: "Running tests",
         toolUseId: "tool-1",
         taskType: "background",
+        skipTranscript: undefined,
       })
     })
 
@@ -609,6 +610,7 @@ describe("Claude Event Mapper — mapSDKMessage", () => {
         taskId: "task-1",
         output: "All tests passed",
         toolUseId: "tool-1",
+        skipTranscript: undefined,
       })
     })
   })
@@ -898,6 +900,351 @@ describe("Claude Event Mapper — mapSDKMessage", () => {
       expect(events).toHaveLength(1)
       expect(events[0]!.type).toBe("backend_specific")
       expect((events[0] as any).backend).toBe("claude")
+    })
+  })
+
+  // ---------------------------------------------------------------------------
+  // SDK 0.2.107+ new system subtypes
+  // ---------------------------------------------------------------------------
+
+  describe("system memory_recall (SDK 0.2.107+)", () => {
+    it("maps memory_recall to system_message with formatted summary", () => {
+      const events = mapSDKMessage({
+        type: "system",
+        subtype: "memory_recall",
+        mode: "select",
+        memories: [
+          { path: "~/.claude/memories/coding.md", scope: "personal" },
+          { path: "/team/.claude/memories/style.md", scope: "team", content: "..." },
+        ],
+      }, freshState())
+
+      expect(events).toHaveLength(1)
+      expect(events[0]!.type).toBe("system_message")
+      const msg = events[0] as any
+      expect(msg.text).toContain("Recalled 2 memories")
+      expect(msg.text).toContain("[personal]")
+      expect(msg.text).toContain("[team]")
+    })
+
+    it("produces no events for empty memories array", () => {
+      const events = mapSDKMessage({
+        type: "system",
+        subtype: "memory_recall",
+        mode: "synthesize",
+        memories: [],
+      }, freshState())
+
+      expect(events).toHaveLength(0)
+    })
+
+    it("uses 'Synthesized' label for synthesize mode", () => {
+      const events = mapSDKMessage({
+        type: "system",
+        subtype: "memory_recall",
+        mode: "synthesize",
+        memories: [{ path: "<synthesis:~/.claude>", scope: "personal" }],
+      }, freshState())
+
+      expect(events).toHaveLength(1)
+      expect((events[0] as any).text).toContain("Synthesized 1 memory")
+    })
+
+    it("handles missing memories array gracefully", () => {
+      const events = mapSDKMessage({
+        type: "system",
+        subtype: "memory_recall",
+        mode: "select",
+      }, freshState())
+
+      expect(events).toHaveLength(0)
+    })
+  })
+
+  describe("system notification (SDK 0.2.107+)", () => {
+    it("maps to ephemeral system_message", () => {
+      const events = mapSDKMessage({
+        type: "system",
+        subtype: "notification",
+        key: "update-available",
+        text: "A new version is available",
+        priority: "medium",
+      }, freshState())
+
+      expect(events).toHaveLength(1)
+      expect(events[0]).toEqual({
+        type: "system_message",
+        text: "A new version is available",
+        ephemeral: true,
+      })
+    })
+
+    it("maps low-priority notifications (still emits event)", () => {
+      const events = mapSDKMessage({
+        type: "system",
+        subtype: "notification",
+        key: "telemetry",
+        text: "Telemetry sent",
+        priority: "low",
+      }, freshState())
+
+      expect(events).toHaveLength(1)
+      expect(events[0]!.type).toBe("system_message")
+      expect((events[0] as any).ephemeral).toBe(true)
+    })
+
+    it("maps immediate-priority notifications", () => {
+      const events = mapSDKMessage({
+        type: "system",
+        subtype: "notification",
+        key: "urgent",
+        text: "Action required",
+        priority: "immediate",
+        color: "red",
+        timeout_ms: 0,
+      }, freshState())
+
+      expect(events).toHaveLength(1)
+      expect((events[0] as any).text).toBe("Action required")
+    })
+
+    it("falls back to key when text is missing", () => {
+      const events = mapSDKMessage({
+        type: "system",
+        subtype: "notification",
+        key: "some-key",
+        priority: "high",
+      }, freshState())
+
+      expect((events[0] as any).text).toBe("some-key")
+    })
+  })
+
+  describe("system task_updated (SDK 0.2.107+)", () => {
+    it("maps to task_updated event with camelCase patch", () => {
+      const events = mapSDKMessage({
+        type: "system",
+        subtype: "task_updated",
+        task_id: "task-1",
+        patch: {
+          status: "completed",
+          end_time: 1700000000,
+          total_paused_ms: 500,
+          is_backgrounded: true,
+        },
+      }, freshState())
+
+      expect(events).toHaveLength(1)
+      expect(events[0]!.type).toBe("task_updated")
+      const evt = events[0] as any
+      expect(evt.taskId).toBe("task-1")
+      expect(evt.patch.status).toBe("completed")
+      expect(evt.patch.endTime).toBe(1700000000)
+      expect(evt.patch.totalPausedMs).toBe(500)
+      expect(evt.patch.isBackgrounded).toBe(true)
+    })
+
+    it("maps partial patch (only some fields present)", () => {
+      const events = mapSDKMessage({
+        type: "system",
+        subtype: "task_updated",
+        task_id: "task-1",
+        patch: { status: "running" },
+      }, freshState())
+
+      expect(events).toHaveLength(1)
+      const patch = (events[0] as any).patch
+      expect(patch.status).toBe("running")
+      expect(patch.endTime).toBeUndefined()
+      expect(patch.error).toBeUndefined()
+    })
+
+    it("maps error and description in patch", () => {
+      const events = mapSDKMessage({
+        type: "system",
+        subtype: "task_updated",
+        task_id: "task-1",
+        patch: {
+          status: "failed",
+          error: "Out of memory",
+          description: "Updated description",
+        },
+      }, freshState())
+
+      const patch = (events[0] as any).patch
+      expect(patch.status).toBe("failed")
+      expect(patch.error).toBe("Out of memory")
+      expect(patch.description).toBe("Updated description")
+    })
+
+    it("produces no events when task_id is missing", () => {
+      const events = mapSDKMessage({
+        type: "system",
+        subtype: "task_updated",
+        patch: { status: "error" },
+      }, freshState())
+
+      expect(events).toHaveLength(0)
+    })
+
+    it("produces no events when patch is missing", () => {
+      const events = mapSDKMessage({
+        type: "system",
+        subtype: "task_updated",
+        task_id: "task-1",
+      }, freshState())
+
+      expect(events).toHaveLength(0)
+    })
+  })
+
+  describe("system request_user_dialog (SDK 0.2.107+)", () => {
+    it("maps to backend_specific with warning (not yet handled)", () => {
+      const msg = {
+        type: "system",
+        subtype: "request_user_dialog",
+        dialog_kind: "computer_use_approval",
+        payload: { action: "click" },
+        tool_use_id: "tool-1",
+      }
+      const events = mapSDKMessage(msg, freshState())
+
+      expect(events).toHaveLength(1)
+      expect(events[0]!.type).toBe("backend_specific")
+      expect((events[0] as any).backend).toBe("claude")
+      expect((events[0] as any).data).toBe(msg)
+    })
+  })
+
+  describe("unknown system subtypes (catch-all)", () => {
+    it("maps to backend_specific and logs warning", () => {
+      const msg = {
+        type: "system",
+        subtype: "future_subtype",
+        data: "whatever",
+      }
+      const events = mapSDKMessage(msg, freshState())
+
+      expect(events).toHaveLength(1)
+      expect(events[0]!.type).toBe("backend_specific")
+      expect((events[0] as any).backend).toBe("claude")
+    })
+  })
+
+  // ---------------------------------------------------------------------------
+  // SDK 0.2.107+ skip_transcript on task events
+  // ---------------------------------------------------------------------------
+
+  describe("task events with skip_transcript (SDK 0.2.107+)", () => {
+    it("passes skip_transcript on task_started", () => {
+      const events = mapSDKMessage({
+        type: "task_started",
+        task_id: "task-1",
+        description: "Ambient check",
+        skip_transcript: true,
+      }, freshState())
+
+      expect(events).toHaveLength(1)
+      expect((events[0] as any).skipTranscript).toBe(true)
+    })
+
+    it("passes skip_transcript=false on task_started", () => {
+      const events = mapSDKMessage({
+        type: "task_started",
+        task_id: "task-1",
+        description: "Normal task",
+        skip_transcript: false,
+      }, freshState())
+
+      expect((events[0] as any).skipTranscript).toBe(false)
+    })
+
+    it("passes skip_transcript on task_notification", () => {
+      const events = mapSDKMessage({
+        type: "task_notification",
+        task_id: "task-1",
+        content: "Done",
+        skip_transcript: true,
+      }, freshState())
+
+      expect(events).toHaveLength(1)
+      expect((events[0] as any).skipTranscript).toBe(true)
+    })
+  })
+
+  // ---------------------------------------------------------------------------
+  // SDK 0.2.107+ compact enrichments
+  // ---------------------------------------------------------------------------
+
+  describe("compact enrichments (SDK 0.2.107+)", () => {
+    it("extracts duration_ms from compact_metadata", () => {
+      const events = mapSDKMessage({
+        type: "system",
+        subtype: "compact_boundary",
+        compact_metadata: {
+          trigger: "auto",
+          pre_tokens: 80000,
+          post_tokens: 20000,
+          duration_ms: 1500,
+        },
+      }, freshState())
+
+      expect(events).toHaveLength(1)
+      expect((events[0] as any).durationMs).toBe(1500)
+      expect((events[0] as any).preTokens).toBe(80000)
+      expect((events[0] as any).postTokens).toBe(20000)
+    })
+
+    it("handles compact_result on status message", () => {
+      const events = mapSDKMessage({
+        type: "system",
+        subtype: "status",
+        status: "idle",
+        compact_result: "success",
+      }, freshState())
+
+      expect(events).toHaveLength(1)
+      expect(events[0]!.type).toBe("compact")
+      expect((events[0] as any).summary).toBe("Conversation compacted.")
+      expect((events[0] as any).inProgress).toBe(false)
+    })
+
+    it("handles compact_result with custom message on status", () => {
+      const events = mapSDKMessage({
+        type: "system",
+        subtype: "status",
+        status: "idle",
+        compact_result: "Compacted to 20K tokens",
+      }, freshState())
+
+      expect(events).toHaveLength(1)
+      expect((events[0] as any).summary).toBe("Compacted to 20K tokens")
+    })
+
+    it("handles compact_error on status message", () => {
+      const events = mapSDKMessage({
+        type: "system",
+        subtype: "status",
+        status: "idle",
+        compact_error: "Context too short to compact",
+      }, freshState())
+
+      expect(events).toHaveLength(1)
+      expect((events[0] as any).summary).toBe("Compaction failed: Context too short to compact")
+      expect((events[0] as any).inProgress).toBe(false)
+    })
+
+    it("handles missing duration_ms in compact_metadata", () => {
+      const events = mapSDKMessage({
+        type: "system",
+        subtype: "compact_boundary",
+        compact_metadata: {
+          trigger: "user",
+          pre_tokens: 50000,
+        },
+      }, freshState())
+
+      expect((events[0] as any).durationMs).toBeUndefined()
     })
   })
 })

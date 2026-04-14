@@ -576,6 +576,7 @@ export function reduce(
         backendName: event.backendName,
         model: event.model,
         sessionId: event.sessionId,
+        skipTranscript: event.skipTranscript,
       })
       return { ...next, activeTasks }
     }
@@ -610,7 +611,41 @@ export function reduce(
           status: (event.state === "error" ? "error" : "completed") as TaskInfo["status"],
           endTime: Date.now(),
           errorMessage: event.errorMessage,
+          skipTranscript: event.skipTranscript ?? task.skipTranscript,
         })
+      }
+      return { ...next, activeTasks }
+    }
+
+    case "task_updated": {
+      // SDK 0.2.107+: granular task state patch — merge into existing task.
+      const activeTasks = new Map(state.activeTasks)
+      const task = activeTasks.get(event.taskId)
+      if (task) {
+        const patch = event.patch
+        // Map SDK statuses to TaskInfo's narrower status union:
+        // "pending" → "running" (pending is pre-running), "failed"/"killed" → "error"
+        let status = task.status
+        if (patch.status != null) {
+          switch (patch.status) {
+            case "running": status = "running"; break
+            case "completed": status = "completed"; break
+            case "failed":
+            case "killed": status = "error"; break
+            case "pending": status = "running"; break
+          }
+        }
+        activeTasks.set(event.taskId, {
+          ...task,
+          status,
+          ...(patch.description != null ? { description: patch.description } : {}),
+          ...(patch.endTime != null ? { endTime: patch.endTime } : {}),
+          ...(patch.totalPausedMs != null ? { totalPausedMs: patch.totalPausedMs } : {}),
+          ...(patch.error != null ? { errorMessage: patch.error } : {}),
+          ...(patch.isBackgrounded != null ? { isBackgrounded: patch.isBackgrounded } : {}),
+        })
+      } else {
+        log.debug("task_updated for unknown task", { taskId: event.taskId })
       }
       return { ...next, activeTasks }
     }
@@ -656,6 +691,7 @@ export function reduce(
         preTokens: event.preTokens,
         postTokens: event.postTokens,
         inProgress: event.inProgress,
+        durationMs: event.durationMs,
       }
 
       if (!event.inProgress) {
@@ -683,6 +719,7 @@ export function reduce(
             trigger: event.trigger ?? lastBlock.trigger,
             preTokens: event.preTokens ?? lastBlock.preTokens,
             postTokens: event.postTokens ?? lastBlock.postTokens,
+            durationMs: event.durationMs ?? lastBlock.durationMs,
           }
           const blocks = [...state.blocks]
           blocks[blocks.length - 1] = merged

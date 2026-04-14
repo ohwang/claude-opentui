@@ -137,6 +137,8 @@ export type CompactEvent = {
   postTokens?: number
   /** Whether compaction is in progress (true) or completed (false/undefined) */
   inProgress?: boolean
+  /** How long compaction took in milliseconds (SDK 0.2.107+) */
+  durationMs?: number
 }
 
 /** Tasks / subagents */
@@ -156,6 +158,8 @@ export type TaskStartEvent = {
   model?: string
   /** Subagent's session ID for log cross-referencing */
   sessionId?: string
+  /** When true, this is an ambient/housekeeping task — hide from inline transcript */
+  skipTranscript?: boolean
 }
 export type TaskProgressEvent = {
   type: "task_progress"
@@ -188,6 +192,21 @@ export type TaskCompleteEvent = {
   state?: "completed" | "error"
   /** Error message if state is "error" */
   errorMessage?: string
+  /** When true, this is an ambient/housekeeping task — hide from inline transcript */
+  skipTranscript?: boolean
+}
+/** Granular task state patch (SDK 0.2.107+). Merged into activeTasks map. */
+export type TaskUpdatedEvent = {
+  type: "task_updated"
+  taskId: string
+  patch: {
+    status?: "pending" | "running" | "completed" | "failed" | "killed"
+    description?: string
+    endTime?: number
+    totalPausedMs?: number
+    error?: string
+    isBackgrounded?: boolean
+  }
 }
 
 /** Errors */
@@ -345,6 +364,7 @@ export type AgentEvent =
   | TaskStartEvent
   | TaskProgressEvent
   | TaskCompleteEvent
+  | TaskUpdatedEvent
   | ErrorEvent
   | CostUpdateEvent
   | ModelChangedEvent
@@ -531,7 +551,7 @@ export type Block =
   | { type: "thinking"; text: string }
   | { type: "tool"; id: string; tool: string; input: unknown; status: ToolStatus; output?: string; error?: string; startTime: number; duration?: number }
   | { type: "system"; text: string; ephemeral?: boolean }
-  | { type: "compact"; summary: string; trigger?: "user" | "auto"; preTokens?: number; postTokens?: number; inProgress?: boolean }
+  | { type: "compact"; summary: string; trigger?: "user" | "auto"; preTokens?: number; postTokens?: number; inProgress?: boolean; durationMs?: number }
   | { type: "shell"; id: string; command: string; output: string; error?: string; exitCode?: number; status: "running" | "done" | "error"; startTime: number; duration?: number }
   | { type: "error"; code: string; message: string }
   | { type: "plan"; entries: PlanEntry[] }
@@ -904,6 +924,12 @@ export interface TaskInfo {
   endTime?: number
   /** Error message if task ended with error */
   errorMessage?: string
+  /** Total time paused in milliseconds (SDK 0.2.107+) */
+  totalPausedMs?: number
+  /** Whether the task is currently backgrounded (SDK 0.2.107+) */
+  isBackgrounded?: boolean
+  /** When true, this is an ambient/housekeeping task — hide from inline transcript */
+  skipTranscript?: boolean
 }
 
 export interface CostTotals {

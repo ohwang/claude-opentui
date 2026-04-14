@@ -100,6 +100,20 @@ export function mapSDKMessage(msg: any, streamState: ToolStreamState, options?: 
             inProgress: true,
             trigger: "user",
           })
+        } else if (msg.compact_result || msg.compact_error) {
+          // SDK 0.2.107+: status transitioned from compacting — compact_result/compact_error
+          // on the status message tells us the outcome before compact_boundary arrives.
+          const summary = msg.compact_error
+            ? `Compaction failed: ${msg.compact_error}`
+            : msg.compact_result === "success"
+              ? "Conversation compacted."
+              : String(msg.compact_result ?? "Conversation compacted.")
+          events.push({
+            type: "compact",
+            summary,
+            inProgress: false,
+            trigger: "user",
+          })
         } else {
           log.debug("Unhandled system status", { status: msg.status })
         }
@@ -108,6 +122,7 @@ export function mapSDKMessage(msg: any, streamState: ToolStreamState, options?: 
         const trigger = meta.trigger === "auto" ? "auto" as const : "user" as const
         const preTokens = typeof meta.pre_tokens === "number" ? meta.pre_tokens : undefined
         const postTokens = typeof meta.post_tokens === "number" ? meta.post_tokens : undefined
+        const durationMs = typeof meta.duration_ms === "number" ? meta.duration_ms : undefined
 
         // Build summary from metadata
         const parts: string[] = []
@@ -123,6 +138,7 @@ export function mapSDKMessage(msg: any, streamState: ToolStreamState, options?: 
           trigger,
           preTokens,
           postTokens,
+          durationMs,
         })
       } else if (msg.subtype === "local_command_output") {
         // Strip SDK XML tags (e.g., <local-command-stdout>Compacted </local-command-stdout>)
@@ -136,6 +152,77 @@ export function mapSDKMessage(msg: any, streamState: ToolStreamState, options?: 
         } else {
           log.debug("Suppressed trivial local_command_output", { raw: msg.content })
         }
+      } else if (msg.subtype === "memory_recall") {
+        // SDK 0.2.107+: memory recall supervisor surfaced relevant memories
+        const memories = msg.memories ?? []
+        if (memories.length > 0) {
+          const lines = memories.map((m: any) => {
+            const scope = m.scope === "team" ? "[team]" : "[personal]"
+            const path = m.path ?? "unknown"
+            return `  ${scope} ${path}`
+          })
+          const mode = msg.mode === "synthesize" ? "Synthesized" : "Recalled"
+          const noun = memories.length === 1 ? "memory" : "memories"
+          events.push({
+            type: "system_message",
+            text: `${mode} ${memories.length} ${noun}:\n${lines.join("\n")}`,
+          })
+        } else {
+          log.debug("memory_recall with empty memories array", { mode: msg.mode })
+        }
+      } else if (msg.subtype === "notification") {
+        // SDK 0.2.107+: text notification from the loop side
+        const priority = msg.priority ?? "medium"
+        const text = msg.text ?? msg.key ?? "Notification"
+        if (priority === "low") {
+          log.debug("Low-priority notification", { key: msg.key, text })
+        }
+        events.push({
+          type: "system_message",
+          text,
+          ephemeral: true,
+        })
+      } else if (msg.subtype === "task_updated") {
+        // SDK 0.2.107+: granular task state patch
+        const taskId = msg.task_id
+        if (taskId && msg.patch) {
+          const patch: Record<string, unknown> = {}
+          if (msg.patch.status != null) patch.status = msg.patch.status
+          if (msg.patch.description != null) patch.description = msg.patch.description
+          if (msg.patch.end_time != null) patch.endTime = msg.patch.end_time
+          if (msg.patch.total_paused_ms != null) patch.totalPausedMs = msg.patch.total_paused_ms
+          if (msg.patch.error != null) patch.error = msg.patch.error
+          if (msg.patch.is_backgrounded != null) patch.isBackgrounded = msg.patch.is_backgrounded
+          events.push({
+            type: "task_updated",
+            taskId,
+            patch,
+          })
+        } else {
+          log.warn("task_updated missing task_id or patch", { keys: Object.keys(msg).join(",") })
+        }
+      } else if (msg.subtype === "request_user_dialog") {
+        // SDK 0.2.107+: tool-driven blocking dialog request. bantai does not yet
+        // render these dialogs — log a warning and pass through as backend_specific
+        // so the event is not silently dropped.
+        log.warn("Unhandled control request: request_user_dialog", {
+          dialogKind: msg.dialog_kind,
+          toolUseId: msg.tool_use_id,
+          keys: Object.keys(msg).join(","),
+        })
+        events.push({
+          type: "backend_specific",
+          backend: "claude",
+          data: msg,
+        })
+      } else {
+        // Catch-all for unknown system subtypes — never silently drop events
+        log.warn("Unhandled system subtype", { subtype: msg.subtype, keys: Object.keys(msg).join(",") })
+        events.push({
+          type: "backend_specific",
+          backend: "claude",
+          data: msg,
+        })
       }
       break
 
@@ -214,6 +301,7 @@ export function mapSDKMessage(msg: any, streamState: ToolStreamState, options?: 
         description: msg.description ?? "Background task",
         toolUseId: msg.tool_use_id ?? undefined,
         taskType: msg.task_type ?? undefined,
+        skipTranscript: msg.skip_transcript ?? undefined,
       })
       break
 
@@ -248,6 +336,7 @@ export function mapSDKMessage(msg: any, streamState: ToolStreamState, options?: 
         taskId: msg.task_id ?? msg.uuid,
         output: msg.content ?? msg.result ?? "",
         toolUseId: msg.tool_use_id ?? undefined,
+        skipTranscript: msg.skip_transcript ?? undefined,
       })
       break
 

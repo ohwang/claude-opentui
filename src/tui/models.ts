@@ -55,9 +55,23 @@ export const MODEL_CONTEXT_WINDOWS: Record<string, number> = {
 
 export const DEFAULT_CONTEXT_WINDOW = 200_000
 
+/** Short aliases used by Claude Code's settings (e.g., "opus", "sonnet", "haiku") */
+const MODEL_ALIASES: Record<string, string> = {
+  "opus": "Opus 4.6",
+  "sonnet": "Sonnet 4.6",
+  "haiku": "Haiku 4.5",
+}
+
 /** Convert raw model IDs to friendly display names, stripping "Claude " prefix as fallback */
 export function friendlyModelName(name: string): string {
   if (MODEL_NAMES[name]) return MODEL_NAMES[name]
+  if (MODEL_ALIASES[name]) return MODEL_ALIASES[name]
+  // Strip context-window suffixes from Claude Code aliases: "opus[1m]" → "opus"
+  const stripped = name.replace(/\[\d+[mMkK]\]$/, "")
+  if (stripped !== name) {
+    if (MODEL_NAMES[stripped]) return MODEL_NAMES[stripped]
+    if (MODEL_ALIASES[stripped]) return MODEL_ALIASES[stripped]
+  }
   return name.replace(/^[Cc]laude\s+/, "")
 }
 

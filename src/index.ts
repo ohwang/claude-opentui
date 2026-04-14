@@ -60,7 +60,14 @@ async function main() {
     flags.theme = resolved.values.theme
   }
   if (flags.config.model === undefined && resolved.values.model) {
-    flags.config.model = resolved.values.model
+    // Only inherit the model from the claude-fallback scope (~/.claude/settings.json)
+    // when running on a Claude backend. Claude Code writes aliases like "opus[1m]"
+    // that are meaningless (and rejected) by other backends like Codex.
+    const modelSource = resolved.sources.model
+    const isClaudeBackend = !flags.backend || flags.backend === "claude"
+    if (modelSource !== "claude-fallback" || isClaudeBackend) {
+      flags.config.model = resolved.values.model
+    }
   }
   if (flags.config.permissionMode === undefined && resolved.values.permissionMode) {
     flags.config.permissionMode = resolved.values.permissionMode

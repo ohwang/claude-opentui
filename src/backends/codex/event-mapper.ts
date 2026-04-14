@@ -135,13 +135,13 @@ export function mapCodexNotification(
             }
           : undefined,
       })
-      // If the turn failed, also emit an error
+      // If the turn failed, emit a fatal error so it appears in the TUI.
       if (turn?.status === "failed" && turn.error) {
         events.push({
           type: "error",
           code: turn.error.codexErrorInfo ?? "codex_turn_failed",
           message: turn.error.message ?? "Turn failed",
-          severity: "recoverable",
+          severity: "fatal",
         })
       }
       break
@@ -284,14 +284,42 @@ export function mapCodexNotification(
 
     // ----- Errors -----
 
-    case "error":
+    case "error": {
+      let code = params?.code ?? "codex_error"
+      let message = params?.message ?? "Unknown Codex error"
+
+      // Codex sometimes sends error bodies as stringified JSON, e.g.:
+      //   {"type":"error","status":400,"error":{"type":"invalid_request_error","message":"The 'opus[1m]' model is not supported..."}}
+      // Extract the human-readable message so the user sees something actionable.
+      if (typeof message === "string" && message.startsWith("{")) {
+        try {
+          const parsed = JSON.parse(message)
+          // Nested error.message (OpenAI API format)
+          if (parsed.error?.message) {
+            message = parsed.error.message
+          } else if (parsed.message) {
+            message = parsed.message
+          }
+          if (typeof parsed.status === "number") {
+            code = `http_${parsed.status}`
+          }
+        } catch {
+          // Not valid JSON — use message as-is
+        }
+      }
+
+      // Default to fatal so errors are VISIBLE in the TUI. Only rate-limit
+      // and transient server errors are recoverable (the backend will retry).
+      const isTransient = code === "rate_limit" || code === "http_429" || code === "http_503"
+
       events.push({
         type: "error",
-        code: params?.code ?? "codex_error",
-        message: params?.message ?? "Unknown Codex error",
-        severity: "recoverable",
+        code,
+        message,
+        severity: isTransient ? "recoverable" : "fatal",
       })
       break
+    }
 
     default:
       log.warn("Unhandled Codex notification", { method })

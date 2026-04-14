@@ -401,6 +401,14 @@ export function SyncProvider(props: ParentProps) {
       agent.config.continue = undefined
       agent.config.sessionOrigin = newName as any
 
+      // When switching WITHOUT an explicit model, clear the inherited model
+      // so the new backend uses its own default. Without this, a Claude-specific
+      // model alias (e.g., "opus[1m]" from ~/.claude/settings.json) leaks into
+      // non-Claude backends and causes API errors.
+      if (!opts.model) {
+        agent.config.model = undefined
+      }
+
       // Step 5: swap the backend signal so every reactive reader (status bar,
       // header, diagnostics) re-renders with the new backend's name.
       agent.setBackend(opts.adapter)

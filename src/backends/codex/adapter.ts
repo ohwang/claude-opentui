@@ -682,7 +682,7 @@ export class CodexAdapter extends BaseAdapter {
         type: "error",
         code: "turn_error",
         message: err instanceof Error ? err.message : String(err),
-        severity: "recoverable",
+        severity: "fatal",
       })
     }
   }

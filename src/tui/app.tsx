@@ -134,6 +134,15 @@ function Layout(props: { onExit?: () => void }) {
   const renderer = useRenderer()
   setRenderer(renderer)
 
+  // Apply theme background to the renderer. This is reactive — when the user
+  // switches themes via /theme, the renderer background updates immediately.
+  // The root <box> also has backgroundColor for the component tree, but
+  // setBackgroundColor covers areas the Zig renderer paints directly (clear
+  // regions, areas between components, initial terminal fill).
+  createEffect(() => {
+    renderer.setBackgroundColor(colors.bg.primary)
+  })
+
   /**
    * Copy text to clipboard, preferring OSC 52 (instant, no subprocess, works
    * over SSH) and falling back to native tools (pbcopy/xclip).
@@ -592,7 +601,7 @@ function Layout(props: { onExit?: () => void }) {
   })
 
   return (
-    <box flexDirection="column" width="100%" height="100%">
+    <box flexDirection="column" width="100%" height="100%" backgroundColor={colors.bg.primary}>
       {/* Keep ConversationView always mounted to preserve textarea state.
            Hide it via height={0} + visible={false} when diagnostics or modal
            overlay is open.  height={0} alone isn't sufficient — child elements
@@ -714,6 +723,7 @@ export function startApp(options: AppOptions): void {
   ), {
     targetFps: 60,
     exitOnCtrlC: false,
+    backgroundColor: colors.bg.primary,
     useMouse: true,
     // Enable Kitty keyboard protocol for proper modifier key detection.
     // Without this, Cmd+C is intercepted by the terminal emulator at the

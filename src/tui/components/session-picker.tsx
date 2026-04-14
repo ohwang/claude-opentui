@@ -452,7 +452,7 @@ export function SessionPicker(props: SessionPickerProps) {
   // ── JSX ────────────────────────────────────────────────────────────────
 
   return (
-    <box flexDirection="column" padding={2} width="100%" height="100%">
+    <box flexDirection="column" padding={2} width="100%" height="100%" backgroundColor={colors.bg.primary}>
       {/* Title */}
       <text fg={colors.accent.primary} attributes={TextAttributes.BOLD}>
         {"Resume Session"}

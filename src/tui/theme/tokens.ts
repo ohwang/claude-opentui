@@ -54,8 +54,11 @@
  * BACKGROUND TOKENS — when to use what
  * ═══════════════════════════════════════════════════════════════════════
  *
- *   bg.primary     #000000   Base terminal background. Rarely set explicitly
- *                            — the terminal's own bg is inherited.
+ *   bg.primary     #000000   Base terminal background. Applied to the root
+ *                            <box> and via renderer.setBackgroundColor() so
+ *                            themed backgrounds (e.g. Solarized #002b36)
+ *                            paint correctly instead of inheriting the
+ *                            terminal's default.
  *
  *   bg.surface     #373737   Elevated surface: user message bubbles, input
  *                            areas. Provides a subtle lift against the

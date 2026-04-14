@@ -91,10 +91,7 @@ export function SessionResumeSummaryView(props: { block: SessionResumeSummaryBlo
   const sessionIdLine = () => {
     const id = b().sessionId
     if (!id) return null
-    // Short form — full UUIDs eat vertical real estate and most diagnostics
-    // queries only need the prefix anyway.
-    const short = id.length > 8 ? id.slice(0, 8) : id
-    return `Session ${short}`
+    return `Session ${id}`
   }
 
   // Warn when context is nearly full — at this point the user is usually

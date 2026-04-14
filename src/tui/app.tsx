@@ -139,8 +139,10 @@ function Layout(props: { onExit?: () => void }) {
   // The root <box> also has backgroundColor for the component tree, but
   // setBackgroundColor covers areas the Zig renderer paints directly (clear
   // regions, areas between components, initial terminal fill).
+  // If bg.primary is undefined, the theme opts out — terminal's own bg is kept.
   createEffect(() => {
-    renderer.setBackgroundColor(colors.bg.primary)
+    const bg = colors.bg.primary
+    if (bg) renderer.setBackgroundColor(bg)
   })
 
   /**
@@ -723,7 +725,7 @@ export function startApp(options: AppOptions): void {
   ), {
     targetFps: 60,
     exitOnCtrlC: false,
-    backgroundColor: colors.bg.primary,
+    ...(colors.bg.primary ? { backgroundColor: colors.bg.primary } : {}),
     useMouse: true,
     // Enable Kitty keyboard protocol for proper modifier key detection.
     // Without this, Cmd+C is intercepted by the terminal emulator at the

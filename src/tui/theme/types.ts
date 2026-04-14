@@ -29,7 +29,8 @@ export interface TextTokens {
 }
 
 export interface BgTokens {
-  primary: string
+  /** Base terminal background. Omit to inherit the terminal's own background. */
+  primary?: string
   surface: string
   surfaceHover: string
   overlay: string

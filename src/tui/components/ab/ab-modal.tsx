@@ -15,7 +15,7 @@
 
 import { TextAttributes } from "@opentui/core"
 import type { KeyEvent } from "@opentui/core"
-import { createSignal, onCleanup, onMount, Show } from "solid-js"
+import { createEffect, createSignal, onCleanup, Show } from "solid-js"
 import type { OrchestratorHandle } from "../../../ab/orchestrator"
 import { setModalKeyHandler } from "../../context/modal"
 import { colors } from "../../theme/tokens"
@@ -163,21 +163,21 @@ export function ABModal(props: ABModalProps) {
     return false
   }
 
-  // The TargetPicker installs its own modal key handler during the review
-  // phase; we install ours for every other phase. We call setModalKeyHandler
-  // each time the phase changes so handlers don't overlap.
-  const updateHandler = () => {
+  // The TargetPicker and JudgeCriteriaPicker install their own modal key
+  // handlers during their phases; we install ours for every other phase.
+  // Using createEffect so this re-runs whenever phase() or showCriteria()
+  // changes — without this, the handler was only installed on mount (when
+  // phase is "review") and never reinstalled after phase transitions.
+  createEffect(() => {
     const phase = orch.phase()
-    if (phase === "review" || showCriteria()) {
+    const criteriaOpen = showCriteria()
+    if (phase === "review" || criteriaOpen) {
       // Subview owns the handler; clear ours so it can install.
     } else {
       setModalKeyHandler(handleKey)
     }
-  }
-
-  onMount(() => {
-    updateHandler()
   })
+
   onCleanup(() => {
     setModalKeyHandler(null)
   })
@@ -195,8 +195,8 @@ export function ABModal(props: ABModalProps) {
             // Targets are baked into the orchestrator at creation time; the
             // picker's selections in v1 only confirm the defaults. (A future
             // version can pass them back to a per-comparison reconfigure
-            // helper.) Start the run.
-            updateHandler()
+            // helper.) Start the run. The createEffect above will reinstall
+            // the key handler once phase() transitions away from "review".
             orch.start().catch(() => {})
           }}
           onCancel={() => {
@@ -238,12 +238,10 @@ export function ABModal(props: ABModalProps) {
         <JudgeCriteriaPicker
           onConfirm={(criteria) => {
             setShowCriteria(false)
-            updateHandler()
             orch.startJudge(criteria.id).catch(() => {})
           }}
           onCancel={() => {
             setShowCriteria(false)
-            updateHandler()
           }}
         />
       </Show>

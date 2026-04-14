@@ -123,7 +123,6 @@ export function runSession(opts: SessionRunnerOptions): SessionHandle {
   let sawIdle = false
   let finishTimer: ReturnType<typeof setTimeout> | null = null
   let ended = false
-  let promptSent = false
 
   const finish = (reason: string) => {
     if (ended) return
@@ -144,20 +143,17 @@ export function runSession(opts: SessionRunnerOptions): SessionHandle {
     let gen: AsyncGenerator<ConversationEvent> | null = null
     try {
       gen = backend.start(config)
+      let eventCount = 0
       for await (const event of gen) {
+        eventCount++
         if (ended) break
+        log.debug("A/B event", { label: opts.label, type: event.type, n: eventCount })
         processEvent(event, stats, opts.prompt)
 
-        // The Claude adapter wires initialPrompt itself; other adapters
-        // (Mock, ACP) expect a sendMessage after session_init. Fire once.
-        if (event.type === "session_init" && !promptSent) {
-          promptSent = true
-          try {
-            backend.sendMessage({ text: opts.prompt })
-          } catch (e) {
-            log.warn("A/B sendMessage failed", { label: opts.label, error: String(e) })
-          }
-        }
+        // Backends handle initialPrompt themselves: the Claude adapter
+        // wires it internally, and the Mock adapter pre-queues it. No
+        // additional sendMessage is needed when initialPrompt is set in
+        // the session config.
 
         // Once we've seen session_init and the backend reports back to IDLE
         // after a turn, we can consider the session complete.
@@ -171,7 +167,11 @@ export function runSession(opts: SessionRunnerOptions): SessionHandle {
           if (finishTimer) clearTimeout(finishTimer)
           // If the backend doesn't emit session_state, fall back to
           // closing the session on turn_complete.
-          finishTimer = setTimeout(() => finish("turn_complete"), 800)
+          log.info("A/B scheduling finish timer", { label: opts.label, delay: 800 })
+          finishTimer = setTimeout(() => {
+            log.info("A/B finish timer fired", { label: opts.label })
+            finish("turn_complete")
+          }, 800)
         } else if (event.type === "session_state" && event.state === "running") {
           // Reset the finish timer: we're still working.
           if (finishTimer) clearTimeout(finishTimer)

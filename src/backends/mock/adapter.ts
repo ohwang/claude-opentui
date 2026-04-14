@@ -7,6 +7,11 @@
  * Usage: bun run dev -- --backend mock
  */
 
+/** Word-boundary match so "task" doesn't trigger "ask". */
+function hasWord(text: string, word: string): boolean {
+  return new RegExp(`\\b${word}\\b`).test(text)
+}
+
 import type {
   BackendCapabilities,
   EffortLevel,
@@ -77,6 +82,13 @@ export class MockAdapter extends BaseAdapter {
         { id: "claude-opus-4-6", name: "Claude Opus 4.6" },
       ],
     })
+
+    // If an initialPrompt was provided (e.g. from A/B session runner),
+    // pre-queue it so the message loop picks it up immediately without
+    // needing an external sendMessage call.
+    if (config.initialPrompt) {
+      this.messageQueue.push({ text: config.initialPrompt })
+    }
 
     // Signal readiness — mock has no async setup, ready immediately after
     // the synthetic session_init. /switch awaits this before returning.
@@ -171,19 +183,25 @@ export class MockAdapter extends BaseAdapter {
       await this.simulateToolUse()
     }
 
-    // Simulate permission request
-    if (text.includes("permission") || text.includes("bash")) {
-      await this.simulatePermission()
-    }
+    // Only run interactive simulations (permission, elicitation) for short
+    // user-typed prompts. Long prompts (>200 chars) are typically programmatic
+    // (judge, combine) and have no UI to approve/deny, so skip blocking sims.
+    if (text.length <= 200) {
+      // Simulate permission request
+      if (text.includes("permission") || hasWord(text, "bash")) {
+        await this.simulatePermission()
+      }
 
-    // Simulate subagent/task
-    if (text.includes("agent") || text.includes("task")) {
-      await this.simulateTasks()
-    }
+      // Simulate subagent/task
+      if (hasWord(text, "agent") || hasWord(text, "task")) {
+        await this.simulateTasks()
+      }
 
-    // Simulate elicitation (ask user question)
-    if (text.includes("ask") || text.includes("question")) {
-      await this.simulateElicitation()
+      // Simulate elicitation (ask user question)
+      // Use word-boundary matching so "task" doesn't trigger "ask".
+      if (hasWord(text, "ask") || hasWord(text, "question")) {
+        await this.simulateElicitation()
+      }
     }
 
     // Stream the response text

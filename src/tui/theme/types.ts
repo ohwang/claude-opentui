@@ -19,6 +19,8 @@ export interface TextTokens {
   thinking: string
   briefLabel: string
   briefLabelClaude: string
+  /** Input cursor color. Defaults to text.primary if omitted. */
+  cursor?: string
 
   /** @deprecated Use `secondary` instead. Alias kept for unconverted code. */
   inactive: string

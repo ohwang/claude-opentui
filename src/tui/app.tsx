@@ -137,13 +137,30 @@ function Layout(props: { onExit?: () => void }) {
 
   // Apply theme background to the renderer. This is reactive — when the user
   // switches themes via /theme, the renderer background updates immediately.
-  // The root <box> also has backgroundColor for the component tree, but
-  // setBackgroundColor covers areas the Zig renderer paints directly (clear
-  // regions, areas between components, initial terminal fill).
+  // setBackgroundColor sets the clear color for new frames. To make empty cells
+  // (flex spacers, gaps between content) pick up the new color, we also write
+  // an ANSI screen-clear escape (ESC[2J) after setting the terminal background
+  // color (ESC[48;2;r;g;b m). This fills the entire terminal with the new
+  // background. The next render frame paints content on top.
   // If bg.primary is undefined, the theme opts out — terminal's own bg is kept.
+  let bgInitialized = false
   createEffect(() => {
     const bg = colors.bg.primary
-    if (bg) renderer.setBackgroundColor(bg)
+    if (bg) {
+      renderer.setBackgroundColor(bg)
+      if (bgInitialized) {
+        // On theme switch (not first render), clear the terminal to the new bg.
+        // Parse hex to RGB for the ANSI escape.
+        const hex = bg.replace("#", "")
+        const r = parseInt(hex.slice(0, 2), 16)
+        const g = parseInt(hex.slice(2, 4), 16)
+        const b = parseInt(hex.slice(4, 6), 16)
+        process.stdout.write(`\x1b[48;2;${r};${g};${b}m\x1b[2J`)
+        renderer.currentRenderBuffer.clear()
+        renderer.requestRender()
+      }
+      bgInitialized = true
+    }
   })
 
   /**

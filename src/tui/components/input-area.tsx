@@ -484,8 +484,10 @@ export function InputArea() {
           height={textareaHeight()}
           placeholder={placeholder()}
           textColor={colors.text.primary}
+          focusedTextColor={colors.text.primary}
           placeholderColor={colors.text.muted}
           cursorStyle={{ style: "block", blinking: false }}
+          cursorColor={colors.text.cursor ?? colors.text.primary}
           keyBindings={isDisabled() ? [] : [
             { name: "return", action: "submit" },
             { name: "return", shift: true, action: "newline" },

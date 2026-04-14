@@ -26,22 +26,23 @@ export const light: ThemeDefinition = {
       primary: "#1a1a2e",     // Near-black with a subtle cool shift — readable on white
       secondary: "#5c6370",   // Cool medium gray — metadata, tool args, file paths
       secondaryShimmer: "#4a5060", // Darker target for shimmer animations
-      muted: "#9ca3af",       // Light gray — shortcut hints, connector glyphs, truncation
+      muted: "#71717a",       // Zinc-500 — shortcut hints, connector glyphs, truncation
       inverse: "#ffffff",     // White — for inverted/reversed contexts
-      thinking: "#8b8fa3",    // Cool-shifted gray — subdued but readable reasoning text
+      thinking: "#6b7280",    // Gray-500 — subdued but clearly readable reasoning text
       briefLabel: "#2563eb",  // Blue-600 — context/brief labels
       briefLabelClaude: "#c2410c", // Orange-700 — Claude-specific labels
+      cursor: "#1a1a2e",          // Match primary — dark cursor block on white background
       // Deprecated aliases
       inactive: "#5c6370",
       inactiveShimmer: "#4a5060",
-      subtle: "#d4d4d8",      // Zinc-300 — divider lines ONLY, never readable text
+      subtle: "#b4b4b8",      // Divider lines ONLY — darker than zinc-300 for visibility
     },
 
     bg: {
       primary: "#ffffff",     // Pure white background
-      surface: "#f4f4f5",     // Zinc-100 — user message bubbles, elevated surfaces
-      surfaceHover: "#e4e4e7", // Zinc-200 — hover state
-      overlay: "#eef0f6",     // Cool-shifted off-white — modals, diagnostics panels
+      surface: "#eeeef0",     // Visible lift from white — user message bubbles, elevated surfaces
+      surfaceHover: "#e0e0e4", // Hover state — clearly distinct from surface
+      overlay: "#e6e8f0",     // Cool-shifted light gray — modals, diagnostics panels
       selection: "#bfdbfe",   // Blue-200 — text selection highlight (VS Code-like)
       bash: "#faf5ff",        // Violet-50 — subtle violet tint for bash context
       memory: "#eff6ff",      // Blue-50 — subtle blue tint for memory context
@@ -75,8 +76,8 @@ export const light: ThemeDefinition = {
     },
 
     border: {
-      default: "#d4d4d8",     // Zinc-300 — structural borders, thinking block bars
-      muted: "#e4e4e7",       // Zinc-200 — subtle dividers, scroll area borders
+      default: "#a1a1aa",     // Zinc-400 — structural borders, thinking block bars
+      muted: "#c4c4c8",       // Subtle but visible dividers, scroll area borders
       error: "#dc2626",       // Red-600 — error borders
       permission: "#6366f1",  // Indigo-500 — permission dialog border
       elicitation: "#0891b2", // Cyan-600 — elicitation prompt border
@@ -112,7 +113,7 @@ export const light: ThemeDefinition = {
 
     rateLimit: {
       fill: "#6366f1",        // Indigo-500 — filled portion of rate limit bar
-      empty: "#e4e4e7",       // Zinc-200 — empty portion (subtle on white)
+      empty: "#c4c4c8",       // Visible empty portion of rate limit bar
     },
 
     agents: {

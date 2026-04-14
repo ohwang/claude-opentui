@@ -318,8 +318,8 @@ export function ConversationView(props: { children?: JSX.Element; footerHint?: s
 
   return (
     <box flexDirection="column" flexGrow={1}>
-      <ScrollView ref={(el: ScrollBoxRenderable) => { scrollboxRef = el; registerScrollToBottom(() => { setScrolledAway(false); queueMicrotask(() => el.scrollBy(999999)) }) }} stickyScroll={!userScrolledAway()} stickyStart="bottom" onScroll={handleScroll} flexGrow={1}>
-        <box flexDirection="column" paddingRight={1} minHeight="100%">
+      <ScrollView ref={(el: ScrollBoxRenderable) => { scrollboxRef = el; registerScrollToBottom(() => { setScrolledAway(false); queueMicrotask(() => el.scrollBy(999999)) }) }} stickyScroll={!userScrolledAway()} stickyStart="bottom" onScroll={handleScroll} flexGrow={1} backgroundColor={colors.bg.primary}>
+        <box flexDirection="column" paddingRight={1} minHeight="100%" backgroundColor={colors.bg.primary}>
           {/* Header bar — scrolls with content */}
           <HeaderBar />
 

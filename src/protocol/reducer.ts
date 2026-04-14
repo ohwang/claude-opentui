@@ -12,6 +12,7 @@ import type {
   Block,
   ConversationEvent,
   ConversationState,
+  SkillToolUse,
   TaskInfo,
   ToolStatus,
   TurnFileChange,
@@ -167,14 +168,20 @@ export function reduce(
       const flushed = flushBuffers({ ...next })
 
       // Unqueue any queued user blocks AND close any running tool blocks
-      // (SDK doesn't emit explicit tool_use_end — tools finish internally)
+      // (SDK doesn't emit explicit tool_use_end — tools finish internally).
+      // Also close running skill sub-agent activities.
       const blocks = flushed.blocks.map(b =>
         b.type === "user" && b.queued ? { ...b, queued: undefined } : b
-      ).map(b =>
-        b.type === "tool" && b.status === "running"
-          ? { ...b, status: "done" as ToolStatus, duration: Date.now() - b.startTime }
-          : b
-      )
+      ).map(b => {
+        if (b.type !== "tool" || b.status !== "running") return b
+        const closed: typeof b = { ...b, status: "done" as ToolStatus, duration: Date.now() - b.startTime }
+        if (b.skillActivity?.some(a => a.status === "running")) {
+          closed.skillActivity = b.skillActivity.map(a =>
+            a.status === "running" ? { ...a, status: "done" as const } : a
+          )
+        }
+        return closed
+      })
 
       // Update cost totals
       const cost = { ...state.cost }
@@ -433,6 +440,50 @@ export function reduce(
             : b
         ),
       }
+    }
+
+    // ----- Skill sub-agent activity -----
+
+    case "skill_tool_activity": {
+      // Find the Skill tool block that matches this event's parentToolUseId
+      const blockIdx = state.blocks.findIndex(
+        b => b.type === "tool" && b.tool === "Skill" && b.id === event.parentToolUseId
+      )
+      if (blockIdx < 0) {
+        log.debug("skill_tool_activity for unknown Skill block", { parentToolUseId: event.parentToolUseId })
+        return next
+      }
+
+      const block = state.blocks[blockIdx] as Extract<Block, { type: "tool" }>
+      const existing = block.skillActivity ?? []
+
+      // Find existing entry for this toolId (running → done transition)
+      const existingIdx = existing.findIndex(a => a.toolId === event.toolId)
+
+      let updated: SkillToolUse[]
+      if (existingIdx >= 0) {
+        updated = [...existing]
+        updated[existingIdx] = {
+          ...updated[existingIdx]!,
+          status: event.status,
+          toolName: event.toolName ?? updated[existingIdx]!.toolName,
+        }
+      } else if (event.toolName) {
+        // New tool use — append
+        updated = [...existing, {
+          toolId: event.toolId,
+          toolName: event.toolName,
+          status: event.status,
+        }]
+      } else {
+        // tool_result without a matching start — can't add without a name
+        log.debug("skill_tool_activity without toolName for unknown toolId", { toolId: event.toolId })
+        return next
+      }
+
+      const blocks = [...state.blocks]
+      blocks[blockIdx] = { ...block, skillActivity: updated }
+      return { ...next, blocks }
     }
 
     // ----- Permission flow -----

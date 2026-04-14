@@ -7,9 +7,9 @@
  * conversation flow.
  */
 
-import { createSignal, createEffect, createMemo, onCleanup, Show } from "solid-js"
+import { createSignal, createEffect, createMemo, onCleanup, Show, For } from "solid-js"
 import { TextAttributes } from "@opentui/core"
-import type { Block } from "../../protocol/types"
+import type { Block, SkillToolUse } from "../../protocol/types"
 import { colors } from "../theme/tokens"
 import { BlinkingDot } from "./primitives"
 import { truncateToWidth } from "../../utils/truncate"
@@ -78,9 +78,21 @@ export function SkillToolView(props: {
     return "success"
   }
 
-  // Progress: last few lines of output while running
+  // Skill sub-agent activity (populated by skill_tool_activity events)
+  const activity = createMemo(() => b().skillActivity ?? [])
+
+  const MAX_VISIBLE_TOOLS = 3
+  const visibleTools = createMemo((): SkillToolUse[] => {
+    const all = activity()
+    if (all.length <= MAX_VISIBLE_TOOLS) return all
+    return all.slice(-MAX_VISIBLE_TOOLS)
+  })
+  const hiddenCount = createMemo(() => Math.max(0, activity().length - MAX_VISIBLE_TOOLS))
+
+  // Progress: last few lines of output while running (fallback when no skillActivity)
   const progressText = createMemo(() => {
     if (status() !== "running") return ""
+    if (activity().length > 0) return "" // activity list replaces raw output
     const out = b().output ?? ""
     if (!out) return ""
     return getLastNLines(out, 3)
@@ -127,7 +139,42 @@ export function SkillToolView(props: {
         </Show>
       </box>
 
-      {/* Progress output — last few lines while skill is loading */}
+      {/* Sub-agent tool activity — last 3 tool uses with status indicators */}
+      <Show when={props.viewLevel !== "collapsed" && activity().length > 0}>
+        <box flexDirection="column" paddingLeft={4}>
+          <Show when={hiddenCount() > 0}>
+            <text fg={colors.text.muted}>
+              {`+${hiddenCount()} more tool use${hiddenCount() === 1 ? "" : "s"}`}
+            </text>
+          </Show>
+          <For each={visibleTools()}>
+            {(toolUse) => {
+              const icon = createMemo(() => {
+                switch (toolUse.status) {
+                  case "running": return "\u22EF" // ⋯
+                  case "done": return "\u2713"    // ✓
+                  case "error": return "\u2717"   // ✗
+                }
+              })
+              const fg = createMemo(() => {
+                switch (toolUse.status) {
+                  case "running": return colors.accent.suggestion
+                  case "done": return colors.status.success
+                  case "error": return colors.status.error
+                }
+              })
+              return (
+                <box flexDirection="row">
+                  <text fg={fg()}>{icon()}</text>
+                  <text fg={colors.text.secondary}>{" " + toolUse.toolName}</text>
+                </box>
+              )
+            }}
+          </For>
+        </box>
+      </Show>
+
+      {/* Progress output — last few lines while skill is loading (fallback) */}
       <Show when={props.viewLevel !== "collapsed" && status() === "running" && progressText()}>
         <box paddingLeft={4}>
           <text fg={colors.text.muted}>
@@ -215,6 +262,13 @@ export function CollapsedSkillLine(props: {
 
   const hint = createMemo(() => {
     if (status() === "running") {
+      // Show last active tool from skillActivity if available
+      const lastTool = b().skillActivity?.findLast(a => a.status === "running")
+      if (lastTool) {
+        return elapsed() > 0
+          ? ` (${lastTool.toolName}, ${elapsed()}s)`
+          : ` (${lastTool.toolName})`
+      }
       return elapsed() > 0 ? ` (${elapsed()}s)` : ""
     }
     if (b().error) {

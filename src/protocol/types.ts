@@ -287,6 +287,19 @@ export type ConfigOptionsEvent = {
   options: ConfigOption[]
 }
 
+/** Skill sub-agent tool activity — extracted from sub-agent messages with parent_tool_use_id */
+export type SkillToolActivityEvent = {
+  type: "skill_tool_activity"
+  /** The Skill tool_use_id that this activity belongs to */
+  parentToolUseId: string
+  /** Name of the sub-agent tool (e.g., "Bash", "Read", "Edit"). May be absent on tool_result messages. */
+  toolName?: string
+  /** The sub-agent's tool_use_id for this specific tool invocation */
+  toolId: string
+  /** Current status of this tool use */
+  status: "running" | "done" | "error"
+}
+
 /** Backend escape hatch */
 export type BackendSpecificEvent = {
   type: "backend_specific"
@@ -377,6 +390,7 @@ export type AgentEvent =
   | ShellEndEvent
   | PlanUpdateEvent
   | ConfigOptionsEvent
+  | SkillToolActivityEvent
 
 // ---------------------------------------------------------------------------
 // System Events — TUI lifecycle, not from any agent backend
@@ -545,11 +559,18 @@ export type SessionState =
 
 export type ToolStatus = "running" | "done" | "error" | "canceled"
 
+/** A single tool invocation by a Skill's sub-agent */
+export interface SkillToolUse {
+  toolId: string
+  toolName: string
+  status: "running" | "done" | "error"
+}
+
 export type Block =
   | { type: "user"; text: string; queued?: boolean; images?: ImageContent[]; error?: { code: string; message: string } }
   | { type: "assistant"; text: string; timestamp?: number; model?: string }
   | { type: "thinking"; text: string }
-  | { type: "tool"; id: string; tool: string; input: unknown; status: ToolStatus; output?: string; error?: string; startTime: number; duration?: number }
+  | { type: "tool"; id: string; tool: string; input: unknown; status: ToolStatus; output?: string; error?: string; startTime: number; duration?: number; skillActivity?: SkillToolUse[] }
   | { type: "system"; text: string; ephemeral?: boolean }
   | { type: "compact"; summary: string; trigger?: "user" | "auto"; preTokens?: number; postTokens?: number; inProgress?: boolean; durationMs?: number }
   | { type: "shell"; id: string; command: string; output: string; error?: string; exitCode?: number; status: "running" | "done" | "error"; startTime: number; duration?: number }

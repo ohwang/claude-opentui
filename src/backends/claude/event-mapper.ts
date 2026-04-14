@@ -228,14 +228,37 @@ export function mapSDKMessage(msg: any, streamState: ToolStreamState, options?: 
 
     case "stream_event":
       streamState.hasReceivedStreamEvent = true
-      events.push(...mapStreamEvent(msg.event, msg.parent_tool_use_id, streamState))
+      if (msg.parent_tool_use_id) {
+        // Sub-agent stream event — extract tool activity for skill/agent progress
+        events.push(...mapSkillStreamEvent(msg.event, msg.parent_tool_use_id))
+      } else {
+        events.push(...mapStreamEvent(msg.event, msg.parent_tool_use_id, streamState))
+      }
       break
 
     case "assistant":
-      // Full assistant message (contains complete content blocks).
-      // V1 uses stream_event for real-time deltas — assistant messages are redundant.
-      // V2's stream() yields only assistant messages (no stream_events).
-      if (options?.mapAssistant) {
+      if (msg.parent_tool_use_id) {
+        // Sub-agent assistant message — extract tool_use blocks for skill progress.
+        // These carry the sub-agent's tool invocations (Read, Bash, Edit, etc.).
+        const content = msg.message?.content
+        if (Array.isArray(content)) {
+          for (const block of content) {
+            if (block.type === "tool_use") {
+              events.push({
+                type: "skill_tool_activity",
+                parentToolUseId: msg.parent_tool_use_id,
+                toolName: block.name,
+                toolId: block.id,
+                status: "running",
+              })
+            }
+          }
+        }
+        if (events.length === 0) {
+          log.debug("Sub-agent assistant message without tool_use blocks", { parentToolUseId: msg.parent_tool_use_id })
+        }
+      } else if (options?.mapAssistant) {
+        // Full assistant message (contains complete content blocks).
         // V2 live mode — result message handles turn_complete
         events.push(...mapAssistantMessage(msg))
       } else if (!streamState.hasReceivedStreamEvent) {
@@ -292,6 +315,15 @@ export function mapSDKMessage(msg: any, streamState: ToolStreamState, options?: 
         id: msg.tool_use_id,
         output: msg.content ?? `[${msg.tool_name}] ${msg.elapsed_time_seconds}s elapsed`,
       })
+      if (msg.parent_tool_use_id) {
+        events.push({
+          type: "skill_tool_activity",
+          parentToolUseId: msg.parent_tool_use_id,
+          toolName: msg.tool_name,
+          toolId: msg.tool_use_id,
+          status: "running",
+        })
+      }
       break
 
     case "task_started":
@@ -350,6 +382,25 @@ export function mapSDKMessage(msg: any, streamState: ToolStreamState, options?: 
       break
 
     case "user": {
+      // Sub-agent tool result — extract tool completion for skill progress.
+      // Must come before main-conversation tool_use_result handling.
+      if (msg.tool_use_result && msg.parent_tool_use_id) {
+        const content = msg.message?.content
+        if (Array.isArray(content)) {
+          for (const block of content) {
+            if (block.type === "tool_result") {
+              events.push({
+                type: "skill_tool_activity",
+                parentToolUseId: msg.parent_tool_use_id,
+                toolId: block.tool_use_id,
+                status: block.is_error ? "error" : "done",
+              })
+            }
+          }
+        }
+        break
+      }
+
       // Tool result message — the SDK sends this when a tool completes.
       // Extract tool output to emit tool_use_end for result summary display.
       if (msg.tool_use_result) {
@@ -428,16 +479,21 @@ export function mapSDKMessage(msg: any, streamState: ToolStreamState, options?: 
             error: isError ? output : undefined,
           })
         }
-      } else if (!msg.parent_tool_use_id) {
+      } else if (msg.parent_tool_use_id) {
+        // Sub-agent prompt (no tool_use_result) — already displayed by
+        // AgentToolView/SkillToolView via the parent tool block.
+        log.debug("Suppressed sub-agent prompt", { parentToolUseId: msg.parent_tool_use_id })
+        break
+      } else if (msg.isSynthetic) {
+        // Synthetic user message — SDK-internal injection (e.g., inline skill
+        // prompt content, meta-messages). Hidden in Claude Code's own UI;
+        // should not render as a user message block in bantai either.
+        log.debug("Suppressed synthetic user message", { uuid: msg.uuid })
+        break
+      } else {
         // Replayed user message (resume/continue) — extract text content.
         // During live operation the SDK doesn't echo user messages back,
         // so this path only fires for historical replay.
-        //
-        // Messages with parent_tool_use_id are subagent prompts (the parent
-        // agent's instructions to a child agent). These are already displayed
-        // by the AgentToolView via the Agent tool block — showing them again
-        // as user messages is redundant and confusing (they look like the
-        // human typed them).
         const content = msg.message?.content
         let text = ""
         if (typeof content === "string") {
@@ -533,6 +589,39 @@ export function mapAssistantMessage(msg: any): AgentEvent[] {
         log.warn("Unhandled assistant content block type", { type: block.type, blockId: block.id })
     }
   }
+
+  return events
+}
+
+// ---------------------------------------------------------------------------
+// Sub-agent stream event -> skill_tool_activity events
+// ---------------------------------------------------------------------------
+
+/**
+ * Extract tool activity from sub-agent stream events (parent_tool_use_id set).
+ * These must NOT go through mapStreamEvent — doing so would inject sub-agent
+ * text_deltas and tool_use_starts into the main conversation.
+ */
+function mapSkillStreamEvent(
+  event: any,
+  parentToolUseId: string,
+): AgentEvent[] {
+  const events: AgentEvent[] = []
+
+  if (event.type === "content_block_start") {
+    const block = event.content_block
+    if (block?.type === "tool_use") {
+      events.push({
+        type: "skill_tool_activity",
+        parentToolUseId,
+        toolName: block.name,
+        toolId: block.id,
+        status: "running",
+      })
+    }
+  }
+  // Other sub-agent stream events (text deltas, thinking, etc.) are intentionally
+  // suppressed — the skill's text output arrives in the tool_use_end result.
 
   return events
 }

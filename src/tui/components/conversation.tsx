@@ -27,7 +27,7 @@ import { useSync } from "../context/sync"
 import { ThinkingBlock } from "./thinking-block"
 import { TaskView } from "./task-view"
 import { NativeSubagentView } from "./native-subagent-view"
-import { syntaxStyle } from "../theme"
+import { getSyntaxStyle } from "../theme"
 import { colors } from "../theme/tokens"
 import { HeaderBar } from "./header-bar"
 import type { Block } from "../../protocol/types"
@@ -409,7 +409,7 @@ export function ConversationView(props: { children?: JSX.Element; footerHint?: s
                 <text fg={colors.text.primary}>{"\u23FA"}</text>
               </box>
               <box flexGrow={1}>
-                <markdown content={visibleStreamingText() ?? undefined} syntaxStyle={syntaxStyle} streaming={true} fg={colors.text.primary} />
+                <markdown content={visibleStreamingText() ?? undefined} syntaxStyle={getSyntaxStyle()} streaming={true} fg={colors.text.primary} />
               </box>
             </box>
           </box>

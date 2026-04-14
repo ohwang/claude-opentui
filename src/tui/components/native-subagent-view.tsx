@@ -11,9 +11,10 @@ import { TextAttributes } from "@opentui/core"
 import type { TaskInfo } from "../../protocol/types"
 import { colors } from "../theme/tokens"
 
-// Cyan accent for native subagents -- visually distinct from backend tasks
-const ACCENT = "#00d7d7"
-const DIM = "#808080"
+// Cyan accent for native subagents -- visually distinct from backend tasks.
+// Read from colors store inline (not snapshot) so they update on theme switch.
+const subagentAccent = () => colors.accent.highlight
+const subagentDim = () => colors.text.muted
 
 /** Format elapsed time as human-readable string */
 function formatElapsed(startTime: number, endTime?: number): string {
@@ -77,7 +78,7 @@ function NativeSubagentItem(props: { task: TaskInfo; tick: () => number }) {
   const statusColor = createMemo(() => {
     if (hasError()) return colors.status.error
     if (!isRunning()) return colors.status.success
-    return props.task.thinkingActive ? ACCENT : DIM
+    return props.task.thinkingActive ? subagentAccent() : subagentDim()
   })
 
   // Progress stats line
@@ -115,17 +116,17 @@ function NativeSubagentItem(props: { task: TaskInfo; tick: () => number }) {
     <box flexDirection="column" paddingTop={1} paddingLeft={2}>
       {/* Line 1: Header */}
       <box flexDirection="row">
-        <text fg={ACCENT}>{"\u27E1 "}</text>
-        <text fg={ACCENT} attributes={TextAttributes.BOLD}>
+        <text fg={subagentAccent()}>{"\u27E1 "}</text>
+        <text fg={subagentAccent()} attributes={TextAttributes.BOLD}>
           {agentName(props.task)}
         </text>
         <Show when={props.task.model}>
-          <text fg={DIM} attributes={TextAttributes.DIM}>
+          <text fg={subagentDim()} attributes={TextAttributes.DIM}>
             {" (" + props.task.model + ")"}
           </text>
         </Show>
         <Show when={props.task.backendName}>
-          <text fg={DIM} attributes={TextAttributes.DIM}>
+          <text fg={subagentDim()} attributes={TextAttributes.DIM}>
             {" [" + props.task.backendName + "]"}
           </text>
         </Show>
@@ -145,7 +146,7 @@ function NativeSubagentItem(props: { task: TaskInfo; tick: () => number }) {
       {/* Line 3: Recent tools breadcrumb (running, non-empty) */}
       <Show when={isRunning() && toolsBreadcrumb()}>
         <box flexDirection="row" paddingLeft={2}>
-          <text fg={DIM}>{toolsBreadcrumb()}</text>
+          <text fg={subagentDim()}>{toolsBreadcrumb()}</text>
         </box>
       </Show>
 
@@ -169,7 +170,7 @@ function NativeSubagentItem(props: { task: TaskInfo; tick: () => number }) {
         </box>
         <Show when={props.task.output}>
           <box flexDirection="row" paddingLeft={4}>
-            <text fg={DIM}>{lastOutputLine(props.task.output)}</text>
+            <text fg={subagentDim()}>{lastOutputLine(props.task.output)}</text>
           </box>
         </Show>
       </Show>

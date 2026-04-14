@@ -7,7 +7,7 @@
 
 import { useAnimation, useReducedMotion } from "../../context/animation"
 import { easeOut } from "../../theme/easing"
-import { syntaxStyle } from "../../theme/syntax"
+import { getSyntaxStyle } from "../../theme/syntax"
 import { colors } from "../../theme/tokens"
 import type { Block } from "../../../protocol/types"
 
@@ -57,7 +57,7 @@ export function AssistantBlock(props: { block: AssistantBlockType }) {
           <text fg={iconColor()}>{"\u23FA"}</text>
         </box>
         <box flexGrow={1}>
-          <markdown content={b().text} syntaxStyle={syntaxStyle} fg={textColor()} />
+          <markdown content={b().text} syntaxStyle={getSyntaxStyle()} fg={textColor()} />
         </box>
       </box>
     </box>

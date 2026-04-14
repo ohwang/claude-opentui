@@ -16,18 +16,86 @@
  * Markdown scopes (headings, bold, links) reference tokens from
  * ./tokens.ts so they stay in sync with the rest of the UI.
  *
- * Code syntax scopes use hardcoded hex values from a cohesive editor
- * palette (Material-inspired). This is intentional — code highlighting
- * colors serve readability inside fenced blocks and are a separate
- * concern from the application's UI chrome colors. If we later support
- * user-selectable editor themes, these would move to a dedicated
- * palette, not into tokens.ts.
+ * Code syntax scopes use two palettes — one for dark backgrounds
+ * (Material-inspired) and one for light backgrounds (One Light-
+ * inspired). The active palette is chosen automatically based on
+ * the theme's bg.primary luminance.
+ *
+ * ── Reactivity ────────────────────────────────────────────────────
+ *
+ * syntaxStyle is rebuilt on every theme change. Because SyntaxStyle
+ * is a Zig-side object (not a SolidJS store), we expose it via a
+ * getter function — `getSyntaxStyle()` — backed by a version signal.
+ * Components must call `getSyntaxStyle()` in JSX so SolidJS tracks
+ * the dependency and re-evaluates on theme switch.
  */
 
+import { createSignal } from "solid-js"
 import { SyntaxStyle } from "@opentui/core"
 import { colors, _registerSyntaxRebuilder } from "./tokens"
 
+// ---------------------------------------------------------------------------
+// Light vs dark detection
+// ---------------------------------------------------------------------------
+
+function isLightBackground(): boolean {
+  const bg = colors.bg.primary
+  if (!bg) return false
+  const hex = bg.replace("#", "")
+  const r = parseInt(hex.slice(0, 2), 16)
+  const g = parseInt(hex.slice(2, 4), 16)
+  const b = parseInt(hex.slice(4, 6), 16)
+  // Relative luminance approximation (BT.601)
+  return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.5
+}
+
+// ---------------------------------------------------------------------------
+// Code syntax palettes
+// ---------------------------------------------------------------------------
+
+/** Material-inspired palette for dark backgrounds. */
+const DARK_SYNTAX = {
+  keyword: "#c792ea",     // soft purple
+  string: "#c3e88d",      // muted green
+  stringSpecial: "#89ddff", // cyan
+  comment: "#676e95",     // dim blue-gray
+  function: "#82aaff",    // soft blue
+  variableBuiltin: "#f78c6c", // warm orange
+  type: "#ffcb6b",        // warm yellow
+  number: "#f78c6c",      // warm orange
+  operator: "#89ddff",    // cyan
+  property: "#f07178",    // soft red
+  tag: "#f07178",         // soft red
+  tagAttribute: "#c792ea", // purple
+  escape: "#89ddff",      // cyan
+  constructor: "#ffcb6b", // warm yellow
+}
+
+/** One Light-inspired palette for light backgrounds. */
+const LIGHT_SYNTAX = {
+  keyword: "#a626a4",     // purple
+  string: "#50a14f",      // green
+  stringSpecial: "#4078f2", // blue
+  comment: "#a0a1a7",     // gray
+  function: "#4078f2",    // blue
+  variableBuiltin: "#e45649", // red
+  type: "#c18401",        // dark gold
+  number: "#986801",      // brown/amber
+  operator: "#0184bc",    // cyan-blue
+  property: "#e45649",    // red
+  tag: "#e45649",         // red
+  tagAttribute: "#c18401", // dark gold
+  escape: "#0184bc",      // cyan-blue
+  constructor: "#c18401", // dark gold
+}
+
+// ---------------------------------------------------------------------------
+// SyntaxStyle builder
+// ---------------------------------------------------------------------------
+
 function buildSyntaxStyle(): SyntaxStyle {
+  const syn = isLightBackground() ? LIGHT_SYNTAX : DARK_SYNTAX
+
   return SyntaxStyle.fromTheme([
     // ─── Default text ───────────────────────────────────────────────────
     {
@@ -41,7 +109,7 @@ function buildSyntaxStyle(): SyntaxStyle {
       scope: ["markup.heading"],
       style: { foreground: colors.accent.primary, bold: true },
     },
-    // Bold -- white with bold attribute
+    // Bold -- primary with bold attribute
     {
       scope: ["markup.strong"],
       style: { foreground: colors.text.primary, bold: true },
@@ -81,106 +149,110 @@ function buildSyntaxStyle(): SyntaxStyle {
     },
 
     // ─── Code scopes (tree-sitter highlights) ──────────────────────────
-    // Keywords: import, export, const, let, if, return, function, etc.
     {
       scope: ["keyword"],
-      style: { foreground: "#c792ea" },  // soft purple
+      style: { foreground: syn.keyword },
     },
     {
       scope: ["keyword.return", "keyword.operator"],
-      style: { foreground: "#c792ea" },
+      style: { foreground: syn.keyword },
     },
-    // Strings: "hello", 'world', `template`
     {
       scope: ["string"],
-      style: { foreground: "#c3e88d" },  // muted green
+      style: { foreground: syn.string },
     },
     {
       scope: ["string.special"],
-      style: { foreground: "#89ddff" },  // cyan for template expressions
+      style: { foreground: syn.stringSpecial },
     },
-    // Comments
     {
       scope: ["comment"],
-      style: { foreground: "#676e95", italic: true },  // dim blue-gray
+      style: { foreground: syn.comment, italic: true },
     },
-    // Functions / method calls
     {
       scope: ["function", "function.call", "function.method"],
-      style: { foreground: "#82aaff" },  // soft blue
+      style: { foreground: syn.function },
     },
-    // Variables and parameters
     {
       scope: ["variable"],
       style: { foreground: colors.text.primary },
     },
     {
       scope: ["variable.builtin", "variable.parameter"],
-      style: { foreground: "#f78c6c" },  // warm orange
+      style: { foreground: syn.variableBuiltin },
     },
-    // Types and type annotations
     {
       scope: ["type", "type.builtin"],
-      style: { foreground: "#ffcb6b" },  // warm yellow
+      style: { foreground: syn.type },
     },
-    // Numbers and booleans
     {
       scope: ["number", "constant.numeric", "boolean"],
-      style: { foreground: "#f78c6c" },  // warm orange
+      style: { foreground: syn.number },
     },
-    // Constants (UPPER_CASE, true, false, null)
     {
       scope: ["constant", "constant.builtin"],
-      style: { foreground: "#f78c6c" },
+      style: { foreground: syn.number },
     },
-    // Operators: =, +, -, *, /, =>, etc.
     {
       scope: ["operator"],
-      style: { foreground: "#89ddff" },  // cyan
+      style: { foreground: syn.operator },
     },
-    // Punctuation: (), {}, [], ., ,, ;
     {
       scope: ["punctuation", "punctuation.bracket", "punctuation.delimiter"],
       style: { foreground: colors.text.secondary },
     },
-    // Properties / object keys
     {
       scope: ["property"],
-      style: { foreground: "#f07178" },  // soft red
+      style: { foreground: syn.property },
     },
-    // JSX/TSX tags
     {
       scope: ["tag"],
-      style: { foreground: "#f07178" },  // soft red (matching property)
+      style: { foreground: syn.tag },
     },
     {
       scope: ["tag.attribute"],
-      style: { foreground: "#c792ea" },  // purple for attributes
+      style: { foreground: syn.tagAttribute },
     },
-    // Labels / decorators
     {
       scope: ["label"],
-      style: { foreground: "#c792ea" },
+      style: { foreground: syn.keyword },
     },
-    // Escape sequences (\n, \t, etc.)
     {
       scope: ["escape"],
-      style: { foreground: "#89ddff" },
+      style: { foreground: syn.escape },
     },
-    // Constructor calls (new Foo())
     {
       scope: ["constructor"],
-      style: { foreground: "#ffcb6b" },
+      style: { foreground: syn.constructor },
     },
   ])
 }
 
-/** Mutable syntax style — rebuilt when theme changes. */
-export let syntaxStyle = buildSyntaxStyle()
+// ---------------------------------------------------------------------------
+// Reactive export — version signal drives re-evaluation
+// ---------------------------------------------------------------------------
+
+const [syntaxVersion, setSyntaxVersion] = createSignal(0)
+let currentSyntaxStyle = buildSyntaxStyle()
+
+/**
+ * Get the current SyntaxStyle. Call this inside JSX props so SolidJS
+ * tracks the dependency and re-evaluates when the theme changes.
+ *
+ *   <markdown syntaxStyle={getSyntaxStyle()} />
+ */
+export function getSyntaxStyle(): SyntaxStyle {
+  syntaxVersion() // subscribe to version changes
+  return currentSyntaxStyle
+}
+
+// Backward-compat: the old `syntaxStyle` variable export is gone.
+// All consumers must use `getSyntaxStyle()`.
 
 /** Rebuild syntax style from current colors. Called by applyTheme(). */
 export function rebuildSyntaxStyle(): void {
-  syntaxStyle = buildSyntaxStyle()
+  currentSyntaxStyle = buildSyntaxStyle()
+  setSyntaxVersion(v => v + 1)
 }
 
 // Register the rebuilder so applyTheme() can call it without circular imports

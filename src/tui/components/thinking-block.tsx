@@ -14,7 +14,7 @@ import { Show } from "solid-js"
 import { TextAttributes } from "@opentui/core"
 import type { BorderCharacters } from "@opentui/core"
 import { colors } from "../theme/tokens"
-import { syntaxStyle } from "../theme"
+import { getSyntaxStyle } from "../theme"
 
 /** Custom border chars: only the vertical char matters (left-border-only). */
 const blockquoteBorder: BorderCharacters = {
@@ -55,7 +55,7 @@ export function ThinkingBlock(props: { text: string; collapsed?: boolean }) {
           </text>
           <markdown
             content={truncatedText()}
-            syntaxStyle={syntaxStyle}
+            syntaxStyle={getSyntaxStyle()}
             fg={colors.text.thinking}
           />
         </box>

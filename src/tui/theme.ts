@@ -9,7 +9,7 @@
  * or changing any colors.
  */
 
-export { syntaxStyle } from "./theme/syntax"
+export { getSyntaxStyle } from "./theme/syntax"
 export { colors, applyTheme, getCurrentThemeId } from "./theme/tokens"
 export { registerTheme, getTheme, listThemes } from "./theme/registry"
 export type { ThemeDefinition, ThemeColors } from "./theme/types"

@@ -10,7 +10,7 @@ import { TextAttributes } from "@opentui/core"
 import type { Block } from "../../protocol/types"
 import { colors } from "../theme/tokens"
 import { formatDuration } from "../../utils/format"
-import { syntaxStyle } from "../theme/syntax"
+import { getSyntaxStyle } from "../theme/syntax"
 import { getStatusConfig } from "./primitives"
 import { truncatePathMiddle, truncateToWidth } from "../../utils/truncate"
 import { createThrottledValue } from "../../utils/throttled-value"
@@ -296,7 +296,7 @@ export function ToolBlockView(props: { block: Extract<Block, { type: "tool" }>; 
               >
                 <code
                   content={b().output ?? ""}
-                  syntaxStyle={syntaxStyle}
+                  syntaxStyle={getSyntaxStyle()}
                   filetype={filetypeFromPath((b().input as Record<string, unknown> | null)?.file_path as string | undefined)}
                   fg={colors.text.primary}
                 />
@@ -307,7 +307,7 @@ export function ToolBlockView(props: { block: Extract<Block, { type: "tool" }>; 
               <diff
                 diff={diffText()}
                 view="unified"
-                syntaxStyle={syntaxStyle}
+                syntaxStyle={getSyntaxStyle()}
                 filetype={filetypeFromPath((b().input as Record<string, unknown> | null)?.file_path as string | undefined)}
                 addedSignColor={colors.diff.added}
                 removedSignColor={colors.diff.removed}

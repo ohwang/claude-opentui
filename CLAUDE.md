@@ -121,8 +121,6 @@ Key rules:
 - `interrupt()` in `WAITING_FOR_ELIC` must auto-respond first
 - Error transitions must `close()` the active generator (prevent zombie processes)
 
-See `plan.md` section 9 for full state diagram, transitions, and guards.
-
 ## Testing
 
 ```bash
@@ -143,13 +141,6 @@ Contract tests validate:
 ## Logging
 
 Session logs live at `~/.bantai/logs/<session-id>.log`. Each app run gets a unique log file. The session ID and log path are printed to stdout on exit. Use `--debug` for verbose (event-level) logging; default level is `info`. Import the singleton via `import { log } from "./utils/logger"`.
-
-## Key Reference Files
-
-- `plan.md` — Vision, strategy, milestones, 12 design decisions
-- `reference.md` — Type definitions, component tree, adapter notes
-- `TODOS.md` — Deferred work items
-- `research/` — 20 deep-dive documents on implementation areas
 
 ## OpenTUI JSX Elements
 

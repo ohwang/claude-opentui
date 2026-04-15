@@ -110,7 +110,7 @@ export function SessionResumeSummaryView(props: { block: SessionResumeSummaryBlo
 
   return (
     <box flexDirection="column" paddingLeft={2} marginTop={1}>
-      <text fg={colors.text.subtle}>{separator()}</text>
+      <text fg={colors.text.inactive}>{separator()}</text>
 
       <box flexDirection="row" marginTop={0}>
         <text fg={colors.accent.primary} attributes={TextAttributes.BOLD}>
@@ -146,11 +146,11 @@ export function SessionResumeSummaryView(props: { block: SessionResumeSummaryBlo
 
       <Show when={sessionIdLine()}>
         <box paddingLeft={2} marginTop={0}>
-          <text fg={colors.text.subtle}>{sessionIdLine()}</text>
+          <text fg={colors.text.inactive}>{sessionIdLine()}</text>
         </box>
       </Show>
 
-      <text fg={colors.text.subtle}>{separator()}</text>
+      <text fg={colors.text.inactive}>{separator()}</text>
     </box>
   )
 }

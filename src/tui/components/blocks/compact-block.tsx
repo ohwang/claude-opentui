@@ -78,7 +78,7 @@ export function CompactBlock(props: { block?: CompactBlockType }) {
   return (
     <box flexDirection="column" paddingLeft={2}>
       {/* Separator line */}
-      <text fg={colors.text.subtle}>{separator()}</text>
+      <text fg={colors.text.inactive}>{separator()}</text>
 
       <Show
         when={!isInProgress()}
@@ -121,7 +121,7 @@ export function CompactBlock(props: { block?: CompactBlockType }) {
       </Show>
 
       {/* Bottom separator */}
-      <text fg={colors.text.subtle}>{separator()}</text>
+      <text fg={colors.text.inactive}>{separator()}</text>
     </box>
   )
 }

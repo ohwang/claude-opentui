@@ -1,7 +1,11 @@
 import { describe, expect, it } from "bun:test"
 import { homedir } from "os"
 import { resolve } from "path"
-import { parsePathPrefix, findLongestCommonPrefix } from "../../src/tui/components/file-autocomplete"
+import {
+  parsePathPrefix,
+  findLongestCommonPrefix,
+  matchAtTrigger,
+} from "../../src/tui/components/file-autocomplete"
 
 const CWD = "/Users/test/project"
 
@@ -126,6 +130,74 @@ describe("parsePathPrefix", () => {
         root: "/usr/local/bin",
         fuzzyQuery: "rg",
         prefix: "/usr/local/bin/",
+      })
+    })
+  })
+})
+
+describe("matchAtTrigger", () => {
+  describe("activation", () => {
+    it("triggers for a bare @ at line start", () => {
+      expect(matchAtTrigger("@")).toEqual({ atIndex: 0, query: "", isQuoted: false })
+    })
+
+    it("triggers for @query at line start", () => {
+      expect(matchAtTrigger("@foo")).toEqual({ atIndex: 0, query: "foo", isQuoted: false })
+    })
+
+    it("triggers for @query after a space", () => {
+      expect(matchAtTrigger("read @foo")).toEqual({ atIndex: 5, query: "foo", isQuoted: false })
+    })
+
+    it("triggers for @query after a newline", () => {
+      expect(matchAtTrigger("line1\n@foo")).toEqual({ atIndex: 6, query: "foo", isQuoted: false })
+    })
+
+    it("triggers for @ after a tab", () => {
+      expect(matchAtTrigger("\t@foo")).toEqual({ atIndex: 1, query: "foo", isQuoted: false })
+    })
+
+    it("accepts path separator chars in query", () => {
+      expect(matchAtTrigger("@../src/foo")).toEqual({
+        atIndex: 0, query: "../src/foo", isQuoted: false,
+      })
+    })
+
+    it("accepts home prefix in query", () => {
+      expect(matchAtTrigger("@~/dev/re")).toEqual({
+        atIndex: 0, query: "~/dev/re", isQuoted: false,
+      })
+    })
+  })
+
+  describe("rejection (boundary protection)", () => {
+    it("does not trigger for @ inside a word (emails etc.)", () => {
+      expect(matchAtTrigger("user@example.com")).toBeNull()
+    })
+
+    it("does not trigger for foo@bar", () => {
+      expect(matchAtTrigger("foo@bar")).toBeNull()
+    })
+
+    it("does not trigger when the token was closed by whitespace", () => {
+      expect(matchAtTrigger("@foo ")).toBeNull()
+    })
+
+    it("does not trigger when cursor is past a completed token", () => {
+      expect(matchAtTrigger("@foo bar")).toBeNull()
+    })
+  })
+
+  describe("quoted form", () => {
+    it("accepts @\"path with space\"", () => {
+      expect(matchAtTrigger('@"path with space.txt"')).toEqual({
+        atIndex: 0, query: "path with space.txt", isQuoted: true,
+      })
+    })
+
+    it("accepts partial @\"path with spa (no closing quote yet)", () => {
+      expect(matchAtTrigger('@"path with spa')).toEqual({
+        atIndex: 0, query: "path with spa", isQuoted: true,
       })
     })
   })

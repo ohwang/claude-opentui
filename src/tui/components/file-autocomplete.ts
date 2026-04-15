@@ -42,6 +42,51 @@ const EXCLUDE_DIRS = new Set([
   "coverage",
 ])
 
+// ── Trigger detection ────────────────────────────────────────────────
+
+/**
+ * Match an active `@`-mention trigger anchored at the cursor.
+ *
+ * The `@` must be at line start or immediately after whitespace — this is the
+ * rule that prevents emails (`user@example.com`), commit refs, and pasted
+ * logs from activating the picker.
+ *
+ * Query characters are restricted to a conservative set (letters, numbers,
+ * combining marks, and `_ - . / \ ( ) [ ] ~ :`) — typing a space or most
+ * punctuation ends the token.
+ *
+ * A quoted form `@"..."` is accepted so paths containing spaces can be
+ * typed explicitly.
+ */
+export interface AtTrigger {
+  /** Index of the `@` character in the text. */
+  atIndex: number
+  /** The query after `@` (without quotes). */
+  query: string
+  /** True when the query was typed in quoted form. */
+  isQuoted: boolean
+}
+
+const AT_TRIGGER_RE =
+  /(^|\s)@([\p{L}\p{N}\p{M}_\-./\\()[\]~:]*|"[^"]*"?)$/u
+
+export function matchAtTrigger(textBeforeCursor: string): AtTrigger | null {
+  const m = textBeforeCursor.match(AT_TRIGGER_RE)
+  if (!m) return null
+  const leading = m[1] ?? ""
+  const raw = m[2] ?? ""
+  // Position of the `@` is the match index plus the leading whitespace length.
+  const atIndex = (m.index ?? 0) + leading.length
+  if (raw.startsWith('"')) {
+    // Strip opening quote and (optional) closing quote.
+    const unquoted = raw.endsWith('"') && raw.length >= 2
+      ? raw.slice(1, -1)
+      : raw.slice(1)
+    return { atIndex, query: unquoted, isQuoted: true }
+  }
+  return { atIndex, query: raw, isQuoted: false }
+}
+
 // ── Path prefix resolution ───────────────────────────────────────────
 
 export interface ParsedPrefix {
@@ -446,24 +491,36 @@ function listShallow(root: string, limit: number): string[] {
 
 // ── Search ───────────────────────────────────────────────────────────
 
+/** A single file-picker suggestion. */
+export interface FileSuggestion {
+  /** Path relative to the resolved search root, with trailing `/` for dirs. */
+  path: string
+  /** True when the entry is a directory (path ends with `/`). */
+  isDirectory: boolean
+}
+
 /**
- * Search files using fuzzysort. Returns up to `limit` file paths relative
+ * Search files using fuzzysort. Returns up to `limit` suggestions relative
  * to the resolved search root. Handles path prefix resolution internally.
  *
  * When the fuzzy query is empty, shows a shallow directory listing (dirs
  * first) instead of a recursive file dump — enables interactive drill-down.
+ * This is a deliberate UX divergence from Claude Code's recursive-fuzzy
+ * behavior; see AT_MENTION_SPEC.md §3.1.
  */
-export function searchFiles(
+export function searchFileSuggestions(
   query: string,
   cwd: string,
   limit = MAX_SUGGESTIONS,
-): string[] {
+): FileSuggestion[] {
   const { root, fuzzyQuery } = parsePathPrefix(query, cwd)
 
-  // Empty query: show shallow browsable listing (dirs first, like Claude Code)
-  if (!fuzzyQuery) return listShallow(root, limit)
+  // Empty query: show shallow browsable listing (dirs first).
+  if (!fuzzyQuery) {
+    return listShallow(root, limit).map(toSuggestion)
+  }
 
-  // Non-empty query: full recursive fuzzy search
+  // Non-empty query: full recursive fuzzy search over files + dirs.
   const { files, dirs } = getFilesForRoot(root)
   const allEntries =
     dirs.length > 0 ? [...new Set([...files, ...dirs])] : files
@@ -474,7 +531,23 @@ export function searchFiles(
       : allEntries
 
   const results = fuzzysort.go(fuzzyQuery, candidates, { limit })
-  return results.map((r) => r.target)
+  return results.map((r) => toSuggestion(r.target))
+}
+
+function toSuggestion(path: string): FileSuggestion {
+  return { path, isDirectory: path.endsWith("/") }
+}
+
+/**
+ * Back-compat wrapper that returns just the paths. Prefer
+ * `searchFileSuggestions` for new code.
+ */
+export function searchFiles(
+  query: string,
+  cwd: string,
+  limit = MAX_SUGGESTIONS,
+): string[] {
+  return searchFileSuggestions(query, cwd, limit).map((s) => s.path)
 }
 
 /**

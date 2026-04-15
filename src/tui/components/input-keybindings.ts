@@ -8,7 +8,7 @@
 
 import type { KeyEvent, TextareaRenderable, CliRenderer } from "@opentui/core"
 import type { AgentEvent, Block } from "../../protocol/types"
-import { findLongestCommonPrefix, parsePathPrefix } from "./file-autocomplete"
+import { findLongestCommonPrefix, matchAtTrigger, parsePathPrefix } from "./file-autocomplete"
 
 /** Discriminated union for autocomplete modes */
 export type AutocompleteMode = "slash" | "file" | null
@@ -19,7 +19,12 @@ export interface AutocompleteItem {
   description: string
   argumentHint?: string
   type?: string
+  /** For file mode: true when the entry is a directory (path ends with `/`). */
+  isDirectory?: boolean
 }
+
+/** Which action was taken on a file-mode suggestion. */
+export type FileAcceptAction = "enter" | "tab"
 import { readClipboard, readClipboardImage, isImageFilePath, readImageFile } from "../../utils/clipboard"
 import { log } from "../../utils/logger"
 import { toast } from "../context/toast"
@@ -72,9 +77,10 @@ export interface KeyHandlerCallbacks {
   getTextareaRef: () => TextareaRenderable | undefined
   updateLineCount: () => void
   updateAutocomplete: (text: string) => void
-  dismissAutocomplete: () => void
+  dismissAutocomplete: (options?: { preserveText?: boolean }) => void
   setTextareaContent: (text: string) => void
-  selectFile: (filePath: string) => void
+  /** Accept a file-mode suggestion. `action` controls dir drill-in vs dismiss. */
+  acceptFile: (item: AutocompleteItem, action: FileAcceptAction) => void
   selectCommand: (command: { name: string }) => void
   submit: () => void
   startPasteGuard: () => void
@@ -114,7 +120,7 @@ export function createKeyHandler(
     updateAutocomplete,
     dismissAutocomplete,
     setTextareaContent,
-    selectFile,
+    acceptFile,
     selectCommand,
     submit,
     startPasteGuard,
@@ -229,19 +235,16 @@ export function createKeyHandler(
       return
     }
 
-    // ── Escape = dismiss autocomplete, then completion hint, then clear input ──
+    // ── Escape = dismiss autocomplete (preserving text), then hint, then clear input ──
     if (e.name === "escape") {
       e.preventDefault()
       if (showAutocomplete()) {
         const wasFile = autocompleteMode() === "file"
-        dismissAutocomplete()
-        if (wasFile) {
-          const text = getTextareaRef()?.plainText ?? ""
-          const atMatch = text.match(/@(\S*)$/)
-          if (atMatch) {
-            setTextareaContent(text.slice(0, atMatch.index!))
-          }
-        } else {
+        // Preserve the typed `@query` for file mode (matches Claude Code).
+        // The dismissedForInput guard inside dismissAutocomplete prevents
+        // the dropdown from immediately re-opening on the unchanged text.
+        dismissAutocomplete({ preserveText: wasFile })
+        if (!wasFile) {
           getTextareaRef()?.clear()
           setLineCount(1)
         }
@@ -455,7 +458,7 @@ export function createKeyHandler(
         const selected = items[selectedIndex()]
         if (selected) {
           if (autocompleteMode() === "file") {
-            selectFile(selected.name)
+            acceptFile(selected, "enter")
           } else {
             setTextareaContent(`/${selected.name}`)
             dismissAutocomplete()
@@ -469,14 +472,17 @@ export function createKeyHandler(
         e.preventDefault()
         if (autocompleteMode() === "file") {
           const commonPrefix = findLongestCommonPrefix(items.map((i) => i.name))
-          const text = getTextareaRef()?.plainText ?? ""
-          const atMatch = text.match(/@(\S*)$/)
-          const currentQuery = atMatch?.[1] ?? ""
+          const textareaRef = getTextareaRef()
+          const text = textareaRef?.plainText ?? ""
+          const cursor = textareaRef?.cursorOffset ?? text.length
+          const trigger = matchAtTrigger(text.slice(0, cursor))
+          const currentQuery = trigger?.query ?? ""
           const cwd = getCwd()
           const { prefix: pathPrefix, fuzzyQuery } = parsePathPrefix(currentQuery, cwd)
 
-          if (commonPrefix.length > fuzzyQuery.length) {
-            const beforeAt = text.slice(0, atMatch?.index ?? text.length)
+          if (commonPrefix && commonPrefix.length > fuzzyQuery.length) {
+            const atIndex = trigger?.atIndex ?? text.length
+            const beforeAt = text.slice(0, atIndex)
             const full = "@" + pathPrefix + commonPrefix
             setTextareaContent(beforeAt + full)
             queueMicrotask(() =>
@@ -485,7 +491,7 @@ export function createKeyHandler(
             return
           }
           const selected = items[selectedIndex()]
-          if (selected) selectFile(selected.name)
+          if (selected) acceptFile(selected, "tab")
         } else {
           const selected = items[selectedIndex()]
           if (selected) selectCommand(selected)

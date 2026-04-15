@@ -22,7 +22,7 @@ import { useSync } from "../context/sync"
 import { useMessages } from "../context/messages"
 import { createCommandRegistry } from "../../commands/registry"
 import { executeShellCommand } from "../../commands/builtin/shell"
-import { searchFiles } from "./file-autocomplete"
+import { searchFileSuggestions, matchAtTrigger, parsePathPrefix } from "./file-autocomplete"
 import { triggerCleanExit, toggleDiagnostics } from "../app"
 import { registerOverlay, unregisterOverlay } from "../context/modal"
 import { colors } from "../theme/tokens"
@@ -267,7 +267,17 @@ export function InputArea() {
     session.sessionState === "WAITING_FOR_ELIC" ||
     session.sessionState === "SHUTTING_DOWN"
 
-  const dismissAutocomplete = () => {
+  // Dismissed-for-input guard: after the user presses Escape, we record the
+  // exact input text at that moment. Re-triggering the dropdown for that
+  // identical text is suppressed until the text changes by any character.
+  // Matches Claude Code's `dismissedForInputRef` behavior. See AT_MENTION_SPEC.md §1.3.
+  let dismissedForInput: string | null = null
+
+  const dismissAutocomplete = (options?: { preserveText?: boolean }) => {
+    if (options?.preserveText) {
+      // Remember the text at dismissal so we don't re-open on the same input.
+      dismissedForInput = textareaRef?.plainText ?? ""
+    }
     setShowAutocomplete(false)
     setAutocompleteItems([])
     setSelectedIndex(0)
@@ -275,17 +285,25 @@ export function InputArea() {
   }
 
   const updateAutocomplete = (text: string) => {
-    const atMatch = text.match(/@(\S*)$/)
-    if (atMatch) {
-      const query = atMatch[1] ?? ""
+    // Suppress re-trigger while the input is identical to the dismissed text.
+    if (dismissedForInput !== null) {
+      if (text === dismissedForInput) return
+      dismissedForInput = null
+    }
+
+    const textareaCursor = textareaRef?.cursorOffset ?? text.length
+    const trigger = matchAtTrigger(text.slice(0, textareaCursor))
+    if (trigger) {
+      const query = trigger.query
       const cwd = agent.config.cwd ?? process.cwd()
       clearTimeout(fileSearchTimer)
       fileSearchTimer = setTimeout(() => {
-        const files = searchFiles(query, cwd, MAX_VISIBLE_ITEMS)
-        if (files.length > 0) {
-          setAutocompleteItems(files.map((f) => ({
-            name: f,
-            description: f.endsWith("/") ? "directory" : "file",
+        const suggestions = searchFileSuggestions(query, cwd, MAX_VISIBLE_ITEMS)
+        if (suggestions.length > 0) {
+          setAutocompleteItems(suggestions.map((s) => ({
+            name: s.path,
+            description: s.isDirectory ? "directory" : "file",
+            isDirectory: s.isDirectory,
           })))
           setSelectedIndex(0)
           setAutocompleteMode("file")
@@ -335,20 +353,54 @@ export function InputArea() {
     dismissAutocomplete()
   }
 
-  const selectFile = (filePath: string) => {
-    const text = textareaRef?.plainText ?? ""
-    const atMatch = text.match(/@(\S*)$/)
-    if (atMatch) {
-      const query = atMatch[1] ?? ""
-      // Preserve the path prefix (e.g. "../src/", "~/dev/") the user typed
-      const lastSlash = query.lastIndexOf("/")
-      const prefix = lastSlash >= 0 ? query.slice(0, lastSlash + 1) : ""
-      const beforeAt = text.slice(0, atMatch.index!)
-      setTextareaContent(beforeAt + prefix + filePath + " ")
+  /**
+   * Accept a file-mode suggestion.
+   *
+   * - `action === "enter"` always inserts the path and dismisses, adding a
+   *   trailing space (matches Claude Code's behavior for both files and dirs).
+   * - `action === "tab"` drills into directories: inserts the dir path with
+   *   a trailing `/` but **no** space, then re-fires the picker so the user
+   *   sees that directory's contents without retyping.
+   *
+   * In all cases the already-typed path prefix (e.g. `../src/`, `~/dev/`) is
+   * preserved.
+   */
+  const acceptFile = (item: { name: string; isDirectory?: boolean }, action: "enter" | "tab") => {
+    if (!textareaRef) return
+    const text = textareaRef.plainText ?? ""
+    const cursor = textareaRef.cursorOffset ?? text.length
+    const trigger = matchAtTrigger(text.slice(0, cursor))
+
+    const beforeAt = trigger ? text.slice(0, trigger.atIndex) : text
+    const afterCursor = text.slice(cursor)
+    const cwd = agent.config.cwd ?? process.cwd()
+    const { prefix: pathPrefix } = trigger
+      ? parsePathPrefix(trigger.query, cwd)
+      : { prefix: "" }
+
+    const isDir = Boolean(item.isDirectory)
+    const drillIntoDir = action === "tab" && isDir
+    const needsQuotes = item.name.includes(" ") || pathPrefix.includes(" ")
+    const fullPath = pathPrefix + item.name
+    const quoted = needsQuotes ? `"${fullPath}"` : fullPath
+    // Tab on directory drills in (no space); Enter on anything (incl. dirs)
+    // and Tab on files dismiss with a trailing space.
+    const trailing = drillIntoDir ? "" : " "
+
+    const newText = beforeAt + "@" + quoted + trailing + afterCursor
+    setTextareaContent(newText)
+    // Position cursor right after the inserted `@path[ /]`.
+    const newCursor = beforeAt.length + 1 + quoted.length + trailing.length
+    textareaRef.cursorOffset = newCursor
+
+    if (drillIntoDir) {
+      // Re-fire the picker so the dropdown shows that directory's contents.
+      // `dismissedForInput` should be cleared because the text changed.
+      dismissedForInput = null
+      queueMicrotask(() => updateAutocomplete(textareaRef?.plainText ?? ""))
     } else {
-      setTextareaContent(text + filePath + " ")
+      dismissAutocomplete()
     }
-    dismissAutocomplete()
   }
 
   const submit = async () => {
@@ -455,7 +507,7 @@ export function InputArea() {
       updateAutocomplete,
       dismissAutocomplete,
       setTextareaContent,
-      selectFile,
+      acceptFile,
       selectCommand,
       submit,
       startPasteGuard,

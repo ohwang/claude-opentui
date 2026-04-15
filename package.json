@@ -17,8 +17,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "bun run lint:opentui && tsc --noEmit",
     "lint:opentui": "bash scripts/lint-opentui.sh",
-    "check:tests": "bash scripts/check-test-coverage.sh",
-    "names": "bun run scripts/name-search.ts"
+    "check:tests": "bash scripts/check-test-coverage.sh"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.107",

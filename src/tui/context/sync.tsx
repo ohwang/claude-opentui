@@ -33,12 +33,13 @@ import { useAgent } from "./agent"
 import { useMessages } from "./messages"
 import { useSession } from "./session"
 import { usePermissions } from "./permissions"
-import { readSessionHistory, findMostRecentSession, getSessionFilePath } from "../../backends/claude/session-reader"
+import { readSessionHistory, getSessionFilePath } from "../../backends/claude/session-reader"
 import { setConversationState, getSubagentManagerBridge } from "../../mcp/state-bridge"
 import {
   detectSessionOrigin,
   findCodexSessionFile,
   findGeminiSessionFile,
+  findMostRecentSessionForBackend,
   formatFullHistory,
   parseCodexSessionWithSummary,
   parseGeminiSessionWithSummary,
@@ -529,7 +530,7 @@ export function SyncProvider(props: ParentProps) {
     const continueMode = agent.config.continue
     if ((resumeId || continueMode) && agent.config.cwd) {
       const cwd = agent.config.cwd
-      const sessionId = resumeId || findMostRecentSession(cwd)
+      const sessionId = resumeId || findMostRecentSessionForBackend(backendName, cwd)
       if (sessionId) {
         const origin = detectSessionOrigin(sessionId, cwd)
         const target = agent.config.sessionOrigin ?? backendName

@@ -942,6 +942,52 @@ export function listClaudeSessionsFromDisk(cwd: string): SessionInfo[] {
 }
 
 // ---------------------------------------------------------------------------
+// Backend-aware "most recent session" — used by --continue
+// ---------------------------------------------------------------------------
+
+/**
+ * Find the most recent session for the given backend.
+ *
+ * When `--continue` is used with a specific backend (e.g. `bantai codex --continue`),
+ * we must look in that backend's session storage — not just Claude's.
+ * Falls back to scanning all backends and picking the globally most recent
+ * when `backend` is null/undefined.
+ */
+export function findMostRecentSessionForBackend(
+  backend: string | undefined,
+  cwd: string,
+): string | null {
+  // Backend-specific: only search that backend's sessions
+  if (backend === "codex") {
+    const sessions = listCodexSessionsFromDisk()
+    return sessions[0]?.id ?? null
+  }
+  if (backend === "gemini") {
+    const sessions = listGeminiSessionsFromDisk(cwd)
+    return sessions[0]?.id ?? null
+  }
+  if (backend === "claude") {
+    const sessions = listClaudeSessionsFromDisk(cwd)
+    return sessions[0]?.id ?? null
+  }
+
+  // No backend specified (or unknown): find the globally most recent session
+  // across all backends.
+  const all: Array<{ id: string; updatedAt: number }> = []
+  for (const s of listClaudeSessionsFromDisk(cwd)) {
+    all.push({ id: s.id, updatedAt: s.updatedAt })
+  }
+  for (const s of listCodexSessionsFromDisk()) {
+    all.push({ id: s.id, updatedAt: s.updatedAt })
+  }
+  for (const s of listGeminiSessionsFromDisk(cwd)) {
+    all.push({ id: s.id, updatedAt: s.updatedAt })
+  }
+  all.sort((a, b) => b.updatedAt - a.updatedAt)
+  return all[0]?.id ?? null
+}
+
+// ---------------------------------------------------------------------------
 // Session enrichment — deep-parse top-N for metadata
 // ---------------------------------------------------------------------------
 

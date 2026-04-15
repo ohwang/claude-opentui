@@ -1,6 +1,6 @@
 {
   "name": "bantai",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "type": "module",
   "license": "MIT",
   "description": "Open-source terminal UI for agentic coding backends (Claude Code, Codex, ACP, and more)",
@@ -26,7 +26,10 @@
     "typecheck": "tsc --noEmit",
     "lint": "bun run lint:opentui && tsc --noEmit",
     "lint:opentui": "bash scripts/lint-opentui.sh",
-    "check:tests": "bash scripts/check-test-coverage.sh"
+    "check:tests": "bash scripts/check-test-coverage.sh",
+    "version:patch": "bash scripts/bump-version.sh patch",
+    "version:minor": "bash scripts/bump-version.sh minor",
+    "version:major": "bash scripts/bump-version.sh major"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.107",

@@ -20,6 +20,27 @@ function restorePlatform() {
   })
 }
 
+/**
+ * Probe whether a clipboard tool is available in PATH for the current platform.
+ * Used to skip integration tests gracefully on CI runners (e.g. ubuntu-latest)
+ * that have no clipboard binary installed.
+ *
+ * macOS: pbcopy + pbpaste (always present on macOS — so this returns true locally).
+ * Linux: xclip OR wl-paste (matches what clipboard.ts supports for read/write).
+ * Anything else: treated as unavailable (the platform-gate early-return handles it).
+ */
+function hasClipboardTool(): boolean {
+  if (originalPlatform === "darwin") {
+    return Bun.which("pbcopy") !== null && Bun.which("pbpaste") !== null
+  }
+  if (originalPlatform === "linux") {
+    if (Bun.which("xclip") !== null) return true
+    if (Bun.which("wl-copy") !== null && Bun.which("wl-paste") !== null) return true
+    return false
+  }
+  return false
+}
+
 // ── 1. getClipboardCmd() ─────────────────────────────────────────────────
 describe("getClipboardCmd", () => {
   afterEach(() => {
@@ -141,6 +162,8 @@ describe("copyToClipboard", () => {
   it("successfully copies text via native command", async () => {
     // Only run on a platform where clipboard is available
     if (originalPlatform !== "darwin" && originalPlatform !== "linux") return
+    // Skip gracefully if no clipboard binary is installed (e.g. ubuntu-latest CI)
+    if (!hasClipboardTool()) return
     restorePlatform()
 
     // Should not throw
@@ -163,6 +186,7 @@ describe("readClipboard", () => {
 
   it("returns a string from the clipboard", async () => {
     if (originalPlatform !== "darwin" && originalPlatform !== "linux") return
+    if (!hasClipboardTool()) return
     restorePlatform()
 
     const result = await readClipboard()
@@ -178,6 +202,7 @@ describe("copyToClipboard + readClipboard roundtrip", () => {
 
   it("writes and reads back the same text", async () => {
     if (originalPlatform !== "darwin" && originalPlatform !== "linux") return
+    if (!hasClipboardTool()) return
     restorePlatform()
 
     const testText = `clipboard-test-${Date.now()}`

@@ -17,20 +17,20 @@ import { friendlyModelName, MODEL_CONTEXT_WINDOWS, DEFAULT_CONTEXT_WINDOW } from
 import { colors } from "../theme/tokens"
 
 /**
- * Logo: cute cat face.
+ * Logo: angular cat face in block characters.
  *
  * Visual:
  *
- *   /\_/\
- *  ( ◕ω◕ )
- *   > ~ <
+ *   /▛████▜\
+ *    ▀████▀
+ *    ▝▘  ▝▘
  *
- * 3 lines tall. Classic kawaii cat face — instantly recognizable.
+ * 3 lines tall. Fox-eared cat — sharp ears with solid block body.
  */
 const LOGO_LINES = [
-  "  /\\_/\\   ",  // ears
-  " ( ◕ω◕ )  ",  // face
-  "  > ~ <   ",  // paws
+  " /▛████▜\\ ",  // ears + head
+  "  ▀████▀  ",  // face
+  "  ▝▘  ▝▘  ",  // paws
 ]
 
 export function HeaderBar() {

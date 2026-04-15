@@ -4,6 +4,15 @@
   "type": "module",
   "license": "MIT",
   "description": "Open-source terminal UI for agentic coding backends (Claude Code, Codex, ACP, and more)",
+  "author": "Odin Wang <ohwxyz@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ohwang/bantai.git"
+  },
+  "homepage": "https://github.com/ohwang/bantai",
+  "bugs": {
+    "url": "https://github.com/ohwang/bantai/issues"
+  },
   "bin": {
     "bantai": "./bin/bantai",
     "bantai-storybook": "./bin/bantai-storybook"

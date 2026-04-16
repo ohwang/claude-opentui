@@ -201,6 +201,20 @@ export function mapSDKMessage(msg: any, streamState: ToolStreamState, options?: 
         } else {
           log.warn("task_updated missing task_id or patch", { keys: Object.keys(msg).join(",") })
         }
+      } else if (msg.subtype === "task_started") {
+        // Real SDK shape: { type: "system", subtype: "task_started", task_id, tool_use_id,
+        //                   description, task_type, workflow_name, prompt, skip_transcript }
+        events.push(mapTaskStartedMessage(msg))
+      } else if (msg.subtype === "task_progress") {
+        // Real SDK shape: { type: "system", subtype: "task_progress", task_id, tool_use_id,
+        //                   description, usage: { total_tokens, tool_uses, duration_ms },
+        //                   last_tool_name, summary }
+        events.push(mapTaskProgressMessage(msg))
+      } else if (msg.subtype === "task_notification") {
+        // Real SDK shape: { type: "system", subtype: "task_notification", task_id, tool_use_id,
+        //                   status: "completed"|"failed"|"stopped", output_file, summary, usage,
+        //                   skip_transcript }
+        events.push(mapTaskNotificationMessage(msg))
       } else if (msg.subtype === "request_user_dialog") {
         // SDK 0.2.107+: tool-driven blocking dialog request. bantai does not yet
         // render these dialogs — log a warning and pass through as backend_specific
@@ -326,50 +340,21 @@ export function mapSDKMessage(msg: any, streamState: ToolStreamState, options?: 
       }
       break
 
+    // NOTE: These top-level cases handle the legacy pre-0.2.107 SDK shape where
+    // task events were emitted as first-class types. Current SDKs emit them as
+    // { type: "system", subtype: "task_started" | "task_progress" | "task_notification" }
+    // which is handled in the `case "system"` branch above. Kept here for
+    // backwards compatibility so both shapes route through the same mappers.
     case "task_started":
-      events.push({
-        type: "task_start",
-        taskId: msg.task_id ?? msg.uuid,
-        description: msg.description ?? "Background task",
-        toolUseId: msg.tool_use_id ?? undefined,
-        taskType: msg.task_type ?? undefined,
-        skipTranscript: msg.skip_transcript ?? undefined,
-      })
+      events.push(mapTaskStartedMessage(msg))
       break
 
-    case "task_progress": {
-      const progressEvent: AgentEvent = {
-        type: "task_progress",
-        taskId: msg.task_id ?? msg.uuid,
-        output: msg.content ?? "",
-        lastToolName: msg.last_tool_name ?? undefined,
-        summary: msg.summary ?? undefined,
-      }
-      if (msg.usage?.total_tokens) {
-        (progressEvent as any).tokenUsage = {
-          inputTokens: msg.usage.input_tokens ?? 0,
-          outputTokens: msg.usage.output_tokens ?? 0,
-          totalTokens: msg.usage.total_tokens,
-        }
-      }
-      if (msg.tool_use_count != null) {
-        (progressEvent as any).toolUseCount = msg.tool_use_count
-      }
-      if (msg.turn_count != null) {
-        (progressEvent as any).turnCount = msg.turn_count
-      }
-      events.push(progressEvent)
+    case "task_progress":
+      events.push(mapTaskProgressMessage(msg))
       break
-    }
 
     case "task_notification":
-      events.push({
-        type: "task_complete",
-        taskId: msg.task_id ?? msg.uuid,
-        output: msg.content ?? msg.result ?? "",
-        toolUseId: msg.tool_use_id ?? undefined,
-        skipTranscript: msg.skip_transcript ?? undefined,
-      })
+      events.push(mapTaskNotificationMessage(msg))
       break
 
     case "rate_limit":
@@ -533,6 +518,87 @@ export function mapSDKMessage(msg: any, streamState: ToolStreamState, options?: 
   }
 
   return events
+}
+
+// ---------------------------------------------------------------------------
+// Task event mappers (SDK task_started / task_progress / task_notification)
+// ---------------------------------------------------------------------------
+//
+// Modern SDKs (0.2.107+) emit these as { type: "system", subtype: "task_*" }.
+// Legacy SDKs emitted them as first-class { type: "task_*" } messages. Both
+// shapes carry the same fields; these helpers normalize them into AgentEvents.
+
+function mapTaskStartedMessage(msg: any): AgentEvent {
+  return {
+    type: "task_start",
+    taskId: msg.task_id ?? msg.uuid,
+    description: msg.description ?? "Background task",
+    toolUseId: msg.tool_use_id ?? undefined,
+    taskType: msg.task_type ?? undefined,
+    skipTranscript: msg.skip_transcript ?? undefined,
+  }
+}
+
+function mapTaskProgressMessage(msg: any): AgentEvent {
+  // Prefer `description` (current SDK field) over `content` (legacy) for output.
+  const output = msg.description ?? msg.content ?? msg.summary ?? ""
+  const progressEvent: AgentEvent = {
+    type: "task_progress",
+    taskId: msg.task_id ?? msg.uuid,
+    output,
+    lastToolName: msg.last_tool_name ?? undefined,
+    summary: msg.summary ?? undefined,
+  }
+  if (msg.usage?.total_tokens) {
+    (progressEvent as any).tokenUsage = {
+      inputTokens: msg.usage.input_tokens ?? 0,
+      outputTokens: msg.usage.output_tokens ?? 0,
+      totalTokens: msg.usage.total_tokens,
+    }
+  }
+  if (msg.tool_use_count != null) {
+    (progressEvent as any).toolUseCount = msg.tool_use_count
+  } else if (msg.usage?.tool_uses != null) {
+    (progressEvent as any).toolUseCount = msg.usage.tool_uses
+  }
+  if (msg.turn_count != null) {
+    (progressEvent as any).turnCount = msg.turn_count
+  }
+  return progressEvent
+}
+
+function mapTaskNotificationMessage(msg: any): AgentEvent {
+  // SDK's `status` is "completed" | "failed" | "stopped". Anything that isn't
+  // a clean completion maps to our "error" state so the UI reflects failure.
+  const rawStatus = msg.status
+  const state: "completed" | "error" | undefined =
+    rawStatus === "completed"
+      ? "completed"
+      : rawStatus === "failed" || rawStatus === "stopped"
+        ? "error"
+        : undefined
+  // Output precedence: explicit content/result (legacy) → summary (current SDK)
+  // → a human-readable fallback derived from status.
+  const output = msg.content ?? msg.result ?? msg.summary ?? (rawStatus ? `Task ${rawStatus}` : "")
+  const errorMessage =
+    state === "error"
+      ? msg.error ?? msg.summary ?? (rawStatus === "stopped" ? "Task stopped" : "Task failed")
+      : undefined
+
+  const completeEvent: AgentEvent = {
+    type: "task_complete",
+    taskId: msg.task_id ?? msg.uuid,
+    output,
+    toolUseId: msg.tool_use_id ?? undefined,
+    skipTranscript: msg.skip_transcript ?? undefined,
+  }
+  if (state) {
+    (completeEvent as any).state = state
+  }
+  if (errorMessage) {
+    (completeEvent as any).errorMessage = errorMessage
+  }
+  return completeEvent
 }
 
 // ---------------------------------------------------------------------------

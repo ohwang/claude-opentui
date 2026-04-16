@@ -616,6 +616,164 @@ describe("Claude Event Mapper — mapSDKMessage", () => {
   })
 
   // ---------------------------------------------------------------------------
+  // task lifecycle — modern SDK shape (type: "system", subtype: "task_*")
+  // ---------------------------------------------------------------------------
+
+  describe("task lifecycle (SDK 0.2.107+ system-subtype shape)", () => {
+    it("maps system/task_started to task_start", () => {
+      const events = mapSDKMessage(
+        {
+          type: "system",
+          subtype: "task_started",
+          task_id: "task-1",
+          tool_use_id: "tool-1",
+          description: "Explore codebase",
+          task_type: "Explore",
+          prompt: "Find all API endpoints",
+          uuid: "uuid-1",
+          session_id: "sess-1",
+        },
+        freshState(),
+      )
+
+      expect(events).toHaveLength(1)
+      expect(events[0]).toEqual({
+        type: "task_start",
+        taskId: "task-1",
+        description: "Explore codebase",
+        toolUseId: "tool-1",
+        taskType: "Explore",
+        skipTranscript: undefined,
+      })
+    })
+
+    it("maps system/task_progress using description as output", () => {
+      const events = mapSDKMessage(
+        {
+          type: "system",
+          subtype: "task_progress",
+          task_id: "task-1",
+          tool_use_id: "tool-1",
+          description: "Reading files",
+          usage: { total_tokens: 1200, tool_uses: 3, duration_ms: 5000 },
+          last_tool_name: "Read",
+          summary: "Making good progress",
+          uuid: "uuid-1",
+          session_id: "sess-1",
+        },
+        freshState(),
+      )
+
+      expect(events).toHaveLength(1)
+      const ev = events[0] as any
+      expect(ev.type).toBe("task_progress")
+      expect(ev.taskId).toBe("task-1")
+      expect(ev.output).toBe("Reading files")
+      expect(ev.lastToolName).toBe("Read")
+      expect(ev.summary).toBe("Making good progress")
+      expect(ev.tokenUsage).toEqual({
+        inputTokens: 0,
+        outputTokens: 0,
+        totalTokens: 1200,
+      })
+      expect(ev.toolUseCount).toBe(3)
+    })
+
+    it("maps system/task_notification with status=completed", () => {
+      const events = mapSDKMessage(
+        {
+          type: "system",
+          subtype: "task_notification",
+          task_id: "task-1",
+          tool_use_id: "tool-1",
+          status: "completed",
+          output_file: "/tmp/task-1.log",
+          summary: "Found 12 matches",
+          uuid: "uuid-1",
+          session_id: "sess-1",
+        },
+        freshState(),
+      )
+
+      expect(events).toHaveLength(1)
+      const ev = events[0] as any
+      expect(ev.type).toBe("task_complete")
+      expect(ev.taskId).toBe("task-1")
+      expect(ev.output).toBe("Found 12 matches")
+      expect(ev.toolUseId).toBe("tool-1")
+      expect(ev.state).toBe("completed")
+      expect(ev.errorMessage).toBeUndefined()
+    })
+
+    it("maps system/task_notification with status=failed to error state", () => {
+      const events = mapSDKMessage(
+        {
+          type: "system",
+          subtype: "task_notification",
+          task_id: "task-1",
+          status: "failed",
+          summary: "Tool invocation crashed",
+          uuid: "uuid-1",
+          session_id: "sess-1",
+        },
+        freshState(),
+      )
+
+      const ev = events[0] as any
+      expect(ev.type).toBe("task_complete")
+      expect(ev.state).toBe("error")
+      expect(ev.errorMessage).toBe("Tool invocation crashed")
+      expect(ev.output).toBe("Tool invocation crashed")
+    })
+
+    it("maps system/task_notification with status=stopped to error state", () => {
+      const events = mapSDKMessage(
+        {
+          type: "system",
+          subtype: "task_notification",
+          task_id: "task-1",
+          status: "stopped",
+          summary: "Aborted by user",
+          uuid: "uuid-1",
+          session_id: "sess-1",
+        },
+        freshState(),
+      )
+
+      const ev = events[0] as any
+      expect(ev.state).toBe("error")
+      expect(ev.errorMessage).toBe("Aborted by user")
+    })
+
+    it("does NOT log a warning for system-subtype task events", () => {
+      // Regression check for the log flood we saw:
+      //   [WARN ] Unhandled system subtype {"subtype":"task_started"}
+      // Mapped events must not land in the backend_specific catch-all.
+      const warnings: any[] = []
+      const origWarn = console.warn
+      console.warn = (...args: any[]) => { warnings.push(args) }
+      try {
+        for (const subtype of ["task_started", "task_progress", "task_notification"]) {
+          const events = mapSDKMessage(
+            {
+              type: "system",
+              subtype,
+              task_id: "t",
+              description: "d",
+              status: "completed",
+            },
+            freshState(),
+          )
+          // Must not be backend_specific (that's the catch-all fallback)
+          expect(events.every((e) => e.type !== "backend_specific")).toBe(true)
+        }
+      } finally {
+        console.warn = origWarn
+      }
+    })
+  })
+
+  // ---------------------------------------------------------------------------
   // rate_limit
   // ---------------------------------------------------------------------------
 

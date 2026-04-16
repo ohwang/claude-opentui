@@ -520,13 +520,22 @@ export class ClaudeAdapter implements AgentBackend {
           if (this.closed || !this.eventChannel) break
           // SDK messages are a wide union — extract optional fields for logging
           const msgRecord = msg as Record<string, unknown>
-          log.debug("V1 SDK message", {
-            type: msg.type,
-            subtype: msgRecord.subtype,
-            ...(msg.type === "stream_event" && {
-              eventType: (msgRecord.event as Record<string, unknown> | undefined)?.type,
-            }),
-          })
+          const streamEventType =
+            msg.type === "stream_event"
+              ? (msgRecord.event as Record<string, unknown> | undefined)?.type
+              : undefined
+          // Skip per-delta debug spam — `content_block_delta` fires once per
+          // character during text/thinking streaming (dozens per second). The
+          // underlying text/thinking content is still captured via the mapped
+          // `text_delta` / `thinking_delta` AgentEvents and the raw `sdk_event`
+          // trace entry below, so suppressing the log line here loses nothing.
+          if (streamEventType !== "content_block_delta") {
+            log.debug("V1 SDK message", {
+              type: msg.type,
+              subtype: msgRecord.subtype,
+              ...(streamEventType !== undefined && { eventType: streamEventType }),
+            })
+          }
           trace.write({
             dir: "in",
             stage: "sdk_event",

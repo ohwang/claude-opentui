@@ -3,6 +3,19 @@
  *
  * Replaces the duplicated "repeat dash" pattern in app.tsx (DashLine),
  * block-view.tsx (turn separator), and permission-dialog.tsx (dashedLine).
+ *
+ * Rendering note: the `<text>` child uses `wrapMode="none"` so the dash string
+ * is always measured as a single row. With the default `wrapMode="word"`,
+ * a dash string longer than the available cell width (e.g. inside a scrollbox
+ * whose padding+scrollbar shaves 2 cells off the terminal width) was measured
+ * as multi-line by OpenTUI's Zig measure pass. The outer box then clipped
+ * render to 1 row but left phantom cells in the buffer — when the composer's
+ * dynamic-height textarea grew and layout shifted the divider vertically,
+ * those phantom cells didn't get cleared and the top divider showed only
+ * the first few dashes. `wrapMode="none"` keeps measurement single-line;
+ * OpenTUI clips horizontal overflow to the box bounds at render time.
+ * `flexShrink={0}` on the outer box pins its height at 1 row so flex siblings
+ * can't collapse it.
  */
 
 import { useTerminalDimensions } from "@opentui/solid"
@@ -26,8 +39,8 @@ export function Divider(props: {
   const line = () => char().repeat(Math.max(width(), 20))
 
   return (
-    <box height={1} width="100%">
-      <text fg={color()}>{line()}</text>
+    <box height={1} width="100%" flexShrink={0}>
+      <text wrapMode="none" fg={color()}>{line()}</text>
     </box>
   )
 }

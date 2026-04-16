@@ -135,12 +135,12 @@ function buildSyntaxStyle(): SyntaxStyle {
     },
     {
       scope: ["markup.link.url"],
-      style: { foreground: colors.text.subtle, underline: true },
+      style: { foreground: colors.text.muted, underline: true },
     },
     // Strikethrough
     {
       scope: ["markup.strikethrough"],
-      style: { foreground: colors.text.subtle, dim: true },
+      style: { foreground: colors.text.muted, dim: true },
     },
     // Table borders / conceal markers
     {

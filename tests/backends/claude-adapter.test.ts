@@ -528,10 +528,14 @@ describe("ClaudeAdapter", () => {
   })
 
   describe("mapAssistant option", () => {
-    it("V1 live mode: assistant messages are ignored after stream_event received", () => {
+    it("V1 live mode: assistant messages are ignored when streams already covered the turn", () => {
       const streamState = new ToolStreamState()
-      // Simulate having received a stream_event (live streaming mode)
+      // Simulate a turn that actually streamed — both the sticky "ever seen"
+      // flag and the per-turn counter must be set, otherwise the adapter
+      // falls back to mapping the final assistant message (see the
+      // no-stream-this-turn fallback in event-mapper.ts).
       streamState.hasReceivedStreamEvent = true
+      streamState.streamEventsThisTurn = 2
       const events = mapSDKMessage({
         type: "assistant",
         message: { content: [{ type: "text", text: "Hello" }] },

@@ -291,9 +291,13 @@ describe("Claude Event Mapper — mapSDKMessage", () => {
   // ---------------------------------------------------------------------------
 
   describe("assistant messages", () => {
-    it("skips assistant messages in V1 live mode (hasReceivedStreamEvent=true, !mapAssistant)", () => {
+    it("skips assistant messages in V1 live mode when stream events already covered the turn", () => {
       const state = freshState()
+      // Simulate a turn that actually streamed: flags reflect both "ever seen
+      // stream events" and "≥1 stream event this turn". The assistant message
+      // is a redundant final copy of the delta content, so it should be skipped.
       state.hasReceivedStreamEvent = true
+      state.streamEventsThisTurn = 3
 
       const events = mapSDKMessage(
         {
@@ -306,6 +310,52 @@ describe("Claude Event Mapper — mapSDKMessage", () => {
       )
 
       expect(events).toHaveLength(0)
+    })
+
+    it("falls back to mapAssistantMessage when V1 turn arrives with no stream events (bug: silent content drop)", () => {
+      const state = freshState()
+      // Prior turn streamed, flipping the sticky flag. THIS turn arrived with
+      // no stream events at all (SDK collapsed partials into the final
+      // assistant message — observed in the wild after tool-use turns).
+      state.hasReceivedStreamEvent = true
+      state.streamEventsThisTurn = 0
+
+      const events = mapSDKMessage(
+        {
+          type: "assistant",
+          message: {
+            content: [{ type: "text", text: "Recovered content" }],
+          },
+        },
+        state,
+      )
+
+      // Must emit turn_start + text_delta so the UI renders the response.
+      // No synthetic turn_complete — the following `result` message emits one.
+      expect(events.some((e) => e.type === "turn_start")).toBe(true)
+      const textDelta = events.find((e) => e.type === "text_delta")
+      expect(textDelta).toBeTruthy()
+      expect((textDelta as { type: "text_delta"; text: string }).text).toBe("Recovered content")
+      expect(events.some((e) => e.type === "turn_complete")).toBe(false)
+    })
+
+    it("result message resets streamEventsThisTurn so the next turn starts clean", () => {
+      const state = freshState()
+      state.hasReceivedStreamEvent = true
+      state.streamEventsThisTurn = 7
+
+      mapSDKMessage(
+        {
+          type: "result",
+          subtype: "success",
+          usage: { input_tokens: 10, output_tokens: 5 },
+        },
+        state,
+      )
+
+      expect(state.streamEventsThisTurn).toBe(0)
+      // Sticky flag must stay true — we still remember the session ever streamed
+      expect(state.hasReceivedStreamEvent).toBe(true)
     })
 
     it("maps assistant messages in V2 mode (mapAssistant: true)", () => {
@@ -1813,11 +1863,28 @@ describe("Claude Event Mapper — mapStreamEvent", () => {
 // ---------------------------------------------------------------------------
 
 describe("ToolStreamState", () => {
-  it("initializes with empty maps and false flag", () => {
+  it("initializes with empty maps, false sticky flag, and zeroed per-turn counter", () => {
     const state = new ToolStreamState()
     expect(state.toolInputJsons.size).toBe(0)
     expect(state.currentToolIds.size).toBe(0)
     expect(state.hasReceivedStreamEvent).toBe(false)
+    expect(state.streamEventsThisTurn).toBe(0)
+  })
+
+  it("stream_event increments per-turn counter and sets sticky flag", () => {
+    const state = freshState()
+    mapSDKMessage(
+      { type: "stream_event", event: { type: "message_start", message: {} }, parent_tool_use_id: null },
+      state,
+    )
+    expect(state.hasReceivedStreamEvent).toBe(true)
+    expect(state.streamEventsThisTurn).toBe(1)
+
+    mapSDKMessage(
+      { type: "stream_event", event: { type: "message_stop", message: {} }, parent_tool_use_id: null },
+      state,
+    )
+    expect(state.streamEventsThisTurn).toBe(2)
   })
 })
 

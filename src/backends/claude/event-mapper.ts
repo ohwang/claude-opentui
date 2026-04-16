@@ -42,6 +42,17 @@ export class ToolStreamState {
   /** Set to true once the first stream_event is received (live streaming mode).
    *  Before this, assistant messages are treated as replayed history. */
   hasReceivedStreamEvent = false
+  /** Stream events observed since the last `result` message (i.e. for the
+   *  current turn). Used to decide whether a final `assistant` message is
+   *  redundant with already-streamed deltas (skip) or the sole source of
+   *  content for this turn (fall back to mapAssistantMessage).
+   *
+   *  Why we need this in addition to hasReceivedStreamEvent: that flag is
+   *  sticky for the adapter's lifetime. The SDK can stop streaming partials
+   *  mid-session (observed in the wild after tool-use turns) and without this
+   *  per-turn counter every subsequent assistant message gets silently dropped
+   *  — the UI hangs on user_message → turn_complete with nothing between. */
+  streamEventsThisTurn = 0
 }
 
 // ---------------------------------------------------------------------------
@@ -242,6 +253,7 @@ export function mapSDKMessage(msg: any, streamState: ToolStreamState, options?: 
 
     case "stream_event":
       streamState.hasReceivedStreamEvent = true
+      streamState.streamEventsThisTurn++
       if (msg.parent_tool_use_id) {
         // Sub-agent stream event — extract tool activity for skill/agent progress
         events.push(...mapSkillStreamEvent(msg.event, msg.parent_tool_use_id))
@@ -284,8 +296,31 @@ export function mapSDKMessage(msg: any, streamState: ToolStreamState, options?: 
           type: "turn_complete",
           usage: { inputTokens: 0, outputTokens: 0 },
         })
+      } else if (streamState.streamEventsThisTurn === 0) {
+        // V1 live mode fallback: the SDK is in live mode (we've received
+        // stream_events earlier in the session) but THIS turn arrived with
+        // no stream_events at all — just the final assistant message. If we
+        // skip here the user sees user_message → turn_complete with no
+        // response content. Observed in the wild after tool-use turns where
+        // the SDK collapses partials into a single final message.
+        //
+        // Map the assistant message directly. The result message that
+        // follows will emit turn_complete, so no synthetic one here.
+        const content = msg.message?.content
+        log.warn("V1 assistant arrived with no stream events this turn — mapping final message", {
+          contentBlocks: Array.isArray(content) ? content.length : 0,
+          textChars: Array.isArray(content)
+            ? content
+                .filter((b: any) => b?.type === "text" && typeof b.text === "string")
+                .reduce((n: number, b: any) => n + b.text.length, 0)
+            : 0,
+          toolUses: Array.isArray(content)
+            ? content.filter((b: any) => b?.type === "tool_use").length
+            : 0,
+        })
+        events.push(...mapAssistantMessage(msg))
       }
-      // V1 live mode (hasReceivedStreamEvent=true, !mapAssistant): skip
+      // V1 live mode with streams this turn: skip — deltas already handled content
       break
 
     case "result": {
@@ -320,6 +355,10 @@ export function mapSDKMessage(msg: any, streamState: ToolStreamState, options?: 
           },
         })
       }
+      // Reset per-turn stream event counter — the next turn gets a clean slate
+      // so the assistant-fallback check (see `case "assistant"`) correctly
+      // detects turns where the SDK emits no stream events.
+      streamState.streamEventsThisTurn = 0
       break
     }
 

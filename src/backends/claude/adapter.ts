@@ -34,6 +34,119 @@ import { backendTrace } from "../../utils/backend-trace"
 const trace = backendTrace.scoped("claude")
 
 import { mapSDKMessage, ToolStreamState } from "./event-mapper"
+
+// ---------------------------------------------------------------------------
+// Debug log payload builder for SDK messages
+// ---------------------------------------------------------------------------
+
+/**
+ * Build a DEBUG log payload for one SDK message. The raw `{"type":"assistant"}`
+ * we used to log was useless for diagnosing hangs (you couldn't tell whether
+ * the assistant actually had content, how many tool uses fired, or what the
+ * turn cost). This surfaces:
+ *   - assistant: content-block count, combined text length, tool-use count,
+ *                whether it's a sub-agent message, and the underlying
+ *                SDK message id / model / stop_reason when present
+ *   - result:    usage (input/output/cache tokens), total_cost_usd, num_turns,
+ *                duration_ms, is_error flag
+ *   - system:    session_id and model for init; subtype for everything else
+ *   - stream_event: eventType (content_block_delta still suppressed upstream)
+ *   - user (tool_result): tool_use_id and whether the result is an error
+ * Unknown shapes fall back to the original minimal {type, subtype} so we
+ * never lose the baseline signal.
+ */
+function buildSdkMessageLogPayload(
+  msg: any,
+  msgRecord: Record<string, unknown>,
+  streamEventType: unknown,
+): Record<string, unknown> {
+  const base: Record<string, unknown> = { type: msg.type }
+  if (msgRecord.subtype !== undefined) base.subtype = msgRecord.subtype
+
+  switch (msg.type) {
+    case "stream_event":
+      if (streamEventType !== undefined) base.eventType = streamEventType
+      return base
+
+    case "assistant": {
+      const content = msg.message?.content
+      const parentToolUseId = msg.parent_tool_use_id
+      if (Array.isArray(content)) {
+        base.contentBlocks = content.length
+        let textChars = 0
+        let thinkingChars = 0
+        let toolUses = 0
+        for (const block of content) {
+          if (!block || typeof block !== "object") continue
+          if (block.type === "text" && typeof block.text === "string") textChars += block.text.length
+          else if (block.type === "thinking" && typeof block.thinking === "string") thinkingChars += block.thinking.length
+          else if (block.type === "tool_use") toolUses++
+        }
+        base.textChars = textChars
+        if (thinkingChars > 0) base.thinkingChars = thinkingChars
+        base.toolUses = toolUses
+      } else {
+        base.contentBlocks = 0
+      }
+      if (msg.message?.id) base.messageId = msg.message.id
+      if (msg.message?.model) base.model = msg.message.model
+      if (msg.message?.stop_reason) base.stopReason = msg.message.stop_reason
+      if (parentToolUseId) base.parentToolUseId = parentToolUseId
+      return base
+    }
+
+    case "result": {
+      const usage = msg.usage
+      if (usage) {
+        base.usage = {
+          inputTokens: usage.input_tokens ?? 0,
+          outputTokens: usage.output_tokens ?? 0,
+          cacheReadTokens: usage.cache_read_input_tokens ?? 0,
+          cacheWriteTokens: usage.cache_creation_input_tokens ?? 0,
+        }
+      }
+      if (typeof msg.total_cost_usd === "number") base.totalCostUsd = msg.total_cost_usd
+      if (typeof msg.num_turns === "number") base.numTurns = msg.num_turns
+      if (typeof msg.duration_ms === "number") base.durationMs = msg.duration_ms
+      if (msg.is_error) base.isError = true
+      if (msg.session_id) base.sessionId = msg.session_id
+      return base
+    }
+
+    case "system":
+      if (msg.subtype === "init") {
+        if (msg.session_id) base.sessionId = msg.session_id
+        if (msg.model) base.model = msg.model
+        if (Array.isArray(msg.tools)) base.toolCount = msg.tools.length
+      }
+      return base
+
+    case "user": {
+      const content = msg.message?.content
+      if (Array.isArray(content)) {
+        let toolResults = 0
+        let toolUseId: string | undefined
+        let isError = false
+        for (const block of content) {
+          if (block?.type === "tool_result") {
+            toolResults++
+            if (!toolUseId && block.tool_use_id) toolUseId = block.tool_use_id
+            if (block.is_error) isError = true
+          }
+        }
+        if (toolResults > 0) base.toolResults = toolResults
+        if (toolUseId) base.toolUseId = toolUseId
+        if (isError) base.isError = true
+      }
+      if (msg.parent_tool_use_id) base.parentToolUseId = msg.parent_tool_use_id
+      return base
+    }
+
+    default:
+      return base
+  }
+}
+
 import {
   createCanUseTool,
   type PendingPermission,
@@ -530,11 +643,7 @@ export class ClaudeAdapter implements AgentBackend {
           // `text_delta` / `thinking_delta` AgentEvents and the raw `sdk_event`
           // trace entry below, so suppressing the log line here loses nothing.
           if (streamEventType !== "content_block_delta") {
-            log.debug("V1 SDK message", {
-              type: msg.type,
-              subtype: msgRecord.subtype,
-              ...(streamEventType !== undefined && { eventType: streamEventType }),
-            })
+            log.debug("V1 SDK message", buildSdkMessageLogPayload(msg, msgRecord, streamEventType))
           }
           trace.write({
             dir: "in",

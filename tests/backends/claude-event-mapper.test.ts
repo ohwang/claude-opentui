@@ -1324,6 +1324,72 @@ describe("Claude Event Mapper — mapSDKMessage", () => {
     })
   })
 
+  describe("system plugin_install (SDK 0.2.112+)", () => {
+    it("emits system_message on install success", () => {
+      const events = mapSDKMessage(
+        {
+          type: "system",
+          subtype: "plugin_install",
+          status: "installed",
+          name: "my-plugin",
+          uuid: "abc-123",
+          session_id: "sess-1",
+        },
+        freshState(),
+      )
+
+      expect(events).toHaveLength(1)
+      expect(events[0]!.type).toBe("system_message")
+      expect((events[0] as any).text).toContain("my-plugin")
+    })
+
+    it("emits system_message on install failure", () => {
+      const events = mapSDKMessage(
+        {
+          type: "system",
+          subtype: "plugin_install",
+          status: "failed",
+          name: "bad-plugin",
+          error: "not found",
+          uuid: "abc-123",
+          session_id: "sess-1",
+        },
+        freshState(),
+      )
+
+      expect(events).toHaveLength(1)
+      expect(events[0]!.type).toBe("system_message")
+      expect((events[0] as any).text).toContain("bad-plugin")
+      expect((events[0] as any).text).toContain("not found")
+    })
+
+    it("emits no events for started/completed bookends", () => {
+      for (const status of ["started", "completed"]) {
+        const events = mapSDKMessage(
+          {
+            type: "system",
+            subtype: "plugin_install",
+            status,
+            uuid: "abc-123",
+            session_id: "sess-1",
+          },
+          freshState(),
+        )
+        expect(events).toHaveLength(0)
+      }
+    })
+  })
+
+  describe("system status requesting (SDK 0.2.112+)", () => {
+    it("silently handles requesting status without emitting events", () => {
+      const events = mapSDKMessage(
+        { type: "system", subtype: "status", status: "requesting" },
+        freshState(),
+      )
+      expect(events).toHaveLength(0)
+    })
+  })
+
   describe("unknown system subtypes (catch-all)", () => {
     it("maps to backend_specific and logs warning", () => {
       const msg = {

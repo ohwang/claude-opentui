@@ -125,6 +125,9 @@ export function mapSDKMessage(msg: any, streamState: ToolStreamState, options?: 
             inProgress: false,
             trigger: "user",
           })
+        } else if (msg.status === "requesting") {
+          // SDK 0.2.112+: backend is making an API request — informational status
+          log.debug("SDK status: requesting", { session_id: msg.session_id })
         } else {
           log.debug("Unhandled system status", { status: msg.status })
         }
@@ -226,6 +229,25 @@ export function mapSDKMessage(msg: any, streamState: ToolStreamState, options?: 
         //                   status: "completed"|"failed"|"stopped", output_file, summary, usage,
         //                   skip_transcript }
         events.push(mapTaskNotificationMessage(msg))
+      } else if (msg.subtype === "plugin_install") {
+        // SDK 0.2.112+: headless plugin installation progress.
+        // status: started → installed/failed (per plugin) → completed
+        if (msg.status === "failed") {
+          log.warn("Plugin install failed", { name: msg.name, error: msg.error })
+          events.push({
+            type: "system_message",
+            text: `Plugin install failed: ${msg.name ?? "unknown"}${msg.error ? ` — ${msg.error}` : ""}`,
+          })
+        } else if (msg.status === "installed") {
+          log.info("Plugin installed", { name: msg.name })
+          events.push({
+            type: "system_message",
+            text: `Plugin installed: ${msg.name}`,
+          })
+        } else {
+          // started / completed — bookend events, debug-level
+          log.debug("Plugin install status", { status: msg.status, name: msg.name })
+        }
       } else if (msg.subtype === "request_user_dialog") {
         // SDK 0.2.107+: tool-driven blocking dialog request. bantai does not yet
         // render these dialogs — log a warning and pass through as backend_specific

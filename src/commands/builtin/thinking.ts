@@ -12,7 +12,7 @@ import type { EffortLevel } from "../../protocol/types"
 import type { SlashCommand } from "../registry"
 
 const VALID_LEVELS: EffortLevel[] = ["low", "medium", "high"]
-const VALID_LEVELS_WITH_MAX: EffortLevel[] = ["low", "medium", "high", "max"]
+const VALID_LEVELS_WITH_MAX: EffortLevel[] = ["low", "medium", "high", "xhigh", "max"]
 
 export const thinkingCommand: SlashCommand = {
   name: "thinking",
@@ -42,10 +42,10 @@ export const thinkingCommand: SlashCommand = {
       return
     }
 
-    if (level === "max") {
+    if (level === "max" || level === "xhigh") {
       ctx.pushEvent({
         type: "system_message",
-        text: "Cannot set effort to 'max' at runtime. Use --effort max at startup.",
+        text: `Cannot set effort to '${level}' at runtime. Use --effort ${level} at startup.`,
         ephemeral: true,
       })
       return

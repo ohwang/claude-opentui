@@ -21,6 +21,7 @@ const VALID_EFFORT_LEVELS = new Set<string>([
   "low",
   "medium",
   "high",
+  "xhigh",
   "max",
 ])
 

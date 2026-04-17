@@ -18,7 +18,7 @@ export type ThinkingConfig =
   | { type: "disabled" }
 
 /** Effort level for controlling reasoning depth */
-export type EffortLevel = "low" | "medium" | "high" | "max"
+export type EffortLevel = "low" | "medium" | "high" | "xhigh" | "max"
 
 // ---------------------------------------------------------------------------
 // Agent Events — unified stream from all backends

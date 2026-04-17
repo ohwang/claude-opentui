@@ -84,7 +84,7 @@ export function addTuiOptions(cmd: Command): Command {
     .option("--no-session-persistence", "Disable session persistence to disk")
     .option("--thinking <mode>", "Thinking mode (adaptive, enabled, disabled)")
     .option("--max-thinking-tokens <n>", "Fixed thinking token budget (sets thinking to enabled)", parseIntPositive)
-    .option("--effort <level>", "Reasoning effort (low, medium, high, max)")
+    .option("--effort <level>", "Reasoning effort (low, medium, high, xhigh, max)")
     .option("--system-prompt <text>", "System prompt")
     .option("--theme <id>", "Theme preset (dark, high-contrast, catppuccin, dracula, solarized, light, one-light)")
     .option("--no-diagnostics-mcp", "Disable the MCP diagnostics server")

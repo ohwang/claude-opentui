@@ -508,11 +508,11 @@ export class ClaudeAdapter implements AgentBackend {
 
   async setEffort(level: EffortLevel): Promise<void> {
     if (!this.activeQuery) return
-    // applyFlagSettings only supports low/medium/high — reject 'max' at runtime
-    if (level === "max") {
+    // applyFlagSettings only supports low/medium/high — reject 'max'/'xhigh' at runtime
+    if (level === "max" || level === "xhigh") {
       this.eventChannel?.push({
         type: "system_message",
-        text: "Cannot set effort to 'max' at runtime. Use --effort max at startup.",
+        text: `Cannot set effort to '${level}' at runtime. Use --effort ${level} at startup.`,
         ephemeral: true,
       })
       return

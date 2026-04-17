@@ -31,11 +31,14 @@ import {
 import { invalidateStatusLineConfig } from "../../utils/statusline"
 import { applyTheme, getCurrentThemeId } from "../../tui/theme/tokens"
 import { getTheme } from "../../tui/theme/registry"
+import { applyStatusBar, getCurrentStatusBarId } from "../../tui/status-bar/active"
+import { getStatusBar } from "../../tui/status-bar/registry"
 
 // Every user-facing key we render in `/settings`. Keep in sync with
 // BantaiConfig — missing keys here are simply not shown.
 const DISPLAY_KEYS: Array<keyof BantaiConfig> = [
   "theme",
+  "statusBar",
   "model",
   "backend",
   "permissionMode",
@@ -110,6 +113,16 @@ function applyInMemory(key: keyof BantaiConfig, value: unknown): string | null {
     case "statusLine": {
       invalidateStatusLineConfig()
       return `statusLine written. Restart bantai to re-attach the status line command (hot-swap not supported).`
+    }
+    case "statusBar": {
+      if (typeof value !== "string") return null
+      if (value === getCurrentStatusBarId()) return null
+      const preset = getStatusBar(value)
+      const applied = applyStatusBar(value)
+      if (applied.fellBack) {
+        return `Unknown status bar preset "${value}" — falling back to "${applied.id}". Register the preset or correct the id.`
+      }
+      return `Status bar applied: ${preset?.name ?? applied.id}.`
     }
     default:
       // Most settings are only consumed at bootstrap — the persisted value

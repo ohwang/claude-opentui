@@ -176,6 +176,7 @@ import { aboutCommand } from "./builtin/about"
 import { screenshotCommand } from "./builtin/screenshot"
 import { thinkingCommand } from "./builtin/thinking"
 import { themeCommand } from "./builtin/theme"
+import { statusBarCommand } from "./builtin/status-bar"
 import { configCommand } from "./builtin/config"
 import { settingsCommand } from "./builtin/settings"
 import { backendCommand } from "./builtin/backend"
@@ -208,6 +209,7 @@ export function createCommandRegistry(): CommandRegistry {
   registry.register(screenshotCommand)
   registry.register(thinkingCommand)
   registry.register(themeCommand)
+  registry.register(statusBarCommand)
   registry.register(configCommand)
   registry.register(settingsCommand)
   registry.register(backendCommand)

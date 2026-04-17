@@ -1,33 +1,39 @@
 /**
- * Status Bar — Claude Code-style status bar
+ * Status Bar — Dispatches to native presets or an external statusline command.
  *
- * When an external statusline command is configured:
- *   Lines 1-N: command output (up to 4 lines, dynamic height)
- *   Last line: permission mode indicator
+ * Rendering modes (in precedence order):
  *
- * When no external command:
- *   Line 1: project name | model | state | cost | git branch+status | tokens | tok/s
- *   Line 2: permission mode indicator (pink, with cycle hint)
+ *   1. External statusLine command (configured via `statusLine` in settings)
+ *      — runs a shell script periodically, pipes JSON on stdin, renders the
+ *      script's stdout. This path is separate and always wins when configured;
+ *      preset selection does not affect it.
  *
- * During RUNNING state, shows live cost ticker and tokens-per-second throughput.
+ *   2. Native preset — one of the built-in status bar layouts registered in
+ *      `src/tui/status-bar/registry.ts` (default / minimal / detailed). The
+ *      active preset is stored in `activeStatusBarId` and swapped live by
+ *      `/status-bar <id>`, `/settings set statusBar <id>`, or startup resolution.
+ *      Unknown preset ids soft-fail to `default`.
+ *
+ * The permission mode row (line 2) is rendered here, NOT in presets, so
+ * that cycling / sandbox hints / right-aligned rate-limit percentages stay
+ * consistent across presets.
  */
 
-import { createSignal, createEffect, createMemo, onCleanup, on } from "solid-js"
-import path from "node:path"
+import { createSignal, createEffect, createMemo, onCleanup, Show } from "solid-js"
 import { TextAttributes } from "@opentui/core"
 import type { StyledText, TextRenderable } from "@opentui/core"
 import { useKeyboard, useTerminalDimensions } from "@opentui/solid"
 import { useSession } from "../context/session"
-import { useMessages } from "../context/messages"
 import { useAgent } from "../context/agent"
 import { log } from "../../utils/logger"
-import { setTerminalProgress } from "../../utils/terminal-notify"
 import { colors } from "../theme/tokens"
-import type { PermissionMode, SandboxInfo } from "../../protocol/types"
-import { friendlyModelName, MODEL_CONTEXT_WINDOWS, DEFAULT_CONTEXT_WINDOW } from "../models"
-import { toast } from "../context/toast"
+import type { PermissionMode } from "../../protocol/types"
 import { getStatusLineConfig, buildStatusLineInput, executeStatusLineCommand } from "../../utils/statusline"
 import { ansiToStyledText } from "../../utils/ansi-to-styled"
+import { useStatusBarData, rateLimitColor } from "../status-bar/data"
+import { resolveStatusBar } from "../status-bar/registry"
+import { activeStatusBarId } from "../status-bar/active"
+import type { StatusBarPreset } from "../status-bar/types"
 
 // ---------------------------------------------------------------------------
 // Permission mode cycle order
@@ -39,81 +45,6 @@ const PERM_MODE_CYCLE: PermissionMode[] = [
   "bypassPermissions",
   "plan",
 ]
-
-// ---------------------------------------------------------------------------
-// Token-rate tracking ring buffer
-// ---------------------------------------------------------------------------
-
-interface TokenSample {
-  timestamp: number
-  totalTokens: number
-}
-
-const SAMPLE_WINDOW_MS = 3_000
-const TICK_INTERVAL_MS = 300
-
-// ---------------------------------------------------------------------------
-// Git info — cached at startup, no re-run on every render
-// ---------------------------------------------------------------------------
-
-interface GitInfo {
-  branch: string
-  modified: number
-  untracked: number
-  ahead: number
-  hasUpstream: boolean
-}
-
-interface RateLimitDisplay {
-  label: string
-  usedPercentage: number
-}
-
-function getGitInfo(): GitInfo | null {
-  try {
-    const branchResult = Bun.spawnSync(["git", "rev-parse", "--abbrev-ref", "HEAD"])
-    if (branchResult.exitCode !== 0) return null
-    const branch = branchResult.stdout.toString().trim()
-    if (!branch) return null
-
-    const statusResult = Bun.spawnSync(["git", "status", "--porcelain"])
-    const statusLines = statusResult.stdout.toString().trim()
-    let modified = 0
-    let untracked = 0
-    if (statusLines) {
-      for (const line of statusLines.split("\n")) {
-        if (line.startsWith("??")) {
-          untracked++
-        } else if (line.trim()) {
-          modified++
-        }
-      }
-    }
-
-    // Try to get ahead count (may fail for detached HEAD or no upstream)
-    let ahead = 0
-    let hasUpstream = false
-    try {
-      const aheadResult = Bun.spawnSync([
-        "git", "rev-list", "--count", "@{upstream}..HEAD",
-      ])
-      if (aheadResult.exitCode === 0) {
-        hasUpstream = true
-        ahead = parseInt(aheadResult.stdout.toString().trim(), 10) || 0
-      }
-    } catch {
-      // No upstream configured, that's fine
-    }
-
-    return { branch, modified, untracked, ahead, hasUpstream }
-  } catch {
-    return null
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Permission mode display
-// ---------------------------------------------------------------------------
 
 function permissionModeLabel(mode: PermissionMode | undefined): string {
   switch (mode) {
@@ -132,35 +63,21 @@ function permissionModeLabel(mode: PermissionMode | undefined): string {
   }
 }
 
-function formatRateLimitWindowLabel(windowDurationMins: number | undefined, fallback: string): string {
-  if (typeof windowDurationMins !== "number") return fallback
-  if (windowDurationMins < 60) return `${windowDurationMins}m`
-  if (windowDurationMins < 1440) return `${Math.round(windowDurationMins / 60)}h`
-  const days = Math.round(windowDurationMins / 1440)
-  return `${days}d`
-}
-
-function rateLimitColor(usedPercentage: number): string {
-  if (usedPercentage >= 80) return colors.status.error
-  if (usedPercentage >= 50) return colors.status.warning
-  return colors.status.success
-}
-
 // ---------------------------------------------------------------------------
-// Component
-// ---------------------------------------------------------------------------
-
-// ---------------------------------------------------------------------------
-// Status line command debounce interval
+// Status line command debounce / refresh intervals
 // ---------------------------------------------------------------------------
 
 const STATUS_LINE_DEBOUNCE_MS = 300
 const STATUS_LINE_REFRESH_MS = 5_000
 
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
+
 export function StatusBar(props: { hint?: string | null }) {
   const { state } = useSession()
-  const { state: messagesState } = useMessages()
   const agent = useAgent()
+
   // -- Permission mode (local signal so it's reactive) --
   const [permMode, setPermMode] = createSignal<PermissionMode>(
     agent.config.permissionMode ?? "default",
@@ -180,7 +97,6 @@ export function StatusBar(props: { hint?: string | null }) {
 
   useKeyboard((event) => {
     if (event.shift && event.name === "tab") {
-      // Don't cycle permission mode during dialogs
       if (
         state.sessionState === "WAITING_FOR_PERM" ||
         state.sessionState === "WAITING_FOR_ELIC"
@@ -188,13 +104,11 @@ export function StatusBar(props: { hint?: string | null }) {
         return
       }
       const modes = availableModes()
-      // Nothing to cycle if only one (or zero) modes are supported
       if (modes.length <= 1) return
 
       const prevMode = permMode()
       const startIdx = modes.indexOf(prevMode)
 
-      // Cycle to the next supported mode
       const nextIdx = (startIdx + 1) % modes.length
       const nextMode = modes[nextIdx] ?? "default"
       agent.backend.setPermissionMode(nextMode).then(() => {
@@ -205,7 +119,7 @@ export function StatusBar(props: { hint?: string | null }) {
     }
   })
 
-  // -- Terminal dimensions (declared early for status line command) --
+  // -- Terminal dimensions (needed for status line command input) --
   const dims = useTerminalDimensions()
 
   // -- Status line command execution (debounced + periodic) --
@@ -223,11 +137,9 @@ export function StatusBar(props: { hint?: string | null }) {
         .then((text) => {
           if (text) {
             const styled = ansiToStyledText(text)
-            // Count output lines (capped at 4) for dynamic height
             const lineCount = Math.min(4, Math.max(1, text.split("\n").length))
             setStatusLineLines(lineCount)
             setStatusLineText(styled)
-            // Imperatively update the TextRenderable content
             if (statusLineRef) {
               statusLineRef.content = styled
             }
@@ -241,9 +153,7 @@ export function StatusBar(props: { hint?: string | null }) {
       debounceTimer = setTimeout(runStatusLineCommand, STATUS_LINE_DEBOUNCE_MS)
     }
 
-    // Re-run on state changes (turn boundaries, cost updates, model changes, rate limits)
     createEffect(() => {
-      // Access reactive dependencies
       void state.sessionState
       void state.cost.totalCostUsd
       void state.turnNumber
@@ -253,10 +163,7 @@ export function StatusBar(props: { hint?: string | null }) {
       scheduleUpdate()
     })
 
-    // Periodic refresh (every 5s)
     const periodicTimer = setInterval(runStatusLineCommand, STATUS_LINE_REFRESH_MS)
-
-    // Initial run
     runStatusLineCommand()
 
     onCleanup(() => {
@@ -265,116 +172,13 @@ export function StatusBar(props: { hint?: string | null }) {
     })
   }
 
-  // -- Project name (basename of cwd) --
-  const projectName = path.basename(process.cwd())
+  // -- Shared preset data (only built when no external statusLine) --
+  const data = useStatusBarData(permMode)
 
-  // -- Git info (refreshed when a turn completes) --
-  const [gitInfo, setGitInfo] = createSignal<GitInfo | null>(getGitInfo())
+  // -- Active preset (reactive) --
+  const activePreset = createMemo(() => resolveStatusBar(activeStatusBarId()).preset)
 
-  // Re-fetch git info on RUNNING → IDLE transition (files may have changed)
-  let prevState: string = state.sessionState
-  createEffect(() => {
-    const current = state.sessionState
-    if (current === "IDLE" && prevState === "RUNNING") {
-      setGitInfo(getGitInfo())
-    }
-    prevState = current
-  })
-
-  // -- Token-rate tracking --
-  const [tokPerSec, setTokPerSec] = createSignal(0)
-  let tokenSamples: TokenSample[] = []
-
-  // -- Previous state for edge detection --
-  let prevSessionState: string = state.sessionState
-
-  // Ticker interval: drives the turn timer, tok/s, and live cost updates
-  const tickerHandle = setInterval(() => {
-    const currentState = state.sessionState
-    const isRunning = currentState === "RUNNING"
-
-    // Detect IDLE/other -> RUNNING transition
-    if (isRunning && prevSessionState !== "RUNNING") {
-      tokenSamples = []
-      setTokPerSec(0)
-    }
-
-    // Detect RUNNING -> non-RUNNING transition (turn ended)
-    if (!isRunning && prevSessionState === "RUNNING") {
-      tokenSamples = []
-      setTokPerSec(0)
-    }
-
-    prevSessionState = currentState
-
-    // While running, update tok/s
-    if (isRunning) {
-      // Sample current token count
-      const now = Date.now()
-      const totalTokens = state.cost.inputTokens + state.cost.outputTokens
-      tokenSamples.push({ timestamp: now, totalTokens })
-
-      // Prune samples older than the window
-      const cutoff = now - SAMPLE_WINDOW_MS
-      tokenSamples = tokenSamples.filter((s) => s.timestamp >= cutoff)
-
-      // Calculate rate from oldest remaining sample to newest
-      if (tokenSamples.length >= 2) {
-        const oldest = tokenSamples[0]
-        const newest = tokenSamples[tokenSamples.length - 1]
-        if (oldest && newest) {
-          const dtSec = (newest.timestamp - oldest.timestamp) / 1000
-          if (dtSec > 0) {
-            const rate = (newest.totalTokens - oldest.totalTokens) / dtSec
-            setTokPerSec(Math.round(rate))
-          }
-        }
-      }
-
-      // Update terminal progress bar with context window fill percentage
-      const fill = state.lastTurnInputTokens
-      if (fill > 0) {
-        const model = state.session?.models?.[0]
-        const raw = state.currentModel || model?.name || ""
-        const ctxWindow = model?.contextWindow ?? MODEL_CONTEXT_WINDOWS[raw] ?? DEFAULT_CONTEXT_WINDOW
-        const pct = Math.min(100, Math.round((fill / ctxWindow) * 100))
-        setTerminalProgress("running", pct)
-      }
-    }
-  }, TICK_INTERVAL_MS)
-
-  onCleanup(() => clearInterval(tickerHandle))
-
-  // ---------------------------------------------------------------------------
-  // Derived display values
-  // ---------------------------------------------------------------------------
-
-  const isRunning = createMemo(() => state.sessionState === "RUNNING")
-
-  // -- Responsive width-based hiding --
-  const termWidth = () => dims()?.width ?? 120
-
-  const showCtx = () => termWidth() >= 100
-  const showGit = () => termWidth() >= 80
-  const showCost = () => termWidth() >= 60
-
-  // -- Sandbox hint: short backend-specific note shown next to permission mode --
-  // Only shown when the backend has sandbox behavior that differs from what
-  // the permission mode label implies (e.g., Codex's .git read-only sandbox,
-  // ACP's agent-managed permissions). Claude's "approvals only, no sandbox"
-  // is suppressed because the permission mode label already conveys this.
-  const sandboxHint = createMemo((): string => {
-    const info: SandboxInfo | undefined = agent.backend.capabilities().sandboxInfo
-    if (!info) return ""
-    // Check if the current mode has a separate sandbox — that's the key
-    // semantic gap users need to know about
-    const modeDetail = info.modeDetails[permMode()]
-    if (modeDetail?.separateSandbox) return info.statusHint
-    // For non-Claude backends, show the hint to signal agent-managed behavior
-    if (agent.backend.capabilities().name !== "claude") return info.statusHint
-    return ""
-  })
-
+  // -- Permission mode color (line 2) --
   const permModeColor = () => {
     switch (permMode()) {
       case "default": return colors.state.idle
@@ -386,291 +190,53 @@ export function StatusBar(props: { hint?: string | null }) {
     }
   }
 
-  const stateIcon = () => {
-    if (messagesState.backgrounded) return "\u2B21" // ⬡ hexagon for backgrounded
-    switch (state.sessionState) {
-      case "INITIALIZING":
-        return "\u25CC"
-      case "IDLE":
-        return "\u25CF"
-      case "RUNNING":
-        return "\u27F3"
-      case "WAITING_FOR_PERM":
-        return "\u26A0"
-      case "WAITING_FOR_ELIC":
-        return "?"
-      case "INTERRUPTING":
-        return "\u23F8"
-      case "ERROR":
-        return "\u2717"
-      case "SHUTTING_DOWN":
-        return "\u25CC"
-      default:
-        return "\u25CF"
-    }
-  }
-
-  const stateColor = () => {
-    if (messagesState.backgrounded) return colors.status.warning
-    switch (state.sessionState) {
-      case "IDLE":
-        return colors.state.idle
-      case "RUNNING":
-        return colors.state.running
-      case "WAITING_FOR_PERM":
-      case "WAITING_FOR_ELIC":
-        return colors.state.waiting
-      case "INTERRUPTING":
-        return colors.state.waiting
-      case "ERROR":
-        return colors.state.error
-      case "SHUTTING_DOWN":
-        return colors.state.shuttingDown
-      default:
-        return colors.state.shuttingDown
-    }
-  }
-
-  const modelName = () => {
-    const model = state.session?.models?.[0]
-    // Only trust values reported by the backend. `agent.config.model` is
-    // deliberately NOT consulted here: it can be populated from settings
-    // (e.g. `~/.claude/settings.json`) regardless of the active backend,
-    // which made Codex sessions display the Claude config value before
-    // session_init arrived.
-    const raw = state.currentModel || model?.name || ""
-    if (!raw) return `unknown model (${agent.backend.capabilities().name})`
-    const friendly = friendlyModelName(raw)
-    // Prefer dynamic context window from SDK, fall back to hardcoded
-    const ctxWindow = model?.contextWindow ?? MODEL_CONTEXT_WINDOWS[raw] ?? DEFAULT_CONTEXT_WINDOW
-    const ctxAbbrev = ctxWindow >= 1_000_000
-      ? `${ctxWindow / 1_000_000}M`
-      : `${ctxWindow / 1_000}K`
-    return `${friendly} (${ctxAbbrev})`
-  }
-
-  // Effort badge — only show when not the default ("high")
-  const effortBadge = createMemo(() => {
-    const e = state.currentEffort
-    if (!e || e === "high") return ""
-    return e === "medium" ? "med" : e // "low", "med", "max"
-  })
-
-  const costStr = createMemo(() => {
-    const c = state.cost.totalCostUsd
-    if (c === 0) return ""
-    // Always use 4 decimal places to prevent width changes when
-    // transitioning between RUNNING (was 4) and IDLE (was 2).
-    // This eliminates the layout jump at turn boundaries.
-    return `$${c.toFixed(4)}`
-  })
-
-  // -- Context window fill percentage (numeric, 0-100) --
-  const ctxPct = createMemo(() => {
-    const fill = state.lastTurnInputTokens
-    if (fill === 0) return 0
-    const model = state.session?.models?.[0]
-    const raw = state.currentModel || model?.name || ""
-    const ctxWindow = model?.contextWindow ?? MODEL_CONTEXT_WINDOWS[raw] ?? DEFAULT_CONTEXT_WINDOW
-    return Math.round((fill / ctxWindow) * 100)
-  })
-
-  // -- Context string: "ctx:45%" — show "<1%" when tokens exist but round to 0% --
-  const ctxStr = createMemo(() => {
-    const pct = ctxPct()
-    if (pct === 0) {
-      // Show "<1%" if we have any tokens (first turn completed) but they round to 0%
-      return state.lastTurnInputTokens > 0 ? "ctx:<1%" : ""
-    }
-    return `ctx:${pct}%`
-  })
-
-  // -- Context color: green < 50%, yellow 50-79%, red >= 80% --
-  const ctxColor = createMemo(() => {
-    const pct = ctxPct()
-    if (pct >= 80) return colors.status.error
-    if (pct >= 50) return colors.status.warning
-    return colors.status.success
-  })
-
-  // -- Context bar: ▰▰▰▰▱▱▱▱▱▱ (10 segments) --
-  const ctxBar = createMemo(() => {
-    const pct = ctxPct()
-    if (pct === 0 && state.lastTurnInputTokens === 0) return ""
-    // Show at least 1 filled segment when tokens exist, cap at 10
-    const filled = Math.min(10, Math.max(pct > 0 ? 1 : (state.lastTurnInputTokens > 0 ? 1 : 0), Math.round(pct / 10)))
-    const empty = 10 - filled
-    return "\u25B0".repeat(filled) + "\u25B1".repeat(empty)
-  })
-
-  // -- Toast warnings when context crosses 80% and 95% thresholds --
-  let lastWarningLevel = 0
-  createEffect(on(ctxPct, (pct) => {
-    if (pct === 0) {
-      // Reset warning level when context resets (e.g., /clear, /new)
-      lastWarningLevel = 0
-    } else if (pct >= 95 && lastWarningLevel < 2) {
-      lastWarningLevel = 2
-      toast.error("Context window 95% full \u2014 /compact recommended")
-    } else if (pct >= 80 && lastWarningLevel < 1) {
-      lastWarningLevel = 1
-      toast.warn("Context window 80% full \u2014 consider using /compact")
-    }
-  }))
-
-  const tokPerSecStr = createMemo(() => {
-    if (!isRunning()) return ""
-    const rate = tokPerSec()
-    if (rate <= 0) return ""
-    return `${rate} tok/s`
-  })
-
-  const gitStr = createMemo(() => {
-    const info = gitInfo()
-    if (!info) return ""
-    const parts: string[] = [info.branch]
-    if (info.ahead > 0) parts.push(`\u2191${info.ahead}`)
-    else if (info.hasUpstream) parts.push("\u2261") // ≡ = in sync with upstream
-    const statusParts: string[] = []
-    if (info.modified > 0) statusParts.push(`~${info.modified}`)
-    if (info.untracked > 0) statusParts.push(`+${info.untracked}`)
-    if (statusParts.length > 0) {
-      parts.push("| " + statusParts.join(" "))
-    }
-    return `[${parts.join(" ")}]`
-  })
-
-  const rateLimitDisplays = createMemo<RateLimitDisplay[]>(() => {
-    const rl = state.rateLimits
-    if (!rl) return []
-
-    const displays: RateLimitDisplay[] = []
-    if (rl.fiveHour) displays.push({ label: "5h", usedPercentage: rl.fiveHour.usedPercentage })
-    if (rl.sevenDay) displays.push({ label: "7d", usedPercentage: rl.sevenDay.usedPercentage })
-    if (rl.primary) {
-      displays.push({
-        label: formatRateLimitWindowLabel(rl.primary.windowDurationMins, "primary"),
-        usedPercentage: rl.primary.usedPercentage,
-      })
-    }
-    if (rl.secondary) {
-      displays.push({
-        label: formatRateLimitWindowLabel(rl.secondary.windowDurationMins, "secondary"),
-        usedPercentage: rl.secondary.usedPercentage,
-      })
-    }
-    return displays
-  })
-
   // ---------------------------------------------------------------------------
-  // Render — dynamic-height status bar (matches Claude Code)
-  // With external statusline: N lines (1-4) of command output + perm mode
-  // Without: line 1 = project/model/state/cost/git/ctx, line 2 = perm mode
+  // Render
   // ---------------------------------------------------------------------------
 
   const statusLinePadding = statusLineConfig?.padding ?? 0
 
   return (
     <box flexDirection="column">
-      {/* Line 1+: external command output (up to 4 lines) OR native status bar */}
+      {/* Line 1+: external command output OR active native preset */}
       {statusLineConfig && statusLineText() ? (
         <box height={statusLineLines()} flexDirection="row" paddingLeft={2 + statusLinePadding} paddingRight={1 + statusLinePadding}>
           <text ref={(el: TextRenderable) => {
             statusLineRef = el
-            // Set initial styled content when ref mounts
             const styled = statusLineText()
             if (styled) el.content = styled
           }}>{" "}</text>
         </box>
       ) : (
-        <box height={1} flexDirection="row" paddingLeft={2} paddingRight={1}>
-          {/* Left: project name + model (always visible) */}
-          <text fg={colors.text.secondary}>
-            {projectName}
-          </text>
-
-          <text fg={colors.text.secondary}>{"  "}</text>
-
-          <text fg={colors.text.primary} attributes={TextAttributes.BOLD}>
-            {modelName()}
-          </text>
-
-          {/* Effort level (hidden when default/high) */}
-          {effortBadge() && (
-            <box flexDirection="row">
-              <text fg={colors.text.secondary}>{" "}</text>
-              <text fg={colors.status.warning} attributes={TextAttributes.DIM}>{effortBadge()}</text>
-            </box>
-          )}
-
-          {/* State icon + backgrounded label */}
-          <text fg={colors.text.secondary}>{"  "}</text>
-          <text fg={stateColor()}>{stateIcon()}</text>
-          {messagesState.backgrounded && (
-            <text fg={colors.status.warning}>{" Backgrounded"}</text>
-          )}
-
-          {/* Cost (hidden below 60 cols) */}
-          {showCost() && costStr() && (
-            <box flexDirection="row">
-              <text fg={colors.text.secondary}>{"  "}</text>
-              <text fg={colors.status.success}>{costStr()}</text>
-            </box>
-          )}
-
-          {/* Git branch + status (hidden below 80 cols) */}
-          {showGit() && gitStr() && (
-            <box flexDirection="row">
-              <text fg={colors.text.secondary}>{"  "}</text>
-              <text fg={colors.status.info}>{gitStr()}</text>
-            </box>
-          )}
-
-          {/* Context window usage (hidden below 100 cols) */}
-          {showCtx() && ctxStr() && (
-            <box flexDirection="row">
-              <text fg={colors.text.secondary}>{"  "}</text>
-              <text fg={ctxColor()}>{ctxStr()}</text>
-              {ctxBar() && (
-                <>
-                  <text fg={colors.text.secondary}>{" "}</text>
-                  <text fg={ctxColor()}>{ctxBar()}</text>
-                </>
-              )}
-            </box>
-          )}
-
-          {/* Spacer pushes right-aligned items */}
-          <box flexGrow={1} />
-
-          {/* Right side: exit hint (transient) OR normal right-side info */}
-          {props.hint ? (
-            <text fg={colors.status.warning}>{props.hint}</text>
-          ) : (
-            <>
-              {/* Tok/s — uses visible={false} instead of conditional rendering
-                  to prevent layout jumps when streaming starts/stops */}
-              <box flexDirection="row" visible={!!tokPerSecStr()}>
-                <text fg={colors.status.info}>{tokPerSecStr()}</text>
-              </box>
-            </>
-          )}
-        </box>
+        /* Keyed Show re-mounts when the active preset id changes. Inside the
+           child fn we invoke the preset's render component directly —
+           matching the pattern used by the storybook preview pane, which is
+           verified to work with OpenTUI's reconciler (unlike <Dynamic>). The
+           `get hint()` passthrough preserves reactivity for transient exit
+           hints across preset lifetimes. */
+        <Show when={activePreset()} keyed>
+          {(preset: StatusBarPreset) =>
+            preset.render({
+              data,
+              get hint() { return props.hint },
+            })
+          }
+        </Show>
       )}
 
-      {/* Line 2: permission mode indicator (left-aligned, matches Claude Code) */}
+      {/* Line 2: permission mode indicator (left-aligned) + rate-limit row (right-aligned) */}
       <box height={1} flexDirection="row" paddingLeft={2} paddingRight={1}>
         <text fg={permModeColor()}>{"\u25CF "}</text>
         <text fg={colors.permission.modeLabel}>{permissionModeLabel(permMode())}</text>
-        {sandboxHint() && (
-          <text fg={colors.text.muted} attributes={TextAttributes.DIM}>{` (${sandboxHint()})`}</text>
+        {data.sandboxHint() && (
+          <text fg={colors.text.muted} attributes={TextAttributes.DIM}>{` (${data.sandboxHint()})`}</text>
         )}
         <text fg={colors.text.muted}>{" (shift+tab to cycle)"}</text>
 
         <box flexGrow={1} />
 
-        <box flexDirection="row" visible={rateLimitDisplays().length > 0}>
-          {rateLimitDisplays().map((entry, index) => (
+        <box flexDirection="row" visible={data.rateLimits().length > 0}>
+          {data.rateLimits().map((entry, index) => (
             <>
               {index > 0 && <text fg={colors.text.secondary}>{"  "}</text>}
               <text fg={colors.text.muted}>{`${entry.label}:`}</text>

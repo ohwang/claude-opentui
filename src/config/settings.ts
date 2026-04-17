@@ -50,6 +50,8 @@ export interface BantaiConfig {
   backend?: BackendId
   permissionMode?: PermissionMode
   statusLine?: StatusLineSetting
+  /** Native status bar preset id (e.g. "default", "minimal", "detailed"). */
+  statusBar?: string
   vimMode?: boolean
   showCost?: boolean
   showTokens?: boolean
@@ -75,8 +77,8 @@ export interface ResolvedSetting<T> {
 /** Full resolved config with per-key source provenance. */
 export interface ResolvedConfig {
   /** Flat config values — what the rest of the app consumes. */
-  values: Required<Pick<BantaiConfig, "theme" | "vimMode" | "showCost" | "showTokens" | "debug">>
-    & Omit<BantaiConfig, "theme" | "vimMode" | "showCost" | "showTokens" | "debug">
+  values: Required<Pick<BantaiConfig, "theme" | "statusBar" | "vimMode" | "showCost" | "showTokens" | "debug">>
+    & Omit<BantaiConfig, "theme" | "statusBar" | "vimMode" | "showCost" | "showTokens" | "debug">
   /** Per-key source — tells `/settings` where each value came from. */
   sources: Partial<Record<keyof BantaiConfig, SettingSource>>
   /** Paths of every scope we considered, whether they existed, and whether parsing succeeded. */
@@ -100,6 +102,7 @@ export interface ScopeInfo {
 
 export const DEFAULTS = {
   theme: "default-dark",
+  statusBar: "default",
   vimMode: false,
   showCost: true,
   showTokens: true,
@@ -116,6 +119,7 @@ const SCALAR_KEYS = [
   "backend",
   "permissionMode",
   "statusLine",
+  "statusBar",
   "vimMode",
   "showCost",
   "showTokens",
@@ -257,6 +261,7 @@ function mergeScopes(
 
   // Apply defaults for required scalar keys that nothing supplied.
   if (out.theme === undefined) { out.theme = DEFAULTS.theme; sources.theme = "default" }
+  if (out.statusBar === undefined) { out.statusBar = DEFAULTS.statusBar; sources.statusBar = "default" }
   if (out.vimMode === undefined) { out.vimMode = DEFAULTS.vimMode; sources.vimMode = "default" }
   if (out.showCost === undefined) { out.showCost = DEFAULTS.showCost; sources.showCost = "default" }
   if (out.showTokens === undefined) { out.showTokens = DEFAULTS.showTokens; sources.showTokens = "default" }
@@ -321,6 +326,7 @@ export function coerceSettingValue(key: keyof BantaiConfig, raw: string): unknow
       throw new Error(`expected boolean for ${key}, got "${raw}"`)
     }
     case "theme":
+    case "statusBar":
     case "model":
       return trimmed
     case "backend": {

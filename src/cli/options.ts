@@ -44,6 +44,9 @@ export interface CLIFlags {
   /** Theme preset ID */
   theme?: string
 
+  /** Native status bar preset ID */
+  statusBar?: string
+
   /** ACP command (for --backend acp) */
   acpCommand?: string
 
@@ -87,6 +90,7 @@ export function addTuiOptions(cmd: Command): Command {
     .option("--effort <level>", "Reasoning effort (low, medium, high, xhigh, max)")
     .option("--system-prompt <text>", "System prompt")
     .option("--theme <id>", "Theme preset (dark, high-contrast, catppuccin, dracula, solarized, light, one-light)")
+    .option("--status-bar <id>", "Native status bar preset (default, minimal, detailed)")
     .option("--no-diagnostics-mcp", "Disable the MCP diagnostics server")
     .option("--acp-command <cmd>", "ACP agent command (for --backend acp)")
     .option("--acp-args <arg>", "ACP agent args (repeatable, for --backend acp)", collectArgs, [])
@@ -206,6 +210,7 @@ export function resolveFlags(
     debugBackend: !!opts.debugBackend,
     noDiagnosticsMcp: opts.diagnosticsMcp === false, // --no-diagnostics-mcp
     theme: opts.theme as string | undefined,
+    statusBar: opts.statusBar as string | undefined,
     acpCommand: opts.acpCommand as string | undefined,
     acpArgs: resolvedAcpArgs,
   }

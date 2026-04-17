@@ -21,6 +21,8 @@ import { colors } from "../theme/tokens"
 import { log } from "../../utils/logger"
 import { friendlyModelName, MODEL_NAMES, MODEL_CONTEXT_WINDOWS, DEFAULT_CONTEXT_WINDOW } from "../models"
 import { getStatusLineDiagnostics } from "../../utils/statusline"
+import { listStatusBars } from "../status-bar/registry"
+import { activeStatusBarId } from "../status-bar/active"
 
 // ---------------------------------------------------------------------------
 // Module-level callbacks — called from app.tsx keyboard handler
@@ -495,8 +497,46 @@ export function DiagnosticsPanel(props: { visible: boolean; onClose: () => void 
               const diag = getStatusLineDiagnostics()
               const cfg = diag.config
 
+              const activeId = activeStatusBarId()
+              const allPresets = listStatusBars()
+              const activePreset = allPresets.find(p => p.id === activeId)
+
               return (
                 <box flexDirection="column">
+                  {/* NATIVE PRESET section — which preset is rendering line 1 when
+                       no external command is configured (or as a fallback). */}
+                  <box marginTop={1}>
+                    <text fg={colors.accent.primary} attributes={TextAttributes.BOLD}>
+                      {"NATIVE PRESET"}
+                    </text>
+                  </box>
+                  <box height={1} />
+                  <box flexDirection="row">
+                    <text fg={colors.text.secondary}>{padRight("Active:", 22)}</text>
+                    <text fg={colors.text.primary}>
+                      {" " + (activePreset ? `${activePreset.id} — ${activePreset.name}` : activeId)}
+                    </text>
+                  </box>
+                  <Show when={activePreset}>
+                    <box flexDirection="row">
+                      <text fg={colors.text.secondary}>{padRight("Description:", 22)}</text>
+                      <text fg={colors.text.muted}>{" " + activePreset!.description}</text>
+                    </box>
+                  </Show>
+                  <box flexDirection="row">
+                    <text fg={colors.text.secondary}>{padRight("Available:", 22)}</text>
+                    <text fg={colors.text.muted}>
+                      {" " + allPresets.map(p => p.id).join(", ")}
+                    </text>
+                  </box>
+                  <Show when={cfg}>
+                    <box flexDirection="row">
+                      <text fg={colors.text.muted}>
+                        {"(external statusLine command is configured — it takes precedence over the native preset)"}
+                      </text>
+                    </box>
+                  </Show>
+
                   {/* CONFIG section */}
                   <box marginTop={1}>
                     <text fg={colors.accent.primary} attributes={TextAttributes.BOLD}>

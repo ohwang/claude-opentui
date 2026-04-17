@@ -34,6 +34,22 @@ let cachedConfig: StatusLineConfig | null | undefined
  *
  * Synchronous so it can be called during component setup without forcing
  * callers into an async boundary.
+ *
+ * Precedence rule (important for UX parity with the theme / statusBar path):
+ *   Claude's `~/.claude/settings.json` is a *fallback* — if the user has
+ *   expressed any preference about rendering in bantai scope (CLI, project,
+ *   or global `statusBar`), we ignore the Claude-fallback `statusLine`.
+ *   Otherwise a Claude-installed statusline silently overrides the native
+ *   preset the user explicitly picked in bantai.
+ *
+ *   Concretely:
+ *     - If `statusLine` is explicitly set in cli/project/global bantai scope
+ *       → honor it (bantai-scoped statusLine is always respected).
+ *     - Else if `statusLine` is only set in claude-fallback AND `statusBar` is
+ *       set in cli/project/global → ignore the statusLine (user picked native).
+ *     - Else → fall through to the claude-fallback statusLine (preserves the
+ *       "Claude Code statusline scripts just work" promise for users who
+ *       haven't configured bantai at all).
  */
 export function getStatusLineConfig(): StatusLineConfig | null {
   if (cachedConfig !== undefined) return cachedConfig
@@ -41,6 +57,23 @@ export function getStatusLineConfig(): StatusLineConfig | null {
   try {
     const resolved = loadConfigSync()
     const sl = resolved.values.statusLine
+    const slSource = resolved.sources.statusLine
+    const sbSource = resolved.sources.statusBar
+
+    // Bantai-scoped statusBar opts out of a Claude-fallback statusLine.
+    const claudeFallbackOnly = slSource === "claude-fallback"
+    const bantaiScopedStatusBar =
+      sbSource === "cli" || sbSource === "project" || sbSource === "global"
+
+    if (claudeFallbackOnly && bantaiScopedStatusBar) {
+      log.info(
+        "Ignoring claude-fallback statusLine because bantai statusBar is explicitly set",
+        { statusBar: resolved.values.statusBar, statusBarSource: sbSource },
+      )
+      cachedConfig = null
+      return cachedConfig
+    }
+
     if (sl && sl.type === "command" && typeof sl.command === "string") {
       cachedConfig = {
         type: "command",

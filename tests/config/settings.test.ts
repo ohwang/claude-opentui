@@ -89,6 +89,54 @@ describe("loadConfig precedence", () => {
     expect(cfg.values.theme).toBe("snazzy")
     expect(cfg.sources.theme).toBe("cli")
   })
+
+  it("statusBar falls through scopes with cli > project > global > default", async () => {
+    const paths = getConfigPaths({ home: tmp.home, cwd: tmp.cwd })
+
+    // Default when nothing is set
+    {
+      const cfg = await loadConfig({ home: tmp.home, cwd: tmp.cwd })
+      expect(cfg.values.statusBar).toBe(DEFAULTS.statusBar)
+      expect(cfg.sources.statusBar).toBe("default")
+    }
+
+    // Global wins when only global is set
+    writeJson(paths.global, { statusBar: "minimal" })
+    {
+      const cfg = await loadConfig({ home: tmp.home, cwd: tmp.cwd })
+      expect(cfg.values.statusBar).toBe("minimal")
+      expect(cfg.sources.statusBar).toBe("global")
+    }
+
+    // Project overrides global
+    writeJson(paths.project, { statusBar: "detailed" })
+    {
+      const cfg = await loadConfig({ home: tmp.home, cwd: tmp.cwd })
+      expect(cfg.values.statusBar).toBe("detailed")
+      expect(cfg.sources.statusBar).toBe("project")
+    }
+
+    // CLI override wins over everything
+    {
+      const cfg = await loadConfig({
+        home: tmp.home,
+        cwd: tmp.cwd,
+        cliOverrides: { statusBar: "minimal" },
+      })
+      expect(cfg.values.statusBar).toBe("minimal")
+      expect(cfg.sources.statusBar).toBe("cli")
+    }
+  })
+
+  it("accepts arbitrary statusBar strings (validity is a soft-fail at apply time)", async () => {
+    const paths = getConfigPaths({ home: tmp.home, cwd: tmp.cwd })
+    writeJson(paths.global, { statusBar: "not-a-real-preset" })
+    const cfg = await loadConfig({ home: tmp.home, cwd: tmp.cwd })
+    // Loader is permissive — the registry resolves unknown ids to default at
+    // apply time. This prevents config errors from crashing startup.
+    expect(cfg.values.statusBar).toBe("not-a-real-preset")
+    expect(cfg.sources.statusBar).toBe("global")
+  })
 })
 
 describe("loadConfig graceful failures", () => {

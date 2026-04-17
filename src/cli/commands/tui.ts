@@ -45,6 +45,11 @@ export async function launchTui(flags: CLIFlags): Promise<void> {
   if (!flags.theme && resolved.sources.theme && resolved.sources.theme !== "default") {
     flags.theme = resolved.values.theme
   }
+  if (!flags.statusBar && resolved.values.statusBar) {
+    // Always pull through — `default` still needs to be applied so an earlier
+    // /status-bar change gets reset if the user hasn't overridden it.
+    flags.statusBar = resolved.values.statusBar
+  }
   if (flags.config.model === undefined && resolved.values.model) {
     const modelSource = resolved.sources.model
     const isClaudeBackend = !flags.backend || flags.backend === "claude"
@@ -118,6 +123,21 @@ export async function launchTui(flags: CLIFlags): Promise<void> {
       const available = listThemes().map(t => t.id).join(", ")
       console.error(`Unknown theme: ${flags.theme}. Available: ${available}`)
       process.exit(1)
+    }
+  }
+
+  // Apply status bar preset (soft-fails to default for unknown ids)
+  if (flags.statusBar) {
+    const { applyStatusBar } = await import("../../tui/status-bar/active")
+    const { listStatusBars } = await import("../../tui/status-bar/registry")
+    const result = applyStatusBar(flags.statusBar)
+    if (result.fellBack) {
+      const available = listStatusBars().map(p => p.id).join(", ")
+      console.error(
+        `Unknown status bar preset: "${flags.statusBar}". Falling back to "${result.id}". Available: ${available}`,
+      )
+    } else {
+      log.info("Status bar preset applied", { statusBar: result.id })
     }
   }
 

@@ -102,7 +102,7 @@ export interface ScopeInfo {
 
 export const DEFAULTS = {
   theme: "default-dark",
-  statusBar: "default",
+  statusBar: "claude-compat",
   vimMode: false,
   showCost: true,
   showTokens: true,

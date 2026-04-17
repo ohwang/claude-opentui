@@ -27,15 +27,16 @@ import {
 } from "../../src/tui/status-bar/active"
 
 describe("status bar registry — built-in presets", () => {
-  it("registers default, minimal, and detailed", () => {
+  it("registers default, minimal, detailed, and claude-compat", () => {
     const ids = listStatusBars().map(p => p.id).sort()
     expect(ids).toContain("default")
     expect(ids).toContain("minimal")
     expect(ids).toContain("detailed")
+    expect(ids).toContain("claude-compat")
   })
 
-  it("default is the DEFAULT_STATUS_BAR_ID", () => {
-    expect(DEFAULT_STATUS_BAR_ID).toBe("default")
+  it("claude-compat is the DEFAULT_STATUS_BAR_ID", () => {
+    expect(DEFAULT_STATUS_BAR_ID).toBe("claude-compat")
     expect(getStatusBar(DEFAULT_STATUS_BAR_ID)).toBeDefined()
   })
 
@@ -87,7 +88,7 @@ describe("applyStatusBar — reactive signal updates", () => {
   })
 
   it("switches the active id for known presets", () => {
-    expect(getCurrentStatusBarId()).toBe("default")
+    expect(getCurrentStatusBarId()).toBe("claude-compat")
     const result = applyStatusBar("minimal")
     expect(result.fellBack).toBe(false)
     expect(result.id).toBe("minimal")

@@ -39,53 +39,152 @@ interface TokenSample {
 // Git info
 // ---------------------------------------------------------------------------
 
+/**
+ * Git status snapshot. Both the legacy aggregate counts (`modified`,
+ * `untracked`, `ahead`, `hasUpstream`) and the richer posh-git-style split
+ * (`staged`, `working`, `behind`, `detached`, `conflict`) are populated so
+ * that existing presets keep working unchanged while the claude-compat
+ * preset can render the full `[branch ↑1↓2 idx wt]` segment.
+ */
 export interface GitInfo {
   branch: string
+  /** Sum of all changed files (index + working tree). Legacy aggregate. */
   modified: number
+  /** Untracked file count (working-tree only). */
   untracked: number
+  /** Commits ahead of upstream (0 when no upstream). */
   ahead: number
+  /** Commits behind upstream (0 when no upstream). */
+  behind: number
+  /** True if the current branch has a tracked upstream. */
   hasUpstream: boolean
+  /** True if HEAD is detached; `branch` holds the short sha in parentheses. */
+  detached: boolean
+  /** Staged changes (tracked by `--porcelain=v2` index status). */
+  staged: { added: number; modified: number; deleted: number }
+  /** Working-tree changes (modified/deleted/untracked/conflicts). */
+  working: { modified: number; deleted: number; untracked: number; conflict: number }
 }
 
+/**
+ * Snapshot git status in one invocation using `--porcelain=v2 --branch`.
+ * Matches the logic of the external statusline script so the native preset
+ * can reproduce the `[branch ↑↓ idx wt]` segment bit-for-bit.
+ */
 function getGitInfo(): GitInfo | null {
   try {
-    const branchResult = Bun.spawnSync(["git", "rev-parse", "--abbrev-ref", "HEAD"])
-    if (branchResult.exitCode !== 0) return null
-    const branch = branchResult.stdout.toString().trim()
+    const result = Bun.spawnSync([
+      "git",
+      "--no-optional-locks",
+      "status",
+      "--porcelain=v2",
+      "--branch",
+    ])
+    if (result.exitCode !== 0) return null
+    const out = result.stdout.toString()
+    if (!out) return null
+
+    let branch = ""
+    let ahead = 0
+    let behind = 0
+    let hasUpstream = false
+    let detached = false
+
+    const staged = { added: 0, modified: 0, deleted: 0 }
+    const working = { modified: 0, deleted: 0, untracked: 0, conflict: 0 }
+
+    for (const line of out.split("\n")) {
+      if (line.startsWith("# branch.head ")) {
+        branch = line.slice("# branch.head ".length)
+      } else if (line.startsWith("# branch.ab ")) {
+        const ab = line.slice("# branch.ab ".length).split(" ")
+        const a = (ab[0] ?? "").replace(/^\+/, "")
+        const b = (ab[1] ?? "").replace(/^-/, "")
+        ahead = parseInt(a, 10) || 0
+        behind = parseInt(b, 10) || 0
+        hasUpstream = true
+      } else if (line.startsWith("1 ") || line.startsWith("2 ")) {
+        const xy = line.slice(2, 4)
+        const x = xy[0]
+        const y = xy[1]
+        if (line.startsWith("1 ")) {
+          if (x === "A") staged.added += 1
+          else if (x === "M" || x === "T") staged.modified += 1
+          else if (x === "D") staged.deleted += 1
+        } else {
+          if (x === "R" || x === "C" || x === "M" || x === "T") staged.modified += 1
+          else if (x === "A") staged.added += 1
+          else if (x === "D") staged.deleted += 1
+        }
+        if (y === "M" || y === "T") working.modified += 1
+        else if (y === "D") working.deleted += 1
+      } else if (line.startsWith("u ")) {
+        working.conflict += 1
+      } else if (line.startsWith("? ")) {
+        working.untracked += 1
+      }
+    }
+
     if (!branch) return null
 
-    const statusResult = Bun.spawnSync(["git", "status", "--porcelain"])
-    const statusLines = statusResult.stdout.toString().trim()
-    let modified = 0
-    let untracked = 0
-    if (statusLines) {
-      for (const line of statusLines.split("\n")) {
-        if (line.startsWith("??")) {
-          untracked++
-        } else if (line.trim()) {
-          modified++
-        }
-      }
-    }
-
-    let ahead = 0
-    let hasUpstream = false
-    try {
-      const aheadResult = Bun.spawnSync([
-        "git", "rev-list", "--count", "@{upstream}..HEAD",
+    if (branch === "(detached)") {
+      detached = true
+      const headResult = Bun.spawnSync([
+        "git",
+        "--no-optional-locks",
+        "rev-parse",
+        "--short",
+        "HEAD",
       ])
-      if (aheadResult.exitCode === 0) {
-        hasUpstream = true
-        ahead = parseInt(aheadResult.stdout.toString().trim(), 10) || 0
-      }
-    } catch {
-      // No upstream configured, that's fine
+      const sha = headResult.stdout.toString().trim()
+      branch = sha ? `(${sha})` : "(detached)"
     }
 
-    return { branch, modified, untracked, ahead, hasUpstream }
+    const modified =
+      staged.added + staged.modified + staged.deleted +
+      working.modified + working.deleted + working.conflict
+    const untracked = working.untracked
+
+    return {
+      branch,
+      modified,
+      untracked,
+      ahead,
+      behind,
+      hasUpstream,
+      detached,
+      staged,
+      working,
+    }
   } catch {
     return null
   }
+}
+
+// ---------------------------------------------------------------------------
+// Duration + token formatting helpers
+// ---------------------------------------------------------------------------
+
+/** Format a duration in seconds as `5s` / `3m` / `1h2m` / `2d3h`. */
+export function formatDuration(secs: number): string {
+  if (secs < 60) return `${secs}s`
+  if (secs < 3600) return `${Math.floor(secs / 60)}m`
+  if (secs < 86400) {
+    const h = Math.floor(secs / 3600)
+    const m = Math.floor((secs % 3600) / 60)
+    return m > 0 ? `${h}h${m}m` : `${h}h`
+  }
+  const d = Math.floor(secs / 86400)
+  const h = Math.floor((secs % 86400) / 3600)
+  return h > 0 ? `${d}d${h}h` : `${d}d`
+}
+
+/** Compact token count formatter matching the external script (`1.2k` / `45k` / `1.2M`). */
+export function formatTokensCompact(n: number): string {
+  if (!Number.isFinite(n) || n <= 0) return "0"
+  if (n < 1000) return String(Math.floor(n))
+  if (n < 1_000_000) return `${(n / 1000).toFixed(1)}k`
+  return `${(n / 1_000_000).toFixed(1)}M`
 }
 
 // ---------------------------------------------------------------------------
@@ -130,12 +229,15 @@ export interface StatusBarData {
   sandboxHint: Accessor<string>
   sandboxInfo: Accessor<SandboxInfo | undefined>
   backendName: Accessor<string>
+  worktreeName: Accessor<string | null>
 
   // Derived scalars
   isRunning: Accessor<boolean>
   modelDisplay: Accessor<string>
   effortBadge: Accessor<string>
   costStr: Accessor<string>
+  /** Formatted session cost as `$N.NN` (two decimals, empty when zero). */
+  costShortStr: Accessor<string>
   gitInfo: Accessor<GitInfo | null>
   gitStr: Accessor<string>
   ctxPct: Accessor<number>
@@ -144,6 +246,25 @@ export interface StatusBarData {
   ctxColor: Accessor<string>
   tokPerSecStr: Accessor<string>
   turnNumber: Accessor<number>
+
+  /** Total tokens consumed in the session (input + output, running). */
+  totalTokens: Accessor<number>
+  /** Compact formatting: `0` / `1.2k` / `45k` / `1.2M`. */
+  totalTokensStr: Accessor<string>
+  /** Cost accumulated in the current turn (0 when idle / no growth). */
+  turnCost: Accessor<number>
+  /** Formatted current-turn cost delta (e.g. `0.12`, empty when 0). */
+  turnCostStr: Accessor<string>
+  /** Token count accumulated in the current turn. */
+  turnTokens: Accessor<number>
+  /** Compact formatting for `turnTokens` (empty when 0). */
+  turnTokensStr: Accessor<string>
+
+  /** Session wall-clock duration in seconds since the TUI started. */
+  sessionAgeSec: Accessor<number>
+  /** Human-readable session age (`5s` / `3m` / `1h2m` / `2d3h`). */
+  sessionAgeStr: Accessor<string>
+
   rateLimits: Accessor<RateLimitDisplay[]>
   rawRateLimits: Accessor<{
     fiveHour?: RateLimitEntry
@@ -258,10 +379,13 @@ export function useStatusBarData(permMode: Accessor<PermissionMode>): StatusBarD
   const showGit = () => termWidth() >= 80
   const showCtx = () => termWidth() >= 100
 
-  // Model display — friendly name + context abbrev
+  // Model display — friendly name + context abbrev. Falls back to the
+  // configured model before the SDK's session_init lands so the status bar
+  // doesn't flash "unknown model" on startup (mirrors the external bash
+  // statusline which uses `.model.display_name` from the input payload).
   const modelDisplay = () => {
     const model = state.session?.models?.[0]
-    const raw = state.currentModel || model?.name || ""
+    const raw = state.currentModel || model?.name || agent.config.model || ""
     if (!raw) return `unknown model (${backendName()})`
     const friendly = friendlyModelName(raw)
     const ctxWindow = model?.contextWindow ?? MODEL_CONTEXT_WINDOWS[raw] ?? DEFAULT_CONTEXT_WINDOW
@@ -272,7 +396,9 @@ export function useStatusBarData(permMode: Accessor<PermissionMode>): StatusBarD
   }
 
   const effortBadge = createMemo(() => {
-    const e = state.currentEffort
+    // Fall back to the CLI-configured effort before the SDK reports
+    // `effort_change` (mirrors `modelDisplay`'s agent.config fallback).
+    const e = state.currentEffort || agent.config.effort || ""
     if (!e || e === "high") return ""
     return e === "medium" ? "med" : e
   })
@@ -282,6 +408,63 @@ export function useStatusBarData(permMode: Accessor<PermissionMode>): StatusBarD
     if (c === 0) return ""
     return `$${c.toFixed(4)}`
   })
+
+  const costShortStr = createMemo(() => {
+    // Matches the external bash statusline — always shows `$N.NN` (two
+    // decimals, zero-friendly) so the segment is present from session start.
+    return `$${state.cost.totalCostUsd.toFixed(2)}`
+  })
+
+  const totalTokens = createMemo(
+    () => state.cost.inputTokens + state.cost.outputTokens,
+  )
+  const totalTokensStr = createMemo(() => {
+    const n = totalTokens()
+    return n > 0 ? formatTokensCompact(n) : ""
+  })
+
+  // Turn delta tracking — snapshot cost/tokens on each turn boundary so the
+  // preset can show `$total (+delta)` / `tokens (+delta)` during live turns.
+  const [turnStartCost, setTurnStartCost] = createSignal(state.cost.totalCostUsd)
+  const [turnStartTokens, setTurnStartTokens] = createSignal(totalTokens())
+  let prevTurnNumber = state.turnNumber
+  createEffect(() => {
+    const t = state.turnNumber
+    if (t !== prevTurnNumber) {
+      setTurnStartCost(state.cost.totalCostUsd)
+      setTurnStartTokens(totalTokens())
+      prevTurnNumber = t
+    }
+  })
+
+  const turnCost = createMemo(() => {
+    const d = state.cost.totalCostUsd - turnStartCost()
+    return d > 0.0001 ? d : 0
+  })
+  const turnCostStr = createMemo(() => {
+    const d = turnCost()
+    return d > 0 ? d.toFixed(2) : ""
+  })
+  const turnTokens = createMemo(() => {
+    const d = totalTokens() - turnStartTokens()
+    return d > 0 ? d : 0
+  })
+  const turnTokensStr = createMemo(() => {
+    const d = turnTokens()
+    return d > 0 ? formatTokensCompact(d) : ""
+  })
+
+  // Wall-clock session age — recomputed off the 300ms ticker via a coarse
+  // 1s-granularity signal so presets re-render at most once per second.
+  const startedAt = Date.now()
+  const [sessionAgeSec, setSessionAgeSec] = createSignal(0)
+  const ageHandle = setInterval(() => {
+    setSessionAgeSec(Math.floor((Date.now() - startedAt) / 1000))
+  }, 1000)
+  onCleanup(() => clearInterval(ageHandle))
+  const sessionAgeStr = createMemo(() => formatDuration(sessionAgeSec()))
+
+  const worktreeName = (): string | null => state.worktree?.name ?? null
 
   const gitStr = createMemo(() => {
     const info = gitInfo()
@@ -427,10 +610,12 @@ export function useStatusBarData(permMode: Accessor<PermissionMode>): StatusBarD
     sandboxHint,
     sandboxInfo,
     backendName,
+    worktreeName,
     isRunning,
     modelDisplay,
     effortBadge,
     costStr,
+    costShortStr,
     gitInfo,
     gitStr,
     ctxPct,
@@ -439,6 +624,14 @@ export function useStatusBarData(permMode: Accessor<PermissionMode>): StatusBarD
     ctxColor,
     tokPerSecStr,
     turnNumber,
+    totalTokens,
+    totalTokensStr,
+    turnCost,
+    turnCostStr,
+    turnTokens,
+    turnTokensStr,
+    sessionAgeSec,
+    sessionAgeStr,
     rateLimits,
     rawRateLimits,
     showCtx,

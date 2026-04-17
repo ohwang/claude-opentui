@@ -10,6 +10,7 @@ import type { StatusBarPreset } from "./types"
 import { defaultPreset } from "./presets/default"
 import { minimalPreset } from "./presets/minimal"
 import { detailedPreset } from "./presets/detailed"
+import { claudeCompatPreset } from "./presets/claude-compat"
 
 const presets = new Map<string, StatusBarPreset>()
 
@@ -17,9 +18,10 @@ const presets = new Map<string, StatusBarPreset>()
 presets.set(defaultPreset.id, defaultPreset)
 presets.set(minimalPreset.id, minimalPreset)
 presets.set(detailedPreset.id, detailedPreset)
+presets.set(claudeCompatPreset.id, claudeCompatPreset)
 
 /** The id guaranteed to always exist — the fallback for unknown ids. */
-export const DEFAULT_STATUS_BAR_ID = defaultPreset.id
+export const DEFAULT_STATUS_BAR_ID = claudeCompatPreset.id
 
 /** Register a status bar preset. Overwrites if the id already exists. */
 export function registerStatusBar(preset: StatusBarPreset): void {

@@ -63,6 +63,8 @@ function createSessionStore() {
     agentCommands: [],
     configOptions: [],
     resuming: false,
+    currentCwd: null,
+    worktree: null,
   })
 }
 

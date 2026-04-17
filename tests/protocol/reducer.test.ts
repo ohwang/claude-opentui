@@ -2512,4 +2512,79 @@ describe("ConversationState reducer", () => {
       expect(state.blocks).toHaveLength(1)
     })
   })
+
+  describe("worktree / cwd lifecycle", () => {
+    it("starts with no worktree and null currentCwd", () => {
+      const state = createInitialState()
+      expect(state.worktree).toBeNull()
+      expect(state.currentCwd).toBeNull()
+    })
+
+    it("worktree_created populates the worktree field", () => {
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        {
+          type: "worktree_created",
+          name: "feature-x",
+          path: "/repo/.claude/worktrees/feature-x",
+        },
+      ])
+      expect(state.worktree).toEqual({
+        path: "/repo/.claude/worktrees/feature-x",
+        name: "feature-x",
+      })
+    })
+
+    it("cwd_changed updates currentCwd", () => {
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "cwd_changed", oldCwd: "/a", newCwd: "/b" },
+      ])
+      expect(state.currentCwd).toBe("/b")
+    })
+
+    it("worktree_removed clears the worktree when paths match", () => {
+      const path = "/repo/.claude/worktrees/feature-x"
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        { type: "worktree_created", name: "feature-x", path },
+        { type: "worktree_removed", path },
+      ])
+      expect(state.worktree).toBeNull()
+    })
+
+    it("worktree_removed is a no-op when paths do not match", () => {
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        {
+          type: "worktree_created",
+          name: "feature-x",
+          path: "/repo/.claude/worktrees/feature-x",
+        },
+        { type: "worktree_removed", path: "/repo/.claude/worktrees/other" },
+      ])
+      expect(state.worktree).toEqual({
+        path: "/repo/.claude/worktrees/feature-x",
+        name: "feature-x",
+      })
+    })
+
+    it("does not append any block (keeps transcript clean)", () => {
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        {
+          type: "worktree_created",
+          name: "feature-x",
+          path: "/repo/.claude/worktrees/feature-x",
+        },
+        { type: "cwd_changed", oldCwd: "", newCwd: "/repo/.claude/worktrees/feature-x" },
+        {
+          type: "worktree_removed",
+          path: "/repo/.claude/worktrees/feature-x",
+        },
+      ])
+      // Blocks should be unchanged by worktree/cwd events
+      expect(state.blocks).toHaveLength(0)
+    })
+  })
 })

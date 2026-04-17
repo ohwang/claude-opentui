@@ -265,6 +265,40 @@ export type SystemMessageEvent = {
   ephemeral?: boolean
 }
 
+/** Worktree created — synthetic event emitted by the Claude event-mapper when
+ *  the agent's `EnterWorktree` tool call succeeds. The reducer folds this into
+ *  `ConversationState.worktree`; the header bar reads that to show a
+ *  "(worktree: <name>)" badge. We emit this event (rather than writing
+ *  directly to the session store) so worktree state is event-sourced like
+ *  every other piece of UI state. */
+export type WorktreeCreatedEvent = {
+  type: "worktree_created"
+  /** Worktree name / slug. Derived from the tool's worktreePath when absent. */
+  name: string
+  /** Absolute path to the worktree directory on disk. */
+  path: string
+}
+
+/** Worktree removed — synthetic event emitted by the Claude event-mapper when
+ *  the agent's `ExitWorktree` tool call succeeds with `action: "remove"`. */
+export type WorktreeRemovedEvent = {
+  type: "worktree_removed"
+  /** Absolute path of the worktree that was torn down. */
+  path: string
+}
+
+/** Working directory changed — synthetic event emitted whenever the backend
+ *  reports a cwd transition. Today this fires from the Claude event-mapper
+ *  on EnterWorktree / ExitWorktree completion; future backends can emit it
+ *  from an equivalent signal. */
+export type CwdChangedEvent = {
+  type: "cwd_changed"
+  /** Previous working directory. Empty string when unknown. */
+  oldCwd: string
+  /** New working directory. */
+  newCwd: string
+}
+
 /** Task backgrounding (synthetic, emitted by TUI on Ctrl+B double-press) */
 export type TaskBackgroundEvent = { type: "task_background" }
 export type TaskForegroundEvent = { type: "task_foreground" }
@@ -443,6 +477,9 @@ export type AgentEvent =
   | ConfigOptionsEvent
   | SkillToolActivityEvent
   | RateLimitUpdateEvent
+  | WorktreeCreatedEvent
+  | WorktreeRemovedEvent
+  | CwdChangedEvent
 
 // ---------------------------------------------------------------------------
 // System Events — TUI lifecycle, not from any agent backend
@@ -724,6 +761,16 @@ export interface ConversationState {
    *  this to show a loading spinner and disable message input.
    *  Set by `history_load_started`, cleared by `history_loaded` / `history_load_failed`. */
   resuming: boolean
+
+  /** Current working directory as reported by the backend. Updated by
+   *  `cwd_changed` events. Null until the first change is observed — the
+   *  header bar falls back to `agent.config.cwd` in that case. */
+  currentCwd: string | null
+
+  /** Active worktree metadata. Set by `worktree_created`, cleared by
+   *  `worktree_removed`. Only populated when the agent is inside a git
+   *  worktree created via the Claude SDK's built-in `EnterWorktree` tool. */
+  worktree: { path: string; name?: string } | null
 }
 
 // ---------------------------------------------------------------------------
@@ -1157,5 +1204,7 @@ export function createInitialState(): ConversationState {
     agentCommands: [],
     configOptions: [],
     resuming: false,
+    currentCwd: null,
+    worktree: null,
   }
 }

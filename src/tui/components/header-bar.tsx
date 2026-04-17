@@ -37,9 +37,24 @@ export function HeaderBar() {
   const { state } = useSession()
   const agent = useAgent()
 
-  // Use the CWD from config (captured at launch) rather than process.cwd(),
-  // which may have been changed by the SDK or plugins after startup.
-  const projectPath = resolve(agent.config.cwd ?? process.cwd()).replace(homedir(), "~")
+  // Prefer the live cwd (from CwdChanged hook) when available, then fall
+  // back to config.cwd (captured at launch). We avoid process.cwd() because
+  // the SDK or plugins may have changed it after startup.
+  const projectPath = () => {
+    const live = state.currentCwd
+    const raw = live ?? agent.config.cwd ?? process.cwd()
+    return resolve(raw).replace(homedir(), "~")
+  }
+
+  /** Short "(worktree: <name>)" badge shown when the agent is inside a
+   *  worktree created via the Claude SDK's EnterWorktree tool. The name is
+   *  trimmed to keep the header on one line. */
+  const worktreeLabel = () => {
+    const wt = state.worktree
+    if (!wt) return ""
+    const name = wt.name && wt.name.length > 0 ? wt.name : "active"
+    return `  (worktree: ${name})`
+  }
 
   const backendLabel = () => {
     const caps = agent.backend.capabilities()
@@ -95,7 +110,7 @@ export function HeaderBar() {
       {/* Row 2: legs + working directory */}
       <box flexDirection="row">
         <text fg={colors.accent.logo}>{LOGO_LINES[2]}</text>
-        <text fg={colors.text.secondary}>{projectPath}</text>
+        <text fg={colors.text.secondary}>{projectPath() + worktreeLabel()}</text>
       </box>
     </box>
   )

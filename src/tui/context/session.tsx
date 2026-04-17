@@ -36,6 +36,16 @@ export interface SessionContextState {
    *  is draining). Populated from ConversationState.resuming. Consumed by the
    *  input area to render a spinner and block typing. */
   resuming: boolean
+
+  /** Live working directory as reported by the backend (Claude SDK
+   *  `CwdChanged` hook). Null until the first change is observed — the
+   *  header bar falls back to `agent.config.cwd` in that case. */
+  currentCwd: string | null
+
+  /** Active worktree, set by `worktree_created`, cleared by `worktree_removed`.
+   *  Only populated for the Claude backend when the agent uses the built-in
+   *  `EnterWorktree` tool. */
+  worktree: { path: string; name?: string } | null
 }
 
 export interface SessionContextValue {
@@ -65,6 +75,8 @@ export function SessionProvider(props: ParentProps) {
     agentCommands: [],
     configOptions: [],
     resuming: false,
+    currentCwd: null,
+    worktree: null,
   })
 
   return (

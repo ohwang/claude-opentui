@@ -51,6 +51,8 @@ const DEFAULT_SESSION: SessionContextState = {
   agentCommands: [],
   configOptions: [],
   resuming: false,
+  currentCwd: null,
+  worktree: null,
 }
 
 const DEFAULT_MESSAGES: MessagesState = {

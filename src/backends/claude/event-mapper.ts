@@ -33,15 +33,184 @@ function cleanErrorMessage(errors: string[] | undefined): string | undefined {
 }
 
 // ---------------------------------------------------------------------------
+// Worktree output synthesis
+//
+// The Claude SDK ships built-in `EnterWorktree` and `ExitWorktree` tools.
+// When they succeed, their JSON output carries everything the TUI needs
+// (worktreePath, worktreeBranch, originalCwd, action). We translate those
+// into synthetic `worktree_created` / `worktree_removed` / `cwd_changed`
+// AgentEvents so the reducer can fold worktree state into ConversationState
+// and the header bar can show a "(worktree: <name>)" badge.
+//
+// We do this here, at the event-mapper, rather than registering SDK hooks
+// (WorktreeCreate / WorktreeRemove): those hooks REPLACE the SDK's default
+// git-worktree creation, so returning an observer-style `{ continue: true }`
+// from them causes the tool call to fail ("hook handled but provided no
+// worktreePath"). Observing the tool_use_end output is non-intrusive.
+// ---------------------------------------------------------------------------
+
+/** Try to parse the tool_use_end `output` string as a JSON object.
+ *  Returns null for anything that isn't a `{...}` payload so non-JSON
+ *  outputs don't trigger false positives. */
+function parseToolOutputJson(output: string): Record<string, unknown> | null {
+  if (!output) return null
+  const trimmed = output.trim()
+  if (!trimmed.startsWith("{")) return null
+  try {
+    const parsed = JSON.parse(trimmed)
+    return parsed && typeof parsed === "object" ? (parsed as Record<string, unknown>) : null
+  } catch {
+    return null
+  }
+}
+
+/** Derive a short display name from an absolute worktree path:
+ *    /repo/.claude/worktrees/auth-refactor -> "auth-refactor". */
+function worktreeNameFromPath(path: string): string {
+  if (!path) return ""
+  const segs = path.split("/").filter(Boolean)
+  return segs[segs.length - 1] ?? ""
+}
+
+/** Strip trailing sentence punctuation from a path captured by regex
+ *  (paths can't end in `.`, `,`, `;`, `:`, `!`, `?`). */
+function trimPathPunctuation(path: string): string {
+  return path.replace(/[.,;:!?]+$/, "")
+}
+
+/**
+ * Extract `{ worktreePath, originalCwd?, action? }` from the tool's output.
+ *
+ * The SDK declares structured types for these tools in sdk-tools.d.ts
+ * (EnterWorktreeOutput / ExitWorktreeOutput), but what actually reaches the
+ * agent via `tool_result` is the tool's plain-text message, e.g.
+ *
+ *   EnterWorktree: "Created worktree at /repo/.claude/worktrees/feature-x
+ *                   on branch worktree-feature-x. The session is now working
+ *                   in the worktree."
+ *
+ *   ExitWorktree (keep):   "Exited worktree. Your work is preserved at
+ *                           /repo/.claude/worktrees/feature-x on branch
+ *                           worktree-feature-x. Session is now back in /repo."
+ *
+ *   ExitWorktree (remove): "Removed worktree at /repo/.claude/worktrees/…
+ *                           Session is now back in /repo."
+ *
+ * This parser handles both the (unlikely) JSON envelope and the common
+ * message-text form via regex. Field absence is communicated with empty
+ * strings — the caller decides whether that's a fatal gap.
+ *
+ * Regex notes:
+ *   - Paths are matched greedily up to whitespace (NOT up to `.`) because
+ *     worktree paths contain dots inside segments (`.claude/worktrees/…`).
+ *   - Trailing sentence punctuation is stripped post-match.
+ *   - `back in /path` specifically targets the "session is now back in …"
+ *     phrase common to both keep and remove exits, giving us originalCwd.
+ */
+function parseWorktreeOutput(
+  toolName: string,
+  output: string,
+): { worktreePath: string; originalCwd: string; action: string } {
+  // Prefer structured JSON if the SDK ever starts returning it.
+  const json = parseToolOutputJson(output)
+  if (json) {
+    return {
+      worktreePath: typeof json.worktreePath === "string" ? json.worktreePath : "",
+      originalCwd: typeof json.originalCwd === "string" ? json.originalCwd : "",
+      action: typeof json.action === "string" ? json.action : "",
+    }
+  }
+
+  const text = output.trim()
+
+  // Worktree path: "(created|preserved|kept|removed) … at /path …"
+  const pathMatch = text.match(/\bat\s+(\/\S+)/)
+  const worktreePath = pathMatch ? trimPathPunctuation(pathMatch[1]!) : ""
+
+  // Original cwd (ExitWorktree only): "back in /path"
+  let originalCwd = ""
+  if (toolName === "ExitWorktree") {
+    const backMatch = text.match(/\bback in\s+(\/\S+)/i)
+    if (backMatch) originalCwd = trimPathPunctuation(backMatch[1]!)
+  }
+
+  // Action (ExitWorktree only). `Removed worktree` is unambiguous remove;
+  // "preserved" / "Kept worktree" / bare "Exited worktree" all mean keep.
+  // We default to "keep" when we see Exit-style text but no remove signal,
+  // so the worktree state clears in every success case.
+  let action = ""
+  if (toolName === "ExitWorktree") {
+    if (/\bRemoved worktree\b/i.test(text)) action = "remove"
+    else if (/\b(Kept worktree|preserved|Exited worktree)\b/i.test(text)) action = "keep"
+  }
+
+  return { worktreePath, originalCwd, action }
+}
+
+/**
+ * Synthesize worktree / cwd events from a completed EnterWorktree or
+ * ExitWorktree tool call's output. Returns an empty array when the output
+ * can't be parsed or the tool isn't worktree-related.
+ *
+ * EnterWorktree always chdir's into the worktree, so we emit cwd_changed
+ * alongside worktree_created. ExitWorktree returns the agent to its
+ * original cwd (whether action is "keep" or "remove"), so we would emit
+ * cwd_changed there too — but the tool's text output doesn't carry the
+ * originalCwd, so we skip cwd_changed on exit and rely on the header
+ * falling back to `agent.config.cwd` once `worktree` is null again.
+ * We emit worktree_removed only on "remove".
+ */
+export function synthesizeWorktreeEvents(
+  toolName: string,
+  output: string,
+): AgentEvent[] {
+  if (toolName !== "EnterWorktree" && toolName !== "ExitWorktree") return []
+
+  const { worktreePath, originalCwd, action } = parseWorktreeOutput(toolName, output)
+  const events: AgentEvent[] = []
+
+  if (toolName === "EnterWorktree") {
+    if (!worktreePath) return []
+    events.push({
+      type: "worktree_created",
+      name: worktreeNameFromPath(worktreePath),
+      path: worktreePath,
+    })
+    // oldCwd isn't known from the tool's output alone; the reducer only
+    // cares about newCwd. Passing "" is faithful — we really don't know.
+    events.push({ type: "cwd_changed", oldCwd: "", newCwd: worktreePath })
+    return events
+  }
+
+  // ExitWorktree
+  if (originalCwd) {
+    events.push({ type: "cwd_changed", oldCwd: worktreePath, newCwd: originalCwd })
+  }
+  if (action === "remove" && worktreePath) {
+    events.push({ type: "worktree_removed", path: worktreePath })
+  } else if (action === "keep" && worktreePath) {
+    // "Keep" also exits the worktree (agent is back at originalCwd), so the
+    // badge should disappear. We emit worktree_removed to clear state even
+    // though the directory physically remains on disk — the state field
+    // tracks the *active* worktree, not just existence.
+    events.push({ type: "worktree_removed", path: worktreePath })
+  }
+  return events
+}
+
+// ---------------------------------------------------------------------------
 // Tool input JSON accumulation state
 // ---------------------------------------------------------------------------
 
 export class ToolStreamState {
   toolInputJsons = new Map<string, string>()
   currentToolIds = new Map<number, string>()
-  /** Maps tool_use_id -> tool name so the matching `tool_use_end` can
-   *  recognize specific tools (e.g. EnterWorktree / ExitWorktree). The
-   *  tool_result message carries the id but not the name. */
+  /** Maps tool_use_id -> tool name so the matching `tool_use_end` handler
+   *  can recognize specific tools (today: EnterWorktree / ExitWorktree) and
+   *  synthesize side-effect events from their JSON outputs. The SDK's
+   *  `tool_result` message carries the id but not the name, so we stash
+   *  the name at both `tool_use_start` emission sites (stream_event path
+   *  and mapAssistantMessage path) and look it up on completion. */
   toolNamesById = new Map<string, string>()
   /** Set to true once the first stream_event is received (live streaming mode).
    *  Before this, assistant messages are treated as replayed history. */
@@ -312,12 +481,12 @@ export function mapSDKMessage(msg: any, streamState: ToolStreamState, options?: 
       } else if (options?.mapAssistant) {
         // Full assistant message (contains complete content blocks).
         // V2 live mode — result message handles turn_complete
-        events.push(...mapAssistantMessage(msg))
+        events.push(...mapAssistantMessage(msg, streamState))
       } else if (!streamState.hasReceivedStreamEvent) {
         // Replay mode (resume/continue) — no stream_events yet, so assistant
         // messages are historical. Map content and add synthetic turn_complete
         // so the reducer transitions RUNNING → IDLE between replayed turns.
-        events.push(...mapAssistantMessage(msg))
+        events.push(...mapAssistantMessage(msg, streamState))
         events.push({
           type: "turn_complete",
           usage: { inputTokens: 0, outputTokens: 0 },
@@ -344,7 +513,7 @@ export function mapSDKMessage(msg: any, streamState: ToolStreamState, options?: 
             ? content.filter((b: any) => b?.type === "tool_use").length
             : 0,
         })
-        events.push(...mapAssistantMessage(msg))
+        events.push(...mapAssistantMessage(msg, streamState))
       }
       // V1 live mode with streams this turn: skip — deltas already handled content
       break
@@ -512,6 +681,29 @@ export function mapSDKMessage(msg: any, streamState: ToolStreamState, options?: 
             output,
             error: isError ? output : undefined,
           })
+          // Worktree side-effect synthesis: EnterWorktree / ExitWorktree are
+          // SDK built-ins. When they succeed, emit synthetic worktree_* and
+          // cwd_changed events so the reducer can update ConversationState
+          // and the header bar can render a "(worktree: <name>)" badge.
+          // Skipped on error — a failed tool call leaves no worktree.
+          const toolName = streamState.toolNamesById.get(toolUseId)
+          if (!isError && (toolName === "EnterWorktree" || toolName === "ExitWorktree")) {
+            const synthesized = synthesizeWorktreeEvents(toolName, output)
+            if (synthesized.length > 0) {
+              events.push(...synthesized)
+              log.info("Worktree events synthesized", {
+                toolName,
+                count: synthesized.length,
+                types: synthesized.map(e => e.type),
+              })
+            } else {
+              log.warn("Worktree tool finished but output was unparseable", {
+                toolName,
+                outputHead: output.slice(0, 200),
+              })
+            }
+          }
+          streamState.toolNamesById.delete(toolUseId)
         } else {
           // Last resort: find the most recently started tool that's still
           // running and close it. Without this, the tool block spins forever
@@ -705,8 +897,16 @@ function mapTaskNotificationMessage(msg: any): AgentEvent {
  * V2's stream() yields these instead of stream_event deltas.
  * V1 also yields them but after stream_events — the reducer
  * handles any duplication via text_complete overwriting streamingText.
+ *
+ * `streamState` is optional because some call sites (tests, replay) don't
+ * have one; when present, we stash tool_use_id -> tool name so the matching
+ * tool_use_end can recognize specific tools (e.g. EnterWorktree) for
+ * side-effect synthesis.
  */
-export function mapAssistantMessage(msg: any): AgentEvent[] {
+export function mapAssistantMessage(
+  msg: any,
+  streamState?: ToolStreamState,
+): AgentEvent[] {
   const events: AgentEvent[] = []
   const content = msg.message?.content
   if (!Array.isArray(content)) return events
@@ -729,6 +929,7 @@ export function mapAssistantMessage(msg: any): AgentEvent[] {
         break
 
       case "tool_use":
+        streamState?.toolNamesById.set(block.id, block.name)
         events.push({
           type: "tool_use_start",
           id: block.id,
@@ -827,6 +1028,7 @@ export function mapStreamEvent(
       if (block?.type === "tool_use") {
         streamState.currentToolIds.set(event.index, block.id)
         streamState.toolInputJsons.set(block.id, "")
+        streamState.toolNamesById.set(block.id, block.name)
         events.push({
           type: "tool_use_start",
           id: block.id,

@@ -864,6 +864,31 @@ export function reduce(
         configOptions: event.options,
       }
 
+    // ----- Worktree / cwd lifecycle -----
+    //
+    // Synthesized by the Claude event-mapper when the agent's built-in
+    // EnterWorktree / ExitWorktree tools finish. These are pure metadata
+    // events — no blocks are appended, keeping the transcript clean. The
+    // header bar consumes `worktree` and `currentCwd` via SessionContextState.
+
+    case "worktree_created":
+      return {
+        ...next,
+        worktree: { path: event.path, name: event.name },
+      }
+
+    case "worktree_removed":
+      // Only clear if the removed path matches the active worktree. Guards
+      // against stale events (e.g. a sub-agent removing a different worktree
+      // after the user already exited the primary one).
+      if (next.worktree?.path === event.path) {
+        return { ...next, worktree: null }
+      }
+      return next
+
+    case "cwd_changed":
+      return { ...next, currentCwd: event.newCwd }
+
     // ----- Informational / passthrough -----
 
     case "session_state":

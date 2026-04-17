@@ -3,6 +3,7 @@ import {
   mapSDKMessage,
   mapAssistantMessage,
   mapStreamEvent,
+  synthesizeWorktreeEvents,
   ToolStreamState,
 } from "../../src/backends/claude/event-mapper"
 
@@ -2175,5 +2176,244 @@ describe("Claude Event Mapper — full stream simulation", () => {
     )
     expect(progress.input).toEqual({ command: "ls -la" })
     expect(progress.id).toBe("tool-1")
+  })
+})
+
+// ---------------------------------------------------------------------------
+// synthesizeWorktreeEvents
+// ---------------------------------------------------------------------------
+
+describe("synthesizeWorktreeEvents", () => {
+  it("emits worktree_created + cwd_changed on EnterWorktree success", () => {
+    const output = JSON.stringify({
+      worktreePath: "/repo/.claude/worktrees/feature-test",
+      worktreeBranch: "worktree-feature-test",
+      message: "Created worktree feature-test",
+    })
+    const events = synthesizeWorktreeEvents("EnterWorktree", output)
+
+    expect(events).toHaveLength(2)
+    expect(events[0]).toEqual({
+      type: "worktree_created",
+      name: "feature-test",
+      path: "/repo/.claude/worktrees/feature-test",
+    })
+    expect(events[1]).toEqual({
+      type: "cwd_changed",
+      oldCwd: "",
+      newCwd: "/repo/.claude/worktrees/feature-test",
+    })
+  })
+
+  it("parses plain-text EnterWorktree output (SDK's actual tool_result form)", () => {
+    // This is what the SDK really ships in tool_result — not JSON.
+    const output =
+      "Created worktree at /repo/.claude/worktrees/feature-x on branch " +
+      "worktree-feature-x. The session is now working in the worktree. " +
+      "Use ExitWorktree to leave mid-session."
+    const events = synthesizeWorktreeEvents("EnterWorktree", output)
+
+    expect(events).toHaveLength(2)
+    expect(events[0]).toEqual({
+      type: "worktree_created",
+      name: "feature-x",
+      path: "/repo/.claude/worktrees/feature-x",
+    })
+    expect(events[1]).toEqual({
+      type: "cwd_changed",
+      oldCwd: "",
+      newCwd: "/repo/.claude/worktrees/feature-x",
+    })
+  })
+
+  it("emits worktree_removed on ExitWorktree remove (plain-text)", () => {
+    const output = "Removed worktree at /repo/.claude/worktrees/feature-test."
+    const events = synthesizeWorktreeEvents("ExitWorktree", output)
+
+    const types = events.map(e => e.type)
+    expect(types).toContain("worktree_removed")
+    expect(events.find(e => e.type === "worktree_removed")).toMatchObject({
+      path: "/repo/.claude/worktrees/feature-test",
+    })
+  })
+
+  it("emits worktree_removed on ExitWorktree keep too (state tracks active worktree)", () => {
+    // "Keep" leaves the directory on disk but the agent is back at originalCwd,
+    // so the badge should disappear. The `worktree` field tracks the *active*
+    // worktree, not physical existence.
+    const output = "Kept worktree at /repo/.claude/worktrees/feature-test."
+    const events = synthesizeWorktreeEvents("ExitWorktree", output)
+
+    expect(events.some(e => e.type === "worktree_removed")).toBe(true)
+  })
+
+  it("parses the real 'Exited worktree … preserved at … back in …' output", () => {
+    // This is the actual plain-text ExitWorktree output observed in the wild.
+    const output =
+      "Exited worktree. Your work is preserved at " +
+      "/private/tmp/bantai-worktree-test/.claude/worktrees/feature-x on branch " +
+      "worktree-feature-x. Session is now back in /private/tmp/bantai-worktree-test."
+    const events = synthesizeWorktreeEvents("ExitWorktree", output)
+    const types = events.map(e => e.type)
+
+    // Both cwd_changed and worktree_removed should fire — the badge must
+    // clear and the path should return to the repo root.
+    expect(types).toContain("cwd_changed")
+    expect(types).toContain("worktree_removed")
+
+    const cwd = events.find(e => e.type === "cwd_changed") as any
+    expect(cwd.oldCwd).toBe("/private/tmp/bantai-worktree-test/.claude/worktrees/feature-x")
+    expect(cwd.newCwd).toBe("/private/tmp/bantai-worktree-test")
+
+    const removed = events.find(e => e.type === "worktree_removed") as any
+    expect(removed.path).toBe("/private/tmp/bantai-worktree-test/.claude/worktrees/feature-x")
+  })
+
+  it("still handles structured JSON if the SDK starts returning it", () => {
+    const output = JSON.stringify({
+      worktreePath: "/repo/.claude/worktrees/feature-j",
+      worktreeBranch: "worktree-feature-j",
+      message: "Created worktree",
+    })
+    const events = synthesizeWorktreeEvents("EnterWorktree", output)
+    expect(events[0]).toMatchObject({
+      type: "worktree_created",
+      path: "/repo/.claude/worktrees/feature-j",
+      name: "feature-j",
+    })
+  })
+
+  it("JSON ExitWorktree with action=remove and originalCwd emits cwd_changed + worktree_removed", () => {
+    const output = JSON.stringify({
+      action: "remove",
+      originalCwd: "/repo",
+      worktreePath: "/repo/.claude/worktrees/feature-j",
+      message: "Removed worktree",
+    })
+    const events = synthesizeWorktreeEvents("ExitWorktree", output)
+    const types = events.map(e => e.type)
+    expect(types).toEqual(["cwd_changed", "worktree_removed"])
+    expect(events.find(e => e.type === "cwd_changed")).toMatchObject({
+      oldCwd: "/repo/.claude/worktrees/feature-j",
+      newCwd: "/repo",
+    })
+  })
+
+  it("returns [] for empty output", () => {
+    expect(synthesizeWorktreeEvents("EnterWorktree", "")).toEqual([])
+  })
+
+  it("returns [] when EnterWorktree output has no recognizable path", () => {
+    expect(
+      synthesizeWorktreeEvents("EnterWorktree", "Something went wrong"),
+    ).toEqual([])
+  })
+
+  it("returns [] when EnterWorktree JSON output has no worktreePath", () => {
+    const output = JSON.stringify({ message: "ok but no path" })
+    expect(synthesizeWorktreeEvents("EnterWorktree", output)).toEqual([])
+  })
+
+  it("returns [] for unrecognized tool names", () => {
+    const output = JSON.stringify({ worktreePath: "/repo/wt" })
+    expect(synthesizeWorktreeEvents("Read", output)).toEqual([])
+    expect(synthesizeWorktreeEvents("SomethingElse", output)).toEqual([])
+  })
+
+  it("derives worktree name from the last path segment", () => {
+    const cases: Array<[string, string]> = [
+      ["/repo/.claude/worktrees/feature-test", "feature-test"],
+      ["/repo/.claude/worktrees/pr-123", "pr-123"],
+      ["/a/b/c/my-slash+branch", "my-slash+branch"],
+    ]
+    for (const [path, expected] of cases) {
+      const events = synthesizeWorktreeEvents(
+        "EnterWorktree",
+        JSON.stringify({ worktreePath: path }),
+      )
+      expect(events[0]).toMatchObject({ type: "worktree_created", name: expected })
+    }
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Worktree side-effect synthesis inside the full tool_use_end flow
+// ---------------------------------------------------------------------------
+
+describe("Event Mapper — worktree tool_use_end integration", () => {
+  it("emits worktree_created + cwd_changed after an EnterWorktree tool_result", () => {
+    const state = freshState()
+    // Simulate the stream_event content_block_start that stashes the tool name
+    mapStreamEvent(
+      {
+        type: "content_block_start",
+        index: 0,
+        content_block: { type: "tool_use", id: "tu_ew_1", name: "EnterWorktree" },
+      },
+      null,
+      state,
+    )
+    expect(state.toolNamesById.get("tu_ew_1")).toBe("EnterWorktree")
+
+    // Now the tool_result arrives as a user message carrying the tool's
+    // plain-text output (the form the SDK actually ships).
+    const events = mapSDKMessage(
+      {
+        type: "user",
+        tool_use_result: "ok",
+        message: {
+          content: [
+            {
+              type: "tool_result",
+              tool_use_id: "tu_ew_1",
+              content:
+                "Created worktree at /repo/.claude/worktrees/feature-x " +
+                "on branch worktree-feature-x. The session is now working in the worktree.",
+            },
+          ],
+        },
+      },
+      state,
+    )
+
+    const types = events.map(e => e.type)
+    expect(types).toContain("tool_use_end")
+    expect(types).toContain("worktree_created")
+    expect(types).toContain("cwd_changed")
+
+    const created = events.find(e => e.type === "worktree_created") as any
+    expect(created.path).toBe("/repo/.claude/worktrees/feature-x")
+    expect(created.name).toBe("feature-x")
+
+    // Map should be cleaned up after consumption
+    expect(state.toolNamesById.has("tu_ew_1")).toBe(false)
+  })
+
+  it("does not emit worktree_created when the tool_result is an error", () => {
+    const state = freshState()
+    state.toolNamesById.set("tu_err", "EnterWorktree")
+
+    const events = mapSDKMessage(
+      {
+        type: "user",
+        tool_use_result: "err",
+        message: {
+          content: [
+            {
+              type: "tool_result",
+              tool_use_id: "tu_err",
+              is_error: true,
+              content: "failed: not a git repo",
+            },
+          ],
+        },
+      },
+      state,
+    )
+
+    const types = events.map(e => e.type)
+    expect(types).toContain("tool_use_end")
+    expect(types).not.toContain("worktree_created")
+    expect(types).not.toContain("cwd_changed")
   })
 })

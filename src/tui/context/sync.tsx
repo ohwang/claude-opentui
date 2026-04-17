@@ -173,6 +173,8 @@ export function SyncProvider(props: ParentProps) {
       session.setState("agentCommands", reconcile(conversationState.agentCommands))
       session.setState("configOptions", reconcile(conversationState.configOptions))
       session.setState("resuming", conversationState.resuming)
+      session.setState("currentCwd", conversationState.currentCwd)
+      session.setState("worktree", reconcile(conversationState.worktree))
 
       permissions.setState("pendingPermission", reconcile(conversationState.pendingPermission))
       permissions.setState("pendingElicitation", reconcile(conversationState.pendingElicitation))

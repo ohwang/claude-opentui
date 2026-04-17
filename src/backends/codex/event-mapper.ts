@@ -383,17 +383,12 @@ function mapCodexRateLimitEvents(params: any): AgentEvent[] {
     )
 
     events.push({
-      type: "backend_specific",
-      backend: "codex",
-      data: {
-        type: "rate_limit_event",
-        rate_limit_info: {
-          rateLimitType,
-          utilization: usedPercent / 100,
-          resetsAt: typeof resetsAt === "number" ? resetsAt : undefined,
-          windowDurationMins: typeof windowDurationMins === "number" ? windowDurationMins : undefined,
-        },
-      },
+      type: "rate_limit_update",
+      rateLimitType,
+      utilization: usedPercent / 100,
+      resetsAt: typeof resetsAt === "number" ? resetsAt : undefined,
+      windowDurationMins: typeof windowDurationMins === "number" ? windowDurationMins : undefined,
+      source: "codex",
     })
   }
 

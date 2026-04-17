@@ -943,44 +943,63 @@ export function reduce(
         }
       }
 
-      // Extract rate limit data from claude backend rate_limit_event
-      if (data && (data as { type?: string }).type === "rate_limit_event") {
-        const info = (data as { rate_limit_info?: Record<string, unknown> }).rate_limit_info
-        if (info && typeof info.rateLimitType === "string") {
-          // utilization comes as 0-1 from SDK when available
-          // surpassedThreshold is a fallback hint (e.g., 0.8 means 80% threshold crossed)
-          // status "allowed_warning" means approaching limit, "rejected" means at limit
-          let usedPct: number | undefined
-          if (typeof info.utilization === "number") {
-            usedPct = info.utilization * 100
-          } else if (typeof info.surpassedThreshold === "number") {
-            usedPct = info.surpassedThreshold * 100
-          } else if (info.status === "rejected") {
-            usedPct = 100
-          } else if (info.status === "allowed_warning") {
-            usedPct = 80 // conservative estimate
-          }
+      return next
+    }
 
-          if (usedPct !== undefined) {
-            const entry: import("./types").RateLimitEntry = {
-              usedPercentage: usedPct,
-              resetsAt: typeof info.resetsAt === "number" ? info.resetsAt : undefined,
-              windowDurationMins: typeof info.windowDurationMins === "number" ? info.windowDurationMins : undefined,
-            }
-            const rl = next.rateLimits ? { ...next.rateLimits } : {}
-            if (info.rateLimitType === "five_hour") {
-              rl.fiveHour = entry
-            } else if (info.rateLimitType === "seven_day" || info.rateLimitType === "seven_day_opus" || info.rateLimitType === "seven_day_sonnet") {
-              rl.sevenDay = entry
-            } else if (info.rateLimitType === "primary") {
-              rl.primary = entry
-            } else if (info.rateLimitType === "secondary") {
-              rl.secondary = entry
-            }
-            next.rateLimits = rl
-          }
-        }
+    case "rate_limit_update": {
+      // Fold a single window's usage snapshot into ConversationState.rateLimits.
+      //
+      //  - `utilization` (0–1) is the preferred signal; we multiply by 100 for
+      //    the status bar's usedPercentage scale.
+      //  - `surpassedThreshold` (0–1) is a fallback hint when the SDK hasn't
+      //    computed utilization yet.
+      //  - `status` gives us a best-effort floor when neither number is set:
+      //    rejected ⇒ 100%, allowed_warning ⇒ 80% (conservative estimate).
+      //
+      // If we can't derive any usedPercentage, we drop the update — the status
+      // bar has no meaningful way to render "unknown %" alongside real numbers.
+      let usedPct: number | undefined
+      if (typeof event.utilization === "number") {
+        usedPct = event.utilization * 100
+      } else if (typeof event.surpassedThreshold === "number") {
+        usedPct = event.surpassedThreshold * 100
+      } else if (event.status === "rejected") {
+        usedPct = 100
+      } else if (event.status === "allowed_warning") {
+        usedPct = 80
       }
+      if (usedPct === undefined) return next
+
+      const entry: import("./types").RateLimitEntry = {
+        usedPercentage: usedPct,
+        resetsAt: event.resetsAt,
+        windowDurationMins: event.windowDurationMins,
+      }
+      const rl = next.rateLimits ? { ...next.rateLimits } : {}
+      switch (event.rateLimitType) {
+        case "five_hour":
+          rl.fiveHour = entry
+          break
+        case "seven_day":
+        case "seven_day_opus":
+        case "seven_day_sonnet":
+          rl.sevenDay = entry
+          break
+        case "primary":
+          rl.primary = entry
+          break
+        case "secondary":
+          rl.secondary = entry
+          break
+        case "overage":
+          // Overage credits live alongside the primary 5h/7d window — we
+          // don't have a dedicated slot today, so stash them on `primary`
+          // unless a real primary entry already exists. Keeps the data
+          // reachable without reshaping RateLimits.
+          if (!rl.primary) rl.primary = entry
+          break
+      }
+      next.rateLimits = rl
       return next
     }
 

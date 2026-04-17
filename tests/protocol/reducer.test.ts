@@ -1119,30 +1119,20 @@ describe("ConversationState reducer", () => {
       const state = applyEvents([
         { type: "session_init", tools: [], models: [] },
         {
-          type: "backend_specific",
-          backend: "codex",
-          data: {
-            type: "rate_limit_event",
-            rate_limit_info: {
-              rateLimitType: "five_hour",
-              utilization: 0.12,
-              resetsAt: 1775019636,
-              windowDurationMins: 300,
-            },
-          },
+          type: "rate_limit_update",
+          rateLimitType: "five_hour",
+          utilization: 0.12,
+          resetsAt: 1775019636,
+          windowDurationMins: 300,
+          source: "codex",
         },
         {
-          type: "backend_specific",
-          backend: "codex",
-          data: {
-            type: "rate_limit_event",
-            rate_limit_info: {
-              rateLimitType: "seven_day",
-              utilization: 0.08,
-              resetsAt: 1775206513,
-              windowDurationMins: 10080,
-            },
-          },
+          type: "rate_limit_update",
+          rateLimitType: "seven_day",
+          utilization: 0.08,
+          resetsAt: 1775206513,
+          windowDurationMins: 10080,
+          source: "codex",
         },
       ])
 
@@ -1164,30 +1154,20 @@ describe("ConversationState reducer", () => {
       const state = applyEvents([
         { type: "session_init", tools: [], models: [] },
         {
-          type: "backend_specific",
-          backend: "codex",
-          data: {
-            type: "rate_limit_event",
-            rate_limit_info: {
-              rateLimitType: "primary",
-              utilization: 0.25,
-              resetsAt: 1775019636,
-              windowDurationMins: 15,
-            },
-          },
+          type: "rate_limit_update",
+          rateLimitType: "primary",
+          utilization: 0.25,
+          resetsAt: 1775019636,
+          windowDurationMins: 15,
+          source: "codex",
         },
         {
-          type: "backend_specific",
-          backend: "codex",
-          data: {
-            type: "rate_limit_event",
-            rate_limit_info: {
-              rateLimitType: "secondary",
-              utilization: 0.40,
-              resetsAt: 1775020236,
-              windowDurationMins: 60,
-            },
-          },
+          type: "rate_limit_update",
+          rateLimitType: "secondary",
+          utilization: 0.40,
+          resetsAt: 1775020236,
+          windowDurationMins: 60,
+          source: "codex",
         },
       ])
 
@@ -1203,6 +1183,52 @@ describe("ConversationState reducer", () => {
           windowDurationMins: 60,
         },
       })
+    })
+
+    it("folds 7-day Opus/Sonnet variants into the sevenDay slot", () => {
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        {
+          type: "rate_limit_update",
+          rateLimitType: "seven_day_opus",
+          utilization: 0.66,
+          resetsAt: 1775206513,
+          source: "claude",
+        },
+      ])
+
+      expect(state.rateLimits?.sevenDay).toEqual({
+        usedPercentage: 66,
+        resetsAt: 1775206513,
+        windowDurationMins: undefined,
+      })
+    })
+
+    it("derives usedPercentage from status when numeric signals are missing", () => {
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        {
+          type: "rate_limit_update",
+          rateLimitType: "five_hour",
+          status: "rejected",
+          source: "claude",
+        },
+      ])
+
+      expect(state.rateLimits?.fiveHour?.usedPercentage).toBe(100)
+    })
+
+    it("drops updates with no derivable usedPercentage", () => {
+      const state = applyEvents([
+        { type: "session_init", tools: [], models: [] },
+        {
+          type: "rate_limit_update",
+          rateLimitType: "five_hour",
+          source: "claude",
+        },
+      ])
+
+      expect(state.rateLimits).toBeNull()
     })
   })
 

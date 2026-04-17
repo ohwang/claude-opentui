@@ -39,6 +39,10 @@ function cleanErrorMessage(errors: string[] | undefined): string | undefined {
 export class ToolStreamState {
   toolInputJsons = new Map<string, string>()
   currentToolIds = new Map<number, string>()
+  /** Maps tool_use_id -> tool name so the matching `tool_use_end` can
+   *  recognize specific tools (e.g. EnterWorktree / ExitWorktree). The
+   *  tool_result message carries the id but not the name. */
+  toolNamesById = new Map<string, string>()
   /** Set to true once the first stream_event is received (live streaming mode).
    *  Before this, assistant messages are treated as replayed history. */
   hasReceivedStreamEvent = false
@@ -557,16 +561,46 @@ export function mapSDKMessage(msg: any, streamState: ToolStreamState, options?: 
       break
     }
 
-    case "rate_limit_event":
-      // Informational event showing current usage quota — not an error.
-      // Pass through as backend_specific so the TUI can optionally display it.
-      log.debug("Rate limit info", { data: msg.rate_limit_info ?? msg })
-      events.push({
-        type: "backend_specific",
-        backend: "claude",
-        data: msg,
-      })
+    case "rate_limit_event": {
+      // Informational event showing current claude.ai subscription usage for
+      // one bucket (5hr / 7day / 7day_opus / 7day_sonnet / overage). Not an
+      // error. Forward as a typed rate_limit_update so the reducer can fold
+      // it into ConversationState.rateLimits.
+      const info = (msg.rate_limit_info ?? {}) as Record<string, unknown>
+      log.debug("Rate limit info", { data: info })
+      const rateLimitType = info.rateLimitType
+      if (
+        rateLimitType === "five_hour" ||
+        rateLimitType === "seven_day" ||
+        rateLimitType === "seven_day_opus" ||
+        rateLimitType === "seven_day_sonnet" ||
+        rateLimitType === "overage"
+      ) {
+        events.push({
+          type: "rate_limit_update",
+          rateLimitType,
+          status: typeof info.status === "string" ? (info.status as any) : undefined,
+          utilization: typeof info.utilization === "number" ? info.utilization : undefined,
+          surpassedThreshold: typeof info.surpassedThreshold === "number" ? info.surpassedThreshold : undefined,
+          resetsAt: typeof info.resetsAt === "number" ? info.resetsAt : undefined,
+          isUsingOverage: typeof info.isUsingOverage === "boolean" ? info.isUsingOverage : undefined,
+          overageStatus: typeof info.overageStatus === "string" ? (info.overageStatus as any) : undefined,
+          overageResetsAt: typeof info.overageResetsAt === "number" ? info.overageResetsAt : undefined,
+          overageDisabledReason: typeof info.overageDisabledReason === "string" ? info.overageDisabledReason : undefined,
+          source: "claude",
+        })
+      } else {
+        // Missing / unknown rateLimitType — keep the raw payload around via
+        // backend_specific so we can diagnose upstream shape changes.
+        log.warn("rate_limit_event without a recognizable rateLimitType", { rateLimitType, info })
+        events.push({
+          type: "backend_specific",
+          backend: "claude",
+          data: msg,
+        })
+      }
       break
+    }
 
     default:
       // Log unhandled message types as warnings so we can add handlers

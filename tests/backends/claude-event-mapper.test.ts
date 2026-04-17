@@ -1082,7 +1082,46 @@ describe("Claude Event Mapper — mapSDKMessage", () => {
   // ---------------------------------------------------------------------------
 
   describe("rate_limit_event", () => {
-    it("maps to backend_specific event", () => {
+    it("maps a five_hour bucket to a typed rate_limit_update", () => {
+      const msg = {
+        type: "rate_limit_event",
+        rate_limit_info: {
+          rateLimitType: "five_hour",
+          status: "allowed",
+          utilization: 0.42,
+          resetsAt: 1775019636,
+          isUsingOverage: false,
+        },
+      }
+      const events = mapSDKMessage(msg, freshState())
+
+      expect(events).toHaveLength(1)
+      const ev = events[0]! as any
+      expect(ev.type).toBe("rate_limit_update")
+      expect(ev.rateLimitType).toBe("five_hour")
+      expect(ev.utilization).toBe(0.42)
+      expect(ev.resetsAt).toBe(1775019636)
+      expect(ev.status).toBe("allowed")
+      expect(ev.isUsingOverage).toBe(false)
+      expect(ev.source).toBe("claude")
+    })
+
+    it("preserves 7-day sub-type variants (opus/sonnet)", () => {
+      const events = mapSDKMessage(
+        {
+          type: "rate_limit_event",
+          rate_limit_info: { rateLimitType: "seven_day_opus", utilization: 0.9 },
+        },
+        freshState(),
+      )
+
+      expect(events).toHaveLength(1)
+      const ev = events[0]! as any
+      expect(ev.type).toBe("rate_limit_update")
+      expect(ev.rateLimitType).toBe("seven_day_opus")
+    })
+
+    it("falls back to backend_specific when rateLimitType is missing/unknown", () => {
       const msg = {
         type: "rate_limit_event",
         rate_limit_info: { remaining: 100 },

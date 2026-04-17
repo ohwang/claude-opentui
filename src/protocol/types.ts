@@ -307,6 +307,57 @@ export type BackendSpecificEvent = {
   data: unknown
 }
 
+/**
+ * Rate-limit / subscription-usage update.
+ *
+ * Emitted whenever a backend reports a new usage snapshot. Claude's SDK
+ * emits one `SDKRateLimitEvent` per claude.ai subscription bucket
+ * (5hr / 7day / 7day_opus / 7day_sonnet / overage). Codex emits one
+ * `account/rateLimits/updated` notification per primary/secondary window.
+ *
+ * The reducer folds these into `ConversationState.rateLimits`, which the
+ * status bar and `/statusline` hook consume. A single event describes
+ * *one* window — repeat events update their respective slots.
+ *
+ * Field shape mirrors Claude SDK's `SDKRateLimitInfo` so the Claude
+ * adapter can forward verbatim; Codex adapter normalizes into this shape.
+ */
+export type RateLimitUpdateEvent = {
+  type: "rate_limit_update"
+  /** Which window this update describes. */
+  rateLimitType:
+    | "five_hour"
+    | "seven_day"
+    | "seven_day_opus"
+    | "seven_day_sonnet"
+    | "overage"
+    | "primary"
+    | "secondary"
+  /** Current status for this window. */
+  status?: "allowed" | "allowed_warning" | "rejected"
+  /** Fractional utilization in [0, 1]. Preferred over `surpassedThreshold`. */
+  utilization?: number
+  /** Fallback hint (also 0–1) for the threshold most recently crossed, when
+   *  `utilization` is unavailable (e.g. some SDK revisions). */
+  surpassedThreshold?: number
+  /** Unix epoch seconds when this window resets. */
+  resetsAt?: number
+  /** Window duration in minutes. Only Codex supplies this today — used to
+   *  disambiguate which underlying subscription bucket a generic
+   *  primary/secondary slot corresponds to. */
+  windowDurationMins?: number
+  /** True when the user is currently consuming overage credits. */
+  isUsingOverage?: boolean
+  /** Status for the overage pool, independent of the primary window. */
+  overageStatus?: "allowed" | "allowed_warning" | "rejected"
+  /** Epoch seconds when the overage pool resets. */
+  overageResetsAt?: number
+  /** Reason overage is disabled (verbatim from the SDK — surface for debugging). */
+  overageDisabledReason?: string
+  /** Originating backend (for logging / multi-backend telemetry). */
+  source?: "claude" | "codex" | string
+}
+
 // ---------------------------------------------------------------------------
 // Session resume summary — aggregate metadata derived from a parsed session
 // file. Used by the resume banner (SessionResumeSummaryView) and by
@@ -391,6 +442,7 @@ export type AgentEvent =
   | PlanUpdateEvent
   | ConfigOptionsEvent
   | SkillToolActivityEvent
+  | RateLimitUpdateEvent
 
 // ---------------------------------------------------------------------------
 // System Events — TUI lifecycle, not from any agent backend
@@ -646,7 +698,9 @@ export interface ConversationState {
   /** Whether the current turn is backgrounded (UI collapsed, input re-enabled) */
   backgrounded: boolean
 
-  /** Rate limit utilization (from SDK rate_limit_event) */
+  /** Rate limit utilization, keyed by window bucket. Fed by
+   *  `rate_limit_update` events (Claude SDK rate_limit_event + Codex
+   *  account/rateLimits/updated). */
   rateLimits: RateLimits | null
 
   /**

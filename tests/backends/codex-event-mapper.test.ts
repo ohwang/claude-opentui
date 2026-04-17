@@ -492,30 +492,20 @@ describe("Codex Event Mapper", () => {
 
       expect(events).toHaveLength(2)
       expect(events[0]).toEqual({
-        type: "backend_specific",
-        backend: "codex",
-        data: {
-          type: "rate_limit_event",
-          rate_limit_info: {
-            rateLimitType: "five_hour",
-            utilization: 0.12,
-            resetsAt: 1775019636,
-            windowDurationMins: 300,
-          },
-        },
+        type: "rate_limit_update",
+        rateLimitType: "five_hour",
+        utilization: 0.12,
+        resetsAt: 1775019636,
+        windowDurationMins: 300,
+        source: "codex",
       })
       expect(events[1]).toEqual({
-        type: "backend_specific",
-        backend: "codex",
-        data: {
-          type: "rate_limit_event",
-          rate_limit_info: {
-            rateLimitType: "seven_day",
-            utilization: 0.08,
-            resetsAt: 1775206513,
-            windowDurationMins: 10080,
-          },
-        },
+        type: "rate_limit_update",
+        rateLimitType: "seven_day",
+        utilization: 0.08,
+        resetsAt: 1775206513,
+        windowDurationMins: 10080,
+        source: "codex",
       })
     })
 
@@ -538,30 +528,20 @@ describe("Codex Event Mapper", () => {
 
       expect(events).toHaveLength(2)
       expect(events[0]).toEqual({
-        type: "backend_specific",
-        backend: "codex",
-        data: {
-          type: "rate_limit_event",
-          rate_limit_info: {
-            rateLimitType: "primary",
-            utilization: 0.25,
-            resetsAt: 1775019636,
-            windowDurationMins: 15,
-          },
-        },
+        type: "rate_limit_update",
+        rateLimitType: "primary",
+        utilization: 0.25,
+        resetsAt: 1775019636,
+        windowDurationMins: 15,
+        source: "codex",
       })
       expect(events[1]).toEqual({
-        type: "backend_specific",
-        backend: "codex",
-        data: {
-          type: "rate_limit_event",
-          rate_limit_info: {
-            rateLimitType: "secondary",
-            utilization: 0.40,
-            resetsAt: 1775020236,
-            windowDurationMins: 60,
-          },
-        },
+        type: "rate_limit_update",
+        rateLimitType: "secondary",
+        utilization: 0.40,
+        resetsAt: 1775020236,
+        windowDurationMins: 60,
+        source: "codex",
       })
     })
 
@@ -576,8 +556,9 @@ describe("Codex Event Mapper", () => {
       })
 
       expect(events).toHaveLength(1)
-      expect((events[0] as any).data.rate_limit_info.rateLimitType).toBe("primary")
-      expect((events[0] as any).data.rate_limit_info.windowDurationMins).toBeUndefined()
+      expect((events[0] as any).type).toBe("rate_limit_update")
+      expect((events[0] as any).rateLimitType).toBe("primary")
+      expect((events[0] as any).windowDurationMins).toBeUndefined()
     })
 
     it("passes turn/diff/updated as backend_specific", () => {

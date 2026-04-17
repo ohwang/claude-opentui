@@ -270,7 +270,29 @@ describe("ClaudeAdapter", () => {
       expect(ev.severity).toBe("recoverable")
     })
 
-    it("maps rate_limit_event to backend_specific (informational, not error)", () => {
+    it("maps rate_limit_event with a known bucket to rate_limit_update (informational, not error)", () => {
+      const streamState = new ToolStreamState()
+      const events = mapSDKMessage({
+        type: "rate_limit_event",
+        rate_limit_info: {
+          rateLimitType: "five_hour",
+          utilization: 0.5,
+          resetsAt: 1775019636,
+          status: "allowed",
+        },
+        uuid: "test",
+        session_id: "test",
+      }, streamState)
+
+      expect(events).toHaveLength(1)
+      const ev = events[0]! as EventOf<"rate_limit_update">
+      expect(ev.type).toBe("rate_limit_update")
+      expect(ev.rateLimitType).toBe("five_hour")
+      expect(ev.utilization).toBe(0.5)
+      expect(ev.source).toBe("claude")
+    })
+
+    it("maps rate_limit_event without a rateLimitType to backend_specific for diagnostics", () => {
       const streamState = new ToolStreamState()
       const events = mapSDKMessage({
         type: "rate_limit_event",

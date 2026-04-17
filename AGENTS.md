@@ -22,7 +22,7 @@ bun test             # Run all tests
 - **Terminal rendering:** OpenTUI v0.1.90 (Zig native core, double-buffered, 60 FPS)
 - **UI framework:** SolidJS via `@opentui/solid` (NOT React)
 - **Language:** TypeScript (strict mode)
-- **Claude backend:** `@anthropic-ai/claude-agent-sdk` v0.2.85
+- **Claude backend:** `@anthropic-ai/claude-agent-sdk` (track the latest released version)
 
 ## Architecture
 

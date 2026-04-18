@@ -6,11 +6,12 @@
  * chat.update / chat.delete.
  */
 
-import { postMessage } from "../../core/messages"
+import { postMessageDetailed } from "../../core/messages"
 import { MinislackError } from "../../core/channels"
-import { messageToMessageEvent } from "../../core/event-mappers"
+import { channelTypeOf, messageToMessageEvent } from "../../core/event-mappers"
 import type { EventBus } from "../../core/events"
 import type { Channel, Message, Workspace } from "../../types/slack"
+import type { MessageChangedEvent } from "../../types/events"
 import type { AuthContext } from "../auth"
 import type { KnownBlock, Block } from "@slack/types"
 import type { MessageAttachment } from "@slack/types"
@@ -45,7 +46,7 @@ export function chatPostMessage(
   }
   const userId = ctx.userId
   if (!userId) throw new MinislackError("not_authed")
-  const msg = postMessage(ws, {
+  const { message: msg, threadParent } = postMessageDetailed(ws, {
     channelId: ch.id,
     userId,
     text: args.text ?? "",
@@ -58,7 +59,47 @@ export function chatPostMessage(
       : {}),
   })
   bus.publish(messageToMessageEvent(msg, ch))
+  if (threadParent) {
+    bus.publish(buildThreadParentChanged(threadParent, ch))
+  }
   return { ok: true, channel: ch.id, ts: msg.ts, message: msg }
+}
+
+/**
+ * Emit a message_changed event for the thread parent when reply count updates.
+ * Slack does this so clients can refresh their "N replies" badge without
+ * refetching the whole channel.
+ */
+function buildThreadParentChanged(parent: Message, ch: Channel): MessageChangedEvent {
+  return {
+    type: "message",
+    subtype: "message_changed",
+    event_ts: parent.latest_reply ?? parent.ts,
+    ts: parent.latest_reply ?? parent.ts,
+    channel: parent.channel,
+    channel_type: channelTypeOf(ch),
+    message: {
+      type: "message",
+      user: parent.user,
+      text: parent.text,
+      ts: parent.ts,
+      ...(parent.edited ? { edited: parent.edited } : {}),
+      ...(parent.blocks ? { blocks: parent.blocks } : {}),
+      ...(parent.attachments ? { attachments: parent.attachments } : {}),
+      ...(parent.thread_ts ? { thread_ts: parent.thread_ts } : {}),
+      ...(parent.reply_count !== undefined ? { reply_count: parent.reply_count } : {}),
+      ...(parent.reply_users ? { reply_users: parent.reply_users } : {}),
+      ...(parent.reply_users_count !== undefined ? { reply_users_count: parent.reply_users_count } : {}),
+      ...(parent.latest_reply ? { latest_reply: parent.latest_reply } : {}),
+    },
+    previous_message: {
+      type: "message",
+      user: parent.user,
+      text: parent.text,
+      ts: parent.ts,
+    },
+    hidden: true,
+  }
 }
 
 function resolve(ws: Workspace, idOrName: string): Channel {

@@ -1,9 +1,9 @@
 /**
- * Messages — post, list, (edit/delete/threads land in later phases).
+ * Messages — post, list, thread replies.
  *
- * v0 scope: plaintext post + history listing. Everything richer (threads,
- * edit/delete, reactions) is additive and will extend this module in
- * Phases 4–5 without breaking v0 shapes.
+ * Phase 4 adds thread bookkeeping: when a reply arrives (thread_ts set),
+ * the parent's reply_count / reply_users / latest_reply are maintained.
+ * Edit / delete / reactions land in Phase 5.
  */
 
 import { assertMember, MinislackError } from "./channels"
@@ -31,7 +31,22 @@ export interface PostMessageOpts {
   now?: () => number
 }
 
+export interface PostMessageResult {
+  message: Message
+  /**
+   * When the post is a thread reply, the parent Message AFTER bookkeeping
+   * (reply_count etc. already incremented). Callers emit a message_changed
+   * event for this so clients update their counters.
+   */
+  threadParent?: Message
+}
+
 export function postMessage(ws: Workspace, opts: PostMessageOpts): Message {
+  return postMessageDetailed(ws, opts).message
+}
+
+/** Like postMessage but also returns the updated thread parent (if any). */
+export function postMessageDetailed(ws: Workspace, opts: PostMessageOpts): PostMessageResult {
   const ch = ws.channels.get(opts.channelId)
   if (!ch) throw new MinislackError("channel_not_found", opts.channelId)
   assertMember(ch, opts.userId)
@@ -40,7 +55,28 @@ export function postMessage(ws: Workspace, opts: PostMessageOpts): Message {
     throw new MinislackError("no_text", "message must have text, blocks, or attachments")
   }
 
+  // Resolve the thread parent before minting a ts so we can reject broken
+  // references up front. `thread_ts === ts` is allowed and no-ops below.
+  let parent: Message | undefined
+  if (opts.thread_ts) {
+    const candidate = ch.messages.get(opts.thread_ts)
+    if (!candidate || candidate.tombstone) {
+      throw new MinislackError("thread_not_found", `parent message ${opts.thread_ts} missing`)
+    }
+    // If someone replies to a reply, hoist to the top-level parent — Slack
+    // flattens threads to one level.
+    parent = candidate.thread_ts && candidate.thread_ts !== candidate.ts
+      ? ch.messages.get(candidate.thread_ts)
+      : candidate
+    if (!parent) {
+      throw new MinislackError("thread_not_found", `root of ${opts.thread_ts} missing`)
+    }
+  }
+
   const ts = nextTs(ws, ch.id, opts.now)
+  const isReply = !!parent && parent.ts !== ts
+  const effectiveThreadTs = parent ? parent.ts : undefined
+
   const msg: Message = {
     type: "message",
     ts,
@@ -51,11 +87,24 @@ export function postMessage(ws: Workspace, opts: PostMessageOpts): Message {
     ...(opts.app_id ? { app_id: opts.app_id } : {}),
     ...(opts.blocks ? { blocks: opts.blocks } : {}),
     ...(opts.attachments ? { attachments: opts.attachments } : {}),
-    ...(opts.thread_ts ? { thread_ts: opts.thread_ts } : {}),
+    ...(effectiveThreadTs ? { thread_ts: effectiveThreadTs } : {}),
     ...(opts.client_msg_id ? { client_msg_id: opts.client_msg_id } : {}),
   }
   ch.messages.set(ts, msg)
-  return msg
+
+  let threadParent: Message | undefined
+  if (isReply && parent) {
+    parent.is_thread_parent = true
+    parent.reply_count = (parent.reply_count ?? 0) + 1
+    const users = parent.reply_users ?? []
+    if (!users.includes(opts.userId)) users.push(opts.userId)
+    parent.reply_users = users
+    parent.reply_users_count = users.length
+    parent.latest_reply = ts
+    threadParent = parent
+  }
+
+  return { message: msg, threadParent }
 }
 
 export interface HistoryOpts {
@@ -106,4 +155,54 @@ export function getMessage(ch: Channel, ts: string): Message | undefined {
   const m = ch.messages.get(ts)
   if (!m || m.tombstone) return undefined
   return m
+}
+
+// ---------------------------------------------------------------------------
+// Threads
+// ---------------------------------------------------------------------------
+
+export interface RepliesOpts {
+  /** Return messages strictly older than this ts. */
+  latest?: string
+  /** Return messages strictly newer than this ts. */
+  oldest?: string
+  inclusive?: boolean
+  /** Max replies to return. Default 1000 (Slack's max). */
+  limit?: number
+}
+
+/**
+ * Return a thread: the parent message first, then its replies oldest-first.
+ * Mirrors Slack's `conversations.replies` ordering.
+ */
+export function listReplies(
+  ch: Channel,
+  threadTs: string,
+  opts: RepliesOpts = {},
+): { messages: Message[]; has_more: boolean } {
+  const parent = ch.messages.get(threadTs)
+  if (!parent || parent.tombstone) {
+    throw new MinislackError("thread_not_found", threadTs)
+  }
+  const inclusive = !!opts.inclusive
+  const out: Message[] = [parent]
+  const replies: Message[] = []
+  for (const m of ch.messages.values()) {
+    if (m.tombstone) continue
+    if (m.thread_ts !== threadTs || m.ts === threadTs) continue
+    if (opts.latest !== undefined) {
+      const cmp = compareTs(m.ts, opts.latest)
+      if (inclusive ? cmp > 0 : cmp >= 0) continue
+    }
+    if (opts.oldest !== undefined) {
+      const cmp = compareTs(m.ts, opts.oldest)
+      if (inclusive ? cmp < 0 : cmp <= 0) continue
+    }
+    replies.push(m)
+  }
+  replies.sort((a, b) => compareTs(a.ts, b.ts))
+  const limit = opts.limit ?? 1000
+  const sliced = replies.slice(0, limit)
+  out.push(...sliced)
+  return { messages: out, has_more: replies.length > sliced.length }
 }

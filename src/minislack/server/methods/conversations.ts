@@ -4,7 +4,7 @@
  * Phase 4 adds `replies`. Phase 3 adds `create`, `join`, `members`, `open`.
  */
 
-import { listHistory } from "../../core/messages"
+import { listHistory, listReplies } from "../../core/messages"
 import { MinislackError } from "../../core/channels"
 import type { Channel, Message, Workspace } from "../../types/slack"
 
@@ -79,6 +79,27 @@ export interface InfoResponse {
 export function conversationsInfo(ws: Workspace, args: InfoArgs): InfoResponse {
   const ch = resolveChannel(ws, args.channel)
   return { ok: true, channel: ch }
+}
+
+export interface RepliesArgs {
+  channel: string
+  ts: string
+  latest?: string
+  oldest?: string
+  inclusive?: boolean
+  limit?: number
+}
+
+export interface RepliesResponse {
+  ok: true
+  messages: Message[]
+  has_more: boolean
+}
+
+export function conversationsReplies(ws: Workspace, args: RepliesArgs): RepliesResponse {
+  const ch = resolveChannel(ws, args.channel)
+  const { messages, has_more } = listReplies(ch, args.ts, args)
+  return { ok: true, messages, has_more }
 }
 
 // ---------------------------------------------------------------------------

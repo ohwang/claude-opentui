@@ -23,6 +23,7 @@ import {
   conversationsHistory,
   conversationsInfo,
   conversationsList,
+  conversationsReplies,
 } from "./methods/conversations"
 import {
   usersConversations,
@@ -219,6 +220,17 @@ async function dispatchApi(req: Request, method: string, ctx: HttpContext): Prom
         )
       case "conversations.info":
         return slackOk(conversationsInfo(ctx.ws, { channel: str(args.channel) }))
+      case "conversations.replies":
+        return slackOk(
+          conversationsReplies(ctx.ws, {
+            channel: str(args.channel),
+            ts: str(args.ts),
+            latest: args.latest as string | undefined,
+            oldest: args.oldest as string | undefined,
+            inclusive: toBool(args.inclusive),
+            limit: toNum(args.limit),
+          }),
+        )
       case "users.list":
         return slackOk(
           usersList(ctx.ws, {

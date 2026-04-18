@@ -13,6 +13,7 @@ import type { RegisteredApp } from "../core/workspace"
 import { createEventBus, type EventBus, type EventFilter, type Unsubscribe } from "../core/events"
 import { handleHttp, createSocketsRegistry } from "../server/http"
 import { buildWebSocketHandler, type WsData } from "../server/websocket"
+import { buildWebBundle, type WebBundle } from "../server/web-bundle"
 import type { Workspace, User, Channel, Message } from "../types/slack"
 import type { SlackEvent } from "../types/events"
 import { applyFixture, type FixtureName } from "./fixtures"
@@ -71,6 +72,17 @@ export async function startMinislack(opts: StartMinislackOpts = {}): Promise<Min
 
   const sockets = createSocketsRegistry()
 
+  let web: WebBundle | undefined
+  if (opts.serveWeb !== false) {
+    try {
+      web = await buildWebBundle()
+    } catch (err) {
+      // Surface the bundler error up front so it's never mysterious.
+      console.error("[minislack] web bundle failed:", err)
+      throw err
+    }
+  }
+
   let resolvedPort = 0
   let wsBase = ""
   const server: Server<WsData> = Bun.serve<WsData>({
@@ -88,6 +100,7 @@ export async function startMinislack(opts: StartMinislackOpts = {}): Promise<Min
         bus,
         sockets,
         wsBase: () => wsBase,
+        web,
       })
     },
     websocket: buildWebSocketHandler({ ws, bus, sockets }),

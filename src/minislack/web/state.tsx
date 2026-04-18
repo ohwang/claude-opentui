@@ -1,0 +1,244 @@
+/** @jsxImportSource solid-js */
+/**
+ * Client-side state. Two providers:
+ *
+ *   SessionContext    — current user + token, backed by sessionStorage so
+ *                       each browser tab is its own "user" without cookies.
+ *   WorkspaceContext  — users, channels, and a messages-by-channel store
+ *                       that folds SSE events in as they arrive.
+ *
+ * Mirrors bantai's provider-per-domain pattern and the reducer-fed store
+ * used in `src/frontends/tui/context/sync.tsx`. Different framework output,
+ * same shape.
+ */
+
+import { createContext, useContext, createSignal, onCleanup, batch, type ParentComponent, type Accessor } from "solid-js"
+import { createStore, produce, type SetStoreFunction } from "solid-js/store"
+import { getWorkspace, getUserToken, type WorkspaceSummary } from "./api"
+import { subscribeEvents } from "./events"
+import type { Channel, Message, User } from "../types/slack"
+import type { MessageEvent, SlackEvent } from "../types/events"
+
+// ---------------------------------------------------------------------------
+// Session — current user + token (per tab)
+// ---------------------------------------------------------------------------
+
+const SESSION_KEY = "minislack.session.v1"
+
+interface SessionRecord {
+  userId: string
+  token: string
+}
+
+interface SessionValue {
+  current: Accessor<SessionRecord | null>
+  login(userId: string): Promise<void>
+  loginWith(record: SessionRecord): void
+  logout(): void
+}
+
+const SessionContext = createContext<SessionValue>()
+
+export const SessionProvider: ParentComponent = (props) => {
+  const [current, setCurrent] = createSignal<SessionRecord | null>(readSession())
+
+  const value: SessionValue = {
+    current,
+    async login(userId) {
+      const token = await getUserToken(userId)
+      const record = { userId, token }
+      persistSession(record)
+      setCurrent(record)
+    },
+    loginWith(record) {
+      persistSession(record)
+      setCurrent(record)
+    },
+    logout() {
+      sessionStorage.removeItem(SESSION_KEY)
+      setCurrent(null)
+    },
+  }
+  return <SessionContext.Provider value={value}>{props.children}</SessionContext.Provider>
+}
+
+export function useSession(): SessionValue {
+  const ctx = useContext(SessionContext)
+  if (!ctx) throw new Error("useSession outside SessionProvider")
+  return ctx
+}
+
+function readSession(): SessionRecord | null {
+  try {
+    const raw = sessionStorage.getItem(SESSION_KEY)
+    if (!raw) return null
+    return JSON.parse(raw) as SessionRecord
+  } catch {
+    return null
+  }
+}
+
+function persistSession(record: SessionRecord): void {
+  sessionStorage.setItem(SESSION_KEY, JSON.stringify(record))
+}
+
+// ---------------------------------------------------------------------------
+// Workspace store — driven by an initial fetch + SSE events.
+// ---------------------------------------------------------------------------
+
+export interface WorkspaceState {
+  loaded: boolean
+  team: WorkspaceSummary["team"] | null
+  users: User[]
+  usersById: Record<string, User>
+  channels: Channel[]
+  channelsById: Record<string, Channel>
+  messagesByChannel: Record<string, Message[]>
+  selectedChannel: string | null
+  error: string | null
+}
+
+interface WorkspaceValue {
+  state: WorkspaceState
+  selectChannel(channelId: string): void
+  refresh(): Promise<void>
+  mergeMessages(channelId: string, messages: Message[]): void
+}
+
+const WorkspaceContext = createContext<WorkspaceValue>()
+
+export const WorkspaceProvider: ParentComponent = (props) => {
+  const [state, setState] = createStore<WorkspaceState>({
+    loaded: false,
+    team: null,
+    users: [],
+    usersById: {},
+    channels: [],
+    channelsById: {},
+    messagesByChannel: {},
+    selectedChannel: null,
+    error: null,
+  })
+
+  async function refresh(): Promise<void> {
+    try {
+      const summary = await getWorkspace()
+      batch(() => {
+        setState(
+          produce((s) => {
+            s.team = summary.team
+            s.users = summary.users
+            s.usersById = Object.fromEntries(summary.users.map((u) => [u.id, u]))
+            s.channels = summary.channels
+            s.channelsById = Object.fromEntries(summary.channels.map((c) => [c.id, c]))
+            s.loaded = true
+            s.error = null
+            if (!s.selectedChannel && summary.channels.length > 0) {
+              const firstChannel = summary.channels[0]
+              if (firstChannel) s.selectedChannel = firstChannel.id
+            }
+          }),
+        )
+      })
+    } catch (err) {
+      setState("error", err instanceof Error ? err.message : String(err))
+    }
+  }
+
+  const unsubscribe = subscribeEvents((evt) => applyEvent(setState, evt))
+  onCleanup(() => unsubscribe())
+
+  const value: WorkspaceValue = {
+    state,
+    selectChannel(channelId) { setState("selectedChannel", channelId) },
+    refresh,
+    mergeMessages(channelId, messages) {
+      setState(
+        produce((s) => {
+          const existing = s.messagesByChannel[channelId] ?? []
+          const byTs = new Map<string, Message>()
+          for (const m of existing) byTs.set(m.ts, m)
+          for (const m of messages) byTs.set(m.ts, m)
+          s.messagesByChannel[channelId] = Array.from(byTs.values()).sort((a, b) =>
+            a.ts < b.ts ? -1 : a.ts > b.ts ? 1 : 0,
+          )
+        }),
+      )
+    },
+  }
+
+  refresh()
+
+  return <WorkspaceContext.Provider value={value}>{props.children}</WorkspaceContext.Provider>
+}
+
+export function useWorkspace(): WorkspaceValue {
+  const ctx = useContext(WorkspaceContext)
+  if (!ctx) throw new Error("useWorkspace outside WorkspaceProvider")
+  return ctx
+}
+
+// ---------------------------------------------------------------------------
+// Event reducer — folds SlackEvents into the workspace store.
+// ---------------------------------------------------------------------------
+
+function applyEvent(setState: SetStoreFunction<WorkspaceState>, evt: SlackEvent): void {
+  switch (evt.type) {
+    case "message": {
+      if (evt.subtype === "message_changed" || evt.subtype === "message_deleted") return
+      const msg = messageFromEvent(evt as MessageEvent)
+      setState(
+        produce((s) => {
+          const list = s.messagesByChannel[evt.channel] ?? []
+          const idx = list.findIndex((m) => m.ts === msg.ts)
+          if (idx >= 0) list[idx] = msg
+          else list.push(msg)
+          list.sort((a, b) => (a.ts < b.ts ? -1 : a.ts > b.ts ? 1 : 0))
+          s.messagesByChannel[evt.channel] = list
+        }),
+      )
+      return
+    }
+    case "channel_created": {
+      setState(
+        produce((s) => {
+          // Server-side type may include more fields; we merge what we got.
+          const ch = evt.channel as unknown as Channel
+          s.channelsById[ch.id] = ch
+          if (!s.channels.find((c) => c.id === ch.id)) s.channels.push(ch)
+        }),
+      )
+      return
+    }
+    case "member_joined_channel":
+    case "member_left_channel":
+    case "reaction_added":
+    case "reaction_removed":
+    case "im_open":
+    case "im_close":
+    case "file_shared":
+    case "app_mention":
+    case "channel_rename":
+      // Phase 4+ will flesh these out. v0 UI ignores safely.
+      return
+  }
+}
+
+function messageFromEvent(evt: MessageEvent): Message {
+  return {
+    type: "message",
+    ts: evt.ts,
+    channel: evt.channel,
+    user: evt.user,
+    text: evt.text,
+    ...(evt.bot_id ? { bot_id: evt.bot_id } : {}),
+    ...(evt.app_id ? { app_id: evt.app_id } : {}),
+    ...(evt.subtype ? { subtype: evt.subtype } : {}),
+    ...(evt.thread_ts ? { thread_ts: evt.thread_ts } : {}),
+    ...(evt.blocks ? { blocks: evt.blocks } : {}),
+    ...(evt.attachments ? { attachments: evt.attachments } : {}),
+    ...(evt.files ? { files: evt.files } : {}),
+    ...(evt.client_msg_id ? { client_msg_id: evt.client_msg_id } : {}),
+    ...(evt.reactions ? { reactions: evt.reactions } : {}),
+  }
+}

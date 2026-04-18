@@ -31,7 +31,7 @@ interface AppEnvelope {
 let handle: MinislackHandle
 
 beforeEach(async () => {
-  handle = await startMinislack({ port: 0 })
+  handle = await startMinislack({ port: 0, serveWeb: false })
   // Seed a workspace minimally — the roundtrip test drives everything via the API.
   const alice = createUser(handle.workspace, { name: "alice", real_name: "Alice" })
   createPublicChannel(handle.workspace, {

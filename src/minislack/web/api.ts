@@ -1,0 +1,103 @@
+/**
+ * Thin fetch wrappers around /api/* (Slack-protocol surface) and
+ * /_minislack/* (internal SPA surface).
+ *
+ * Slack responses come back as { ok: boolean, error?: string, ...payload }.
+ * We throw on ok:false so callers don't need to check every result.
+ */
+
+import type { Channel, Message, User, Workspace } from "../types/slack"
+
+export class SlackApiError extends Error {
+  readonly code: string
+  constructor(code: string) {
+    super(`slack api error: ${code}`)
+    this.code = code
+    this.name = "SlackApiError"
+  }
+}
+
+async function callSlack<T>(path: string, token: string | undefined, body?: unknown): Promise<T> {
+  const init: RequestInit = {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(body ?? {}),
+  }
+  const res = await fetch(path, init)
+  const data = (await res.json()) as { ok: boolean; error?: string; [k: string]: unknown }
+  if (!data.ok) throw new SlackApiError(data.error ?? "unknown_error")
+  return data as unknown as T
+}
+
+async function callInternal<T>(path: string): Promise<T> {
+  const res = await fetch(path)
+  if (!res.ok) throw new Error(`internal api ${path}: ${res.status}`)
+  return (await res.json()) as T
+}
+
+// ---------------------------------------------------------------------------
+// Slack-protocol wrappers
+// ---------------------------------------------------------------------------
+
+export interface HistoryResp { ok: true; channel: string; messages: Message[]; has_more: boolean }
+
+export function authTest(token: string) {
+  return callSlack<{ ok: true; user: string; user_id: string; team: string }>("/api/auth.test", token)
+}
+
+export function postMessage(token: string, channel: string, text: string, thread_ts?: string) {
+  return callSlack<{ ok: true; channel: string; ts: string; message: Message }>(
+    "/api/chat.postMessage",
+    token,
+    { channel, text, ...(thread_ts ? { thread_ts } : {}) },
+  )
+}
+
+export function conversationsList(token: string) {
+  return callSlack<{ ok: true; channels: Channel[] }>(
+    "/api/conversations.list",
+    token,
+    { types: "public_channel,private_channel,mpim,im" },
+  )
+}
+
+export function conversationsHistory(token: string, channel: string, limit = 200) {
+  return callSlack<HistoryResp>("/api/conversations.history", token, { channel, limit })
+}
+
+// ---------------------------------------------------------------------------
+// Internal /_minislack/* (no auth — dev tool on localhost)
+// ---------------------------------------------------------------------------
+
+export interface WorkspaceSummary {
+  team: Workspace["team"]
+  users: User[]
+  channels: Channel[]
+}
+
+export function getWorkspace() {
+  return callInternal<WorkspaceSummary>("/_minislack/workspace")
+}
+
+export function createNewUser(name: string) {
+  return fetch("/_minislack/users", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  }).then(async (r) => {
+    const body = (await r.json()) as { ok: boolean; user?: User; token?: string; error?: string }
+    if (!body.ok || !body.user || !body.token) throw new Error(body.error ?? "create_user_failed")
+    return body
+  })
+}
+
+export function getUserToken(userId: string) {
+  return fetch(`/_minislack/token/${userId}`).then(async (r) => {
+    const body = (await r.json()) as { ok: boolean; token?: string; error?: string }
+    if (!body.ok || !body.token) throw new Error(body.error ?? "token_fetch_failed")
+    return body.token
+  })
+}

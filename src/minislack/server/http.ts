@@ -10,7 +10,8 @@
  */
 
 import { MinislackError } from "../core/channels"
-import { extractBearer, resolveToken, type AuthContext } from "./auth"
+import { createUser } from "../core/workspace"
+import { extractBearer, resolveToken, userTokenForUser, type AuthContext } from "./auth"
 import { authTest } from "./methods/auth"
 import {
   appsConnectionsOpen,
@@ -23,7 +24,9 @@ import {
   conversationsInfo,
   conversationsList,
 } from "./methods/conversations"
-import type { Workspace } from "../types/slack"
+import { sseEventsResponse } from "./internal-events"
+import type { WebBundle } from "./web-bundle"
+import type { Channel, User, Workspace } from "../types/slack"
 import type { EventBus } from "../core/events"
 
 export interface HttpContext {
@@ -32,6 +35,8 @@ export interface HttpContext {
   sockets: SocketRegistry
   /** The base ws:// URL for apps.connections.open. */
   wsBase: () => string
+  /** Optional web bundle for the SPA. When absent, / returns a plain text notice. */
+  web?: WebBundle
 }
 
 export function createSocketsRegistry(): SocketRegistry {
@@ -52,20 +57,105 @@ export async function handleHttp(req: Request, ctx: HttpContext): Promise<Respon
     return dispatchApi(req, pathname.slice("/api/".length), ctx)
   }
 
-  // Phase 2 hooks — not yet implemented but reserve the paths
+  // Internal (dev tool) endpoints
   if (pathname === "/_minislack/events") {
-    return new Response("SSE not yet implemented", { status: 501 })
+    return sseEventsResponse(ctx.bus)
   }
   if (pathname.startsWith("/_minislack/")) {
-    return new Response("not implemented", { status: 501 })
+    return handleInternal(req, pathname, ctx)
   }
+
+  // Static assets served from the web bundle (index.html, main.js, app.css)
+  if (ctx.web) {
+    const asset = ctx.web.get(pathname)
+    if (asset) {
+      return new Response(asset.body, {
+        status: 200,
+        headers: { "Content-Type": asset.contentType, "Cache-Control": "no-cache" },
+      })
+    }
+  }
+
   if (pathname === "/") {
-    return new Response("minislack — web UI pending (Phase 2)", { status: 200, headers: { "Content-Type": "text/plain" } })
+    return new Response("minislack — web UI disabled (--no-web). Use /api/* for the Slack-protocol surface.", {
+      status: 200,
+      headers: { "Content-Type": "text/plain" },
+    })
   }
   if (pathname === "/healthz") {
     return new Response("ok", { status: 200 })
   }
   return new Response("Not Found", { status: 404 })
+}
+
+async function handleInternal(req: Request, pathname: string, ctx: HttpContext): Promise<Response> {
+  try {
+    if (pathname === "/_minislack/workspace" && req.method === "GET") {
+      return jsonOk(workspaceSummary(ctx.ws))
+    }
+    if (pathname === "/_minislack/users" && req.method === "POST") {
+      const body = (await safeJson(req)) as { name?: string; real_name?: string; email?: string } | null
+      const name = body?.name?.trim()
+      if (!name) return jsonErr("missing_name", 400)
+      const u = createUser(ctx.ws, {
+        name,
+        real_name: body?.real_name,
+        email: body?.email,
+      })
+      return jsonOk({ user: u, token: userTokenForUser(u.id) })
+    }
+    if (pathname.startsWith("/_minislack/token/") && req.method === "GET") {
+      const userId = pathname.slice("/_minislack/token/".length)
+      const u = ctx.ws.users.get(userId)
+      if (!u) return jsonErr("user_not_found", 404)
+      return jsonOk({ token: userTokenForUser(u.id) })
+    }
+    return new Response("not found", { status: 404 })
+  } catch (err) {
+    console.error("[minislack] internal route error:", err)
+    return jsonErr("internal_error", 500)
+  }
+}
+
+function workspaceSummary(ws: Workspace): {
+  team: Workspace["team"]
+  users: User[]
+  channels: Channel[]
+} {
+  return {
+    team: ws.team,
+    users: Array.from(ws.users.values()),
+    channels: Array.from(ws.channels.values()).map(stripMessages),
+  }
+}
+
+function stripMessages(ch: Channel): Channel {
+  // The SPA doesn't consume stored messages through /_minislack/workspace —
+  // it fetches per-channel via conversations.history instead. Strip the
+  // Map<ts, Message> to keep the payload lean and JSON-serializable.
+  return { ...ch, messages: new Map() as Channel["messages"] }
+}
+
+async function safeJson(req: Request): Promise<unknown> {
+  try {
+    return await req.json()
+  } catch {
+    return null
+  }
+}
+
+function jsonOk(payload: object): Response {
+  return new Response(JSON.stringify({ ok: true, ...payload }), {
+    status: 200,
+    headers: { "Content-Type": "application/json; charset=utf-8" },
+  })
+}
+
+function jsonErr(code: string, status: number): Response {
+  return new Response(JSON.stringify({ ok: false, error: code }), {
+    status,
+    headers: { "Content-Type": "application/json; charset=utf-8" },
+  })
 }
 
 async function dispatchApi(req: Request, method: string, ctx: HttpContext): Promise<Response> {

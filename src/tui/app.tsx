@@ -6,7 +6,7 @@
  */
 
 import { render, useKeyboard, useRenderer } from "@opentui/solid"
-import { TextAttributes } from "@opentui/core"
+import { TextAttributes, type Selection } from "@opentui/core"
 import { createSignal, createEffect, on, onCleanup, ErrorBoundary, Show } from "solid-js"
 import type { AgentBackend, SessionConfig } from "../protocol/types"
 import { log } from "../utils/logger"
@@ -182,6 +182,21 @@ function Layout(props: { onExit?: () => void }) {
       })
     }
   }
+
+  // Auto-copy on selection end. OpenTUI emits "selection" once per gesture,
+  // at mouse-release (finishSelection → isDragging:false → emit). Wiring
+  // this up means drag-select writes directly to the clipboard — no Cmd+C
+  // required. This is the only path that works in terminals that don't
+  // forward Cmd+C to the app (Apple Terminal, iTerm2 without Kitty
+  // keyboard protocol enabled, etc.); the existing Cmd+C / Ctrl+C
+  // handlers below remain as a redundant fast-path for terminals that do.
+  const onSelection = (selection: Selection) => {
+    if (!selection || !selection.isActive || selection.isDragging) return
+    const text = selection.getSelectedText()
+    if (text) copyText(text)
+  }
+  renderer.on("selection", onSelection)
+  onCleanup(() => renderer.off("selection", onSelection))
 
   const cleanExit = (reason: string) => {
     log.info("Clean exit", { reason })

@@ -10,6 +10,7 @@ import { assertMember, MinislackError } from "./channels"
 import { nextTs, compareTs } from "./ts"
 import type {
   Channel,
+  File,
   Message,
   Workspace,
 } from "../types/slack"
@@ -29,6 +30,8 @@ export interface PostMessageOpts {
   client_msg_id?: string
   /** Injectable clock for deterministic tests. */
   now?: () => number
+  /** Files attached to this message (Phase 7). */
+  files?: File[]
 }
 
 export interface PostMessageResult {
@@ -51,8 +54,13 @@ export function postMessageDetailed(ws: Workspace, opts: PostMessageOpts): PostM
   if (!ch) throw new MinislackError("channel_not_found", opts.channelId)
   assertMember(ch, opts.userId)
 
-  if (opts.text.trim().length === 0 && !opts.blocks && !opts.attachments) {
-    throw new MinislackError("no_text", "message must have text, blocks, or attachments")
+  if (
+    opts.text.trim().length === 0 &&
+    !opts.blocks &&
+    !opts.attachments &&
+    !(opts.files && opts.files.length > 0)
+  ) {
+    throw new MinislackError("no_text", "message must have text, blocks, attachments, or files")
   }
 
   // Resolve the thread parent before minting a ts so we can reject broken
@@ -89,6 +97,7 @@ export function postMessageDetailed(ws: Workspace, opts: PostMessageOpts): PostM
     ...(opts.attachments ? { attachments: opts.attachments } : {}),
     ...(effectiveThreadTs ? { thread_ts: effectiveThreadTs } : {}),
     ...(opts.client_msg_id ? { client_msg_id: opts.client_msg_id } : {}),
+    ...(opts.files && opts.files.length > 0 ? { files: [...opts.files] } : {}),
   }
   ch.messages.set(ts, msg)
 

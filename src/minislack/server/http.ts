@@ -11,6 +11,7 @@
 
 import { MinislackError } from "../core/channels"
 import { createUser } from "../core/workspace"
+import { getFileBytes, storePendingBytes } from "../core/files"
 import { extractBearer, resolveToken, userTokenForUser, type AuthContext } from "./auth"
 import { authTest } from "./methods/auth"
 import {
@@ -36,6 +37,12 @@ import {
   usersList,
   usersProfileGet,
 } from "./methods/users"
+import {
+  filesCompleteUploadExternal,
+  filesGetUploadURLExternal,
+  filesInfo,
+  filesUploadV1,
+} from "./methods/files"
 import { sseEventsResponse } from "./internal-events"
 import type { WebBundle } from "./web-bundle"
 import type { Channel, User, Workspace } from "../types/slack"
@@ -47,6 +54,8 @@ export interface HttpContext {
   sockets: SocketRegistry
   /** The base ws:// URL for apps.connections.open. */
   wsBase: () => string
+  /** The base http:// URL for file URLs and external upload URLs. */
+  baseHttp: () => string
   /** Optional web bundle for the SPA. When absent, / returns a plain text notice. */
   web?: WebBundle
 }
@@ -67,6 +76,33 @@ export async function handleHttp(req: Request, ctx: HttpContext): Promise<Respon
   // Method routing
   if (pathname.startsWith("/api/")) {
     return dispatchApi(req, pathname.slice("/api/".length), ctx)
+  }
+
+  // File serving — raw bytes keyed by file id.
+  if (pathname.startsWith("/files/") && req.method === "GET") {
+    const id = pathname.slice("/files/".length).split("?")[0] ?? ""
+    const file = ctx.ws.files.get(id)
+    const bytes = getFileBytes(ctx.ws, id)
+    if (!file || !bytes) return new Response("file not found", { status: 404 })
+    return new Response(bytes, {
+      status: 200,
+      headers: {
+        "Content-Type": file.mimetype || "application/octet-stream",
+        "Content-Length": String(bytes.byteLength),
+        "Cache-Control": "no-cache",
+      },
+    })
+  }
+
+  // v2 upload — the externally-addressable byte PUT target. Never called by
+  // the Slack API dispatch above; its URL is handed out by
+  // files.getUploadURLExternal and the client PUTs raw bytes here.
+  if (pathname.startsWith("/_files/upload/") && req.method === "PUT") {
+    const token = pathname.slice("/_files/upload/".length).split("?")[0] ?? ""
+    const bytes = new Uint8Array(await req.arrayBuffer())
+    const ok = storePendingBytes(ctx.ws, token, bytes)
+    if (!ok) return new Response("unknown upload token", { status: 404 })
+    return new Response("OK", { status: 200 })
   }
 
   // Internal (dev tool) endpoints
@@ -172,7 +208,20 @@ function jsonErr(code: string, status: number): Response {
 
 async function dispatchApi(req: Request, method: string, ctx: HttpContext): Promise<Response> {
   try {
-    const args = await readArgs(req)
+    // files.upload needs the raw Request (multipart) — don't pre-parse.
+    // We still need the token up front for auth, but that comes from headers
+    // or a form field we can peek at after multipart parsing inside the
+    // handler. For uniform auth, extract from the Authorization header here
+    // and fall through with an already-consumed body for non-upload methods.
+    const isMultipartUpload = method === "files.upload"
+
+    let args: Record<string, unknown>
+    if (isMultipartUpload) {
+      args = {}
+    } else {
+      args = await readArgs(req)
+    }
+
     const authHeader = req.headers.get("authorization")
     const token = extractBearer(authHeader) ?? (typeof args.token === "string" ? args.token : undefined)
     const authResult = resolveToken(ctx.ws, token)
@@ -301,6 +350,38 @@ async function dispatchApi(req: Request, method: string, ctx: HttpContext): Prom
             user: args.user as string | undefined,
           }),
         )
+      case "files.upload":
+        return slackOk(await filesUploadV1(ctx.ws, ctx.bus, auth, req, ctx.baseHttp))
+      case "files.getUploadURLExternal":
+        return slackOk(
+          filesGetUploadURLExternal(
+            ctx.ws,
+            auth,
+            {
+              filename: args.filename as string | undefined,
+              length: args.length as number | string | undefined,
+            },
+            ctx.baseHttp,
+          ),
+        )
+      case "files.completeUploadExternal":
+        return slackOk(
+          filesCompleteUploadExternal(
+            ctx.ws,
+            ctx.bus,
+            auth,
+            {
+              files: args.files as Array<{ id: string; title?: string }>,
+              channels: args.channels as string | undefined,
+              channel_id: args.channel_id as string | undefined,
+              thread_ts: args.thread_ts as string | undefined,
+              initial_comment: args.initial_comment as string | undefined,
+            },
+            ctx.baseHttp,
+          ),
+        )
+      case "files.info":
+        return slackOk(filesInfo(ctx.ws, { file: str(args.file) }))
       default:
         return slackError("unknown_method")
     }

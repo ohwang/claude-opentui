@@ -40,3 +40,13 @@ export {
   deleteMessage,
 } from "./core/messages"
 export { addReaction, removeReaction, getReactions } from "./core/reactions"
+export {
+  createFileRecord,
+  getFileBytes,
+  attachFileToMessage,
+  reserveUpload,
+  storePendingBytes,
+  peekPending,
+  consumePending,
+  mimeToFiletype,
+} from "./core/files"

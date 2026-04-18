@@ -6,7 +6,7 @@
  * We throw on ok:false so callers don't need to check every result.
  */
 
-import type { Channel, Message, User, Workspace } from "../types/slack"
+import type { Channel, File as SlackFile, Message, User, Workspace } from "../types/slack"
 
 export class SlackApiError extends Error {
   readonly code: string
@@ -66,6 +66,38 @@ export function conversationsList(token: string) {
 
 export function conversationsHistory(token: string, channel: string, limit = 200) {
   return callSlack<HistoryResp>("/api/conversations.history", token, { channel, limit })
+}
+
+export interface FilesUploadResp {
+  ok: true
+  file: SlackFile
+}
+
+/**
+ * v1 multipart `files.upload`. `channel` is a comma-separated list of channel
+ * ids (Slack convention). `initialComment` is posted as a message alongside
+ * the file attachment.
+ */
+export async function uploadFile(
+  token: string,
+  channels: string,
+  file: File | Blob,
+  filename: string,
+  initialComment?: string,
+): Promise<FilesUploadResp> {
+  const fd = new FormData()
+  fd.append("channels", channels)
+  fd.append("filename", filename)
+  if (initialComment) fd.append("initial_comment", initialComment)
+  fd.append("file", file, filename)
+  const res = await fetch("/api/files.upload", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: fd,
+  })
+  const data = (await res.json()) as { ok: boolean; error?: string; [k: string]: unknown }
+  if (!data.ok) throw new SlackApiError(data.error ?? "unknown_error")
+  return data as unknown as FilesUploadResp
 }
 
 // ---------------------------------------------------------------------------

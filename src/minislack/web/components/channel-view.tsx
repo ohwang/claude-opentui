@@ -2,8 +2,8 @@
 
 import { createEffect, createSignal, For, Show } from "solid-js"
 import { useSession, useWorkspace } from "../state"
-import { conversationsHistory, postMessage } from "../api"
-import type { Message } from "../../types/slack"
+import { conversationsHistory, postMessage, uploadFile } from "../api"
+import type { File as SlackFile, Message } from "../../types/slack"
 
 export function ChannelView() {
   const ws = useWorkspace()
@@ -63,6 +63,23 @@ export function ChannelView() {
     }
   }
 
+  async function onFileDrop(files: FileList, initialComment: string) {
+    const channelId = ws.state.selectedChannel
+    const current = session.current()
+    if (!channelId || !current || files.length === 0) return
+    setPosting(true)
+    setError(null)
+    try {
+      for (const file of Array.from(files)) {
+        await uploadFile(current.token, channelId, file, file.name, initialComment)
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setPosting(false)
+    }
+  }
+
   return (
     <section class="channel-panel">
       <header class="channel-header">
@@ -82,7 +99,11 @@ export function ChannelView() {
           <For each={messages()}>{(m) => <MessageRow msg={m} />}</For>
         </Show>
       </div>
-      <Composer onSubmit={onSubmit} disabled={posting() || !ws.state.selectedChannel} />
+      <Composer
+        onSubmit={onSubmit}
+        onFileDrop={onFileDrop}
+        disabled={posting() || !ws.state.selectedChannel}
+      />
       <Show when={error()}>
         <div class="toast">{error()}</div>
       </Show>
@@ -100,6 +121,7 @@ function MessageRow(props: { msg: Message }) {
     return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
   }
   const isBot = () => !!author()?.is_bot || !!props.msg.bot_id
+  const files = () => props.msg.files ?? []
   return (
     <div class="msg">
       <div classList={{ avatar: true, bot: isBot() }}>
@@ -111,14 +133,53 @@ function MessageRow(props: { msg: Message }) {
           <Show when={isBot()}><span class="msg-bot-tag">APP</span></Show>
           <span class="msg-time">{when()}</span>
         </div>
-        <div class="msg-text">{props.msg.text}</div>
+        <Show when={props.msg.text}>
+          <div class="msg-text">{props.msg.text}</div>
+        </Show>
+        <Show when={files().length > 0}>
+          <div class="msg-files">
+            <For each={files()}>{(f) => <FileView file={f} />}</For>
+          </div>
+        </Show>
       </div>
     </div>
   )
 }
 
-function Composer(props: { onSubmit: (text: string) => void; disabled?: boolean }) {
+function FileView(props: { file: SlackFile }) {
+  const isImage = () => props.file.mimetype?.startsWith("image/")
+  return (
+    <Show
+      when={isImage()}
+      fallback={
+        <a
+          class="msg-file-link"
+          href={props.file.url_private}
+          download={props.file.name}
+        >
+          {props.file.name}
+        </a>
+      }
+    >
+      <a href={props.file.url_private} target="_blank" rel="noreferrer">
+        <img
+          class="msg-image"
+          src={props.file.url_private}
+          alt={props.file.name}
+          style="max-width: 400px; max-height: 400px;"
+        />
+      </a>
+    </Show>
+  )
+}
+
+function Composer(props: {
+  onSubmit: (text: string) => void
+  onFileDrop: (files: FileList, initialComment: string) => void
+  disabled?: boolean
+}) {
   const [value, setValue] = createSignal("")
+  const [dragging, setDragging] = createSignal(false)
   function submit(e: Event) {
     e.preventDefault()
     const text = value().trim()
@@ -126,12 +187,29 @@ function Composer(props: { onSubmit: (text: string) => void; disabled?: boolean 
     props.onSubmit(text)
     setValue("")
   }
+  function onDrop(e: DragEvent) {
+    e.preventDefault()
+    setDragging(false)
+    const files = e.dataTransfer?.files
+    if (!files || files.length === 0 || props.disabled) return
+    const comment = value().trim()
+    props.onFileDrop(files, comment)
+    setValue("")
+  }
   return (
-    <div class="composer">
+    <div
+      classList={{ composer: true, "composer-dragging": dragging() }}
+      onDragOver={(e) => {
+        e.preventDefault()
+        setDragging(true)
+      }}
+      onDragLeave={() => setDragging(false)}
+      onDrop={onDrop}
+    >
       <form onSubmit={submit}>
         <input
           type="text"
-          placeholder="Message the channel"
+          placeholder="Message the channel (drop files to upload)"
           value={value()}
           onInput={(e) => setValue(e.currentTarget.value)}
           disabled={props.disabled}
@@ -140,6 +218,9 @@ function Composer(props: { onSubmit: (text: string) => void; disabled?: boolean 
           Send
         </button>
       </form>
+      <Show when={dragging()}>
+        <div class="composer-drop-hint">Drop file to upload</div>
+      </Show>
     </div>
   )
 }

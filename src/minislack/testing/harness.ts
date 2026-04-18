@@ -85,6 +85,7 @@ export async function startMinislack(opts: StartMinislackOpts = {}): Promise<Min
 
   let resolvedPort = 0
   let wsBase = ""
+  let baseHttp = ""
   const server: Server<WsData> = Bun.serve<WsData>({
     port: opts.port ?? 0,
     // SSE streams must outlive Bun's default 10s idle timeout.
@@ -102,6 +103,7 @@ export async function startMinislack(opts: StartMinislackOpts = {}): Promise<Min
         bus,
         sockets,
         wsBase: () => wsBase,
+        baseHttp: () => baseHttp,
         web,
       })
     },
@@ -109,7 +111,7 @@ export async function startMinislack(opts: StartMinislackOpts = {}): Promise<Min
   })
   resolvedPort = server.port ?? 0
   const host = server.hostname === "0.0.0.0" || server.hostname === "::" ? "localhost" : server.hostname
-  const baseHttp = `http://${host}:${resolvedPort}`
+  baseHttp = `http://${host}:${resolvedPort}`
   wsBase = `ws://${host}:${resolvedPort}`
 
   const handle: MinislackHandle = {

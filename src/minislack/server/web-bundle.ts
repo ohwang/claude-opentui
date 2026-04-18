@@ -1,19 +1,53 @@
 /**
  * Build the SPA once at launcher boot and hold each output in memory.
  *
- * We use Bun.build with target="browser". The preload in bunfig.toml
- * (@opentui/solid/preload) is a Bun runtime preload — it does NOT affect
- * Bun.build's transpilation pipeline, so the browser bundle gets Solid's
- * default JSX transform via the per-file @jsxImportSource pragma.
+ * Bun's built-in transpiler doesn't understand Solid's reactive JSX — its
+ * default JSX transform emits React.createElement calls ("React is not
+ * defined" at runtime). So we wire a Bun plugin that runs
+ * `babel-preset-solid` with `generate: "dom"` + `moduleName: "solid-js/web"`
+ * over every .tsx/.jsx in the entrypoint graph. `@opentui/solid` pulls the
+ * babel toolchain in as a transitive dep, so we don't add new top-level deps.
  */
 
 import { fileURLToPath } from "node:url"
 import { dirname, join } from "node:path"
 import { readFile } from "node:fs/promises"
+import type { BunPlugin } from "bun"
+// @ts-expect-error — no types, re-exported through @opentui/solid's transitive deps
+import { transformAsync } from "@babel/core"
+// @ts-expect-error — no types
+import solidPreset from "babel-preset-solid"
+// @ts-expect-error — no types
+import tsPreset from "@babel/preset-typescript"
 
 const here = dirname(fileURLToPath(import.meta.url))
 // src/minislack/server/ -> src/minislack/web/
 const WEB_ROOT = join(here, "..", "web")
+
+function solidBrowserPlugin(): BunPlugin {
+  return {
+    name: "minislack-solid-browser",
+    setup(build) {
+      build.onLoad({ filter: /\.(j|t)sx$/ }, async (args) => {
+        const path = args.path.split("?")[0]!.split("#")[0]!
+        const code = await Bun.file(path).text()
+        const result = await transformAsync(code, {
+          filename: path,
+          configFile: false,
+          babelrc: false,
+          presets: [
+            [solidPreset, { moduleName: "solid-js/web", generate: "dom" }],
+            [tsPreset],
+          ],
+        })
+        return {
+          contents: (result?.code ?? "") as string,
+          loader: "js",
+        }
+      })
+    },
+  }
+}
 
 export interface WebBundle {
   get(path: string): { body: Uint8Array; contentType: string } | undefined
@@ -29,6 +63,7 @@ export async function buildWebBundle(): Promise<WebBundle> {
     format: "esm",
     minify: false,
     sourcemap: "inline",
+    plugins: [solidBrowserPlugin()],
     naming: {
       entry: "main.js",
       chunk: "[name]-[hash].js",

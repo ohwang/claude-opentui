@@ -87,6 +87,8 @@ export async function startMinislack(opts: StartMinislackOpts = {}): Promise<Min
   let wsBase = ""
   const server: Server<WsData> = Bun.serve<WsData>({
     port: opts.port ?? 0,
+    // SSE streams must outlive Bun's default 10s idle timeout.
+    idleTimeout: 0,
     async fetch(req, srv) {
       const url = new URL(req.url)
       if (url.pathname.startsWith("/link/")) {

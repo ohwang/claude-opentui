@@ -182,14 +182,19 @@ export function StatusBar(props: { hint?: string | null }) {
   const activePreset = createMemo(() => resolveStatusBar(activeStatusBarId()).preset)
 
   // -- Permission mode color (line 2) --
+  // Each mode gets a visually distinct dot color so the active mode is
+  // recognisable at a glance without reading the label. In particular
+  // `acceptEdits` and `auto` must NOT share a color — they are the two
+  // modes users cycle between most often, and the wrong dot has real
+  // safety implications (auto-approving edits vs classifier-judged).
   const permModeColor = () => {
     switch (permMode()) {
-      case "default": return colors.state.idle
-      case "acceptEdits": return colors.state.waiting
-      case "bypassPermissions": return colors.state.error
-      case "plan": return colors.state.running
-      case "dontAsk": return colors.state.error
-      case "auto": return colors.state.waiting
+      case "default": return colors.state.idle           // green
+      case "acceptEdits": return colors.state.waiting    // amber
+      case "auto": return colors.accent.highlight        // cyan — distinct from amber
+      case "plan": return colors.state.running           // periwinkle
+      case "bypassPermissions": return colors.state.error // red
+      case "dontAsk": return colors.state.error          // red
       default: return colors.state.idle
     }
   }

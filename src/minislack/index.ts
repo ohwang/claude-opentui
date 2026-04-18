@@ -8,7 +8,16 @@
 export * from "./types/slack"
 export { nextId, peekId } from "./core/ids"
 export { nextTs, compareTs, parseTs } from "./core/ts"
-export { createWorkspace, createUser, findUser } from "./core/workspace"
+export { createWorkspace } from "./core/workspace"
+export {
+  createUser,
+  findUser,
+  updateUser,
+  deactivateUser,
+  listUsers,
+  registerApp,
+  tokenForUser,
+} from "./core/users"
 export {
   createPublicChannel,
   createPrivateGroup,

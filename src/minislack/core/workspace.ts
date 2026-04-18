@@ -4,15 +4,14 @@
  * A Workspace owns its users, channels, files, id counters and ts state.
  * Every mutation in core/ goes through functions that take a Workspace as
  * the first argument. No module-level singletons.
+ *
+ * User / app / token helpers live in core/users.ts. They're re-exported
+ * here for backwards compatibility with callers that used to import them
+ * from this module.
  */
 
 import { nextId } from "./ids"
-import type { App, Bot, User, UserProfile, Workspace } from "../types/slack"
-import {
-  botTokenForApp,
-  appTokenForApp,
-  userTokenForUser,
-} from "../server/auth"
+import type { Workspace } from "../types/slack"
 
 export interface CreateWorkspaceOpts {
   teamName?: string
@@ -40,117 +39,22 @@ export function createWorkspace(opts: CreateWorkspaceOpts = {}): Workspace {
   return ws
 }
 
-export interface CreateUserOpts {
-  name: string
-  real_name?: string
-  email?: string
-  is_bot?: boolean
-  app_id?: string
-  bot_id?: string
-}
-
-/** Add a user to the workspace. Returns the created User. */
-export function createUser(ws: Workspace, opts: CreateUserOpts): User {
-  const prefix = opts.is_bot ? "U" : "U" // bot users still use U… for their user record; Bot record uses B…
-  const id = nextId(ws, prefix)
-  const real_name = opts.real_name ?? opts.name
-  const profile: UserProfile = {
-    real_name,
-    display_name: opts.name,
-    email: opts.email,
-  }
-  const user: User = {
-    id,
-    team_id: ws.team.id,
-    name: opts.name,
-    real_name,
-    is_bot: !!opts.is_bot,
-    app_id: opts.app_id,
-    bot_id: opts.bot_id,
-    deleted: false,
-    profile,
-  }
-  ws.users.set(id, user)
-  return user
-}
-
-/** Resolve a user by id OR by handle (@name). Returns undefined if missing. */
-export function findUser(ws: Workspace, nameOrId: string): User | undefined {
-  if (ws.users.has(nameOrId)) return ws.users.get(nameOrId)
-  const handle = nameOrId.startsWith("@") ? nameOrId.slice(1) : nameOrId
-  for (const user of ws.users.values()) {
-    if (user.name === handle) return user
-  }
-  return undefined
-}
-
-// ---------------------------------------------------------------------------
-// Apps / Bots — lives here in Phase 1; Phase 3 splits into core/users.ts.
-// ---------------------------------------------------------------------------
-
-export interface RegisterAppOpts {
-  name: string
-  scopes?: string[]
-  subscribed_events?: string[]
-}
-
-export interface RegisteredApp {
-  app: App
-  bot: Bot
-  botUser: User
-  /** xoxb-… token for Web API calls. */
-  botToken: string
-  /** xapp-… token for apps.connections.open. */
-  appToken: string
-}
-
-/** Register an app, mint its Bot + bot user, and return credentials. */
-export function registerApp(ws: Workspace, opts: RegisterAppOpts): RegisteredApp {
-  const appId = nextId(ws, "A")
-  const botId = nextId(ws, "B")
-
-  const botUser = createUser(ws, {
-    name: slugifyBotName(opts.name),
-    real_name: opts.name,
-    is_bot: true,
-    app_id: appId,
-    bot_id: botId,
-  })
-
-  const bot: Bot = {
-    id: botId,
-    app_id: appId,
-    user_id: botUser.id,
-    name: opts.name,
-    deleted: false,
-  }
-
-  const botToken = botTokenForApp(appId)
-  const appToken = appTokenForApp(appId)
-
-  const app: App = {
-    id: appId,
-    name: opts.name,
-    scopes: opts.scopes ?? [],
-    subscribed_events: opts.subscribed_events ?? [],
-    bot_id: bot.id,
-    bot_user_id: botUser.id,
-    tokens: { bot: botToken, app: appToken },
-  }
-  ws.apps.set(app.id, app)
-
-  return { app, bot, botUser, botToken, appToken }
-}
-
-/** Token helper: mint the user token for an existing user. */
-export function tokenForUser(user: User): string {
-  return userTokenForUser(user.id)
-}
-
-function slugifyBotName(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9_]+/g, "_")
-    .replace(/^_+|_+$/g, "")
-    .replace(/_+/g, "_") || "bot"
-}
+// Re-export user/app helpers so existing `from "../core/workspace"` imports
+// continue to resolve. New code should import from `./users` directly.
+export {
+  createUser,
+  findUser,
+  updateUser,
+  deactivateUser,
+  listUsers,
+  registerApp,
+  tokenForUser,
+  slugifyBotName,
+} from "./users"
+export type {
+  CreateUserOpts,
+  UpdateUserPatch,
+  ListUsersOpts,
+  RegisterAppOpts,
+  RegisteredApp,
+} from "./users"

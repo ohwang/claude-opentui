@@ -24,6 +24,12 @@ import {
   conversationsInfo,
   conversationsList,
 } from "./methods/conversations"
+import {
+  usersConversations,
+  usersInfo,
+  usersList,
+  usersProfileGet,
+} from "./methods/users"
 import { sseEventsResponse } from "./internal-events"
 import type { WebBundle } from "./web-bundle"
 import type { Channel, User, Workspace } from "../types/slack"
@@ -213,6 +219,30 @@ async function dispatchApi(req: Request, method: string, ctx: HttpContext): Prom
         )
       case "conversations.info":
         return slackOk(conversationsInfo(ctx.ws, { channel: str(args.channel) }))
+      case "users.list":
+        return slackOk(
+          usersList(ctx.ws, {
+            include_deleted: toBool(args.include_deleted),
+            limit: toNum(args.limit),
+          }),
+        )
+      case "users.info":
+        return slackOk(usersInfo(ctx.ws, { user: str(args.user) }))
+      case "users.conversations":
+        return slackOk(
+          usersConversations(ctx.ws, auth, {
+            user: args.user as string | undefined,
+            types: args.types as string | undefined,
+            exclude_archived: toBool(args.exclude_archived),
+            limit: toNum(args.limit),
+          }),
+        )
+      case "users.profile.get":
+        return slackOk(
+          usersProfileGet(ctx.ws, auth, {
+            user: args.user as string | undefined,
+          }),
+        )
       default:
         return slackError("unknown_method")
     }

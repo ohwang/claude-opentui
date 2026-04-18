@@ -9,19 +9,17 @@
  * The command:
  *   1. Parses targets from flags or falls back to defaults (claude vs codex).
  *   2. Constructs an OrchestratorHandle.
- *   3. Mounts the ABModal as a modal overlay.
- *   4. The ABModal advances the orchestrator through its phases; on
- *      settlement (done / cancel / preserve), the modal is dismissed and
- *      a system_message summarises the outcome in the main conversation.
+ *   3. Asks the frontend to open the `ab` panel with the orchestrator.
+ *   4. On settlement the panel dismisses itself and a system_message
+ *      summarises the outcome in the main conversation.
  */
 
 import { createOrchestrator } from "../../ab/orchestrator"
 import type { Target } from "../../ab/types"
 import { listBackends, type BackendId } from "../../protocol/registry"
-import { ABModal } from "../../tui/components/ab/ab-modal"
-import { dismissModal, showModal } from "../../tui/context/modal"
 import { friendlyBackendName, friendlyModelName } from "../../tui/models"
 import { log } from "../../utils/logger"
+import type { AbPanelData } from "../frontend"
 import type { CommandContext, SlashCommand } from "../registry"
 
 export interface ParsedAbArgs {
@@ -143,6 +141,15 @@ export const abCommand: SlashCommand = {
       return
     }
 
+    if (!ctx.frontend?.openPanel) {
+      ctx.pushEvent({
+        type: "system_message",
+        ephemeral: true,
+        text: "/ab is only available in the terminal UI.",
+      })
+      return
+    }
+
     const cwd = ctx.getCwd?.() ?? process.cwd()
     const currentBackend = ctx.backend.capabilities().name
     const defaults = defaultTargets(currentBackend === "claude-v1" ? "claude" : currentBackend)
@@ -179,17 +186,14 @@ export const abCommand: SlashCommand = {
           }),
         })
         // Defer dismiss so the user gets a brief chance to see the "Done" view.
-        setTimeout(() => dismissModal(), 1200)
+        setTimeout(() => ctx.frontend?.dismissPanel?.(), 1200)
       },
     })
 
-    showModal(() => (
-      <ABModal
-        orchestrator={orchestrator}
-        onDismiss={() => {
-          dismissModal()
-        }}
-      />
-    ))
+    const data: AbPanelData = {
+      orchestrator,
+      onDismiss: () => ctx.frontend?.dismissPanel?.(),
+    }
+    ctx.frontend.openPanel("ab", data)
   },
 }

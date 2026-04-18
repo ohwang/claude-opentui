@@ -22,6 +22,7 @@ import { SyncProvider, useSync } from "./context/sync"
 import { ToastProvider, toast } from "./context/toast"
 import { ModalProvider, useModal, registerModalRef, type ModalComponent } from "./context/modal"
 import { AnimationProvider } from "./context/animation"
+import { tuiFrontendBridge, setTuiBridgeRenderer } from "./frontend-bridge"
 import { setBackend, setConfig, setRenderer, setSubagentManagerBridge } from "../mcp/state-bridge"
 import { startMcpHttpServer, stopMcpHttpServer } from "../mcp/server"
 import { colors } from "./theme/tokens"
@@ -134,6 +135,7 @@ function Layout(props: { onExit?: () => void }) {
 
   const renderer = useRenderer()
   setRenderer(renderer)
+  setTuiBridgeRenderer(renderer)
 
   // Apply theme background to the renderer. This is reactive — when the user
   // switches themes via /theme, the renderer background updates immediately.
@@ -478,7 +480,7 @@ function Layout(props: { onExit?: () => void }) {
                   sessionState: session.sessionState,
                 }),
                 getBlocks: () => messagesState.blocks,
-                renderer,
+                frontend: tuiFrontendBridge,
               })
               .catch((err: unknown) => {
                 log.error("Command palette invocation failed", {

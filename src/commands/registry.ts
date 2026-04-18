@@ -7,8 +7,9 @@
  * Supports prefix/substring matching for autocomplete.
  */
 
-import type { CliRenderer } from "@opentui/core"
 import type { AgentBackend, Block, ConfigOption, CostTotals, SessionMetadata, SessionState } from "../protocol/types"
+import type { FrontendBridge } from "./frontend"
+export type { FrontendBridge } from "./frontend"
 
 export interface CommandContext {
   backend: AgentBackend
@@ -23,7 +24,14 @@ export interface CommandContext {
   getSessionState?: () => { cost: CostTotals; turnNumber: number; currentModel: string; currentEffort: string; session: SessionMetadata | null; configOptions?: ConfigOption[]; sessionState?: SessionState }
   getBlocks?: () => Block[]
   registry?: CommandRegistry
-  renderer?: CliRenderer
+  /**
+   * Frontend-specific capability surface (open panel, screenshot, copy, …).
+   *
+   * Commands MUST route any UI-affecting side effect through this bridge
+   * rather than importing from `src/tui/` or `@opentui/*`. Optional so
+   * pure-CLI tests can omit it — commands should gracefully degrade.
+   */
+  frontend?: FrontendBridge
   /**
    * Hot-swap the active backend mid-conversation. Resolves once the new
    * backend reports ready (session_init received). Only expected to be

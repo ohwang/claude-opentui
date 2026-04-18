@@ -1,17 +1,15 @@
 /**
- * /about — Show about dialog as a modal overlay.
+ * AboutPanel — about dialog shown as a modal overlay.
  *
- * First command to use the modal overlay system.
- * Demonstrates the pattern for rich command UIs.
+ * Consumed by the TUI `FrontendBridge` when a command calls
+ * `ctx.frontend?.openPanel("about")`.
  */
 
 import { TextAttributes } from "@opentui/core"
-import { showModal } from "../../tui/context/modal"
-import { colors } from "../../tui/theme/tokens"
-import { ShortcutHint } from "../../tui/components/primitives"
-import type { SlashCommand } from "../registry"
+import { colors } from "../theme/tokens"
+import { ShortcutHint } from "../components/primitives"
 
-function AboutModal() {
+export function AboutPanel() {
   return (
     <box flexDirection="column" padding={2}>
       <box borderStyle="single" borderColor={colors.border.default} flexDirection="column" padding={2}>
@@ -39,12 +37,4 @@ function AboutModal() {
       </box>
     </box>
   )
-}
-
-export const aboutCommand: SlashCommand = {
-  name: "about",
-  description: "Show about dialog",
-  execute: () => {
-    showModal(AboutModal)
-  },
 }

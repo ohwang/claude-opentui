@@ -1,19 +1,13 @@
 /**
- * /hotkeys — Show all keyboard shortcuts as a rich modal overlay.
+ * HotkeysPanel — show all keyboard shortcuts as a rich modal overlay.
  *
- * Groups shortcuts by category with aligned columns.
- * Uses the modal overlay system (showModal) instead of system_message.
+ * Groups shortcuts by category with aligned columns. Consumed by the TUI
+ * `FrontendBridge` when a command calls `ctx.frontend?.openPanel("hotkeys")`.
  */
 
 import { For } from "solid-js"
 import { TextAttributes } from "@opentui/core"
-import { showModal } from "../../tui/context/modal"
-import { colors } from "../../tui/theme/tokens"
-import type { SlashCommand } from "../registry"
-
-// ---------------------------------------------------------------------------
-// Shortcut data
-// ---------------------------------------------------------------------------
+import { colors } from "../theme/tokens"
 
 interface ShortcutEntry {
   key: string
@@ -98,10 +92,6 @@ function padRight(s: string, width: number): string {
   return s.length >= width ? s : s + " ".repeat(width - s.length)
 }
 
-// ---------------------------------------------------------------------------
-// Sub-components
-// ---------------------------------------------------------------------------
-
 function ShortcutGroupView(props: { group: ShortcutGroup }) {
   return (
     <box flexDirection="column" marginTop={1}>
@@ -122,11 +112,7 @@ function ShortcutGroupView(props: { group: ShortcutGroup }) {
   )
 }
 
-// ---------------------------------------------------------------------------
-// Main modal
-// ---------------------------------------------------------------------------
-
-function HotkeysModal() {
+export function HotkeysPanel() {
   return (
     <box flexDirection="column" padding={2}>
       <box
@@ -135,7 +121,6 @@ function HotkeysModal() {
         flexDirection="column"
         padding={2}
       >
-        {/* Title */}
         <text
           fg={colors.accent.primary}
           attributes={TextAttributes.BOLD}
@@ -143,17 +128,13 @@ function HotkeysModal() {
           {"Keyboard Shortcuts"}
         </text>
 
-        {/* Shortcut groups */}
         <scrollbox flexGrow={1}>
           <For each={groups}>
             {(group) => <ShortcutGroupView group={group} />}
           </For>
 
-          {/* Footer */}
           <box marginTop={1}>
-            <text
-              fg={colors.text.muted}
-            >
+            <text fg={colors.text.muted}>
               {"  Press Escape to close"}
             </text>
           </box>
@@ -161,17 +142,4 @@ function HotkeysModal() {
       </box>
     </box>
   )
-}
-
-// ---------------------------------------------------------------------------
-// Slash command export
-// ---------------------------------------------------------------------------
-
-export const hotkeysCommand: SlashCommand = {
-  name: "hotkeys",
-  description: "Show keyboard shortcuts",
-  aliases: ["keys", "shortcuts"],
-  execute: () => {
-    showModal(HotkeysModal)
-  },
 }

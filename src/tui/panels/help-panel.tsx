@@ -1,5 +1,7 @@
 /**
- * /help -- Rich modal overlay with keyboard shortcuts, input modes, and commands.
+ * HelpPanel — rich modal overlay rendering the list of slash commands plus
+ * keyboard shortcut reference. Consumed by the TUI `FrontendBridge` when a
+ * command calls `ctx.frontend?.openPanel("help", { commands })`.
  *
  * Single-column layout to avoid OpenTUI Zig rendering corruption with
  * flexDirection="row" layouts. All content flows vertically: title,
@@ -8,9 +10,8 @@
 
 import { For, Show } from "solid-js"
 import { TextAttributes } from "@opentui/core"
-import { showModal } from "../../tui/context/modal"
-import { colors } from "../../tui/theme/tokens"
-import type { SlashCommand, CommandContext } from "../registry"
+import { colors } from "../theme/tokens"
+import type { HelpPanelData } from "../../commands/frontend"
 
 // ---------------------------------------------------------------------------
 // Shortcut data
@@ -45,10 +46,6 @@ const actions: ShortcutEntry[] = [
   { key: "Ctrl+R", label: "History search" },
 ]
 
-// ---------------------------------------------------------------------------
-// Pre-compute all lines to render as flat text elements
-// ---------------------------------------------------------------------------
-
 interface SectionData {
   title: string
   items: ShortcutEntry[]
@@ -60,23 +57,17 @@ const sections: SectionData[] = [
   { title: "Actions", items: actions },
 ]
 
-/** Format a shortcut entry as a single indented string. */
 function formatEntry(entry: ShortcutEntry): string {
   return `  ${entry.key} \u2014 ${entry.label}`
 }
 
-/** Format a command as a single indented string. */
-function formatCmd(cmd: SlashCommand): string {
+function formatCmd(cmd: HelpPanelData["commands"][number]): string {
   const alias = cmd.aliases?.length ? ` (${cmd.aliases.join(", ")})` : ""
   const hint = cmd.argumentHint ? ` ${cmd.argumentHint}` : ""
   return `  /${cmd.name}${hint}${alias} -- ${cmd.description}`
 }
 
-// ---------------------------------------------------------------------------
-// Main modal
-// ---------------------------------------------------------------------------
-
-function HelpModal(props: { commands: SlashCommand[] }) {
+export function HelpPanel(props: HelpPanelData) {
   const localCmds = () => props.commands.filter((c) => c.type !== "prompt")
   const promptCmds = () => props.commands.filter((c) => c.type === "prompt")
 
@@ -89,7 +80,6 @@ function HelpModal(props: { commands: SlashCommand[] }) {
           flexDirection="column"
           padding={2}
         >
-          {/* Title */}
           <text
             fg={colors.accent.primary}
             attributes={TextAttributes.BOLD}
@@ -97,7 +87,6 @@ function HelpModal(props: { commands: SlashCommand[] }) {
             {"Help -- Keyboard Shortcuts & Commands"}
           </text>
 
-          {/* Shortcut sections — each rendered as a vertical block */}
           <For each={sections}>
             {(section) => (
               <box flexDirection="column" marginTop={1}>
@@ -116,7 +105,6 @@ function HelpModal(props: { commands: SlashCommand[] }) {
             )}
           </For>
 
-          {/* Commands */}
           <box flexDirection="column" marginTop={1}>
             <text
               fg={colors.accent.primary}
@@ -133,9 +121,7 @@ function HelpModal(props: { commands: SlashCommand[] }) {
 
           <Show when={promptCmds().length > 0}>
             <box flexDirection="column" marginTop={1}>
-              <text
-                fg={colors.text.muted}
-              >
+              <text fg={colors.text.muted}>
                 {"Prompt shortcuts (sent to model)"}
               </text>
               <For each={promptCmds()}>
@@ -146,11 +132,8 @@ function HelpModal(props: { commands: SlashCommand[] }) {
             </box>
           </Show>
 
-          {/* Footer */}
           <box flexDirection="column" marginTop={1}>
-            <text
-              fg={colors.text.muted}
-            >
+            <text fg={colors.text.muted}>
               {"  Press Escape to close"}
             </text>
           </box>
@@ -158,18 +141,4 @@ function HelpModal(props: { commands: SlashCommand[] }) {
       </scrollbox>
     </box>
   )
-}
-
-// ---------------------------------------------------------------------------
-// Slash command export
-// ---------------------------------------------------------------------------
-
-export const helpCommand: SlashCommand = {
-  name: "help",
-  description: "Show available commands and shortcuts",
-  aliases: ["h", "?"],
-  execute: (_args: string, ctx: CommandContext) => {
-    const commands = ctx.registry?.all() ?? []
-    showModal(() => <HelpModal commands={commands} />)
-  },
 }

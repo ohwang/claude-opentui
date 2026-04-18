@@ -244,14 +244,29 @@ describe("Built-in commands", () => {
     expect(all.length).toBeGreaterThanOrEqual(6)
   })
 
-  it("/help opens modal (no system_message events)", async () => {
+  it("/help opens a panel via the frontend bridge", async () => {
+    const registry = createCommandRegistry()
+    const openPanel = mock((_kind: string, _data?: unknown) => {})
+    const ctx = makeCtx({ frontend: { openPanel } })
+
+    await registry.tryExecute("/help", ctx)
+
+    // With a bridge, the command asks the frontend to open a "help" panel
+    // and emits no system messages.
+    expect(ctx.events).toHaveLength(0)
+    expect(openPanel).toHaveBeenCalled()
+    expect((openPanel.mock.calls[0] as unknown as [string])[0]).toBe("help")
+  })
+
+  it("/help falls back to a system_message when the frontend has no panel UI", async () => {
     const registry = createCommandRegistry()
     const ctx = makeCtx()
 
     await registry.tryExecute("/help", ctx)
 
-    // /help now uses showModal() instead of pushEvent, so no events are emitted
-    expect(ctx.events).toHaveLength(0)
+    const msg = ctx.events.find((e) => e.type === "system_message")
+    expect(msg).toBeDefined()
+    expect(msg.text).toContain("/help")
   })
 
   it("/exit calls process.exit", async () => {
@@ -383,14 +398,27 @@ describe("/cost command", () => {
 })
 
 describe("/hotkeys command", () => {
-  it("opens modal (no system_message events)", async () => {
+  it("opens the hotkeys panel via the frontend bridge", async () => {
+    const registry = createCommandRegistry()
+    const openPanel = mock((_kind: string, _data?: unknown) => {})
+    const ctx = makeCtx({ frontend: { openPanel } })
+
+    await registry.tryExecute("/hotkeys", ctx)
+
+    expect(ctx.events).toHaveLength(0)
+    expect(openPanel).toHaveBeenCalled()
+    expect((openPanel.mock.calls[0] as unknown as [string])[0]).toBe("hotkeys")
+  })
+
+  it("falls back to a system_message when the frontend has no panel UI", async () => {
     const registry = createCommandRegistry()
     const ctx = makeCtx()
 
     await registry.tryExecute("/hotkeys", ctx)
 
-    // /hotkeys now uses showModal() instead of pushEvent, so no events are emitted
-    expect(ctx.events).toHaveLength(0)
+    const msg = ctx.events.find((e) => e.type === "system_message")
+    expect(msg).toBeDefined()
+    expect(msg.text).toContain("terminal UI")
   })
 
   it("is reachable via aliases", () => {

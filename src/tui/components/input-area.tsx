@@ -27,6 +27,7 @@ import { triggerCleanExit, toggleDiagnostics } from "../app"
 import { registerOverlay, unregisterOverlay } from "../context/modal"
 import { colors } from "../theme/tokens"
 import { friendlyBackendName } from "../models"
+import { tuiFrontendBridge } from "../frontend-bridge"
 import { log } from "../../utils/logger"
 import { readClipboardImage, isImageFilePath, readImageFile } from "../../utils/clipboard"
 import { toast } from "../context/toast"
@@ -448,7 +449,7 @@ export function InputArea() {
       }),
       getBlocks: () => messagesState.blocks,
       getCwd: () => agent.config.cwd ?? process.cwd(),
-      renderer,
+      frontend: tuiFrontendBridge,
     })
 
     if (!handled) {

@@ -7,7 +7,12 @@
  */
 
 import { nextId } from "./ids"
-import type { User, UserProfile, Workspace } from "../types/slack"
+import type { App, Bot, User, UserProfile, Workspace } from "../types/slack"
+import {
+  botTokenForApp,
+  appTokenForApp,
+  userTokenForUser,
+} from "../server/auth"
 
 export interface CreateWorkspaceOpts {
   teamName?: string
@@ -77,4 +82,75 @@ export function findUser(ws: Workspace, nameOrId: string): User | undefined {
     if (user.name === handle) return user
   }
   return undefined
+}
+
+// ---------------------------------------------------------------------------
+// Apps / Bots — lives here in Phase 1; Phase 3 splits into core/users.ts.
+// ---------------------------------------------------------------------------
+
+export interface RegisterAppOpts {
+  name: string
+  scopes?: string[]
+  subscribed_events?: string[]
+}
+
+export interface RegisteredApp {
+  app: App
+  bot: Bot
+  botUser: User
+  /** xoxb-… token for Web API calls. */
+  botToken: string
+  /** xapp-… token for apps.connections.open. */
+  appToken: string
+}
+
+/** Register an app, mint its Bot + bot user, and return credentials. */
+export function registerApp(ws: Workspace, opts: RegisterAppOpts): RegisteredApp {
+  const appId = nextId(ws, "A")
+  const botId = nextId(ws, "B")
+
+  const botUser = createUser(ws, {
+    name: slugifyBotName(opts.name),
+    real_name: opts.name,
+    is_bot: true,
+    app_id: appId,
+    bot_id: botId,
+  })
+
+  const bot: Bot = {
+    id: botId,
+    app_id: appId,
+    user_id: botUser.id,
+    name: opts.name,
+    deleted: false,
+  }
+
+  const botToken = botTokenForApp(appId)
+  const appToken = appTokenForApp(appId)
+
+  const app: App = {
+    id: appId,
+    name: opts.name,
+    scopes: opts.scopes ?? [],
+    subscribed_events: opts.subscribed_events ?? [],
+    bot_id: bot.id,
+    bot_user_id: botUser.id,
+    tokens: { bot: botToken, app: appToken },
+  }
+  ws.apps.set(app.id, app)
+
+  return { app, bot, botUser, botToken, appToken }
+}
+
+/** Token helper: mint the user token for an existing user. */
+export function tokenForUser(user: User): string {
+  return userTokenForUser(user.id)
+}
+
+function slugifyBotName(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9_]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .replace(/_+/g, "_") || "bot"
 }

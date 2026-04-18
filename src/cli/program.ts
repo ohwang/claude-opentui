@@ -16,6 +16,8 @@ import { Command } from "commander"
 import { addGlobalOptions, addTuiOptions, resolveFlags } from "./options"
 import { launchTui } from "../frontends/tui/launcher"
 import { launchSlack } from "../frontends/slack/launcher"
+import { launchMinislack } from "../minislack/launcher"
+import type { FixtureName } from "../minislack/testing/fixtures"
 import { runHeadless } from "./commands/run"
 
 const VERSION = "0.1.0"
@@ -129,6 +131,36 @@ export async function runCli(argv: string[]): Promise<void> {
     await launchSlack(flags)
   })
   program.addCommand(slackCmd)
+
+  // -----------------------------------------------------------------------
+  // Dev tool: minislack — fake Slack server + web UI for testing frontends
+  // -----------------------------------------------------------------------
+  const minislackCmd = new Command("minislack")
+    .description("Run a fake Slack workspace (dev + integration tests)")
+    .option("--port <n>", "Port (default 3102; 0 = ephemeral)", "3102")
+    .option("--persist", "Persist to ~/.bantai/minislack/<workspace>/")
+    .option("--fixture <name>", "empty | basic | threaded | multi-user", "basic")
+    .option("--no-web", "Skip serving the web UI")
+  minislackCmd.action(async () => {
+    const opts = minislackCmd.opts() as {
+      port?: string
+      persist?: boolean
+      fixture?: string
+      web?: boolean
+    }
+    const portNum = opts.port !== undefined ? Number(opts.port) : 3102
+    if (!Number.isFinite(portNum) || portNum < 0) {
+      console.error(`Error: --port must be a non-negative integer, got "${opts.port}"`)
+      process.exit(1)
+    }
+    await launchMinislack({
+      port: portNum,
+      fixture: (opts.fixture ?? "basic") as FixtureName,
+      persist: opts.persist ? "default" : undefined,
+      serveWeb: opts.web !== false,
+    })
+  })
+  program.addCommand(minislackCmd)
 
   // Parse and execute
   await program.parseAsync(argv)

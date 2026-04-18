@@ -652,11 +652,13 @@ function Layout(props: { onExit?: () => void }) {
         )}
       </Show>
 
-      {/* Diagnostics panel — replaces conversation when visible */}
-      <DiagnosticsPanel
-        visible={showDiagnostics()}
-        onClose={() => setShowDiagnostics(false)}
-      />
+      {/* Diagnostics panel — replaces conversation when visible. Gated
+       *  via <Show> so the component's lifecycle (interval timers, log
+       *  subscriptions, reactive memos) only runs while the panel is
+       *  actually mounted. See team/backlog: scope-reactivity-to-visible-ui. */}
+      <Show when={showDiagnostics()}>
+        <DiagnosticsPanel onClose={() => setShowDiagnostics(false)} />
+      </Show>
     </box>
   )
 }

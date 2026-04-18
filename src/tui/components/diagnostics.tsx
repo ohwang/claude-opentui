@@ -32,6 +32,10 @@ let _scrollDiagnosticsToTop: (() => void) | undefined
 let _scrollDiagnosticsToBottom: (() => void) | undefined
 let _switchDiagnosticsTab: ((tab?: number) => void) | undefined
 
+/** App start timestamp — captured at module load so Uptime survives
+ *  the DiagnosticsPanel being closed and reopened. */
+const APP_START_TIME = Date.now()
+
 /**
  * Scroll the diagnostics panel by the given amount.
  * Positive = down, negative = up.
@@ -69,7 +73,12 @@ interface DiagSection {
 
 interface DiagEntry {
   key: string
-  value: string
+  /** Static string OR a getter for values that change over time. Using a
+   *  getter lets live values (heap, rss, uptime) re-render their <text>
+   *  node without invalidating the surrounding `sections()` memo — which
+   *  would otherwise rebuild every section and destroy the selection
+   *  state each second. */
+  value: string | (() => string)
   color?: string
 }
 
@@ -125,19 +134,27 @@ function getGitDirtyCount(): number {
 const TAB_COUNT = 3
 const TAB_NAMES = ["Info", "Logs", "Status Line"] as const
 
-export function DiagnosticsPanel(props: { visible: boolean; onClose: () => void }) {
+// `onClose` is retained on the signature for API symmetry (storybook and
+// future in-panel close affordances) even though closure is currently
+// driven by app-level Esc handling that flips `showDiagnostics`.
+export function DiagnosticsPanel(_props: { onClose: () => void }) {
   const { state: session } = useSession()
   const agent = useAgent()
   const { state: messages } = useMessages()
   const dims = useTerminalDimensions()
 
-  // Track app uptime from component mount (≈ app start)
-  const startTime = Date.now()
-
-  // Tick signal — forces the uptime (and memory stats) to refresh every second
+  // Tick signal — fuels the `liveMem` / `liveUptime` memos below so the
+  // Heap/RSS/Uptime values refresh every second. NOTE: only those two
+  // derived signals depend on `tick` — the main `sections()` memo does
+  // NOT, so ticking does not rebuild every row (which would destroy the
+  // user's text selection every second; see the backlog item
+  // scope-reactivity-to-visible-ui).
   const [tick, setTick] = createSignal(0)
   const tickInterval = setInterval(() => setTick(t => t + 1), 1_000)
   onCleanup(() => clearInterval(tickInterval))
+
+  const liveMem = createMemo(() => { tick(); return process.memoryUsage() })
+  const liveUptime = createMemo(() => { tick(); return Date.now() - APP_START_TIME })
 
   // ---------------------------------------------------------------------------
   // Tab state
@@ -198,15 +215,14 @@ export function DiagnosticsPanel(props: { visible: boolean; onClose: () => void 
     _switchDiagnosticsTab = undefined
   })
 
-  // Collect all diagnostic sections as a reactive memo
+  // Collect all diagnostic sections as a reactive memo.
+  // Deliberately does NOT depend on `tick` — per-second values use the
+  // getter form of DiagEntry.value (reading liveMem / liveUptime) so only
+  // those cells re-render on each tick. See scope-reactivity-to-visible-ui.
   const sections = createMemo((): DiagSection[] => {
-    // Subscribe to tick so uptime and memory stats refresh every second
-    tick()
-
     const result: DiagSection[] = []
 
     // -- SYSTEM --
-    const mem = process.memoryUsage()
     result.push({
       title: "SYSTEM",
       entries: [
@@ -214,20 +230,19 @@ export function DiagnosticsPanel(props: { visible: boolean; onClose: () => void 
         { key: "Runtime:", value: `Bun ${Bun.version}` },
         { key: "Platform:", value: `${process.platform}/${process.arch}` },
         { key: "Terminal:", value: `${dims()?.width ?? 0}x${dims()?.height ?? 0}` },
-        { key: "Heap used:", value: formatBytes(mem.heapUsed) },
-        { key: "RSS:", value: formatBytes(mem.rss) },
+        { key: "Heap used:", value: () => formatBytes(liveMem().heapUsed) },
+        { key: "RSS:", value: () => formatBytes(liveMem().rss) },
       ],
     })
 
     // -- SESSION --
     const sessionId = session.session?.sessionId ?? "(none)"
-    const uptime = Date.now() - startTime
     result.push({
       title: "SESSION",
       entries: [
         { key: "Session ID:", value: sessionId },
         { key: "State:", value: session.sessionState, color: stateColor(session.sessionState) },
-        { key: "Uptime:", value: formatDuration(uptime) },
+        { key: "Uptime:", value: () => formatDuration(liveUptime()) },
         { key: "Permission mode:", value: agent.config.permissionMode ?? "default" },
         { key: "Backend:", value: agent.backend.capabilities().name },
       ],
@@ -390,8 +405,11 @@ export function DiagnosticsPanel(props: { visible: boolean; onClose: () => void 
   const separatorWidth = () => dims()?.width ? dims()!.width - 4 : 70
 
   return (
-    <Show when={props.visible}>
-      {/* Diagnostics panel — fills the entire terminal, replacing the conversation */}
+    <>
+      {/* Diagnostics panel — fills the entire terminal, replacing the
+       *  conversation. Mount is gated by <Show> in app.tsx, so any timer
+       *  / subscription in this component only lives while the panel is
+       *  on screen. */}
       <box
         flexGrow={1}
         width="100%"
@@ -446,7 +464,13 @@ export function DiagnosticsPanel(props: { visible: boolean; onClose: () => void 
                     {(entry) => (
                       <box flexDirection="row">
                         <text fg={colors.text.secondary}>{padRight(entry.key, 22)}</text>
-                        <text fg={entry.color ?? colors.text.primary}>{" " + entry.value}</text>
+                        {/* Resolve getter-form values on every frame so
+                         *  per-tick changes (Heap/RSS/Uptime) update this
+                         *  <text> without replacing the surrounding node
+                         *  — which would destroy any active selection. */}
+                        <text fg={entry.color ?? colors.text.primary}>
+                          {() => " " + (typeof entry.value === "function" ? entry.value() : entry.value)}
+                        </text>
                       </box>
                     )}
                   </For>
@@ -636,7 +660,7 @@ export function DiagnosticsPanel(props: { visible: boolean; onClose: () => void 
           </text>
         </box>
       </box>
-    </Show>
+    </>
   )
 }
 

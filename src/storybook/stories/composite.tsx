@@ -27,6 +27,6 @@ export const overlaysStories: Story[] = [
         assistantBlock("Done."),
       ]),
     },
-    render: () => <DiagnosticsPanel visible onClose={() => {}} />,
+    render: () => <DiagnosticsPanel onClose={() => {}} />,
   },
 ]

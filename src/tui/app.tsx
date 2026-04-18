@@ -8,7 +8,6 @@
 import { render, useKeyboard, useRenderer } from "@opentui/solid"
 import { TextAttributes, type KeyEvent } from "@opentui/core"
 import { createSignal, createEffect, on, onCleanup, ErrorBoundary, Show } from "solid-js"
-import type { AgentBackend, SessionConfig } from "../protocol/types"
 import { log } from "../utils/logger"
 import { copyToClipboard } from "../utils/clipboard"
 import { sendTerminalNotification, setTerminalProgress } from "../utils/terminal-notify"
@@ -680,36 +679,35 @@ function Layout(props: { onExit?: () => void }) {
 }
 
 export interface AppOptions {
-  backend: AgentBackend
-  config: SessionConfig
+  /**
+   * The session this TUI renders. Owns the backend, subagent manager,
+   * config, and teardown — the TUI attaches to it rather than receiving
+   * a grab-bag of fields. See `src/session/host.ts`.
+   */
+  host: import("../session/host").SessionHost
+  /** Called once, after the TUI has torn down — typically invokes `host.close()`. */
   onExit?: () => void
   noDiagnosticsMcp?: boolean
-  subagentManager?: import("../subagents/manager").SubagentManager
-  /** Pre-fetched sessions grouped by backend for the multi-backend picker */
-  preloadedSessions?: import("../protocol/types").MultiBackendSessions
-  /** Which backend is currently active (for tab ordering in the picker) */
-  currentBackend?: import("../protocol/types").SessionOrigin
 }
 
 export function startApp(options: AppOptions): void {
-  setBackend(options.backend)
-  setConfig(options.config)
-  if (options.subagentManager) {
-    setSubagentManagerBridge(options.subagentManager)
-  }
+  const { host } = options
+  setBackend(host.backend)
+  setConfig(host.config)
+  setSubagentManagerBridge(host.subagentManager)
 
   // When --resume was used without a session ID, show the interactive picker
   // before mounting the main app. The picker is a lightweight component that
   // runs inside the same render tree but without the full provider stack
   // (no SyncProvider, no event loop). On selection, we unmount the picker
   // and mount the real app by updating a signal.
-  const showPicker = options.config.resumeInteractive && options.preloadedSessions != null
+  const showPicker = host.config.resumeInteractive && host.preloadedSessions != null
   const [pickerDone, setPickerDone] = createSignal(!showPicker)
   // When the picker selects a session, update config and transition to the main app
   const onPickerSelect = (sessionId: string, origin?: import("../protocol/types").SessionOrigin) => {
     log.info("Session picker: selected", { sessionId, origin })
-    options.config.resume = sessionId
-    options.config.resumeInteractive = undefined
+    host.config.resume = sessionId
+    host.config.resumeInteractive = undefined
     setPickerDone(true)
   }
 
@@ -719,7 +717,7 @@ export function startApp(options: AppOptions): void {
     process.exit(0)
   }
 
-  const agentValue = createAgentContextValue(options.backend, options.config)
+  const agentValue = createAgentContextValue(host.backend, host.config)
 
   render(() => (
     <ErrorBoundary
@@ -731,9 +729,9 @@ export function startApp(options: AppOptions): void {
         when={pickerDone()}
         fallback={
           <SessionPicker
-            sessions={options.preloadedSessions ?? { claude: [], codex: [], gemini: [] }}
-            currentBackend={options.currentBackend ?? "claude"}
-            currentCwd={options.config.cwd ?? process.cwd()}
+            sessions={host.preloadedSessions ?? { claude: [], codex: [], gemini: [] }}
+            currentBackend={host.currentBackend}
+            currentCwd={host.config.cwd ?? process.cwd()}
             onSelect={onPickerSelect}
             onCancel={onPickerCancel}
           />

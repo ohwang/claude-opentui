@@ -12,7 +12,7 @@
  */
 
 import type { CLIFlags } from "../cli/options"
-import type { AgentBackend } from "../protocol/types"
+import type { AgentBackend, SessionOrigin } from "../protocol/types"
 import { createBackend } from "../subagents/backend-factory"
 import { startApp } from "./app"
 import { log } from "../utils/logger"
@@ -21,6 +21,7 @@ import { SubagentManager } from "../subagents/manager"
 import { setSubagentManager } from "../subagents/mcp-tools"
 import { setCommandsManager } from "../subagents/commands"
 import { setupProcessHandlers } from "../cli/lifecycle"
+import { createSessionHost } from "../session/host"
 
 const VERSION = "0.1.0"
 
@@ -216,18 +217,23 @@ export async function launchTui(flags: CLIFlags): Promise<void> {
     }
   }
 
-  // Cleanup function for startApp's onExit callback
+  // Build the SessionHost — the frontend-neutral unit of "one live session."
+  // The TUI attaches to the host rather than receiving scattered fields; a
+  // future Slack / GUI frontend constructs the same host type.
   const { createCleanup } = await import("../cli/lifecycle")
-  const cleanup = createCleanup({ backend, subagentManager })
+  const host = createSessionHost({
+    backend,
+    config: flags.config,
+    subagentManager,
+    currentBackend: flags.backend as SessionOrigin,
+    preloadedSessions,
+    close: createCleanup({ backend, subagentManager }),
+  })
 
   // Start the TUI — do not await; OpenTUI's native event loop keeps the process alive
   startApp({
-    backend,
-    config: flags.config,
-    onExit: cleanup,
+    host,
+    onExit: () => host.close(),
     noDiagnosticsMcp: flags.noDiagnosticsMcp,
-    subagentManager,
-    preloadedSessions,
-    currentBackend: flags.backend as import("../protocol/types").SessionOrigin,
   })
 }

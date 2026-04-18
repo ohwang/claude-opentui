@@ -9,11 +9,13 @@
  *   bantai claude [prompt]       → TUI with claude backend
  *   bantai codex [prompt]        → TUI with codex backend
  *   bantai gemini [prompt]       → TUI with gemini backend
+ *   bantai slack                 → Slack frontend server (placeholder)
  */
 
 import { Command } from "commander"
 import { addGlobalOptions, addTuiOptions, resolveFlags } from "./options"
 import { launchTui } from "../frontends/tui/launcher"
+import { launchSlack } from "../frontends/slack/launcher"
 import { runHeadless } from "./commands/run"
 
 const VERSION = "0.1.0"
@@ -114,6 +116,19 @@ export async function runCli(argv: string[]): Promise<void> {
     })
     program.addCommand(cmd)
   }
+
+  // -----------------------------------------------------------------------
+  // Frontend subcommand: slack (placeholder — runs the Slack server)
+  // -----------------------------------------------------------------------
+  const slackCmd = new Command("slack")
+    .description("Run bantai as a Slack frontend server (placeholder)")
+  addGlobalOptions(slackCmd)
+  slackCmd.action(async () => {
+    const opts = { ...program.opts(), ...slackCmd.opts() }
+    const flags = resolveFlags(opts)
+    await launchSlack(flags)
+  })
+  program.addCommand(slackCmd)
 
   // Parse and execute
   await program.parseAsync(argv)

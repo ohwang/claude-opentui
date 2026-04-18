@@ -724,6 +724,16 @@ export class ClaudeAdapter implements AgentBackend {
       model: config.model,
       systemPrompt: config.systemPrompt,
       permissionMode: config.permissionMode,
+      // Always opt the session into being ALLOWED to switch to
+      // `bypassPermissions` at runtime (via Shift+Tab / setPermissionMode).
+      // Without this, the SDK rejects the mode change with "Cannot set
+      // permission mode to bypassPermissions because the session was not
+      // launched with --dangerously-skip-permissions" — which, combined with
+      // our non-optimistic cycler, manifests as the status-bar hanging for
+      // ~880ms per press and the cycle appearing stuck. Setting this flag
+      // only UNLOCKS the mode — it doesn't enter it; the initial mode is
+      // still `config.permissionMode` (which defaults to "default").
+      allowDangerouslySkipPermissions: true,
       maxTurns: config.maxTurns,
       maxBudgetUsd: config.maxBudgetUsd,
       cwd: config.cwd,

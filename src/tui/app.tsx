@@ -6,7 +6,7 @@
  */
 
 import { render, useKeyboard, useRenderer } from "@opentui/solid"
-import { TextAttributes } from "@opentui/core"
+import { TextAttributes, type KeyEvent } from "@opentui/core"
 import { createSignal, createEffect, on, onCleanup, ErrorBoundary, Show } from "solid-js"
 import type { AgentBackend, SessionConfig } from "../protocol/types"
 import { log } from "../utils/logger"
@@ -183,6 +183,37 @@ function Layout(props: { onExit?: () => void }) {
     }
   }
 
+  /**
+   * Shared copy-shortcut handler. Consumes Cmd+C (super/meta on Kitty
+   * protocol) or Ctrl+C when there is an active, non-empty text
+   * selection anywhere in the renderer.
+   *
+   * Returns `true` iff the event was consumed (caller should early-return
+   * without further processing). Returns `false` for anything that isn't
+   * a copy keystroke, and for copy keystrokes without a selection — the
+   * caller then decides how to handle the keystroke otherwise (e.g.
+   * Ctrl+C falling through to interrupt / clear-input).
+   *
+   * This is the single source of truth for "Cmd+C copies selection" so
+   * every overlay — diagnostics, modals, pickers, and any future view
+   * — inherits it by simply calling this at the top of their keyboard
+   * intercept rather than reimplementing the logic.
+   */
+  const tryHandleCopyShortcut = (event: KeyEvent): boolean => {
+    const isCmdC = (event.super || event.meta) && event.name === "c"
+    const isCtrlC = event.ctrl && event.name === "c"
+    if (!isCmdC && !isCtrlC) return false
+    if (!renderer.hasSelection) return false
+    const sel = renderer.getSelection()
+    if (!sel || !sel.isActive) return false
+    const text = sel.getSelectedText()
+    if (!text) return false
+    event.preventDefault()
+    copyText(text)
+    renderer.clearSelection()
+    return true
+  }
+
   const cleanExit = (reason: string) => {
     log.info("Clean exit", { reason })
     stopMcpHttpServer().catch(() => {})
@@ -309,6 +340,11 @@ function Layout(props: { onExit?: () => void }) {
   // Global keyboard shortcuts
   useKeyboard((event) => {
     try {
+    // Copy-on-selection: consume Cmd+C / Ctrl+C before any overlay
+    // intercept. Every view inherits copy support for free — no need
+    // for overlays (diagnostics, modals, pickers) to reimplement it.
+    if (tryHandleCopyShortcut(event)) return
+
     // When modal overlay is active, delegate to the modal's key handler first,
     // then fall back to Escape-to-dismiss. Block all other unhandled keys.
     if (modal.isActive()) {
@@ -511,41 +547,19 @@ function Layout(props: { onExit?: () => void }) {
       return
     }
 
-    // Cmd+C (Super+C) on macOS: copy selection if available.
-    // In the Kitty keyboard protocol, Cmd maps to `super` (not `meta`).
-    // Requires the terminal to forward cmd+c to the app instead of
-    // intercepting it — in Kitty, use `map cmd+c copy_or_interrupt`.
+    // Cmd+C (super/meta) on macOS: copy-with-selection is handled by
+    // the shared `tryHandleCopyShortcut` guard at the top. Without a
+    // selection, Cmd+C is a no-op — absorb it here so it doesn't reach
+    // the textarea as a literal 'c' character (in terminals that forward
+    // Cmd+C via the Kitty keyboard protocol).
     if ((event.super || event.meta) && event.name === "c") {
-      if (renderer.hasSelection) {
-        const sel = renderer.getSelection()
-        if (sel && sel.isActive) {
-          const text = sel.getSelectedText()
-          if (text) {
-            event.preventDefault()
-            copyText(text)
-            renderer.clearSelection()
-          }
-        }
-      }
       return
     }
 
-    // Ctrl+C: text=clear, empty single=nothing, empty double=exit, running=interrupt
+    // Ctrl+C: text=clear, empty single=nothing, empty double=exit, running=interrupt.
+    // Note: the copy-with-selection fast-path is handled upstream by
+    // tryHandleCopyShortcut, so if we reach here there is no selection.
     if (event.ctrl && event.name === "c") {
-      // Check for active text selection — copy takes priority over interrupt/clear
-      if (renderer.hasSelection) {
-        const sel = renderer.getSelection()
-        if (sel && sel.isActive) {
-          const text = sel.getSelectedText()
-          if (text) {
-            event.preventDefault()
-            copyText(text)
-            renderer.clearSelection()
-            return
-          }
-        }
-      }
-
       // If a non-modal overlay is active (e.g. autocomplete dropdown),
       // skip interrupt and let Ctrl+C fall through to clear input instead.
       // This prevents accidentally cancelling a running task when the user

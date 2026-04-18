@@ -26,7 +26,7 @@ import { searchFileSuggestions, matchAtTrigger, parsePathPrefix } from "./file-a
 import { triggerCleanExit, toggleDiagnostics } from "../app"
 import { registerOverlay, unregisterOverlay } from "../context/modal"
 import { colors } from "../theme/tokens"
-import { friendlyBackendName } from "../models"
+import { friendlyBackendName } from "../../protocol/models"
 import { tuiFrontendBridge } from "../frontend-bridge"
 import { log } from "../../utils/logger"
 import { readClipboardImage, isImageFilePath, readImageFile } from "../../utils/clipboard"

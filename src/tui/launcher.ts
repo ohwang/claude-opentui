@@ -1,24 +1,26 @@
 /**
- * TUI Command — launches the interactive terminal UI
+ * TUI Launcher — boots the interactive terminal UI.
  *
- * Extracted from index.ts main(). Handles config resolution, backend
- * creation, subagent wiring, theme application, stdin piping, session
- * preloading, and startApp().
+ * Lives inside the TUI frontend (`src/tui/`) because it knows about
+ * TUI-specific concerns: theme application, status bar presets, OpenTUI
+ * rendering lifecycle, session picker preloading. The CLI (`src/cli/`)
+ * is a thin dispatcher that calls into `launchTui()` — it doesn't reach
+ * into TUI internals itself.
  *
  * Called by the default command, backend subcommands (claude/codex/gemini),
  * and session management subcommands (resume/continue).
  */
 
-import type { CLIFlags } from "../options"
-import type { AgentBackend } from "../../protocol/types"
-import { createBackend } from "../../subagents/backend-factory"
-import { startApp } from "../../tui/app"
-import { log } from "../../utils/logger"
-import { backendTrace } from "../../utils/backend-trace"
-import { SubagentManager } from "../../subagents/manager"
-import { setSubagentManager } from "../../subagents/mcp-tools"
-import { setCommandsManager } from "../../subagents/commands"
-import { setupProcessHandlers } from "../lifecycle"
+import type { CLIFlags } from "../cli/options"
+import type { AgentBackend } from "../protocol/types"
+import { createBackend } from "../subagents/backend-factory"
+import { startApp } from "./app"
+import { log } from "../utils/logger"
+import { backendTrace } from "../utils/backend-trace"
+import { SubagentManager } from "../subagents/manager"
+import { setSubagentManager } from "../subagents/mcp-tools"
+import { setCommandsManager } from "../subagents/commands"
+import { setupProcessHandlers } from "../cli/lifecycle"
 
 const VERSION = "0.1.0"
 
@@ -40,7 +42,7 @@ export async function launchTui(flags: CLIFlags): Promise<void> {
 
   // Fill in persisted defaults from the bantai settings loader. CLI flags
   // always win — we only touch values the user didn't provide.
-  const { loadConfig } = await import("../../config/settings")
+  const { loadConfig } = await import("../config/settings")
   const resolved = await loadConfig({ cwd: flags.config.cwd })
   if (!flags.theme && resolved.sources.theme && resolved.sources.theme !== "default") {
     flags.theme = resolved.values.theme
@@ -112,15 +114,14 @@ export async function launchTui(flags: CLIFlags): Promise<void> {
 
   // Apply theme if specified (must happen before render)
   if (flags.theme) {
-    const { getTheme } = await import("../../tui/theme/registry")
-    const { applyTheme } = await import("../../tui/theme/tokens")
+    const { getTheme, listThemes } = await import("./theme/registry")
+    const { applyTheme } = await import("./theme/tokens")
     const theme = getTheme(flags.theme)
     if (theme) {
       applyTheme(theme)
       log.info("Theme applied", { theme: flags.theme })
     } else {
-      const { listThemes } = await import("../../tui/theme/registry")
-      const available = listThemes().map(t => t.id).join(", ")
+      const available = listThemes().map((t) => t.id).join(", ")
       console.error(`Unknown theme: ${flags.theme}. Available: ${available}`)
       process.exit(1)
     }
@@ -128,11 +129,11 @@ export async function launchTui(flags: CLIFlags): Promise<void> {
 
   // Apply status bar preset (soft-fails to default for unknown ids)
   if (flags.statusBar) {
-    const { applyStatusBar } = await import("../../tui/status-bar/active")
-    const { listStatusBars } = await import("../../tui/status-bar/registry")
+    const { applyStatusBar } = await import("./status-bar/active")
+    const { listStatusBars } = await import("./status-bar/registry")
     const result = applyStatusBar(flags.statusBar)
     if (result.fellBack) {
-      const available = listStatusBars().map(p => p.id).join(", ")
+      const available = listStatusBars().map((p) => p.id).join(", ")
       console.error(
         `Unknown status bar preset: "${flags.statusBar}". Falling back to "${result.id}". Available: ${available}`,
       )
@@ -151,7 +152,7 @@ export async function launchTui(flags: CLIFlags): Promise<void> {
 
   // If --resume was used without a session ID, eagerly fetch sessions from
   // ALL backends so the multi-backend picker can render immediately.
-  let preloadedSessions: import("../../protocol/types").MultiBackendSessions | undefined
+  let preloadedSessions: import("../protocol/types").MultiBackendSessions | undefined
   if (flags.config.resumeInteractive) {
     try {
       const {
@@ -159,9 +160,9 @@ export async function launchTui(flags: CLIFlags): Promise<void> {
         listCodexSessionsFromDisk,
         listGeminiSessionsFromDisk,
         enrichSessions,
-      } = await import("../../session/cross-backend")
+      } = await import("../session/cross-backend")
       const cwd = flags.config.cwd ?? process.cwd()
-      const backendKey = flags.backend as import("../../protocol/types").SessionOrigin
+      const backendKey = flags.backend as import("../protocol/types").SessionOrigin
 
       // Parallel disk scan for all backends
       const [claudeDisk, codexDisk, geminiDisk] = await Promise.all([
@@ -172,7 +173,7 @@ export async function launchTui(flags: CLIFlags): Promise<void> {
 
       // For the active backend, also try the SDK's listSessions() for richer
       // metadata (custom titles, message counts) and merge with disk results
-      let sdkSessions: import("../../protocol/types").SessionInfo[] = []
+      let sdkSessions: import("../protocol/types").SessionInfo[] = []
       try {
         sdkSessions = await backend.listSessions()
         for (const s of sdkSessions) {
@@ -184,14 +185,14 @@ export async function launchTui(flags: CLIFlags): Promise<void> {
 
       // Merge: prefer SDK sessions (richer metadata), fall back to disk
       const merge = (
-        sdk: import("../../protocol/types").SessionInfo[],
-        disk: import("../../protocol/types").SessionInfo[],
+        sdk: import("../protocol/types").SessionInfo[],
+        disk: import("../protocol/types").SessionInfo[],
       ) => {
         const sdkIds = new Set(sdk.map(s => s.id))
         return [...sdk, ...disk.filter(s => !sdkIds.has(s.id))]
       }
 
-      const raw: import("../../protocol/types").MultiBackendSessions = {
+      const raw: import("../protocol/types").MultiBackendSessions = {
         claude: backendKey === "claude" ? merge(sdkSessions, claudeDisk) : claudeDisk,
         codex: backendKey === "codex" ? merge(sdkSessions, codexDisk) : codexDisk,
         gemini: backendKey === "gemini" ? merge(sdkSessions, geminiDisk) : geminiDisk,
@@ -216,7 +217,7 @@ export async function launchTui(flags: CLIFlags): Promise<void> {
   }
 
   // Cleanup function for startApp's onExit callback
-  const { createCleanup } = await import("../lifecycle")
+  const { createCleanup } = await import("../cli/lifecycle")
   const cleanup = createCleanup({ backend, subagentManager })
 
   // Start the TUI — do not await; OpenTUI's native event loop keeps the process alive
@@ -227,6 +228,6 @@ export async function launchTui(flags: CLIFlags): Promise<void> {
     noDiagnosticsMcp: flags.noDiagnosticsMcp,
     subagentManager,
     preloadedSessions,
-    currentBackend: flags.backend as import("../../protocol/types").SessionOrigin,
+    currentBackend: flags.backend as import("../protocol/types").SessionOrigin,
   })
 }

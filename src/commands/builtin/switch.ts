@@ -13,7 +13,7 @@ import {
   listBackends,
   type BackendId,
 } from "../../protocol/registry"
-import { friendlyBackendName } from "../../tui/models"
+import { friendlyBackendName } from "../../protocol/models"
 import { log } from "../../utils/logger"
 
 function knownBackendIds(): string {

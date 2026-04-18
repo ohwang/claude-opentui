@@ -18,7 +18,7 @@
  * This command surfaces inline ephemeral system messages — no TUI panels.
  */
 
-import type { SlashCommand } from "../registry"
+import type { CommandContext, SlashCommand } from "../registry"
 import {
   loadConfig,
   writeGlobalSetting,
@@ -29,10 +29,6 @@ import {
   type SettingSource,
 } from "../../config/settings"
 import { invalidateStatusLineConfig } from "../../utils/statusline"
-import { applyTheme, getCurrentThemeId } from "../../tui/theme/tokens"
-import { getTheme } from "../../tui/theme/registry"
-import { applyStatusBar, getCurrentStatusBarId } from "../../tui/status-bar/active"
-import { getStatusBar } from "../../tui/status-bar/registry"
 
 // Every user-facing key we render in `/settings`. Keep in sync with
 // BantaiConfig — missing keys here are simply not shown.
@@ -99,16 +95,29 @@ function renderDetail(resolved: ResolvedConfig, key: keyof BantaiConfig): string
 /**
  * Apply the in-memory side effects of a setting change for the current
  * session. The on-disk write has already happened by the time this is called.
+ *
+ * Live-apply for `theme` and `statusBar` is delegated to the frontend via
+ * `ctx.frontend`. Frontends without those capabilities (headless, Slack,
+ * GUI that ignores TUI theming) simply report "takes effect on next launch".
  */
-function applyInMemory(key: keyof BantaiConfig, value: unknown): string | null {
+function applyInMemory(
+  key: keyof BantaiConfig,
+  value: unknown,
+  ctx: CommandContext,
+): string | null {
   switch (key) {
     case "theme": {
       if (typeof value !== "string") return null
-      const theme = getTheme(value)
-      if (!theme) return `Theme "${value}" written to disk but not found in registry; will take effect when registered.`
-      if (value === getCurrentThemeId()) return null
-      applyTheme(theme)
-      return `Theme applied: ${theme.name}.`
+      const { frontend } = ctx
+      if (!frontend?.applyTheme) {
+        return `Theme written. Takes effect on next launch.`
+      }
+      if (value === frontend.currentThemeId?.()) return null
+      const result = frontend.applyTheme(value)
+      if (!result.ok) {
+        return result.error ?? `Theme "${value}" could not be applied.`
+      }
+      return `Theme applied: ${result.appliedName ?? value}.`
     }
     case "statusLine": {
       invalidateStatusLineConfig()
@@ -116,13 +125,16 @@ function applyInMemory(key: keyof BantaiConfig, value: unknown): string | null {
     }
     case "statusBar": {
       if (typeof value !== "string") return null
-      if (value === getCurrentStatusBarId()) return null
-      const preset = getStatusBar(value)
-      const applied = applyStatusBar(value)
+      const { frontend } = ctx
+      if (!frontend?.applyStatusBar) {
+        return `Status bar written. Takes effect on next launch.`
+      }
+      if (value === frontend.currentStatusBarId?.()) return null
+      const applied = frontend.applyStatusBar(value)
       if (applied.fellBack) {
         return `Unknown status bar preset "${value}" — falling back to "${applied.id}". Register the preset or correct the id.`
       }
-      return `Status bar applied: ${preset?.name ?? applied.id}.`
+      return `Status bar applied: ${applied.appliedName ?? applied.id}.`
     }
     default:
       // Most settings are only consumed at bootstrap — the persisted value
@@ -187,7 +199,7 @@ export const settingsCommand: SlashCommand = {
         return
       }
 
-      const note = applyInMemory(key, coerced)
+      const note = applyInMemory(key, coerced, ctx)
       const lines = [
         `Set ${key} = ${formatSettingValue(coerced)}`,
         `  written to: ${path}`,

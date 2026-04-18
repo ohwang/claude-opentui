@@ -13,7 +13,7 @@
 
 import { Command } from "commander"
 import { addGlobalOptions, addTuiOptions, resolveFlags } from "./options"
-import { launchTui } from "./commands/tui"
+import { launchTui } from "../tui/launcher"
 import { runHeadless } from "./commands/run"
 
 const VERSION = "0.1.0"

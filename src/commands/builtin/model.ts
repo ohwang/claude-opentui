@@ -4,7 +4,7 @@
 
 import type { ModelInfo } from "../../protocol/types"
 import type { CommandContext, SlashCommand } from "../registry"
-import { MODEL_NAMES } from "../../tui/models"
+import { MODEL_NAMES } from "../../protocol/models"
 
 function staticClaudeModels(): ModelInfo[] {
   return Object.entries(MODEL_NAMES).map(([id, name]) => ({ id, name, provider: "anthropic" }))

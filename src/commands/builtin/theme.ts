@@ -5,11 +5,12 @@
  *   /theme           — list available themes with current marked
  *   /theme <id>      — switch to a theme preset
  *   /theme list      — same as /theme
+ *
+ * Frontend-neutral: delegates listing/applying to `ctx.frontend`. Non-TUI
+ * frontends that don't implement theming surface an explanatory message.
  */
 
 import type { SlashCommand } from "../registry"
-import { listThemes, getTheme } from "../../tui/theme/registry"
-import { applyTheme, getCurrentThemeId } from "../../tui/theme/tokens"
 
 export const themeCommand: SlashCommand = {
   name: "theme",
@@ -17,16 +18,26 @@ export const themeCommand: SlashCommand = {
   argumentHint: "[theme-id]",
   execute: (args, ctx) => {
     const themeId = args.trim()
+    const { frontend } = ctx
+
+    if (!frontend?.listThemes || !frontend?.applyTheme) {
+      ctx.pushEvent({
+        type: "system_message",
+        text: "Theme switching is not supported by this frontend.",
+        ephemeral: true,
+      })
+      return
+    }
 
     // No args or "list" — show available themes
     if (!themeId || themeId === "list") {
-      const themes = listThemes()
-      const currentId = getCurrentThemeId()
+      const themes = frontend.listThemes()
+      const currentId = frontend.currentThemeId?.()
 
       const lines = [
         "Available themes:",
         "",
-        ...themes.map(t => {
+        ...themes.map((t) => {
           const marker = t.id === currentId ? " (active)" : ""
           return `  ${t.id} — ${t.name}${marker}`
         }),
@@ -34,39 +45,34 @@ export const themeCommand: SlashCommand = {
         "Switch: /theme <id>",
       ]
 
-      ctx.pushEvent({
-        type: "system_message",
-        text: lines.join("\n"),
-      })
+      ctx.pushEvent({ type: "system_message", text: lines.join("\n") })
       return
     }
 
     // Try to switch theme
-    const theme = getTheme(themeId)
-    if (!theme) {
-      const available = listThemes().map(t => t.id).join(", ")
-      ctx.pushEvent({
-        type: "system_message",
-        text: `Unknown theme: "${themeId}". Available: ${available}`,
-      })
-      return
-    }
-
-    const currentId = getCurrentThemeId()
+    const currentId = frontend.currentThemeId?.()
     if (themeId === currentId) {
+      // Short-circuit: bridge would also detect this, but we avoid the redundant work.
+      const match = frontend.listThemes().find((t) => t.id === themeId)
       ctx.pushEvent({
         type: "system_message",
-        text: `Already using theme: ${theme.name}`,
+        text: `Already using theme: ${match?.name ?? themeId}`,
       })
       return
     }
 
-    // Apply the theme (mutates colors in-place, rebuilds syntax style)
-    applyTheme(theme)
+    const result = frontend.applyTheme(themeId)
+    if (!result.ok) {
+      ctx.pushEvent({
+        type: "system_message",
+        text: result.error ?? `Failed to apply theme "${themeId}".`,
+      })
+      return
+    }
 
     ctx.pushEvent({
       type: "system_message",
-      text: `Switched to ${theme.name}. New content will use the updated theme.`,
+      text: `Switched to ${result.appliedName ?? themeId}. New content will use the updated theme.`,
     })
   },
 }

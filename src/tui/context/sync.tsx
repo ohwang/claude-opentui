@@ -28,7 +28,7 @@ import {
 } from "../../protocol/types"
 import { EventBatcher } from "../../utils/event-batcher"
 import { log } from "../../utils/logger"
-import { friendlyBackendName } from "../models"
+import { friendlyBackendName } from "../../protocol/models"
 import { useAgent } from "./agent"
 import { useMessages } from "./messages"
 import { useSession } from "./session"

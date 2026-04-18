@@ -8,11 +8,12 @@
  *   /status-bar           — list available presets with current marked
  *   /status-bar <id>      — switch to a preset
  *   /status-bar list      — same as /status-bar
+ *
+ * Frontend-neutral: delegates to `ctx.frontend`. Non-TUI frontends surface
+ * an explanatory message.
  */
 
 import type { SlashCommand } from "../registry"
-import { getStatusBar, listStatusBars } from "../../tui/status-bar/registry"
-import { applyStatusBar, getCurrentStatusBarId } from "../../tui/status-bar/active"
 
 export const statusBarCommand: SlashCommand = {
   name: "status-bar",
@@ -21,33 +22,42 @@ export const statusBarCommand: SlashCommand = {
   aliases: ["statusbar"],
   execute: (args, ctx) => {
     const presetId = args.trim()
+    const { frontend } = ctx
+
+    if (!frontend?.listStatusBars || !frontend?.applyStatusBar) {
+      ctx.pushEvent({
+        type: "system_message",
+        text: "Status bar switching is not supported by this frontend.",
+        ephemeral: true,
+      })
+      return
+    }
 
     // No args or "list" — show available presets
     if (!presetId || presetId === "list") {
-      const presets = listStatusBars()
-      const currentId = getCurrentStatusBarId()
+      const presets = frontend.listStatusBars()
+      const currentId = frontend.currentStatusBarId?.()
 
       const lines = [
         "Available status bar presets:",
         "",
-        ...presets.map(p => {
+        ...presets.map((p) => {
           const marker = p.id === currentId ? " (active)" : ""
-          return `  ${p.id} — ${p.name}${marker}\n    ${p.description}`
+          const desc = p.description ? `\n    ${p.description}` : ""
+          return `  ${p.id} — ${p.name}${marker}${desc}`
         }),
         "",
         "Switch: /status-bar <id>",
       ]
 
-      ctx.pushEvent({
-        type: "system_message",
-        text: lines.join("\n"),
-      })
+      ctx.pushEvent({ type: "system_message", text: lines.join("\n") })
       return
     }
 
     // No-op if already active (don't flash the screen)
-    if (presetId === getCurrentStatusBarId()) {
-      const preset = getStatusBar(presetId)
+    const currentId = frontend.currentStatusBarId?.()
+    if (presetId === currentId) {
+      const preset = frontend.listStatusBars().find((p) => p.id === presetId)
       ctx.pushEvent({
         type: "system_message",
         text: `Already using status bar: ${preset?.name ?? presetId}`,
@@ -57,9 +67,9 @@ export const statusBarCommand: SlashCommand = {
 
     // Soft-fail for unknown ids: applyStatusBar falls back to default, and
     // we surface the available list so the user can correct.
-    const result = applyStatusBar(presetId)
+    const result = frontend.applyStatusBar(presetId)
     if (result.fellBack) {
-      const available = listStatusBars().map(p => p.id).join(", ")
+      const available = frontend.listStatusBars().map((p) => p.id).join(", ")
       ctx.pushEvent({
         type: "system_message",
         text: `Unknown status bar preset: "${presetId}". Falling back to "${result.id}".\nAvailable: ${available}`,
@@ -67,10 +77,9 @@ export const statusBarCommand: SlashCommand = {
       return
     }
 
-    const preset = getStatusBar(result.id)
     ctx.pushEvent({
       type: "system_message",
-      text: `Switched to status bar: ${preset?.name ?? result.id}`,
+      text: `Switched to status bar: ${result.appliedName ?? result.id}`,
     })
   },
 }

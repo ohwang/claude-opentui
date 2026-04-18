@@ -3,7 +3,7 @@
  */
 
 import type { SlashCommand } from "../registry"
-import { friendlyModelName } from "../../tui/models"
+import { friendlyModelName } from "../../protocol/models"
 
 /** Format token counts for human-readable display */
 function formatTokens(n: number): string {

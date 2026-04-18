@@ -13,7 +13,7 @@ import { resolve } from "node:path"
 import { TextAttributes } from "@opentui/core"
 import { useSession } from "../context/session"
 import { useAgent } from "../context/agent"
-import { friendlyModelName, MODEL_CONTEXT_WINDOWS, DEFAULT_CONTEXT_WINDOW } from "../models"
+import { friendlyModelName, MODEL_CONTEXT_WINDOWS, DEFAULT_CONTEXT_WINDOW } from "../../protocol/models"
 import { colors } from "../theme/tokens"
 
 /**

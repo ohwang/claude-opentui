@@ -14,7 +14,7 @@
 import path from "node:path"
 import os from "node:os"
 import { log } from "./logger"
-import { friendlyModelName, MODEL_CONTEXT_WINDOWS, DEFAULT_CONTEXT_WINDOW } from "../tui/models"
+import { friendlyModelName, MODEL_CONTEXT_WINDOWS, DEFAULT_CONTEXT_WINDOW } from "../protocol/models"
 import type { SessionContextState } from "../tui/context/session"
 import type { PermissionMode, RateLimitEntry } from "../protocol/types"
 import { loadConfigSync, type StatusLineSetting } from "../config/settings"

@@ -7,7 +7,7 @@
 
 import { getSnapshot, getSubagentManagerBridge } from "./state-bridge"
 import { log } from "../utils/logger"
-import { friendlyModelName, MODEL_CONTEXT_WINDOWS, DEFAULT_CONTEXT_WINDOW } from "../tui/models"
+import { friendlyModelName, MODEL_CONTEXT_WINDOWS, DEFAULT_CONTEXT_WINDOW } from "../protocol/models"
 import type { Block } from "../protocol/types"
 
 interface CallToolResult {

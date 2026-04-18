@@ -12,7 +12,7 @@ import { TextAttributes } from "@opentui/core"
 import { Index, Show } from "solid-js"
 import type { JudgeResult, SessionStats } from "../../../ab/types"
 import type { DiffStats } from "../../../utils/git-worktree"
-import { friendlyBackendName, friendlyModelName } from "../../models"
+import { friendlyBackendName, friendlyModelName } from "../../../protocol/models"
 import { colors } from "../../theme/tokens"
 import { ShortcutBar, ShortcutHint } from "../primitives"
 

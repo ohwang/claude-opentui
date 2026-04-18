@@ -8,7 +8,7 @@
 
 import type { SlashCommand } from "../registry"
 import { listBackends } from "../../protocol/registry"
-import { friendlyBackendName } from "../../tui/models"
+import { friendlyBackendName } from "../../protocol/models"
 
 export const backendCommand: SlashCommand = {
   name: "backend",

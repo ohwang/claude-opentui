@@ -40,6 +40,38 @@ export interface AbPanelData {
   onDismiss: () => void
 }
 
+/** Lightweight theme descriptor surfaced to frontend-neutral code. */
+export interface ThemeSummary {
+  id: string
+  name: string
+}
+
+/** Lightweight status bar preset descriptor surfaced to frontend-neutral code. */
+export interface StatusBarSummary {
+  id: string
+  name: string
+  description?: string
+}
+
+export interface ApplyThemeResult {
+  ok: boolean
+  /** Human-readable name of the theme that is now active (on success). */
+  appliedName?: string
+  /** Error detail when `ok: false` (unknown id, frontend refused, etc.). */
+  error?: string
+}
+
+export interface ApplyStatusBarResult {
+  /** The id that actually became active — may differ from the request on fallback. */
+  id: string
+  /** Human-readable name of the applied preset. */
+  appliedName?: string
+  /** True when the requested id was unknown and a default was substituted. */
+  fellBack: boolean
+  /** The original id the caller asked for (set when `fellBack` is true). */
+  requestedId?: string
+}
+
 /**
  * Frontend capability surface available to slash commands and any other
  * frontend-neutral code that needs to ask the hosting UI to do something.
@@ -73,6 +105,29 @@ export interface FrontendBridge {
    * `true` if the frontend was able to copy, `false` otherwise.
    */
   copy?(text: string): Promise<boolean>
+
+  // -------------------------------------------------------------------------
+  // Theme management — TUI has a rich theme store; Slack/GUI may ignore these
+  // -------------------------------------------------------------------------
+
+  /** List every registered theme. Returns `[]` when theming is unsupported. */
+  listThemes?(): ThemeSummary[]
+
+  /** Apply a theme by id. Returns `ok: false` when the id is unknown. */
+  applyTheme?(id: string): ApplyThemeResult
+
+  /** The id of the currently active theme, or `undefined` when unsupported. */
+  currentThemeId?(): string | undefined
+
+  // -------------------------------------------------------------------------
+  // Status bar preset management — TUI-only concept but keyed the same way
+  // -------------------------------------------------------------------------
+
+  listStatusBars?(): StatusBarSummary[]
+
+  applyStatusBar?(id: string): ApplyStatusBarResult
+
+  currentStatusBarId?(): string | undefined
 }
 
 /**

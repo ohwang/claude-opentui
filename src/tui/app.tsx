@@ -38,7 +38,7 @@ import { PermissionDialog } from "./components/permission-dialog"
 import { ElicitationDialog } from "./components/elicitation"
 import { DiagnosticsPanel, scrollDiagnostics, scrollDiagnosticsToTop, scrollDiagnosticsToBottom, switchDiagnosticsTab } from "./components/diagnostics"
 import { SessionPicker } from "./components/session-picker"
-import { MODEL_NAMES, friendlyModelName, friendlyBackendName } from "./models"
+import { MODEL_NAMES, friendlyModelName, friendlyBackendName } from "../protocol/models"
 
 // Module-level exit function so slash commands can trigger clean shutdown
 let _cleanExit: (() => void) | undefined

@@ -17,7 +17,7 @@
 import { createOrchestrator } from "../../ab/orchestrator"
 import type { Target } from "../../ab/types"
 import { listBackends, type BackendId } from "../../protocol/registry"
-import { friendlyBackendName, friendlyModelName } from "../../tui/models"
+import { friendlyBackendName, friendlyModelName } from "../../protocol/models"
 import { log } from "../../utils/logger"
 import type { AbPanelData } from "../frontend"
 import type { CommandContext, SlashCommand } from "../registry"

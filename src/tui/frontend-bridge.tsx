@@ -21,10 +21,14 @@ import { join } from "path"
 import { mkdirSync, writeFileSync } from "fs"
 import { homedir } from "os"
 import type {
+  ApplyStatusBarResult,
+  ApplyThemeResult,
   FrontendBridge,
   HelpPanelData,
   AbPanelData,
   PanelKind,
+  StatusBarSummary,
+  ThemeSummary,
 } from "../commands/frontend"
 import { log } from "../utils/logger"
 import { copyToClipboard } from "../utils/clipboard"
@@ -33,6 +37,16 @@ import { HelpPanel } from "./panels/help-panel"
 import { HotkeysPanel } from "./panels/hotkeys-panel"
 import { AboutPanel } from "./panels/about-panel"
 import { AbPanel } from "./panels/ab-panel"
+import { listThemes, getTheme } from "./theme/registry"
+import { applyTheme, getCurrentThemeId } from "./theme/tokens"
+import {
+  listStatusBars,
+  getStatusBar,
+} from "./status-bar/registry"
+import {
+  applyStatusBar,
+  getCurrentStatusBarId,
+} from "./status-bar/active"
 
 const SCREENSHOT_DIR = join(homedir(), ".bantai", "screenshots")
 
@@ -146,5 +160,52 @@ export const tuiFrontendBridge: FrontendBridge = {
       log.warn("TuiFrontendBridge.copy failed", { error: String(err) })
       return false
     }
+  },
+
+  listThemes(): ThemeSummary[] {
+    return listThemes().map((t) => ({ id: t.id, name: t.name }))
+  },
+
+  applyTheme(id: string): ApplyThemeResult {
+    const theme = getTheme(id)
+    if (!theme) {
+      const available = listThemes().map((t) => t.id).join(", ")
+      return {
+        ok: false,
+        error: `Unknown theme: "${id}". Available: ${available}`,
+      }
+    }
+    if (id === getCurrentThemeId()) {
+      return { ok: true, appliedName: theme.name }
+    }
+    applyTheme(theme)
+    return { ok: true, appliedName: theme.name }
+  },
+
+  currentThemeId(): string | undefined {
+    return getCurrentThemeId()
+  },
+
+  listStatusBars(): StatusBarSummary[] {
+    return listStatusBars().map((p) => ({
+      id: p.id,
+      name: p.name,
+      description: p.description,
+    }))
+  },
+
+  applyStatusBar(id: string): ApplyStatusBarResult {
+    const result = applyStatusBar(id)
+    const preset = getStatusBar(result.id)
+    return {
+      id: result.id,
+      appliedName: preset?.name,
+      fellBack: result.fellBack,
+      requestedId: result.requestedId,
+    }
+  },
+
+  currentStatusBarId(): string | undefined {
+    return getCurrentStatusBarId()
   },
 }

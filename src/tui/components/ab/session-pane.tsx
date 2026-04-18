@@ -15,7 +15,7 @@ import { createMemo, Show } from "solid-js"
 import type { ScrollBoxRenderable } from "@opentui/core"
 import type { SessionStats, Label } from "../../../ab/types"
 import type { DiffStats } from "../../../utils/git-worktree"
-import { friendlyBackendName, friendlyModelName } from "../../models"
+import { friendlyBackendName, friendlyModelName } from "../../../protocol/models"
 import { colors } from "../../theme/tokens"
 
 export interface SessionPaneProps {

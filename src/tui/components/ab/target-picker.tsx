@@ -17,7 +17,7 @@
 import { TextAttributes } from "@opentui/core"
 import type { KeyEvent } from "@opentui/core"
 import { createMemo, createSignal, Index, onCleanup, Show } from "solid-js"
-import { friendlyBackendName, friendlyModelName, MODEL_NAMES } from "../../models"
+import { friendlyBackendName, friendlyModelName, MODEL_NAMES } from "../../../protocol/models"
 import { setModalKeyHandler } from "../../context/modal"
 import { listBackends, type BackendDescriptor } from "../../../protocol/registry"
 import type { Target } from "../../../ab/types"

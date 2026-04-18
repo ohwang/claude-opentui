@@ -337,7 +337,7 @@ export function coerceSettingValue(key: keyof BantaiConfig, raw: string): unknow
       return trimmed
     }
     case "permissionMode": {
-      const valid: PermissionMode[] = ["default", "acceptEdits", "bypassPermissions", "plan", "dontAsk"]
+      const valid: PermissionMode[] = ["default", "acceptEdits", "bypassPermissions", "plan", "dontAsk", "auto"]
       if (!valid.includes(trimmed as PermissionMode)) {
         throw new Error(`expected one of ${valid.join("|")} for permissionMode, got "${raw}"`)
       }

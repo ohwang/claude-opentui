@@ -247,7 +247,10 @@ export class ClaudeAdapter implements AgentBackend {
    *   - "acceptEdits"       → Auto-approve file edits, ask before shell commands
    *   - "bypassPermissions" → Auto-approve everything (no prompts at all)
    *   - "plan"              → Read-only: no edits, no commands allowed
-   *   - "dontAsk"           → Same as bypassPermissions (--dangerously-* flag)
+   *   - "dontAsk"           → Never prompt; deny anything not pre-approved
+   *                           (SDK denies if not in the pre-approval rule set)
+   *   - "auto"              → Classifier model decides approve/deny per request;
+   *                           only falls back to a prompt on low confidence
    *
    * Filesystem scope: cwd + any --add-dir directories. Paths outside are blocked.
    * Protected paths: None explicitly — all paths within scope are equally accessible.
@@ -293,10 +296,20 @@ export class ClaudeAdapter implements AgentBackend {
         dontAsk: {
           writableScope: "cwd + allowed directories",
           protectedPaths: "none (all in-scope paths equal)",
-          commandApproval: "never",
-          editApproval: "never",
+          commandApproval: "per-tool-rules",
+          editApproval: "per-tool-rules",
           networkAccess: "unrestricted",
           separateSandbox: false,
+          caveats: "No prompts ever — tools not covered by an allowlist rule are denied.",
+        },
+        auto: {
+          writableScope: "cwd + allowed directories",
+          protectedPaths: "none (all in-scope paths equal)",
+          commandApproval: "per-tool-rules",
+          editApproval: "per-tool-rules",
+          networkAccess: "unrestricted",
+          separateSandbox: false,
+          caveats: "Model classifier judges each request; low-confidence calls still surface a prompt.",
         },
       },
     }
@@ -318,6 +331,7 @@ export class ClaudeAdapter implements AgentBackend {
         "bypassPermissions",
         "plan",
         "dontAsk",
+        "auto",
       ],
       sandboxInfo,
     }

@@ -80,7 +80,7 @@ export function addTuiOptions(cmd: Command): Command {
     .option("-c, --continue", "Continue most recent session")
     .option("-r, --resume [id]", "Resume a session (omit id for interactive picker)")
     .option("-b, --backend <name>", "Backend (claude, codex, gemini, copilot, acp, mock)")
-    .option("--permission-mode <mode>", "Permission mode (default, acceptEdits, bypassPermissions, plan, dontAsk)")
+    .option("--permission-mode <mode>", "Permission mode (default, acceptEdits, bypassPermissions, plan, dontAsk, auto)")
     .option("--dangerously-skip-permissions", "Shorthand for full-access bypass mode")
     .option("--max-turns <n>", "Maximum turns", parseIntPositive)
     .option("--max-budget <usd>", "Maximum budget in USD", parseFloatPositive)

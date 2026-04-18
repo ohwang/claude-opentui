@@ -967,7 +967,9 @@ export interface PermissionModeDetail {
  * - "acceptEdits"       — Auto-approve file edits, still ask for commands
  * - "bypassPermissions" — Auto-approve everything (no prompts)
  * - "plan"              — Read-only analysis, no edits or commands
- * - "dontAsk"           — Like bypassPermissions but intended for --dangerously-* flag
+ * - "dontAsk"           — Never prompt; deny anything not pre-approved via allowlist
+ * - "auto"              — Model classifier decides approve/deny per request
+ *                         (no prompt surfaced when the classifier is confident)
  */
 export type PermissionMode =
   | "default"
@@ -975,6 +977,7 @@ export type PermissionMode =
   | "bypassPermissions"
   | "plan"
   | "dontAsk"
+  | "auto"
 
 export interface TokenUsage {
   inputTokens: number

@@ -42,6 +42,7 @@ import type { StatusBarPreset } from "../status-bar/types"
 const PERM_MODE_CYCLE: PermissionMode[] = [
   "default",
   "acceptEdits",
+  "auto",
   "bypassPermissions",
   "plan",
 ]
@@ -57,7 +58,9 @@ function permissionModeLabel(mode: PermissionMode | undefined): string {
     case "plan":
       return "plan"
     case "dontAsk":
-      return "auto"
+      return "deny unlisted"
+    case "auto":
+      return "auto mode on"
     default:
       return "default"
   }
@@ -185,7 +188,8 @@ export function StatusBar(props: { hint?: string | null }) {
       case "acceptEdits": return colors.state.waiting
       case "bypassPermissions": return colors.state.error
       case "plan": return colors.state.running
-      case "dontAsk": return colors.permission.modeLabel
+      case "dontAsk": return colors.state.error
+      case "auto": return colors.state.waiting
       default: return colors.state.idle
     }
   }

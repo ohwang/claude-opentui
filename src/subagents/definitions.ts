@@ -15,6 +15,7 @@ const VALID_PERMISSION_MODES = new Set<string>([
   "bypassPermissions",
   "plan",
   "dontAsk",
+  "auto",
 ])
 
 const VALID_EFFORT_LEVELS = new Set<string>([

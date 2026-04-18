@@ -19,12 +19,12 @@ import {
   getStatusBar,
   listStatusBars,
   resolveStatusBar,
-} from "../../src/tui/status-bar/registry"
+} from "../../src/frontends/tui/status-bar/registry"
 import {
   applyStatusBar,
   getCurrentStatusBarId,
   hasStatusBar,
-} from "../../src/tui/status-bar/active"
+} from "../../src/frontends/tui/status-bar/active"
 
 describe("status bar registry — built-in presets", () => {
   it("registers default, minimal, detailed, and claude-compat", () => {

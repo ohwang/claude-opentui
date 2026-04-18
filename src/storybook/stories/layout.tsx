@@ -3,7 +3,7 @@
  */
 
 import type { Story } from "../types"
-import { HeaderBar } from "../../tui/components/header-bar"
+import { HeaderBar } from "../../frontends/tui/components/header-bar"
 import { idleSession } from "../fixtures/state"
 
 export const headerStories: Story[] = [

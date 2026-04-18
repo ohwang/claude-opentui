@@ -3,10 +3,10 @@
  */
 
 import type { JSX } from "solid-js"
-import type { SessionContextState } from "../tui/context/session"
-import type { MessagesState } from "../tui/context/messages"
-import type { PermissionsState } from "../tui/context/permissions"
-import type { AgentContextValue } from "../tui/context/agent"
+import type { SessionContextState } from "../frontends/tui/context/session"
+import type { MessagesState } from "../frontends/tui/context/messages"
+import type { PermissionsState } from "../frontends/tui/context/permissions"
+import type { AgentContextValue } from "../frontends/tui/context/agent"
 
 /** Mock values a story can provide to the context tree */
 export interface StoryContext {

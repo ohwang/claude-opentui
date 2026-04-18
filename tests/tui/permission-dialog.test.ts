@@ -5,7 +5,7 @@ import {
   extractPreviewLines,
   extractPath,
   option2Text,
-} from "../../src/tui/components/permission-dialog"
+} from "../../src/frontends/tui/components/permission-dialog"
 import type { PermissionRequestEvent } from "../../src/protocol/types"
 
 // ---------------------------------------------------------------------------

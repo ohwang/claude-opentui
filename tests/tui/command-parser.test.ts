@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test"
-import { parseCommandString } from "../../src/tui/components/command-parser"
+import { parseCommandString } from "../../src/frontends/tui/components/command-parser"
 
 describe("parseCommandString", () => {
   describe("basic parsing", () => {

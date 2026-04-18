@@ -3,9 +3,9 @@
  */
 
 import type { Story } from "../types"
-import { PermissionDialog } from "../../tui/components/permission-dialog"
-import { ElicitationDialog } from "../../tui/components/elicitation"
-import { HistorySearchModal } from "../../tui/components/history-search"
+import { PermissionDialog } from "../../frontends/tui/components/permission-dialog"
+import { ElicitationDialog } from "../../frontends/tui/components/elicitation"
+import { HistorySearchModal } from "../../frontends/tui/components/history-search"
 import { idleSession, withPermission, withElicitation } from "../fixtures/state"
 
 const sampleHistory = [

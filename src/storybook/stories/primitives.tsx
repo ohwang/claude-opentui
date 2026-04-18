@@ -12,9 +12,9 @@ import {
   ShortcutHint,
   ShortcutBar,
   type StatusType,
-} from "../../tui/components/primitives"
-import { EphemeralLine } from "../../tui/components/ephemeral-line"
-import { colors } from "../../tui/theme/tokens"
+} from "../../frontends/tui/components/primitives"
+import { EphemeralLine } from "../../frontends/tui/components/ephemeral-line"
+import { colors } from "../../frontends/tui/theme/tokens"
 
 export const primitivesStories: Story[] = [
   {

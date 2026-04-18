@@ -56,7 +56,7 @@ export interface SessionHost {
  * Construct a SessionHost from fully-assembled inputs. Callers are
  * responsible for creating the backend, subagent manager, and close
  * function — this factory only encodes the invariants (single-close,
- * property exposure). See `src/tui/launcher.ts` for a representative
+ * property exposure). See `src/frontends/tui/launcher.ts` for a representative
  * bootstrap sequence.
  */
 export function createSessionHost(opts: SessionHostOptions): SessionHost {

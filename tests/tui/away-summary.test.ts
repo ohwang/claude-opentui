@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test"
-import { formatAwayDuration } from "../../src/tui/hooks/useAwaySummary"
+import { formatAwayDuration } from "../../src/frontends/tui/hooks/useAwaySummary"
 
 describe("formatAwayDuration", () => {
   it("formats durations under 1 hour as minutes", () => {

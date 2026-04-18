@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test"
-import { parseCommandString } from "../../src/tui/components/input-area"
+import { parseCommandString } from "../../src/frontends/tui/components/input-area"
 
 describe("parseCommandString", () => {
   it("preserves quoted macOS app names with spaces", () => {

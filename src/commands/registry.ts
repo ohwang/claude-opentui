@@ -28,7 +28,7 @@ export interface CommandContext {
    * Frontend-specific capability surface (open panel, screenshot, copy, …).
    *
    * Commands MUST route any UI-affecting side effect through this bridge
-   * rather than importing from `src/tui/` or `@opentui/*`. Optional so
+   * rather than importing from `src/frontends/tui/` or `@opentui/*`. Optional so
    * pure-CLI tests can omit it — commands should gracefully degrade.
    */
   frontend?: FrontendBridge

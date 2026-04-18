@@ -2,9 +2,9 @@
  * State builders for storybook stories.
  */
 
-import type { SessionContextState } from "../../tui/context/session"
-import type { MessagesState } from "../../tui/context/messages"
-import type { PermissionsState } from "../../tui/context/permissions"
+import type { SessionContextState } from "../../frontends/tui/context/session"
+import type { MessagesState } from "../../frontends/tui/context/messages"
+import type { PermissionsState } from "../../frontends/tui/context/permissions"
 import type { Block, PermissionRequestEvent, ElicitationRequestEvent } from "../../protocol/types"
 
 export function idleSession(overrides?: Partial<SessionContextState>): Partial<SessionContextState> {

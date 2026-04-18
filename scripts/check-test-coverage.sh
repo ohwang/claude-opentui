@@ -19,7 +19,7 @@ TOTAL=0
 SKIP_PATTERNS=(
   "src/index.ts"
   "src/storybook/"
-  "src/tui/theme/"
+  "src/frontends/tui/theme/"
   "src/protocol/types.ts"
 )
 

@@ -24,9 +24,9 @@ import {
   type CostTotals,
 } from "../../../src/protocol/types"
 import { EventBatcher } from "../../../src/utils/event-batcher"
-import type { MessagesState } from "../../../src/tui/context/messages"
-import type { SessionContextState } from "../../../src/tui/context/session"
-import type { PermissionsState } from "../../../src/tui/context/permissions"
+import type { MessagesState } from "../../../src/frontends/tui/context/messages"
+import type { SessionContextState } from "../../../src/frontends/tui/context/session"
+import type { PermissionsState } from "../../../src/frontends/tui/context/permissions"
 
 // ---------------------------------------------------------------------------
 // Helpers — replicate the store shapes from context providers

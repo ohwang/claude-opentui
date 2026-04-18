@@ -13,7 +13,7 @@ import type {
   PermissionRequestEvent,
   ElicitationRequestEvent,
 } from "../../../src/protocol/types"
-import type { PermissionsState } from "../../../src/tui/context/permissions"
+import type { PermissionsState } from "../../../src/frontends/tui/context/permissions"
 
 // ---------------------------------------------------------------------------
 // Helpers — mirror the store shape from PermissionsProvider without needing

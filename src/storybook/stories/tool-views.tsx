@@ -3,7 +3,7 @@
  */
 
 import type { Story } from "../types"
-import { StatusBar } from "../../tui/components/status-bar"
+import { StatusBar } from "../../frontends/tui/components/status-bar"
 import { idleSession, runningSession } from "../fixtures/state"
 
 export const footerStories: Story[] = [

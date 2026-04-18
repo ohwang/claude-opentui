@@ -5,7 +5,7 @@ import {
   parsePathPrefix,
   findLongestCommonPrefix,
   matchAtTrigger,
-} from "../../src/tui/components/file-autocomplete"
+} from "../../src/frontends/tui/components/file-autocomplete"
 
 const CWD = "/Users/test/project"
 

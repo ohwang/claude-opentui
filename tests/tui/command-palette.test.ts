@@ -3,7 +3,7 @@ import {
   buildPaletteItems,
   truncate,
   type PaletteItem,
-} from "../../src/tui/components/command-palette"
+} from "../../src/frontends/tui/components/command-palette"
 import { CommandRegistry, type SlashCommand } from "../../src/commands/registry"
 
 // ---------------------------------------------------------------------------

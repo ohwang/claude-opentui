@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test"
 import { buildStatusLineInput } from "../../src/utils/statusline"
-import type { SessionContextState } from "../../src/tui/context/session"
+import type { SessionContextState } from "../../src/frontends/tui/context/session"
 
 function baseSessionState(): SessionContextState {
   return {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test"
-import { isSubmitKey } from "../../src/tui/components/input-area"
+import { isSubmitKey } from "../../src/frontends/tui/components/input-area"
 
 describe("isSubmitKey", () => {
   it("submits on plain Enter", () => {

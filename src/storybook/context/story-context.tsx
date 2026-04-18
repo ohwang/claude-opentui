@@ -11,26 +11,26 @@ import { type ParentProps } from "solid-js"
 import { createStore } from "solid-js/store"
 import type { StoryContext } from "../types"
 import { NoopBackend } from "../fixtures/backend"
-import { AgentProvider, createAgentContextValue } from "../../tui/context/agent"
+import { AgentProvider, createAgentContextValue } from "../../frontends/tui/context/agent"
 import {
   SessionContext,
   type SessionContextState,
   type SessionContextValue,
-} from "../../tui/context/session"
+} from "../../frontends/tui/context/session"
 import {
   MessagesContext,
   type MessagesState,
   type MessagesContextValue,
-} from "../../tui/context/messages"
+} from "../../frontends/tui/context/messages"
 import {
   PermissionsContext,
   type PermissionsState,
   type PermissionsContextValue,
-} from "../../tui/context/permissions"
-import { SyncContext, type SyncContextValue } from "../../tui/context/sync"
-import { AnimationProvider } from "../../tui/context/animation"
-import { ToastProvider } from "../../tui/context/toast"
-import { ModalProvider } from "../../tui/context/modal"
+} from "../../frontends/tui/context/permissions"
+import { SyncContext, type SyncContextValue } from "../../frontends/tui/context/sync"
+import { AnimationProvider } from "../../frontends/tui/context/animation"
+import { ToastProvider } from "../../frontends/tui/context/toast"
+import { ModalProvider } from "../../frontends/tui/context/modal"
 
 const DEFAULT_SESSION: SessionContextState = {
   sessionState: "INITIALIZING",

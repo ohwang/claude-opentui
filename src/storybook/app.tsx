@@ -16,7 +16,7 @@ import type { KeyEvent } from "@opentui/core"
 import { StoryContextProvider } from "./context/story-context"
 import { stories, categories } from "./registry"
 import type { Story, StoryContext } from "./types"
-import { colors } from "../tui/theme/tokens"
+import { colors } from "../frontends/tui/theme/tokens"
 
 export function StorybookApp() {
   const dims = useTerminalDimensions()

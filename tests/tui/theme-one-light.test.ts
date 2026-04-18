@@ -17,9 +17,9 @@
  */
 
 import { describe, it, expect } from "bun:test"
-import { getTheme, listThemes } from "../../src/tui/theme/registry"
-import { applyTheme, colors, getCurrentThemeId } from "../../src/tui/theme/tokens"
-import { oneLight } from "../../src/tui/theme/presets/one-light"
+import { getTheme, listThemes } from "../../src/frontends/tui/theme/registry"
+import { applyTheme, colors, getCurrentThemeId } from "../../src/frontends/tui/theme/tokens"
+import { oneLight } from "../../src/frontends/tui/theme/presets/one-light"
 
 // ---------------------------------------------------------------------------
 // Contrast math — WCAG 2.1 relative luminance + contrast ratio

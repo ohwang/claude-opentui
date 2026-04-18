@@ -3,7 +3,7 @@
  */
 
 import type { Story } from "../types"
-import { DiagnosticsPanel } from "../../tui/components/diagnostics"
+import { DiagnosticsPanel } from "../../frontends/tui/components/diagnostics"
 import { idleSession, conversationMessages } from "../fixtures/state"
 import { userBlock, assistantBlock, toolBlock } from "../fixtures/blocks"
 

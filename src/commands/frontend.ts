@@ -3,7 +3,7 @@
  * frontend-specific UI (OpenTUI panels, Slack Block Kit, Electron windows, …).
  *
  * Slash commands receive a `FrontendBridge` via `CommandContext.frontend` and
- * must never import from `src/tui/` or `@opentui/*` directly. A frontend
+ * must never import from `src/frontends/tui/` or `@opentui/*` directly. A frontend
  * implements the bridge and passes it when it constructs a `CommandContext`.
  *
  * This file deliberately has **no** TUI imports. It is the reason the

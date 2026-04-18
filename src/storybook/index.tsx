@@ -19,8 +19,8 @@ process.on("SIGINT", () => {})
 
 import { render } from "@opentui/solid"
 import { StorybookApp } from "./app"
-import { getTheme, listThemes } from "../tui/theme/registry"
-import { applyTheme } from "../tui/theme/tokens"
+import { getTheme, listThemes } from "../frontends/tui/theme/registry"
+import { applyTheme } from "../frontends/tui/theme/tokens"
 
 // Tiny flag parser — the storybook binary only understands --theme.
 const argv = process.argv.slice(2)

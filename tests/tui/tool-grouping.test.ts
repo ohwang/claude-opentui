@@ -9,7 +9,7 @@ import {
   formatGroupSummary,
   formatDuration,
   type ToolGroup,
-} from "../../src/tui/utils/tool-grouping"
+} from "../../src/frontends/tui/utils/tool-grouping"
 import type { Block } from "../../src/protocol/types"
 
 // ---------------------------------------------------------------------------

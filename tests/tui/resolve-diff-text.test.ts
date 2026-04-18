@@ -1,5 +1,5 @@
 import { describe, it, expect } from "bun:test"
-import { resolveDiffText } from "../../src/tui/components/tool-view"
+import { resolveDiffText } from "../../src/frontends/tui/components/tool-view"
 
 describe("resolveDiffText", () => {
   it("returns output as-is when it already looks like a unified diff (ACP case)", () => {

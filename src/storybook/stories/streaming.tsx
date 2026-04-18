@@ -3,8 +3,8 @@
  */
 
 import type { Story } from "../types"
-import { ContextualTips } from "../../tui/components/tips"
-import { InputArea } from "../../tui/components/input-area"
+import { ContextualTips } from "../../frontends/tui/components/tips"
+import { InputArea } from "../../frontends/tui/components/input-area"
 import { idleSession, runningSession } from "../fixtures/state"
 
 export const inputStories: Story[] = [

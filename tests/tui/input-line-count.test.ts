@@ -1,5 +1,5 @@
 import { describe, it, expect } from "bun:test"
-import { computeVisualLineCount } from "../../src/tui/components/input-area"
+import { computeVisualLineCount } from "../../src/frontends/tui/components/input-area"
 
 describe("computeVisualLineCount", () => {
   it("returns 1 for empty text", () => {

@@ -28,11 +28,11 @@ bun test             # Run all tests
 
 Three layers:
 
-1. **CLI Entry Point** (`src/index.ts`) — Flag parsing, config resolution, bootstrap
-2. **TUI Shell** (`src/tui/`) — SolidJS + OpenTUI components, context providers
+1. **CLI Entry Point** (`src/index.ts`, `src/cli/`) — Flag parsing, subcommand dispatch, per-frontend bootstrap
+2. **Frontends** (`src/frontends/<name>/`) — `tui/` (SolidJS + OpenTUI, default) and `slack/` (server placeholder). Each frontend exposes a `launch<Name>(flags)` entry point and owns only its presentation concerns.
 3. **Agent Protocol Layer** (`src/protocol/`) — Unified `AgentBackend` interface + `AgentEvent` stream
 
-The protocol layer is the load-bearing abstraction. All backends implement `AgentBackend`, all TUI components consume `AgentEvent` via `ConversationState`.
+The protocol layer is the load-bearing abstraction. All backends implement `AgentBackend`, all frontends consume `AgentEvent` via `ConversationState` / `SessionHost`.
 
 ## Key Conventions
 
@@ -53,7 +53,7 @@ The protocol layer is the load-bearing abstraction. All backends implement `Agen
   - **Session-file parsers** (`src/backends/claude/session-reader.ts`, `src/session/cross-backend.ts`): the SDK types `MessageParam.content` as `string | Array<ContentBlockParam>`, and both forms appear in real JSONL. Handle both; when the shape is neither, `log.warn` with a snippet. Synthetic SDK-injected turns (compaction summaries, `<command-name>` slash markers, `<local-command-*>` wrappers, `isMeta: true`) are suppressed with `log.debug` that names the reason — not bare-drops. The "user messages vanish on resume" regression was exactly this bug. When in doubt, normalise the shape (e.g. upgrade a string to `[{ type: "text", text }]`) before the main loop rather than branching mid-loop.
   - **Defaulting to `any`/`unknown`**: if a field is typed `unknown` or `any` and you reach for `as any`, you owe either a runtime check (with a log on the unexpected branch) or a tight narrowed type. "It's probably fine" is how this class of bug ships.
 - **Runtime-mutable values must be SolidJS signals or stores.** Plain objects and module-level constants are for truly immutable data only (string enums, static config). If a value can change via a slash command, CLI flag, or user action, it must be reactive. Theme colors (`colors` in `tokens.ts`) are a SolidJS store — never snapshot them into a `const`: read inline in JSX or via `() =>` accessor.
-- **Cross-cutting keyboard shortcuts run FIRST in the root handler, not in overlays.** Any `useKeyboard` intercept that does blanket `event.preventDefault()` on non-whitelist keys (the usual "overlay is open — eat everything" pattern) will silently swallow global shortcuts like Cmd+C copy. Centralise cross-cutting shortcuts as small helpers at the top of the root `useKeyboard` in `src/tui/app.tsx` (e.g. `tryHandleCopyShortcut`) and invoke them before any overlay branch. Every view inherits them for free — no per-view wiring, no per-view regressions when a new overlay is added.
+- **Cross-cutting keyboard shortcuts run FIRST in the root handler, not in overlays.** Any `useKeyboard` intercept that does blanket `event.preventDefault()` on non-whitelist keys (the usual "overlay is open — eat everything" pattern) will silently swallow global shortcuts like Cmd+C copy. Centralise cross-cutting shortcuts as small helpers at the top of the root `useKeyboard` in `src/frontends/tui/app.tsx` (e.g. `tryHandleCopyShortcut`) and invoke them before any overlay branch. Every view inherits them for free — no per-view wiring, no per-view regressions when a new overlay is added.
 
 ## OpenTUI Prop Rules (CRITICAL)
 
@@ -87,22 +87,15 @@ src/
   backends/
     claude/
       adapter.ts          # Claude adapter (query API, default)
-  tui/
-    app.tsx               # Root SolidJS component
-    components/           # UI components (one per file)
-      conversation.tsx    # Scrollbox with stickyScroll
-      message-block.tsx   # User/assistant/system message
-      tool-view.tsx       # Three-level tool view (Ctrl+O/E)
-      input-area.tsx      # Textarea + autocomplete
-      status-bar.tsx      # Model, cost, tokens, state
-      permission-dialog.tsx
-    context/              # SolidJS reactive state (follows OpenCode pattern)
-      agent.tsx           # AppContext: backend, batcher, state machine
-      messages.tsx        # Message list + queue signals
-      session.tsx         # Session management + cost tracking
-      permissions.tsx     # Permission + elicitation state
-      sync.tsx            # Event stream -> signal updates (batch at 16ms)
-    theme.ts              # Colors, styles
+  frontends/
+    tui/                  # Default interactive TUI frontend
+      app.tsx             # Root SolidJS component
+      launcher.ts         # launchTui(flags) — called by CLI
+      components/         # UI components (one per file)
+      context/            # SolidJS reactive state (follows OpenCode pattern)
+      theme.ts            # Colors, styles
+    slack/                # Slack server frontend (placeholder)
+      launcher.ts         # launchSlack(flags) — `bantai slack` entry
   commands/
     registry.ts           # Slash command dispatch
     builtin/              # /help, /clear, /compact, /model

@@ -1430,6 +1430,58 @@ describe("Claude Event Mapper — mapSDKMessage", () => {
     })
   })
 
+  describe("system api_retry (SDK 0.2.112+)", () => {
+    it("emits ephemeral system_message with attempt, delay, reason, and HTTP status", () => {
+      const events = mapSDKMessage(
+        {
+          type: "system",
+          subtype: "api_retry",
+          attempt: 2,
+          max_retries: 3,
+          retry_delay_ms: 2000,
+          error_status: 529,
+          error: "server_error",
+          uuid: "u",
+          session_id: "s",
+        },
+        freshState(),
+      )
+
+      expect(events).toHaveLength(1)
+      expect(events[0]!.type).toBe("system_message")
+      expect((events[0] as any).ephemeral).toBe(true)
+      const text = (events[0] as any).text as string
+      expect(text).toContain("2/3")
+      expect(text).toContain("2.0s")
+      expect(text).toContain("server_error")
+      expect(text).toContain("529")
+    })
+
+    it("omits HTTP status for connection errors (error_status null)", () => {
+      const events = mapSDKMessage(
+        {
+          type: "system",
+          subtype: "api_retry",
+          attempt: 1,
+          max_retries: 3,
+          retry_delay_ms: 1000,
+          error_status: null,
+          error: "unknown",
+          uuid: "u",
+          session_id: "s",
+        },
+        freshState(),
+      )
+
+      expect(events).toHaveLength(1)
+      expect(events[0]!.type).toBe("system_message")
+      expect((events[0] as any).ephemeral).toBe(true)
+      expect((events[0] as any).text).not.toContain("HTTP")
+      expect((events[0] as any).text).toContain("unknown")
+      expect((events[0] as any).text).toContain("1.0s")
+    })
+  })
+
   describe("unknown system subtypes (catch-all)", () => {
     it("maps to backend_specific and logs warning", () => {
       const msg = {

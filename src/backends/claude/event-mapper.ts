@@ -421,6 +421,35 @@ export function mapSDKMessage(msg: any, streamState: ToolStreamState, options?: 
           // started / completed — bookend events, debug-level
           log.debug("Plugin install status", { status: msg.status, name: msg.name })
         }
+      } else if (msg.subtype === "api_retry") {
+        // SDK 0.2.112+: retryable API error — the backend will retry after
+        // retry_delay_ms. Shape: SDKAPIRetryMessage. error_status is null for
+        // connection-layer errors (timeouts) that never got an HTTP response.
+        // Retries are a normal, expected condition so we log at info (not warn,
+        // which per AGENTS.md is reserved for protocol drift) and surface an
+        // ephemeral system_message so the user knows why the turn is stalling.
+        const attempt = typeof msg.attempt === "number" ? msg.attempt : undefined
+        const maxRetries = typeof msg.max_retries === "number" ? msg.max_retries : undefined
+        const delaySec = typeof msg.retry_delay_ms === "number"
+          ? (msg.retry_delay_ms / 1000).toFixed(1)
+          : undefined
+        const reason = msg.error ?? "unknown"
+        const statusPart = msg.error_status != null ? ` (HTTP ${msg.error_status})` : ""
+        const attemptPart = attempt != null && maxRetries != null ? ` ${attempt}/${maxRetries}` : ""
+        const delayPart = delaySec != null ? ` in ${delaySec}s` : ""
+
+        log.info("API retry", {
+          attempt,
+          maxRetries,
+          retryDelayMs: msg.retry_delay_ms,
+          errorStatus: msg.error_status,
+          error: reason,
+        })
+        events.push({
+          type: "system_message",
+          text: `Retrying API request${attemptPart}${delayPart} — ${reason}${statusPart}`,
+          ephemeral: true,
+        })
       } else if (msg.subtype === "request_user_dialog") {
         // SDK 0.2.107+: tool-driven blocking dialog request. bantai does not yet
         // render these dialogs — log a warning and pass through as backend_specific

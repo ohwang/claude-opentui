@@ -206,3 +206,75 @@ export function listReplies(
   out.push(...sliced)
   return { messages: out, has_more: replies.length > sliced.length }
 }
+
+// ---------------------------------------------------------------------------
+// Edit / delete
+// ---------------------------------------------------------------------------
+
+export interface EditMessageOpts {
+  channelId: string
+  ts: string
+  userId: string
+  text: string
+  blocks?: (KnownBlock | Block)[]
+  attachments?: MessageAttachment[]
+  /** Injectable clock. */
+  now?: () => number
+}
+
+export interface EditMessageResult {
+  message: Message
+  previous: Message
+}
+
+/**
+ * Edit a message in place. Mutates the stored Message so downstream state
+ * stays consistent. Records `edited: { user, ts }` per Slack's shape.
+ * Returns a snapshot of the previous state for `message_changed` events.
+ */
+export function editMessage(ws: Workspace, opts: EditMessageOpts): EditMessageResult {
+  const ch = ws.channels.get(opts.channelId)
+  if (!ch) throw new MinislackError("channel_not_found", opts.channelId)
+  const msg = ch.messages.get(opts.ts)
+  if (!msg || msg.tombstone) throw new MinislackError("message_not_found", opts.ts)
+  if (msg.user !== opts.userId) {
+    throw new MinislackError("cant_update_message", "only the author can edit")
+  }
+  if (opts.text.trim().length === 0 && !opts.blocks && !opts.attachments) {
+    throw new MinislackError("no_text")
+  }
+  const previous: Message = { ...msg }
+  msg.text = opts.text
+  if (opts.blocks !== undefined) msg.blocks = opts.blocks
+  if (opts.attachments !== undefined) msg.attachments = opts.attachments
+  const editTs = nextTs(ws, ch.id, opts.now)
+  msg.edited = { user: opts.userId, ts: editTs }
+  return { message: msg, previous }
+}
+
+export interface DeleteMessageOpts {
+  channelId: string
+  ts: string
+  userId: string
+}
+
+export interface DeleteMessageResult {
+  previous: Message
+}
+
+/**
+ * Tombstone a message. The slot stays so `ts` doesn't collide; the record
+ * becomes invisible to history / replies / getMessage.
+ */
+export function deleteMessage(ws: Workspace, opts: DeleteMessageOpts): DeleteMessageResult {
+  const ch = ws.channels.get(opts.channelId)
+  if (!ch) throw new MinislackError("channel_not_found", opts.channelId)
+  const msg = ch.messages.get(opts.ts)
+  if (!msg || msg.tombstone) throw new MinislackError("message_not_found", opts.ts)
+  if (msg.user !== opts.userId) {
+    throw new MinislackError("cant_delete_message", "only the author can delete")
+  }
+  const previous: Message = { ...msg }
+  msg.tombstone = true
+  return { previous }
+}

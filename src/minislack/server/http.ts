@@ -18,7 +18,12 @@ import {
   createSocketRegistry,
   type SocketRegistry,
 } from "./methods/apps"
-import { chatPostMessage } from "./methods/chat"
+import { chatDelete, chatPostMessage, chatUpdate } from "./methods/chat"
+import {
+  reactionsAdd,
+  reactionsGet,
+  reactionsRemove,
+} from "./methods/reactions"
 import {
   conversationsHistory,
   conversationsInfo,
@@ -198,6 +203,47 @@ async function dispatchApi(req: Request, method: string, ctx: HttpContext): Prom
             blocks: args.blocks as chatBlocks,
             attachments: args.attachments as chatAttachments,
             client_msg_id: args.client_msg_id as string | undefined,
+          }),
+        )
+      case "chat.update":
+        return slackOk(
+          chatUpdate(ctx.ws, ctx.bus, auth, {
+            channel: str(args.channel),
+            ts: str(args.ts),
+            text: args.text as string | undefined,
+            blocks: args.blocks as chatBlocks,
+            attachments: args.attachments as chatAttachments,
+          }),
+        )
+      case "chat.delete":
+        return slackOk(
+          chatDelete(ctx.ws, ctx.bus, auth, {
+            channel: str(args.channel),
+            ts: str(args.ts),
+          }),
+        )
+      case "reactions.add":
+        return slackOk(
+          reactionsAdd(ctx.ws, ctx.bus, auth, {
+            channel: str(args.channel),
+            timestamp: str(args.timestamp),
+            name: str(args.name),
+          }),
+        )
+      case "reactions.remove":
+        return slackOk(
+          reactionsRemove(ctx.ws, ctx.bus, auth, {
+            channel: str(args.channel),
+            timestamp: str(args.timestamp),
+            name: str(args.name),
+          }),
+        )
+      case "reactions.get":
+        return slackOk(
+          reactionsGet(ctx.ws, {
+            channel: str(args.channel),
+            timestamp: str(args.timestamp),
+            full: toBool(args.full),
           }),
         )
       case "conversations.list":

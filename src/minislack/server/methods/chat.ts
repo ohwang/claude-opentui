@@ -6,12 +6,19 @@
  * chat.update / chat.delete.
  */
 
-import { postMessageDetailed } from "../../core/messages"
+import {
+  deleteMessage,
+  editMessage,
+  postMessageDetailed,
+} from "../../core/messages"
 import { MinislackError } from "../../core/channels"
 import { channelTypeOf, messageToMessageEvent } from "../../core/event-mappers"
 import type { EventBus } from "../../core/events"
 import type { Channel, Message, Workspace } from "../../types/slack"
-import type { MessageChangedEvent } from "../../types/events"
+import type {
+  MessageChangedEvent,
+  MessageDeletedEvent,
+} from "../../types/events"
 import type { AuthContext } from "../auth"
 import type { KnownBlock, Block } from "@slack/types"
 import type { MessageAttachment } from "@slack/types"
@@ -110,4 +117,125 @@ function resolve(ws: Workspace, idOrName: string): Channel {
     if ("name" in ch && ch.name === handle) return ch
   }
   throw new MinislackError("channel_not_found", idOrName)
+}
+
+// ---------------------------------------------------------------------------
+// chat.update / chat.delete
+// ---------------------------------------------------------------------------
+
+export interface ChatUpdateArgs {
+  channel: string
+  ts: string
+  text?: string
+  blocks?: (KnownBlock | Block)[]
+  attachments?: MessageAttachment[]
+}
+
+export interface ChatUpdateResponse {
+  ok: true
+  channel: string
+  ts: string
+  text: string
+  message: Message
+}
+
+export function chatUpdate(
+  ws: Workspace,
+  bus: EventBus,
+  ctx: AuthContext,
+  args: ChatUpdateArgs,
+): ChatUpdateResponse {
+  const ch = resolve(ws, args.channel)
+  const userId = ctx.userId
+  if (!userId) throw new MinislackError("not_authed")
+  const { message, previous } = editMessage(ws, {
+    channelId: ch.id,
+    ts: args.ts,
+    userId,
+    text: args.text ?? "",
+    blocks: args.blocks,
+    attachments: args.attachments,
+  })
+  bus.publish(buildMessageChanged(message, previous, ch))
+  return { ok: true, channel: ch.id, ts: message.ts, text: message.text, message }
+}
+
+export interface ChatDeleteArgs {
+  channel: string
+  ts: string
+}
+
+export interface ChatDeleteResponse {
+  ok: true
+  channel: string
+  ts: string
+}
+
+export function chatDelete(
+  ws: Workspace,
+  bus: EventBus,
+  ctx: AuthContext,
+  args: ChatDeleteArgs,
+): ChatDeleteResponse {
+  const ch = resolve(ws, args.channel)
+  const userId = ctx.userId
+  if (!userId) throw new MinislackError("not_authed")
+  const { previous } = deleteMessage(ws, {
+    channelId: ch.id,
+    ts: args.ts,
+    userId,
+  })
+  const evt: MessageDeletedEvent = {
+    type: "message",
+    subtype: "message_deleted",
+    event_ts: args.ts,
+    ts: args.ts,
+    deleted_ts: args.ts,
+    channel: ch.id,
+    channel_type: channelTypeOf(ch),
+    previous_message: {
+      type: "message",
+      user: previous.user,
+      text: previous.text,
+      ts: previous.ts,
+    },
+    hidden: true,
+  }
+  bus.publish(evt)
+  return { ok: true, channel: ch.id, ts: args.ts }
+}
+
+function buildMessageChanged(
+  message: Message,
+  previous: Message,
+  ch: Channel,
+): MessageChangedEvent {
+  return {
+    type: "message",
+    subtype: "message_changed",
+    event_ts: message.edited?.ts ?? message.ts,
+    ts: message.edited?.ts ?? message.ts,
+    channel: message.channel,
+    channel_type: channelTypeOf(ch),
+    message: {
+      type: "message",
+      user: message.user,
+      text: message.text,
+      ts: message.ts,
+      ...(message.edited ? { edited: message.edited } : {}),
+      ...(message.blocks ? { blocks: message.blocks } : {}),
+      ...(message.attachments ? { attachments: message.attachments } : {}),
+      ...(message.thread_ts ? { thread_ts: message.thread_ts } : {}),
+      ...(message.reply_count !== undefined ? { reply_count: message.reply_count } : {}),
+      ...(message.reply_users ? { reply_users: message.reply_users } : {}),
+      ...(message.reply_users_count !== undefined ? { reply_users_count: message.reply_users_count } : {}),
+      ...(message.latest_reply ? { latest_reply: message.latest_reply } : {}),
+    },
+    previous_message: {
+      type: "message",
+      user: previous.user,
+      text: previous.text,
+      ts: previous.ts,
+    },
+  }
 }

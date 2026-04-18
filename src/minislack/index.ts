@@ -30,4 +30,13 @@ export {
   assertMember,
   MinislackError,
 } from "./core/channels"
-export { postMessage, listHistory, getMessage } from "./core/messages"
+export {
+  postMessage,
+  postMessageDetailed,
+  listHistory,
+  listReplies,
+  getMessage,
+  editMessage,
+  deleteMessage,
+} from "./core/messages"
+export { addReaction, removeReaction, getReactions } from "./core/reactions"

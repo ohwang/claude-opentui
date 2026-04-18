@@ -464,6 +464,23 @@ export function mapSDKMessage(msg: any, streamState: ToolStreamState, options?: 
           backend: "claude",
           data: msg,
         })
+      } else if (msg.subtype === "mirror_error") {
+        // SDK 0.2.114+: SessionStore.append() rejected or timed out for a
+        // transcript-mirror batch. The batch is dropped (at-most-once delivery);
+        // bantai does not configure a sessionStore today, so this is effectively
+        // dead code — but log at warn so we notice if a future config path
+        // enables mirroring and the adapter is silently failing.
+        log.warn("Session transcript mirror batch dropped", {
+          error: msg.error,
+          projectKey: msg.key?.projectKey,
+          sessionId: msg.key?.sessionId,
+          subpath: msg.key?.subpath,
+        })
+        events.push({
+          type: "system_message",
+          text: `Session transcript mirror failed: ${msg.error ?? "unknown error"}`,
+          ephemeral: true,
+        })
       } else {
         // Catch-all for unknown system subtypes — never silently drop events
         log.warn("Unhandled system subtype", { subtype: msg.subtype, keys: Object.keys(msg).join(",") })
